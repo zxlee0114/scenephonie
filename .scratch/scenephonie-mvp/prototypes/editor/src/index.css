@@ -1,0 +1,209 @@
+/* 原型樣式 —— 只求看得清楚，不求好看 */
+
+:root {
+  font-family: -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+  font-size: 15px;
+  color: #1a1a1a;
+  background: #f6f6f4;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+
+.app { display: grid; grid-template-columns: 1fr 1fr; gap: 0; height: 100vh; }
+.left { padding: 20px 24px 80px; overflow: auto; }
+.right { padding: 20px 24px 80px; overflow: auto; background: #fff; border-left: 1px solid #ddd; }
+
+h1 { font-size: 17px; margin: 0 0 8px; }
+h2 { font-size: 14px; margin: 0 0 8px; text-transform: none; }
+.hint { font-size: 12px; color: #555; line-height: 1.7; margin: 0 0 16px; }
+.hint code, code { background: #eceae5; padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+
+/* ---- 編輯器 ---- */
+.tiptap { outline: none; }
+
+.scene { border: 1px solid #d8d5cd; border-radius: 5px; background: #fff; margin: 0 0 12px; }
+/* 整場被選取時整塊反白，不靠瀏覽器畫原生選取範圍（見 scene-schema 的 SceneNumbers） */
+.scene.scene-selected { background: #dbe8fb; border-color: #9dbdea; }
+.scene.scene-selected .scene-head { background: #cadcf6; border-bottom-color: #9dbdea; }
+.scene-head {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 7px 9px; background: #f0eee8; border-bottom: 1px solid #e2dfd7;
+  border-radius: 4px 4px 0 0; font-size: 12px;
+}
+.scene-head select, .scene-head input { font-size: 12px; padding: 3px 5px; border: 1px solid #ccc8bf; border-radius: 3px; background: #fff; }
+.scene-head input { width: 92px; }
+.scene-head input.grow { flex: 1; min-width: 110px; }
+.scene-no {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-weight: 700; font-variant-numeric: tabular-nums; font-size: 12px;
+  background: #fff; border: 1px solid #ccc8bf; border-radius: 3px;
+  padding: 2px 5px; cursor: pointer; color: inherit;
+}
+.scene-no:hover, .scene-no.on { border-color: #8a8478; background: #fffdf8; }
+.scene-no .caret { font-size: 8px; color: #999; }
+.ro { color: #555; }
+.sid { margin-left: auto; color: #888; font-size: 10px; background: transparent; }
+.scene-body { padding: 9px 11px; }
+
+/* 場次之外沒有可點的空間了，「新增下一場」得住在場次腳部。滑過或游標在場內才顯形。 */
+.scene-foot { display: flex; gap: 6px; padding: 0 9px 7px; opacity: 0; transition: opacity .12s; }
+.scene:hover .scene-foot, .scene:focus-within .scene-foot { opacity: 1; }
+.scene-foot button {
+  font-size: 11px; color: #666; background: transparent; cursor: pointer;
+  border: 1px dashed #ccc8bf; border-radius: 3px; padding: 2px 7px;
+}
+.scene-foot button:hover { color: #111; border-color: #999; background: #faf9f6; }
+
+.block { margin: 0 0 5px; line-height: 1.75; }
+.action { }
+.dialogue { display: flex; gap: 8px; align-items: baseline; }
+.char-input { width: 76px; font-size: 12px; text-align: right; border: none; border-bottom: 1px dashed #bbb; background: transparent; padding: 0 2px; }
+.dialogue-text { flex: 1; }
+.insert-shot { display: flex; gap: 8px; align-items: baseline; background: #fbf4ec; border-left: 3px solid #d9691a; padding: 3px 8px; }
+.shot-tag { font-size: 10px; color: #b8560f; white-space: nowrap; }
+.shot-text { flex: 1; }
+
+/* ---- 右側 ---- */
+.panel { margin: 0 0 22px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #eee; }
+th { color: #666; font-weight: 600; background: #fafaf8; }
+td code { font-size: 10px; }
+tr.dupe { background: #fdecec; }
+tr.dupe code { color: #c0392b; font-weight: 700; }
+.nowrap { white-space: nowrap; }
+.nowrap button { padding: 0 5px; margin-right: 2px; cursor: pointer; }
+.note { font-size: 11px; color: #666; margin: 8px 0 0; line-height: 1.6; }
+.warn { font-size: 11.5px; background: #fdecec; border-left: 3px solid #c0392b; padding: 7px 9px; margin: 0 0 10px; line-height: 1.6; }
+
+.fields { display: grid; gap: 7px; }
+.fields label { display: grid; grid-template-columns: 72px 1fr; align-items: center; gap: 8px; font-size: 12px; color: #555; }
+.fields input, .fields select { font-size: 12px; padding: 4px 6px; border: 1px solid #ccc8bf; border-radius: 3px; }
+.ro-field code { font-size: 11px; }
+
+details { font-size: 11px; }
+details summary { cursor: pointer; color: #666; }
+pre { background: #f6f6f4; padding: 9px; border-radius: 4px; overflow: auto; max-height: 320px; font-size: 10px; line-height: 1.5; }
+
+/* ---- 變體 C 的漸進填寫 ---- */
+.wizard-cue { font-size: 12px; color: #666; background: #f0eee8; padding: 7px 10px; border-radius: 4px; margin: 0 0 14px; }
+.wizard { display: flex; align-items: center; gap: 9px; background: #1a1a1a; color: #fff; padding: 9px 12px; border-radius: 5px; margin: 0 0 14px; font-size: 13px; }
+.wizard .step { font-size: 11px; opacity: 0.6; font-variant-numeric: tabular-nums; }
+.wizard .opts { display: flex; gap: 5px; }
+.wizard button { font-size: 12px; padding: 3px 8px; border-radius: 3px; border: 1px solid #555; background: #2c2c2c; color: #fff; cursor: pointer; }
+.wizard input { font-size: 13px; padding: 4px 8px; border-radius: 3px; border: 1px solid #555; background: #2c2c2c; color: #fff; min-width: 200px; }
+.wizard .cancel { margin-left: auto; opacity: 0.6; }
+kbd { font-size: 10px; background: #444; border-radius: 2px; padding: 1px 4px; }
+.wizard-cue kbd { background: #ddd; color: #333; }
+
+/* ---- 底部變體切換條 ---- */
+.bar {
+  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 5px;
+  background: #1a1a1a; padding: 7px 10px; border-radius: 8px;
+  box-shadow: 0 4px 18px rgb(0 0 0 / 0.25); z-index: 10;
+}
+.bar button {
+  font-size: 12px; padding: 5px 11px; border-radius: 5px; cursor: pointer;
+  border: 1px solid transparent; background: transparent; color: #bbb;
+}
+.bar button.on { background: #fff; color: #1a1a1a; font-weight: 600; }
+.dedupe { font-size: 11px; color: #bbb; display: flex; align-items: center; gap: 4px; margin-left: 8px; padding-left: 10px; border-left: 1px solid #444; cursor: pointer; }
+
+/* ---- 斜線選單 ---- */
+.slash-menu {
+  position: fixed; z-index: 50; min-width: 250px;
+  background: #fff; border: 1px solid #d8d5cd; border-radius: 7px;
+  box-shadow: 0 8px 26px rgb(0 0 0 / 0.14); padding: 4px; overflow: hidden;
+}
+.slash-menu button {
+  display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left;
+  padding: 6px 9px; border: none; background: transparent; border-radius: 4px; cursor: pointer;
+}
+.slash-menu button.on { background: #f0eee8; }
+.slash-menu strong { font-size: 12.5px; }
+.slash-menu span { font-size: 10.5px; color: #777; }
+
+/* ---- 登場人物 tags ---- */
+.tags { display: inline-flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+.tag {
+  display: inline-flex; align-items: center; gap: 2px; font-size: 11px;
+  background: #e4ecf5; color: #24405e; padding: 1px 3px 1px 6px; border-radius: 9px;
+}
+.tag button { border: none; background: transparent; cursor: pointer; color: #24405e; opacity: .55; padding: 0 3px; font-size: 12px; }
+.tag button:hover { opacity: 1; }
+.tag-input { width: 72px; font-size: 12px; padding: 3px 5px; border: 1px solid #ccc8bf; border-radius: 3px; background: #fff; }
+.fields .tags { justify-content: flex-start; }
+.wizard-chars { display: inline-flex; align-items: center; gap: 6px; }
+.wizard-chars .tag-input { background: #2c2c2c; color: #fff; border-color: #555; }
+.wizard-chars .tag { background: #3d4a5a; color: #dce6f2; }
+.wizard-chars .tag button { color: #dce6f2; }
+
+
+/* ---- 拖曳排序 ---- */
+/* 把手一律 contentEditable={false}，否則 ProseMirror 會把它當成內容。 */
+.drag-handle {
+  cursor: grab; color: #c3bfb4; font-size: 12px; line-height: 1;
+  user-select: none; padding: 0 2px; flex: none;
+}
+.drag-handle:active { cursor: grabbing; }
+.block > .drag-handle { opacity: 0; transition: opacity .12s; }
+.block:hover > .drag-handle, .scene:focus-within .block > .drag-handle { opacity: 1; }
+
+.block { display: flex; gap: 6px; align-items: baseline; }
+.action-text { flex: 1; }
+
+/* 落點指示器 */
+.drop-before { box-shadow: 0 -2px 0 0 #d9691a; }
+.drop-after { box-shadow: 0 2px 0 0 #d9691a; }
+
+/* ---- 場次選單 ---- */
+.scene-head { position: relative; }
+.scene-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; width: 250px;
+  /* 靠近視窗邊緣時翻邊 */
+  background: #fff; border: 1px solid #ccc8bf; border-radius: 5px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.14); padding: 4px; font-size: 12px;
+}
+.scene-menu.flip-x { left: auto; right: 0; }
+.scene-menu.flip-y { top: auto; bottom: calc(100% + 4px); }
+.scene-menu header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 7px; color: #666; font-size: 11px;
+}
+.scene-menu .back { border: none; background: transparent; cursor: pointer; font-size: 13px; }
+.scene-menu .filter {
+  width: 100%; box-sizing: border-box; margin: 0 0 4px; padding: 5px 7px;
+  border: 1px solid #ccc8bf; border-radius: 3px; font-size: 12px;
+}
+.scene-menu .scroll { max-height: 210px; overflow-y: auto; }
+.scene-menu .empty { margin: 0; padding: 10px 8px; color: #999; font-size: 11px; }
+.scene-menu > button, .scene-menu .scroll button {
+  display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left;
+  padding: 6px 8px; border: none; background: transparent; border-radius: 3px; cursor: pointer;
+}
+.scene-menu button:hover:not(:disabled) { background: #f0eee8; }
+.scene-menu button:disabled { opacity: .38; cursor: not-allowed; }
+.scene-menu button strong { font-size: 12px; }
+.scene-menu button span { font-size: 11px; color: #777; }
+.scene-menu button.danger strong { color: #b3261e; }
+
+/* ---- 刪除確認 ---- */
+.modal-scrim {
+  position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.32);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal {
+  background: #fff; border-radius: 7px; padding: 18px 20px; width: 340px;
+  box-shadow: 0 10px 34px rgba(0,0,0,.24); font-size: 13px;
+}
+.modal h3 { margin: 0 0 8px; font-size: 15px; }
+.modal p { margin: 0 0 12px; color: #555; line-height: 1.65; }
+.modal label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #555; }
+.modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.modal .actions button {
+  padding: 5px 13px; border: 1px solid #ccc8bf; border-radius: 4px;
+  background: #fff; cursor: pointer; font-size: 12px;
+}
+.modal .actions button.danger { background: #b3261e; border-color: #b3261e; color: #fff; }
