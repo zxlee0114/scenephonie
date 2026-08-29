@@ -1,7 +1,7 @@
 # 當今台灣劇本對插入場次的做法與評審接受度
 
 Type: research
-Status: open
+Status: claimed
 
 ## Question
 

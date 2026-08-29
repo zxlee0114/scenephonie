@@ -349,3 +349,21 @@ future collaboration = Yjs（待票券 19 驗證）
 **留給後續票券的事**：
 - 票券 19（Yjs 遷移 spike）驗證 Q4 那條承重事實。
 - 票券 06（規格書定稿）要展開 schema 形狀（群組本身是不是節點 → 決定它需不需要 id，見 Q5(e)），並把 Q6 的寫入嚴格／讀取容忍**並排寫出來**，否則後人會把其中一半當 bug 修。
+
+---
+
+### 來自 [ProseMirror doc → Y.Doc 遷移可行性 spike](./19-yjs-migration-spike.md)（2026-08-30，prototype 已結）
+
+**Q4 那條承重且未實測的假設已實測，結論是成立 —— Q4 維持。** 六項驗收（node type／tree／attrs／`sceneId`／text／marks）全過，含子場次、場次群組、雜景多值地點、草稿在內的完整 fixture 往返等價，且中間走過真正的 bytes 持久化。
+
+**但 Q4 的附帶規則要加第 5 條**（spike 的探針實測發現，非推測）：
+
+> **5. 任何可能裝 `null` 的 attr，schema 預設值必須也是 `null`。**
+>
+> `y-prosemirror` **不儲存 null attr**，回程一律由 schema 預設值填補。本次往返之所以等價，是因為 `kind` 的預設值剛好也是 `null` —— 那是巧合不是保證。探針證據：`default: '一般'` 的欄位裝 `null`，往返後**靜默變成 `'一般'`**。遷移不會報錯，只會改掉編劇的稿。
+
+受害候選就在眼前：對白的**發聲方式**（一般 / V.O. / O.S.，票券 03 已決定未實作）。要嘛預設 `null`、要嘛不允許 `null`，不要兩者兼有。
+
+**兩項數字，供 Q3 的取捨留底**：Y.Doc update **比 PM JSON 小**（0.91×，所以「換 Yjs 會撐大儲存」不是有效論據）；Y.Doc 的 attrs 是**結構化保存**的（陣列仍是陣列、布林仍是布林），所以換 Yjs 之後 Q3 買的除錯能力不是歸零，是從「`psql` 裡直接看」退成「得先跑一支解碼腳本」。
+
+**Q4 附帶規則 1（schema 必須 isomorphic）也第一次獲得實地檢驗** —— spike 的 schema 只 import `prosemirror-model`，在 Node 裡直接跑得動。

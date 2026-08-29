@@ -1,7 +1,7 @@
 # 交件文件的格式與排版：人物介紹、劇情大綱
 
 Type: research
-Status: open
+Status: claimed
 
 ## Question
 
