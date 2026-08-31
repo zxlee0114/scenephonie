@@ -1,8 +1,8 @@
 # 交件文件在產品裡的形狀：人物介紹、交件大綱、關係圖
 
 Type: grilling
-Status: open
-Blocked by: 18
+Status: claimed
+Blocked by: 18, 22
 
 ## Question
 
