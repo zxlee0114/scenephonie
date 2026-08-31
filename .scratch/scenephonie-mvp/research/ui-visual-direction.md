@@ -70,33 +70,46 @@ Research for: `.scratch/scenephonie-mvp/issues/26-ui-visual-direction.md`
 ## 2. 我想要什麼
 
 > 這一節是**作者的判斷**，不是研究結論。不要為了跟 §1 一致而修改它 —— 兩者不一致本身就是有價值的訊號。
+>
+> ✅ **2026-09-01 定案**（票券 26 的 grilling）。核心已畢業成 [ADR-0010](../../../docs/adr/0010-editor-representation-is-not-output-preview.md)，token 值住在 [`./ui-tokens-draft.md`](./ui-tokens-draft.md)。
 
 ### 2.1 方向陳述
 
-<!-- 一兩句話。要能被否證：「乾淨現代」不算，「寫作時畫面上除了文字只有場次號」算 -->
+> **不變式 G：編輯器可以呈現 screenplay 的閱讀與創作語意，但不得為模擬特定輸出格式而引入非必要的版面約束或視覺結構。**
+
+刻意**不具名 GHSA** —— 綁在具體對象上，多一種輸出格式時就要重寫。
+
+它可否證：分頁線、A4 紙感、標楷體、12 級字、三角形、框框全部出局；場次成塊、動作與對白的節奏、對白較窄的閱讀寬度留下。
+
+參照與反參照：
+
+> **像 Ulysses 的沉靜，借 Notion 的區塊語意，刻意不像 Final Draft 的版面權威與 Scrivener 的窗格密度。**
+
+這是 reference／anti-reference，**不是視覺拼貼**。
 
 ### 2.2 刻意不像誰，為什麼
 
-<!-- 這一格比「像誰」更有資訊量 -->
-
 | 不像誰 | 理由 |
 |---|---|
-| | |
+| **Final Draft／WriterDuet** | 它們的價值主張是「保證你的格式沒錯」，我們的是「格式不該是你的事」。像它＝繼承它要治的病 |
+| **Scrivener** | 它把結構化表達成一堆窗格與 binder；我們的結構化在**資料**裡，不該長成滿螢幕的框 |
+| **Notion（外觀）** | 區塊**語意**照借（規格書已借），但它的介面密度是為**多人的文件工具**設計的，不是為一個人連續寫八小時 |
+| **PDF 預覽（含唯讀分享頁）** | 分享頁若給 GHSA 版面，等於從後門把輸出格式塞回螢幕。Share ≠ PDF preview |
 
 ### 2.3 素材
 
 | 素材 | 存檔 | 生成工具 | 想要的是它的哪一點 |
 |---|---|---|---|
-| | `assets/ui/draft/` | | |
+| `overall-v1-a.png` | `assets/ui/draft/` | Design.com ＋ ChatGPT | **品牌識別**（字標、icon、色票）。⚠️ **已移出本票，歸[票券 28](../issues/28-brand-identity.md)** —— 品牌要辨識度、介面要不搶戲，判準不共用一把尺 |
+| `icon-v1-a.png` | `assets/ui/draft/` | 同上 | 同上 |
 
-<!-- moodboard、icon 候選、視覺風格圖、自己的塗鴉都放 assets/ui/draft/ -->
-<!-- 命名 <類別>-<主題>-v<輪次><候選字母>.png；AI 生成的必須在 draft/prompts/<同名>.txt 留 prompt -->
-<!-- 完整慣例見 assets/ui/README.md -->
-<!-- ⚠️「想要的是它的哪一點」不可省略：省略之後這一列就退化成純好惡，無法拿去論證 -->
+> ⚠️ **`overall-v1-a.png` 右下角的 usage example 不可作為編輯器視覺的參考。** 它畫的是 `SCENE 12`／`INT. COFFEE SHOP — DAY` 的**美式所見即所得**，違反不變式 G。
+>
+> **§2.3 那條順序警告命中了自己** —— 該圖在第 1 題被回答之前就悄悄替它給了答案，而且不易察覺。警告有效，留在原位（見下）。
+
+**⚠️ 順序**：`assets/ui/draft/` 裡的視覺風格圖非常擅長答視覺語彙的問題，但**完全不能答「編輯器要不要長得像輸出的 PDF」** —— 那是產品判斷不是美感判斷。先答那一題再開始生成，否則生成出來的圖會替你把它答掉。（icon 是例外。）
 
 **⚠️ Typography 與色彩系統不在這張表裡** —— 它們是**值**不是圖片，住在 [`./ui-tokens-draft.md`](./ui-tokens-draft.md)。
-
-**⚠️ 順序**：`assets/ui/draft/` 裡的視覺風格圖非常擅長答[票券 26](../issues/26-ui-visual-direction.md) 的第 3 題（視覺語彙），但**完全不能答第 1 題**（編輯器要不要長得像輸出的 PDF）—— 那是產品判斷不是美感判斷。先答第 1 題再開始生成，否則生成出來的圖會替你把第 1 題答掉，而且不易察覺。（icon 是例外，與第 1 題無關。）
 
 ### 2.4 硬約束
 
@@ -106,17 +119,25 @@ Research for: `.scratch/scenephonie-mvp/issues/26-ui-visual-direction.md`
 |---|---|
 | PDF 輸出樣式已鎖定為 GHSA 格式，編輯器樣式與它是**兩套獨立模板** | [規格書 §9](../spec.md)、約束 2 |
 | 場次號／草稿標籤／群組宣告是 decoration，不進文件也不進資料庫 | [規格書 §5.4](../spec.md) |
-| 場次之外不能打字 | [規格書 §5](../spec.md)；⚠️ 這條需要視覺上說得通，否則就是[新手引導那塊迷霧](../map.md) |
-| 繁中直式橫書 | [`research/taiwan-screenplay-format.md`](./taiwan-screenplay-format.md) |
-| | |
+| 場次之外不能打字 | [規格書 §5](../spec.md)。✅ **已有視覺答案**：場次是有起點的容器但**不畫邊框**，靠場次標記、gutter 與間距建立邊界；場次之外不存在 canonical text insertion point |
+| 粗體不是資料，字重不得表達內容語意 | 規格書約束 2（StarterKit 的 mark 全關）→ `--font-body` 只載一個字重 |
+| 繁中直式橫書 | [`./taiwan-screenplay-format.md`](./taiwan-screenplay-format.md) |
+| 蘋方與微軟正黑體**不能 self-host 成 webfont** | [`./ui-fonts-cjk.md`](./ui-fonts-cjk.md)（授權） |
+| metadata 預設可見，**缺漏不可被預設 UI 隱藏** | 「空 metadata → 自動是草稿 → 匯出前被攔」的防呆會變成驚喜 |
 
 ---
 
 ## 3. 待決清單
 
-從 §1、§2 掉出來、但本檔答不了的問題。答得出來的直接寫進[票券 26](../issues/26-ui-visual-direction.md) 的 `## Answer`；答不出來的標記它需要什麼（prototype？問真實編劇？）。
+✅ **票券 26 的十三題全部已答**，見該票的 `## Answer`。以下是掉出來、但**不屬於本票**的東西：
 
-| # | 問題 | 需要什麼才能答 |
+| # | 問題 | 去處 |
 |---|---|---|
-| 1 | 編輯器要不要長得像輸出的 PDF | |
-| | | |
+| 1 | UI 元件層（tab／routes／split view／sidebar）、focus mode／global collapse | **[票券 27](../issues/27-ui-component-layer.md)** |
+| 2 | `ic` 或其他與字面相關的相對 inline-size 表達 | **[票券 27](../issues/27-ui-component-layer.md)**（標記為實作研究，非視覺決策） |
+| 3 | 品牌識別、Amber 的具體衍生色值、tagline | **[票券 28](../issues/28-brand-identity.md)** |
+| 4 | Noto Sans TC 的 subset／unicode-range 載入策略 | **[票券 29](../issues/29-cjk-webfont-loading-strategy.md)**（research） |
+| 5 | `--text-base` 17px 與 `--leading-base` 1.85 的實測、互動手感（打字／Tab 環／拖曳／IME） | [`../prototypes/editor`](../prototypes/editor)，**不另開票** |
+| 6 | 新手引導的形式 | 地圖的 Not yet specified，維持 |
+
+> ⚠️ **§1「別人怎麼做」始終是空的。** 票券 26 的裁決**不是**從競品比較推出來的，是從產品的核心賭注（[規格書 §1](../spec.md)）與既有約束推出來的。這是刻意的 —— 但也表示 §1 若日後填起來，有機會**證偽**現在的判斷。`ref/` 仍為空。
