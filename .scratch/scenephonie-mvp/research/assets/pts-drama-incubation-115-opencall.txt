@@ -1,0 +1,193 @@
+115年公視戲劇孵育計畫公開徵案
+const preferTheme = localStorage.getItem("theme") || 'system'
+const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+? "dark"
+: "light";
+if (preferTheme === 'system') {
+document.documentElement.classList.add(systemTheme);
+} else {
+document.documentElement.classList.add(preferTheme);
+}
+115年公視戲劇孵育計畫公開徵案
+[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}
+徵案需求
+初審報名須知
+交件項目
+評選辦法
+上一頁
+下一頁
+財團法人公共電視文化事業基金會
+114 台北市內湖區康寧路三段 75 巷 50 號
+公告
+個資蒐集同意聲明
+隱私權與條款
+(self.__next_f=self.__next_f||[]).push([0])
+self.__next_f.push([1,"1:"$Sreact.fragment"
+2:I[885078,["/_next/static/chunks/e394986b6228c8f6.js","/_next/static/chunks/e72e810cf48b1f40.js"],"default"]
+3:I[53454,["/_next/static/chunks/2e68a161ca73d2d1.js","/_next/static/chunks/47fa2c75f40d45fd.js"],"default"]
+4:I[408821,["/_next/static/chunks/e394986b6228c8f6.js","/_next/static/chunks/e72e810cf48b1f40.js","/_next/static/chunks/22210e43109fb534.js"],"default"]
+5:I[921397,["/_next/static/chunks/2e68a161ca73d2d1.js","/_next/static/chunks/47fa2c75f40d45fd.js"],"default"]
+6:I[636768,["/_next/static/chunks/e394986b6228c8f6.js","/_next/static/chunks/e72e810cf48b1f40.js","/_next/static/chunks/a4caf74ebabdf87c.js"],"default"]
+7:I[212120,["/_next/static/chunks/e394986b6228c8f6.js","/_next/static/chunks/e72e810cf48b1f40.js"],"Toaster"]
+8:I[529187,["/_next/static/chunks/e394986b6228c8f6.js","/_next/static/chunks/e72e810cf48b1f40.js"],"default"]
+b:I[826819,["/_next/static/chunks/2e68a161ca73d2d1.js","/_next/static/chunks/47fa2c75f40d45fd.js"],"OutletBoundary"]
+c:"$Sreact.suspense"
+e:I[826819,["/_next/static/chunks/2e68a161ca73d2d1.js","/_next/static/chunks/47fa2c75f40d45fd.js"],"ViewportBoundary"]
+10:I[826819,["/_next/static/chunks/2e68a161ca73d2d1.js","/_next/static/chunks/47fa2c75f40d45fd.js"],"MetadataBoundary"]
+12:I[902936,[],"default"]
+:HL["/_next/static/chunks/4e496fda467c4422.css","style"]
+:HL["/_next/static/chunks/e559599cd26b994b.css","style"]
+:HL["/_next/static/chunks/9b240b6bd75e80d5.css","style"]
+"])
+self.__next_f.push([1,"0:{"P":null,"b":"_b1mnqJUI6ZK6CrI_Tv_Q","c":["","project","19","announce","1"],"q":"","i":false,"f":[[["",{"children":["project",{"children":[["projectId","19","d"],{"children":["announce",{"children":[["stage","1","d"],{"children":["__PAGE__",{}]}]}]}]}]},"$undefined","$undefined",true],[["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/chunks/4e496fda467c4422.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}],["$","link","1",{"rel":"stylesheet","href":"/_next/static/chunks/e559599cd26b994b.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}],["$","script","script-0",{"src":"/_next/static/chunks/e394986b6228c8f6.js","async":true,"nonce":"$undefined"}],["$","script","script-1",{"src":"/_next/static/chunks/e72e810cf48b1f40.js","async":true,"nonce":"$undefined"}]],["$","html",null,{"lang":"zh-TW","suppressHydrationWarning":true,"className":"size-full","children":[["$","head",null,{"children":[["$","meta",null,{"name":"text-scale","content":"scale"}],["$","script",null,{"dangerouslySetInnerHTML":{"__html":"\
+const preferTheme = localStorage.getItem(\\"theme\\") || 'system'\
+const systemTheme = window.matchMedia(\\"(prefers-color-scheme: dark)\\").matches\
+? \\"dark\\"\
+: \\"light\\";\
+\
+\
+if (preferTheme === 'system') {\
+document.documentElement.classList.add(systemTheme);\
+} else {\
+document.documentElement.classList.add(preferTheme);\
+}\
+"}}]]}],["$","body",null,{"className":"size-full antialiased","children":[["$","$L2",null,{"children":["$","$L3",null,{"parallelRouterKey":"children","error":"$4","errorStyles":[],"errorScripts":[["$","script","script-0",{"src":"/_next/static/chunks/22210e43109fb534.js","async":true}]],"template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[["$","$L6",null,{}],[]],"forbidden":"$undefined","unauthorized":"$undefined"}]}],["$","$L7",null,{}],["$","$L8",null,{}]]}]]}]]}],{"children":[["$","$1","c",{"children":[null,["$","$L3",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}],{"children":[["$","$1","c",{"children":[null,"$L9"]}],{"children":[["$","$1","c",{"children":[null,["$","$L3",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}],{"children":[["$","$1","c",{"children":[[["$","script","script-0",{"src":"/_next/static/chunks/a375dab96fc56ffe.js","async":true,"nonce":"$undefined"}]],["$","$L3",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}],{"children":[["$","$1","c",{"children":["$La",[["$","link","0",{"rel":"stylesheet","href":"/_next/static/chunks/9b240b6bd75e80d5.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}],["$","script","script-0",{"src":"/_next/static/chunks/6a02bbd1154ac025.js","async":true,"nonce":"$undefined"}],["$","script","script-1",{"src":"/_next/static/chunks/24d34c6f09014703.js","async":true,"nonce":"$undefined"}],["$","script","script-2",{"src":"/_next/static/chunks/2195875e4a5cb439.js","async":true,"nonce":"$undefined"}],["$","script","script-3",{"src":"/_next/static/chunks/56bc7fd123de3f18.js","async":true,"nonce":"$undefined"}],["$","script","script-4",{"src":"/_next/static/chunks/685f914003912bd6.js","async":true,"nonce":"$undefined"}],["$","script","script-5",{"src":"/_next/static/chunks/4e2a72b9bd2c4742.js","async":true,"nonce":"$undefined"}],["$","script","script-6",{"src":"/_next/static/chunks/15e746fad8f387c2.js","async":true,"nonce":"$undefined"}],["$","script","script-7",{"src":"/_next/static/chunks/b3f31f9a5c1b9353.js","async":true,"nonce":"$undefined"}],["$","script","script-8",{"src":"/_next/static/chunks/fd9ecd17d9fe07ce.js","async":true,"nonce":"$undefined"}],["$","script","script-9",{"src":"/_next/static/chunks/201770510ab7f63a.js","async":true,"nonce":"$undefined"}],["$","script","script-10",{"src":"/_next/static/chunks/474de4af8644bfb5.js","async":true,"nonce":"$undefined"}]],["$","$Lb",null,{"children":["$","$c",null,{"name":"Next.MetadataOutlet","children":"$@d"}]}]]}],{},null,false,false]},null,false,false]},null,false,false]},null,false,false]},null,false,false]},null,false,false],["$","$1","h",{"children":[null,["$","$Le",null,{"children":"$@f"}],["$","div",null,{"hidden":true,"children":["$","$L10",null,{"children":["$","$c",null,{"name":"Next.Metadata","children":"$@11"}]}]}],null]}],false]],"m":"$undefined","G":["$12",[]],"S":false}
+"])
+self.__next_f.push([1,"9:["",["$","$L3",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L5",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]
+f:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]
+"])
+self.__next_f.push([1,"13:I[565996,["/_next/static/chunks/e394986b6228c8f6.js","/_next/static/chunks/e72e810cf48b1f40.js","/_next/static/chunks/a375dab96fc56ffe.js","/_next/static/chunks/6a02bbd1154ac025.js","/_next/static/chunks/24d34c6f09014703.js","/_next/static/chunks/2195875e4a5cb439.js","/_next/static/chunks/56bc7fd123de3f18.js","/_next/static/chunks/685f914003912bd6.js","/_next/static/chunks/4e2a72b9bd2c4742.js","/_next/static/chunks/15e746fad8f387c2.js","/_next/static/chunks/b3f31f9a5c1b9353.js","/_next/static/chunks/fd9ecd17d9fe07ce.js","/_next/static/chunks/201770510ab7f63a.js","/_next/static/chunks/474de4af8644bfb5.js"],"HydrationBoundary"]
+18:I[440748,["/_next/static/chunks/2e68a161ca73d2d1.js","/_next/static/chunks/47fa2c75f40d45fd.js"],"IconMark"]
+14:Ta61,**報名方式：**
+一律採線上報名，不接受紙本報名。
+**報名期間：**
+==自115年07月20日上午9:00起至115年07月24日17:00止==。
+請於截止時間前完成報名程序。
+**報名操作：**
+- **請完整閱讀本公開徵案公告，方可點選前往報名註冊按鍵。**
+- 登入線上報名系統時，請先填入提案名稱、姓名、電話及Email，系統將寄發報名連結，請於10分鐘內點選連結登入並繼續進行報名程序。填寫報名資料時，未完成前可先暫存為草稿，於點選送出前均可透過連結登入做修改，惟送出後僅能進入系統查看報名資料，不得再做任何修改。
+**報名限制：**
+- 每一報名單位限送1案。
+- 具公廣集團員工、定期人員身分者不得參加。
+**利益迴避：**
+本案之承辦人員、主管級人員及評審委員，涉及本人、配偶、二親等以內親屬或共同生活家屬之利益者，應行迴避，且不得為報名單位之負責人。評審委員於本評選會議召開前，均應簽署聲明書，聲明與該次評選之徵案案件無關聯，並同意對評選會議相關事項保密。委員違反聲明事項者，本會得終止該委員之聘任，委員與該次評選之徵案案件有關聯並經查證屬實者，本會得撤銷該案件之入選資格。
+**其他：**
+- 各期履約時程、付款方式及著作權之歸屬，請參照「[115年公視戲劇孵育計畫合約草稿](https://storage.googleapis.com/opencall-prod-public/projects/19/68b70c39-92a5-4920-9453-9f771bd9bbf3.pdf)」 。
+- 入選者應承諾保障工作人員之權益，包括勞動條件、就業與性別歧視禁止、性騷擾防治、遵守義務、違反責任及應注意事項等。
+- 參加本公開徵案者，建議一案勿兩投於公廣集團相關徵案。
+- 本辦法說明事項如有疑義或其他未盡事宜，由本會解釋之。
+- ==郵件通知與超連結顯示==： 因各電子郵件系統支援程度不一，部分信件可能出現文字排版異常或超連結無法直接點選之情況(如Hotmail信箱等)。若遇超連結失效，請手動複製該網址並貼上至瀏覽器網址列開啟。
+- ==未收到通知郵件說明==： 若您未於收件匣收到通知，請協助至「垃圾郵件」資料夾查找。為確保後續相關通知能順利送達，建議將系統發信地址加入通訊錄或標記為非垃圾郵件。
+- 本公開徵案經費來源尚未完成法定程序或確認前，本會得先保留與入選單位之議價程序，俟法定程序完成或確認經費來源後，再與入選單位辦理議價簽約事宜。15:T13b5,"])
+self.__next_f.push([1,"**徵案檢附要件，相關規範如下：**
+**一、登記或設立證明：**
+電子檔一份（PDF/JPG，檔案大小以5MB為限），可以經濟部商業司「[商工登記公示資料查詢服務](https://findbiz.nat.gov.tw/fts/query/QueryBar/queryInit.do)」網站之資料代之；財團法人、社團法人須另附捐助章程或組織章程。
+**二、企劃書：**
+企劃書(**==含第一集完整劇本==**)PDF檔一份（檔案大小以200MB為限；建議使用通用字型，避免轉檔後無法閱讀），企劃書宜以12-20號字繕打，並加目錄、頁碼。
+**`企劃書應含下列各款內容`：**
+1. 影集名稱。
+2. 戲劇類型。
+3. 創作理念表述：含調性、戲劇主題關鍵字。
+4. 本劇核心主旨：請闡述本劇所欲探討之主題及欲辯證之價值與觀點。（舉例：權力終究會腐敗你的靈魂）
+5. Logline：50字以內。
+6. 人物介紹：每個主要角色200-300字。(至多6個)
+7. 故事大綱：1,500字以內。
+8. 分集大綱：每集300字以內。
+9. 對標元素及作品。
+10. 創作規劃：含前置研究、田調規劃等。
+11. 主創人員：請詳列團隊名單、簡歷及團隊組成及分工說明。（例如： (1)編劇1人編寫(2)有編劇統籌+編劇數人(3)主創團隊：含製作人、編劇、導演）
+12. ==編劇合作契約：若編劇非報名公司所屬員工，需附雙方簽訂用印之合作契約電子檔一份。==（PDF/JPG，檔案大小以5MB為限；具公廣集團員工、定期人員身分者不得參加）
+13. 廠商創作/製作經歷或影視開發項目。
+14. 潛在市場策略計畫。
+15. 全劇之製作經費評估及籌資計畫。
+16. 第一集完整劇本。
+**三、預算表：**
+電子檔一份（PDF/JPG，檔案大小以5MB為限）。請詳列各項支出，含編劇費、田野調查費…等相關必要支出。預算總金額上限為170萬元整（**含稅）**，若報名單位所提預算低於170萬元整**（含稅）**，依其預算金額給付。
+**四、同意書：**
+1. 主創團隊人員皆須附同意書電子檔各一份（PDF/JPG，檔案大小以5MB為限）。同意書格式請見表1\\~表4。
+2. 原著改作同意書：若取材自他人原著或改編者，應檢附原著改作同意書電子檔一份（PDF/JPG，檔案大小以5MB為限）。非改作或原故事著作財產權已逾法定存續期間者，免附。同意書格式請見表5。
+**`※若改編者，請於報名截止日前，將他人原著十份以親送或郵寄方式送達下列地址：`**
+**`114台北市內湖區康寧路三段75巷70號，節目部收。並請註明：「115年公視戲劇孵育計畫」—（案名）原著」及聯絡人姓名、電話。`**
+**`※本會將保留一份入選作品之原著，其餘九份可歸還。非改作者，免附。`**
+3. 同意書均需本人親簽或蓋章，未檢附同意書，或同意書無本人親簽或蓋章，且經本會通知補件仍未完成補件者，視為資格不符。
+4. 以上同意書應於入選後，於議價簽約時繳交正本予本會。
+**五、其他附件**
+- 公職人員及關係人身分關係揭露表（表6）：**==非屬公職人員或關係人者，免填附此表==**
+電子檔一份(PDF/JPG，檔案大小以5MB為限；報名單位就本公開徵案，係屬公職人員利益衝突迴避法第2條及第3條所稱公職人員或其關係人者，請填附「公職人員利益衝突迴避法第14條第2項公職人員及關係人身分關係揭露表」，如未揭露者依公職人員利益衝突迴避法第18條第3項處罰。
+### **檔案下載**
+**1.**\t[115年公視戲劇孵育計畫合約草稿](https://storage.googleapis.com/opencall-prod-public/projects/19/68b70c39-92a5-4920-9453-9f771bd9bbf3.pdf)
+**2.**\t[表1-編劇同意書](https://storage.googleapis.com/opencall-stage-public/projects/51/051f7e30-ca7e-4ebb-9a36-b5e2db294067.pdf)**(入選後須繳交正本）**
+**3.**\t[表2-編劇統籌同意書](https://storage.googleapis.com/opencall-stage-public/projects/51/7f12bea0-72f5-473e-b033-f34b2e1c4198.pdf)**（入選後須繳交正本）**
+**4.**\t[表3-製作人同意書](https://storage.googleapis.com/opencall-stage-public/projects/51/facbf147-9a4c-4f42-8358-59fa47b3818e.pdf)**（入選後須繳交正本）**
+**5.**\t[表4-導演同意書](https://storage.googleapis.com/opencall-stage-public/projects/51/f60962af-0eda-4004-8128-99e2d5e4fb07.pdf)**（入選後須繳交正本）**
+**6.**\t[表5-原著改作同意書](https://storage.googleapis.com/opencall-stage-public/projects/51/c28206ac-d9a8-4c1e-93b6-a1b211f87995.pdf)**（入選後須繳交正本）**
+**7.**\t[表6-公職人員及關係人身分關係揭露表](https://storage.googleapis.com/opencall-stage-public/projects/51/09808b98-b24c-408f-815b-7bb94196cc63.pdf)**(非屬公職人員或關係人者，免填附此表)**
+**`※完整徵案辦法及相關表格請自行下載參照。建議檔案列印填寫勿重新設計、修改或繕打，以免造成審查判定困難。`**"])
+self.__next_f.push([1,"16:Tdac,"])
+self.__next_f.push([1,"**評審委員會：**
+本會將設置評審委員會，由本會遴聘影視製作、傳播或相關領域學者、專家至少2人及內部代表至少3人組成。
+**評審方式：**1.資格審查。2.書面初審。3.複審詢答。
+**資格審查：**
+1. 本會將先就送件者應備之文件資料進行資格審查，審查日暫訂為115年07月27日至30日，不開放報名單位人員到場。
+2. 徵案檢附要件不齊或有誤植者，經本會以Email寄送至線上報名聯絡人信箱通知補件，並應於三個工作天以內補正。
+3. 有下列情況者，視為資格不符，無法參加評選：
+- 預算總金額超過170萬元整**（含稅）**，且經本會通知修正補件卻逾期不修正補件者。
+- 同一報名單位遞送超過1件者。
+- 應檢附之文件不齊者，如設立或登記證明、團隊成員同意書等，經本會通知補件，逾期不補件或補件仍不齊者。**（
+提醒：企劃書不得補件
+）**
+**書面初審：**
+本會將召開評審委員會議，通過資格審查者，評審委員根據評選項目，評選出10案（預定）。
+**複審詢答：**
+通過初審者應依本會通知，於指定之日期、時間及地點到場，進行現場詢答。評審委員會將針對所提之企劃書內容(含第一集劇本)進行現場詢答，其程序如下：
+1. 詢答日期另行通知。
+2. 詢答順序為報名順序，得視情況調整。
+3. 出席人員應同報名人員，至多五人出席。
+4. 詢答採統問統答方式，回答時間10分鐘（不含評審委員提問及發言時間）。
+5. 未出席現場詢答者，評審委員會將就企劃書(含第一集劇本)進行評選，不影響其有效性。
+6. 未通過複審者，本會將支付2萬元（含稅）潤稿費，企劃書及劇本著作權歸原創者。
+**評選項目說明：**
+1. 敘事完整性、題材及故事創新度、戲劇性及角色設計、創作理念（類型、調性、表現手法）。
+2. 編劇資歷、專業技巧。
+3. 田野調查。
+4. 經費配置之合理性。
+5. 現場詢答。
+**決議方式：**
+採序位法，經評審委員會之委員二分之一以上出席，以出席委員過半數同意，始得作成決議。
+**協商措施：**
+評審委員會無法評定優勝序位時，本會得就全部評選項目，與評審委員會過半數決定之廠商採行「協商措施」。協商通知應以書面為之，由本會通知所有得參與協商之廠商，分別與本會進行協商；協商結束後，前述廠商應依協商結果修改企劃書，並於協商日之次日起第14天17:00以前重行遞送本會（依行政院人事行政總處公布若截止遞送當日因天然災害停止辦公，則順延一個上班日），由評選委員會擇期再作綜合評選。
+**重要須知：**
+- 入選者應於本會通知日起30日(含)以內完成簽約程序，無正當理由逾期未完成簽約程序，且經本會通知限期補正未依期限補正者，本會得取消入選資格，並得依評選序位，依序遞補。
+- 入選者依約完成之著作，其著作權依「[115年公視戲劇孵育計畫合約草稿](https://storage.googleapis.com/opencall-prod-public/projects/19/68b70c39-92a5-4920-9453-9f771bd9bbf3.pdf)」辦理。
+- 各期履約時程、付款方式及著作權之歸屬，請參考合約草稿。
+- 本辦法說明事項如有疑義或其他未盡事宜，由本會解釋之。"])
+self.__next_f.push([1,"a:["$","$L13",null,{"state":{"mutations":[],"queries":[{"dehydratedAt":1788143788129,"state":{"data":{"code":200,"message":"OK","data":[{"id":19,"order":1,"title":"徵案需求","content_md":"**徵求目的：**\
+「公視戲劇孵育計畫」徵求內容多元的影集提案，以打開國際市場取得觀眾共鳴，為台灣影視產業注入能量。入選團隊除了獲得劇本孵育的時間與資金，公視亦將聘請顧問協助劇本孵育，並安排媒合會，為各提案爭取能見度和尋求製作資金。多年來已創作出多部具口碑及國際市場競爭力的優質電視影集。\
+\
+**劇本總預算：**\
+每部總預算（含田野調查費）上限為新臺幣（下同）170萬元整（含稅）。\
+\
+**類型及內容：**\
+題材規模不拘，具台灣元素又能打開國際市場者為佳。無論是原創故事或者改編值得開發的IP－小說、漫畫、電玩、舞台劇、桌遊…等。\
+\
+**劇本集數及長度：**\
+每部共10集，每集長度60分鐘（實長48-50分鐘）。\
+\
+**完成時間：**\
+自簽約日起18個月。\
+\
+**徵案對象：**\
+凡合法設立之公司、行號、法人（以下統稱報名單位）均可參與；學校除外。建議一案勿兩投於公廣集團相關徵案。\
+\
+**預計錄取部數：**5部。\
+\
+**聯絡我們：**\
+**(02) 2633-8044杜小姐、(02) 2633-8018雷小姐**\
+**客服信箱：**[prg60159@pts.org.tw](mailto:prg60159@pts.org.tw)","content_html":"","is_enabled":1,"starts_at":"2026-05-15 01:00:00","ends_at":"2026-12-31 15:59:00"},{"id":20,"order":2,"title":"初審報名須知","content_md":"$14","content_html":"","is_enabled":1,"starts_at":"2026-05-15 01:00:00","ends_at":"2026-12-31 15:59:00"},{"id":21,"order":3,"title":"交件項目","content_md":"$15","content_html":"","is_enabled":1,"starts_at":"2026-05-15 01:00:00","ends_at":"2026-12-31 15:59:00"},{"id":22,"order":4,"title":"評選辦法","content_md":"$16","content_html":"","is_enabled":1,"starts_at":"2026-05-15 01:00:00","ends_at":"2026-12-31 15:59:00"}],"meta":{"request_id":"6a94e8ac1cf4d","timestamp":"2026-08-31T10:36:28+08:00","project":{"banner":{"id":15,"project_id":19,"uuid":"d2254f43-f516-4e51-a1af-a45388fba160","original_name":"115年戲劇孵育banner.jpg","display_name":"一般設定_banner","path":"projects/19/d2254f43-f516-4e51-a1af-a45388fba160.jpg","mime_type":"image/jpeg","size":62678,"manager_id":30,"created_at":"2026-05-06T02:29:27.000000Z","updated_at":"2026-05-06T02:29:27.000000Z","url":"https://storage.googleapis.com/opencall-prod-public/projects/19/d2254f43-f516-4e51-a1af-a45388fba160.jpg"},"public_name":"115年公視戲劇孵育計畫公開徵案","stage_services":[{"id":46,"project_id":19,"stage_order":1,"service_type":"announcement","is_enabled":true,"starts_at":"2026-05-15T01:00:00+00:00","ends_at":"2026-12-31T15:59:00+00:00","created_at":"2026-05-06T06:46:16.000000Z","updated_at":"2026-05-13T08:20:34.000000Z"},{"id":48,"project_id":19,"stage_order":1,"service_type":"registration","is_enabled":true,"starts_at":"2026-07-20T01:00:00+00:00","ends_at":"2026-07-24T09:00:00+00:00","created_at":"2026-05-06T08:58:50.000000Z","updated_at":"2026-05-13T08:20:56.000000Z"},{"id":50,"project_id":19,"stage_order":1,"service_type":"review","is_enabled":true,"starts_at":"2026-07-31T16:00:00+00:00","ends_at":"2026-08-31T15:59:00+00:00","created_at":"2026-05-07T03:39:50.000000Z","updated_at":"2026-05-13T02:32:27.000000Z"},{"id":49,"project_id":19,"stage_order":1,"service_type":"supplement","is_enabled":true,"starts_at":"2026-07-27T01:00:00+00:00","ends_at":"2026-07-30T09:00:00+00:00","created_at":"2026-05-07T03:39:02.000000Z","updated_at":"2026-05-13T02:31:25.000000Z"},{"id":47,"project_id":19,"stage_order":2,"service_type":"announcement","is_enabled":true,"starts_at":"2026-09-30T01:00:00+00:00","ends_at":"2026-09-30T09:00:00+00:00","created_at":"2026-05-06T07:00:25.000000Z","updated_at":"2026-05-13T08:22:58.000000Z"},{"id":51,"project_id":19,"stage_order":2,"service_type":"registration","is_enabled":true,"starts_at":"2026-09-30T01:00:00+00:00","ends_at":"2026-09-30T09:00:00+00:00","created_at":"2026-05-07T03:41:48.000000Z","updated_at":"2026-05-13T08:23:30.000000Z"},{"id":52,"project_id":19,"stage_order":2,"service_type":"review","is_enabled":true,"starts_at":"2026-10-01T01:00:00+00:00","ends_at":"2026-10-01T09:00:00+00:00","created_at":"2026-05-07T07:12:35.000000Z","updated_at":"2026-05-13T08:24:01.000000Z"}]}}},"dataUpdateCount":1,"dataUpdatedAt":1788143788128,"error":null,"errorUpdateCount":0,"errorUpdatedAt":0,"fetchFailureCount":0,"fetchFailureReason":null,"fetchMeta":null,"isInvalidated":false,"status":"success","fetchStatus":"idle"},"queryKey":["applier","projects","19","announcements","1"],"queryHash":"[\\"applier\\",\\"projects\\",\\"19\\",\\"announcements\\",\\"1\\"]"}]},"children":"$L17"}]
+"])
+self.__next_f.push([1,"11:[["$","title","0",{"children":"115年公視戲劇孵育計畫公開徵案"}],["$","meta","1",{"name":"description","content":"115年公視戲劇孵育計畫公開徵案公告資訊"}],["$","meta","2",{"property":"og:title","content":"115年公視戲劇孵育計畫公開徵案"}],["$","meta","3",{"property":"og:description","content":"115年公視戲劇孵育計畫公開徵案公告資訊"}],["$","meta","4",{"property":"og:url","content":"https://opencall.pts.org.tw/project/19/announce"}],["$","meta","5",{"property":"og:site_name","content":"公共電視徵案系統"}],["$","meta","6",{"property":"og:locale","content":"zh_TW"}],["$","meta","7",{"property":"og:image","content":"https://storage.googleapis.com/opencall-prod-public/projects/19/d2254f43-f516-4e51-a1af-a45388fba160.jpg"}],["$","meta","8",{"property":"og:type","content":"website"}],["$","meta","9",{"name":"twitter:card","content":"summary_large_image"}],["$","meta","10",{"name":"twitter:title","content":"115年公視戲劇孵育計畫公開徵案"}],["$","meta","11",{"name":"twitter:description","content":"115年公視戲劇孵育計畫公開徵案公告資訊"}],["$","meta","12",{"name":"twitter:image","content":"https://storage.googleapis.com/opencall-prod-public/projects/19/d2254f43-f516-4e51-a1af-a45388fba160.jpg"}],["$","link","13",{"rel":"icon","href":"/icon.svg?icon.2f76364b.svg","sizes":"any","type":"image/svg+xml"}],["$","$L18","14",{}]]
+d:null
+"])
+self.__next_f.push([1,"19:I[535293,["/_next/static/chunks/e394986b6228c8f6.js","/_next/static/chunks/e72e810cf48b1f40.js","/_next/static/chunks/a375dab96fc56ffe.js","/_next/static/chunks/6a02bbd1154ac025.js","/_next/static/chunks/24d34c6f09014703.js","/_next/static/chunks/2195875e4a5cb439.js","/_next/static/chunks/56bc7fd123de3f18.js","/_next/static/chunks/685f914003912bd6.js","/_next/static/chunks/4e2a72b9bd2c4742.js","/_next/static/chunks/15e746fad8f387c2.js","/_next/static/chunks/b3f31f9a5c1b9353.js","/_next/static/chunks/fd9ecd17d9fe07ce.js","/_next/static/chunks/201770510ab7f63a.js","/_next/static/chunks/474de4af8644bfb5.js"],"default"]
+17:["$","$L19",null,{"projectId":"19","stage":"1"}]
+"])
