@@ -15,10 +15,10 @@ Research for: `.scratch/scenephonie-mvp/issues/26-ui-visual-direction.md`
 
 | 代號 | 產品／來源 | 型態 | 存檔 | 為什麼看它 |
 |---|---|---|---|---|
-| | | | `assets/ui/` | |
+| | | | `assets/ui/ref/` | |
 | | | | | |
 
-<!-- 素材檔名慣例：assets/ui/<產品>-<畫面>.png，不加編號（參考素材是會增刪的集合，不是序列） -->
+<!-- 素材放 assets/ui/ref/，命名 <產品>-<畫面>.png。完整慣例見 assets/ui/README.md -->
 <!-- 型態：截圖／官方行銷頁／實際試用／影片 —— 型態決定證據強度，試用 > 截圖 > 行銷頁 -->
 
 ### 1.2 逐項比較
@@ -85,12 +85,18 @@ Research for: `.scratch/scenephonie-mvp/issues/26-ui-visual-direction.md`
 
 ### 2.3 素材
 
-| 素材 | 存檔 | 想要的是它的哪一點 |
-|---|---|---|
-| | `assets/ui/` | |
+| 素材 | 存檔 | 生成工具 | 想要的是它的哪一點 |
+|---|---|---|---|
+| | `assets/ui/draft/` | | |
 
-<!-- moodboard、色票、字體候選、自己的塗鴉都放這裡 -->
+<!-- moodboard、icon 候選、視覺風格圖、自己的塗鴉都放 assets/ui/draft/ -->
+<!-- 命名 <類別>-<主題>-v<輪次><候選字母>.png；AI 生成的必須在 draft/prompts/<同名>.txt 留 prompt -->
+<!-- 完整慣例見 assets/ui/README.md -->
 <!-- ⚠️「想要的是它的哪一點」不可省略：省略之後這一列就退化成純好惡，無法拿去論證 -->
+
+**⚠️ Typography 與色彩系統不在這張表裡** —— 它們是**值**不是圖片，住在 [`./ui-tokens-draft.md`](./ui-tokens-draft.md)。
+
+**⚠️ 順序**：`assets/ui/draft/` 裡的視覺風格圖非常擅長答[票券 26](../issues/26-ui-visual-direction.md) 的第 3 題（視覺語彙），但**完全不能答第 1 題**（編輯器要不要長得像輸出的 PDF）—— 那是產品判斷不是美感判斷。先答第 1 題再開始生成，否則生成出來的圖會替你把第 1 題答掉，而且不易察覺。（icon 是例外，與第 1 題無關。）
 
 ### 2.4 硬約束
 

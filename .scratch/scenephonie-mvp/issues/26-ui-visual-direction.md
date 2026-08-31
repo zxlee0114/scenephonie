@@ -43,6 +43,10 @@ Blocked by:
 
 ## 材料
 
-📄 **[`../research/ui-visual-direction.md`](../research/ui-visual-direction.md)** —— 參考資料與討論的主場。原始素材存於 `../research/assets/ui/`。
+| 檔案 | 放什麼 |
+|---|---|
+| 📄 [`../research/ui-visual-direction.md`](../research/ui-visual-direction.md) | 參考資料與討論的主場。§1「別人怎麼做」／§2「我想要什麼」分節 |
+| 📄 [`../research/ui-tokens-draft.md`](../research/ui-tokens-draft.md) | 暫定的 Typography 與色彩系統。**值**，不是圖片；是這批素材裡唯一會直接畢業成程式碼的 |
+| 🖼 [`../research/assets/ui/`](../research/assets/ui/README.md) | 圖片素材。`ref/` 放別人的截圖、`draft/` 放自己與 AI 生成的，慣例見該目錄的 `README.md` |
 
 ## Comments
