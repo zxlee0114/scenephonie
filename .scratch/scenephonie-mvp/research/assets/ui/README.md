@@ -37,3 +37,22 @@
 ## 這裡不放什麼
 
 **Typography 與色彩系統不是圖片。** 它們是一組會被程式讀的**值**，住在 [`../../ui-tokens-draft.md`](../../ui-tokens-draft.md)。色票的截圖不是色彩系統，是色彩系統的照片 —— 之後還得有人手動抄成 hex。
+
+## `draft/harness/` —— 確定性素材的「prompt」
+
+⚠️ 2026-09-01（[票券 28](../../../issues/28-brand-identity.md) Q13）新增。
+
+票券 28 定下 exploration medium 走**確定性排版**（SVG／HTML）而非生成式圖片，理由是第一輪的每個失敗都源於對生成工具沒有控制權。
+
+因此上面「AI 生成的素材必須留 prompt」那條規則在這類素材上換一個形式：**`draft/<basename>.png` 的產生方式放在 `draft/harness/<主題>.html`**。它比 prompt 更強 —— 可逐格重跑、參數看得見、結果逐像素可重現。
+
+跑法（無需安裝任何東西）：
+
+```
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
+  --window-size=<W>,<H> --virtual-time-budget=10000 \
+  --screenshot=<輸出.png> <harness.html>
+```
+
+`harness/` 不放素材本身，只放產生素材的東西；素材仍然依上面的命名慣例住在 `draft/`。

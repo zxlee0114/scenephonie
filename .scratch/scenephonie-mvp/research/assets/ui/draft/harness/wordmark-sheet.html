@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600&family=Lato:wght@400;700&family=IBM+Plex+Sans:wght@400;600&family=Noto+Sans:wght@400;600&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+<style>
+ body{margin:0;background:#fff;font:12px/1.4 -apple-system,system-ui,sans-serif;color:#18181B;padding:26px 30px}
+ h1{font-size:15px;margin:0 0 4px}
+ .sub{color:#777;margin:0 0 20px}
+ .row{border-top:1px solid #E5E7EB;padding:15px 0;display:grid;grid-template-columns:152px 1fr;gap:18px;align-items:center}
+ .name{font-weight:600;font-size:12px}
+ .name em{display:block;font-weight:400;font-style:normal;color:#888;font-size:10.5px;margin-top:3px;line-height:1.35}
+ .cells{display:flex;gap:30px;align-items:center;flex-wrap:wrap}
+ .lab{font-size:9px;letter-spacing:.08em;color:#aaa;text-transform:uppercase;margin-bottom:6px}
+ .hdr{height:48px;display:flex;align-items:center;padding:0 14px;background:#FAFAF9;border:1px solid #E5E7EB;border-radius:6px}
+ .wm{white-space:nowrap;color:#18181B}
+ .ss{font-family:'Source Sans 3'} .la{font-family:'Lato'} .ip{font-family:'IBM Plex Sans'} .ns{font-family:'Noto Sans'} .pd{font-family:'Playfair Display'}
+ .sent{font-size:20px;font-weight:600;letter-spacing:-.005em}
+ .low{font-size:20px;font-weight:600;letter-spacing:.005em}
+ .caps{font-size:14px;font-weight:600;letter-spacing:.14em}
+ .excl{opacity:.55}
+ .note{margin-top:24px;color:#777;font-size:11px;border-top:1px solid #E5E7EB;padding-top:13px}
+</style></head><body>
+<h1>Scenephonie wordmark — 第二輪候選（Humanist sans，現成字體、不改字母）</h1>
+<p class="sub">每格都是<strong>真實 48px 高的 app header</strong>，不是品牌板展示尺寸。三種大小寫處理並列。</p>
+<div id="rows"></div>
+<div class="note">最後一列 Playfair Display 是<strong>已排除的對照組</strong>（第一輪 Didone／Trajan 方向），放在這裡是為了讓排除的理由可見，不參與評選。</div>
+<script>
+const fonts=[["Source Sans 3","ss","Adobe · OFL · humanist，為 UI 與長文閱讀設計"],
+["Lato","la","Łukasz Dziedzic · OFL · humanist，字碗略暖"],
+["IBM Plex Sans","ip","IBM · OFL · humanist／grotesque 之間，辨識度高"],
+["Noto Sans","ns","Google · OFL · 與 Noto Sans TC 同家族（加分項）"],
+["Playfair Display","pd","⛔ 已排除對照組 · Didone，authority／canonical 語意"]];
+document.getElementById('rows').innerHTML=fonts.map(([n,c,d])=>`
+<div class="row${c==='pd'?' excl':''}">
+ <div class="name">${n}<em>${d}</em></div>
+ <div class="cells">
+  <div class="cell"><div class="lab">Sentence case</div><div class="hdr"><span class="wm ${c} sent">Scenephonie</span></div></div>
+  <div class="cell"><div class="lab">lowercase</div><div class="hdr"><span class="wm ${c} low">scenephonie</span></div></div>
+  <div class="cell"><div class="lab">ALL CAPS</div><div class="hdr"><span class="wm ${c} caps">SCENEPHONIE</span></div></div>
+ </div>
+</div>`).join('');
+</script></body></html>
