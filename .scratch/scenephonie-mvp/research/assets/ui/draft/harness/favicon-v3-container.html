@@ -1,0 +1,86 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+ body{margin:0;background:#fff;font:12px/1.5 -apple-system,system-ui,sans-serif;color:#18181B;padding:26px 30px}
+ h1{font-size:15px;margin:0 0 4px}
+ h2{font-size:12.5px;margin:26px 0 6px}
+ .sub{color:#777;margin:0 0 10px;max-width:1050px;line-height:1.7}
+ .grid{display:flex;gap:22px;align-items:flex-end;flex-wrap:wrap;margin-top:10px}
+ .g{text-align:center}
+ .g .lab{font-size:9.5px;color:#999;margin-top:6px;line-height:1.4}
+ .g .real{margin-top:5px;display:flex;justify-content:center}
+ canvas.big{image-rendering:pixelated;border:1px solid #E5E7EB;display:block}
+ canvas.real{width:16px;height:16px;display:block}
+ .strip{display:flex;align-items:center;background:#EDEDF0;padding:6px;border-radius:7px;width:max-content;margin-top:10px}
+ .tab{display:flex;align-items:center;gap:7px;background:#fff;border-radius:6px;padding:7px 13px 7px 9px;font-size:11.5px;color:#3f3f46;box-shadow:0 1px 2px rgba(0,0,0,.07);margin-right:4px;white-space:nowrap}
+ .tab canvas{width:16px;height:16px;display:block}
+ .note{margin-top:14px;color:#777;font-size:11px;line-height:1.75;max-width:1050px;border-top:1px solid #E5E7EB;padding-top:12px}
+ code{background:#F4F4F5;padding:1px 4px;border-radius:3px;font-size:10.5px}
+</style></head><body>
+<h1>favicon 的容器參數 — 真實 16×16 光柵化</h1>
+<p class="sub">Q15 已定：<strong>圓角實心容器 ＋ 反白字母</strong>算 rendering treatment，可用。這一份只掃參數。<br>
+底色一律用<strong>中性佔位色</strong> <code>#18181B</code>（測試 C 已證明形式與顏色可脫鉤）—— <strong>此處不得被讀成選色</strong>，brand color 仍在 dependency chain 末端未決。<br>
+每一格上方是 <strong>7× 最近鄰放大</strong>供檢視，下方那一顆是<strong>真實 16px</strong>。</p>
+
+<h2>① 圓角半徑 ─ 字重 600、字級 15px 固定</h2>
+<div class="grid" id="gA"></div>
+
+<h2>② 字重 × 字級 ─ 圓角 3.5px 固定</h2>
+<p class="sub">wordmark 的 <code>S</code> 屬 <code>Scene</code> 那半（600）。問題是 <strong>16px 反白會不會讓 600 顯得太細</strong>。</p>
+<div class="grid" id="gB"></div>
+
+<h2>③ 深容器 vs 淺容器</h2>
+<p class="sub">同一個形式的兩種明度方向。淺容器在淺色 tab 列上會失去邊界，這一格看的就是那個。</p>
+<div class="grid" id="gC"></div>
+
+<h2>④ 真實 tab 列情境 ─ 與測試 B 的失敗對照</h2>
+<p class="sub">測試 B 曾證明<strong>單色字母 S 與 Slack 的 S 無法區分</strong>。同一條 tab 列，換上容器版。</p>
+<div class="strip" id="sD"></div>
+<div class="note">判準三條：<br>
+① <strong>Gate 1</strong> —— 真實 16px 那一顆仍讀得出是 <code>S</code>，且縮小後的東西還是它自己；<br>
+② <strong>邊界不糊</strong> —— 圓角在 16px 只有幾個像素，太大會讀成圓形、太小會讀成方塊；<br>
+③ <strong>tab 列裡挑得出來</strong> —— 這是測試 B 真正失敗的那一關。</div>
+<script>
+function ras(opt){
+  const {txt='S',wt=600,fs=15,fg='#FFFFFF',bg='#18181B',r=3.5}=opt;
+  const c=document.createElement('canvas');c.width=16;c.height=16;
+  const x=c.getContext('2d');
+  if(bg){x.fillStyle=bg;x.beginPath();x.roundRect(0,0,16,16,r);x.fill();}
+  x.fillStyle=fg;x.textAlign='center';x.textBaseline='alphabetic';
+  x.font=`${wt} ${fs}px "Source Sans 3"`;
+  const m=x.measureText(txt);
+  x.fillText(txt,8,8+(m.actualBoundingBoxAscent-m.actualBoundingBoxDescent)/2);
+  return c;
+}
+function up(src,f){const c=document.createElement('canvas');c.width=16*f;c.height=16*f;
+  const x=c.getContext('2d');x.imageSmoothingEnabled=false;x.drawImage(src,0,0,16*f,16*f);return c;}
+function cell(host,opt,label){
+  const d=document.createElement('div');d.className='g';
+  const b=up(ras(opt),7);b.className='big';d.appendChild(b);
+  const rw=document.createElement('div');rw.className='real';const rc=ras(opt);rc.className='real';rw.appendChild(rc);d.appendChild(rw);
+  const l=document.createElement('div');l.className='lab';l.innerHTML=label;d.appendChild(l);
+  host.appendChild(d);
+}
+document.fonts.ready.then(()=>{
+ const gA=document.getElementById('gA');
+ [[1.5,'1.5px'],[2.5,'2.5px'],[3.5,'3.5px'],[4.5,'4.5px'],[6,'6px'],[8,'8px<br>（全圓）']].forEach(([r,n])=>cell(gA,{r},'圓角 '+n));
+
+ const gB=document.getElementById('gB');
+ [400,600,700].forEach(wt=>[13,15,17].forEach(fs=>cell(gB,{wt,fs},`${wt} ／ ${fs}px`)));
+
+ const gC=document.getElementById('gC');
+ cell(gC,{bg:'#18181B',fg:'#FFFFFF'},'深容器<br>反白字母');
+ cell(gC,{bg:'#FAFAF9',fg:'#18181B'},'淺容器<br>深字母');
+ cell(gC,{bg:null,fg:'#18181B'},'無容器<br>（測試 B 的失敗組）');
+
+ const sD=document.getElementById('sD');
+ const mk=(cv,label)=>{const t=document.createElement('div');t.className='tab';t.appendChild(cv);
+   const s=document.createElement('span');s.textContent=label;t.appendChild(s);return t;};
+ sD.appendChild(mk(ras({txt:'G',wt:600,bg:null,fg:'#4285F4'}),'收件匣'));
+ sD.appendChild(mk(ras({txt:'N',wt:600,bg:null,fg:'#0A0A0A'}),'My workspace'));
+ sD.appendChild(mk(ras({txt:'S',wt:600,fs:15,r:3.5}),'Scenephonie'));
+ sD.appendChild(mk(ras({txt:'S',wt:600,bg:null,fg:'#18181B'}),'Slack'));
+ sD.appendChild(mk(ras({txt:'D',wt:600,bg:null,fg:'#18181B'}),'Docs'));
+});
+</script></body></html>

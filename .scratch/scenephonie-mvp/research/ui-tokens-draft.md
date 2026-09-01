@@ -56,13 +56,20 @@ For: [票券 26](../issues/26-ui-visual-direction.md)（**已 resolve，2026-09-
 >
 > **v1 僅定義 Light theme。** 深色是純換值，不是重做。
 
-### 2.1 v1 的色彩角色 —— 就這三個
+### 2.1 v1 的色彩角色 —— 四個
 
 | 角色 | 用在哪 | 為什麼 |
 |---|---|---|
-| **accent** | 可點擊、選取、focus | 取自 brand palette 的 Amber，**降飽和後才進介面**。⚠️ 具體衍生色值**刻意不預先決定**，歸[票券 28](../issues/28-brand-identity.md) |
-| **warning** | 草稿場次標籤、匯出前防呆的錯誤態 | **不得與 accent 同色**：「這裡不完整、會擋你匯出」與「這裡可以點」是相反的語意，共用一色會互相稀釋 |
+| **accent** | 可點擊、選取、focus | **依自身語意獨立設計，不從 brand color 衍生**（[票券 28](../issues/28-brand-identity.md) Q7／Q22） |
+| **draft** | 草稿場次標籤 | **document state** —— 常駐、大量、判準是**不疲勞** |
+| **error** | 匯出前防呆的錯誤態 | **action consequence** —— 只在匯出彈窗出現，可以刺眼 |
 | **neutral** | 文字與介面層次 | 主色調。判準是**不搶戲** |
+
+> ⚠️ **2026-09-01（票券 28）改寫。** 原本三個角色是 `accent／warning／neutral`，且 accent 記為「取自 brand palette 的 Amber，降飽和後才進介面」。兩處都已失效：
+>
+> 1. **`warning` 拆成 `draft` 與 `error`**（Q4）—— 它們不同層：一個是文件狀態、一個是動作後果，判準相反（不疲勞 vs 可以刺眼）。`warning` 這個角色在 v1 **沒有消費者**。
+> 2. **依賴方向反轉**（Q7 撤回）—— **semantic UI color 依各自語意獨立設計；brand color 在視覺語言確定後才產生，不得反過來成為 UI role 的隱性 constraint。** 因此 accent 不再「取自 brand palette」。
+> 3. **v1 沒有 brand color**（Q22）—— 盤點後它沒有承載位置：wordmark 過單色測試、favicon 的 identity 來自形式而非顏色、accent 歸本檔、v1 無 landing page。**accent 的具體色值歸票券 26，不歸票券 28。**
 
 **暫不建立 success semantic role** —— 交付狀態用文字說。
 
@@ -76,7 +83,7 @@ For: [票券 26](../issues/26-ui-visual-direction.md)（**已 resolve，2026-09-
 | 三種區塊型別（動作／對白／插入畫面） | 它們是**內容**不是 decoration。上顏色等於重建「格式即內容」的暗示。改以縮排、欄寬、spacing 與閱讀 rhythm 表達 |
 | 分享／唯讀模式 | 沿用 editor 的 semantic visual language，只移除 editing affordance。**Share ≠ PDF preview** |
 
-⚠️ 例外：**草稿標籤**雖是 decoration，卻需要 **warning** —— 它要說的是「會擋你匯出」，那不是低對比能表達的。`以下對剪` 同屬 decoration system，但語意上是 **editorial annotation**，可有獨立的視覺權重。
+⚠️ 例外：**草稿標籤**雖是 decoration，卻需要 **draft** —— 它要說的是「會擋你匯出」，那不是低對比能表達的。`以下對剪` 同屬 decoration system，但語意上是 **editorial annotation**，可有獨立的視覺權重。
 
 ### 2.3 深色模式
 
