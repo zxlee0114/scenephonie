@@ -1063,6 +1063,7 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | **E** | **semantic freeze / visual drift**：渲染器日後的純視覺變更**可以**影響已存在的交付；但**不得重新計算該次交付已承諾的語意推導值** | 渲染管線 |
 | **F** | **`documents.kind` 固定其合法層級**，不由使用者決定 | 資料層 ＋ command |
 | **H** | **Authentication identity 不直接授予 domain authority**；domain write operations 必須以**已授權的 project context** 進入 command pipeline（command 不負責建立 authorization） | application（[ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)） |
+| **I** | **任何由 infrastructure、auth library、plugin 或 database provider 提供的 access-control mechanism，都不得成為 domain/application authorization 的權威來源**（可使用其 mechanism，不可當作 authority） | application（[ADR-0012](../../docs/adr/0012-infrastructure-provides-mechanism-not-authority.md)） |
 | — | **一筆交付必須能獨立重建它承諾的語意**（寫成能力，不寫成欄位 —— 存不存 doc 是 persistence concern） | 交付寫入路徑 |
 | — | **backup ＋ canonical document update 是同一個 atomic state transition**；**schema migration ＋ doc 更新 ＋ `doc_seq` 遞增**同理 | persistence 模組 |
 | — | **距上一筆自動備份 ≥ 2 小時就先寫一筆**（對外：任何時候最多退回兩小時） | persistence 模組 |
@@ -1143,8 +1144,10 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | 資料庫 | PostgreSQL ＋ Drizzle ORM | 初步 |
 | 編輯器 | **Tiptap 3.30.x ＋ React** | **已鎖定**（原型驗證，[03](./issues/03-editor-prototype.md)） |
 | PDF | **Puppeteer/Playwright ＋ `@sparticuz/chromium`** | **已鎖定**（[05](./issues/05-pdf-export-tech.md)） |
-| 部署 | 未定 —— 見[票券 25](./issues/25-deployment-and-hosting.md)。**硬邊界：不可用 Cloudflare Workers 純執行模式** | — |
-| 認證 | **自架 auth library ＋ 自己的 Postgres**（[24](./issues/24-auth-and-project-owner.md)）。登入方式 **Google OAuth**，magic link 不進 v1，密碼出局 | **形狀已鎖定**；library 待[票券 30](./issues/30-better-auth-evaluation.md) 定（Better Auth 優先候選、Auth.js v5 對照）—— **它是可替換的 infrastructure decision**（[ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)） |
+| 部署 | **Vercel Hobby，region `hnd1`（東京）**（[25](./issues/25-deployment-and-hosting.md)）。**硬邊界**：不可用 Cloudflare Workers 純執行模式（[05](./issues/05-pdf-export-tech.md)）、不可用 edge-only 部署形態（route handler 要連得到 Postgres） | **已鎖定**（可反轉；升級條件見票券 25 §8 的六條 tripwire） |
+| 資料庫託管 | **Supabase Free，東京（`ap-northeast-1`）**，**僅作為 PostgreSQL 託管**（[25](./issues/25-deployment-and-hosting.md)）—— Supabase Auth／RLS／Storage／Realtime 不作為權威來源（**不變式 I**、[ADR-0012](../../docs/adr/0012-infrastructure-provides-mechanism-not-authority.md)） | **已鎖定** |
+| 連線模型 | **Supavisor transaction mode `:6543` ＋ `prepare: false`**（`DATABASE_URL`）；migration 走 direct／session mode（`DIRECT_URL`）。⚠️ Supabase direct connection 是 IPv6-only 而 Vercel 不支援 IPv6，**pooler 是必要條件不是優化** | **已鎖定**（[25](./issues/25-deployment-and-hosting.md)） |
+| 認證 | **自架 auth library ＋ 自己的 Postgres**（[24](./issues/24-auth-and-project-owner.md)）。登入方式 **Google OAuth**，magic link 不進 v1，密碼出局 | **已鎖定**：**Better Auth `~1.7.x`**（[30](./issues/30-better-auth-evaluation.md)，Auth.js v5 出局）、**DB session ＋ cookie cache**（`compact`, 5 分鐘）；middleware 只做 optimistic redirect，授權在 route handler 的 gate —— **它是可替換的 infrastructure decision**（[ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)） |
 | 授權 | **application layer 的 gate；command 只接受已授權的 project handle** | **已鎖定**（不變式 H） |
 
 ### 13.2 建議順序
@@ -1187,7 +1190,8 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | 票券 | 為什麼現在才開 |
 |---|---|
 | ~~[24 認證方案與專案擁有者欄位](./issues/24-auth-and-project-owner.md)~~ | ✅ **2026-09-01 已 resolve** —— 產出不變式 H 與 [ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)，`owner_id` 進 §6.2，新增階段 3.5。⚠️ 它**修正了本節原本的問法**：`ownerId` 不是「為協作預留」，**v1 從第一天就是多租戶**，它是 v1 authorization 的必要資料。認證因此**不再約束部署平台**，票券 25 少一條約束；library 選型畢業成[票券 30](./issues/30-better-auth-evaluation.md)（research，擋階段 3.5 的實作、不擋開工） |
-| [25 部署與資料庫託管](./issues/25-deployment-and-hosting.md) | [票券 05](./issues/05-pdf-export-tech.md) 給了硬邊界條件（不可用 Cloudflare Workers 純執行模式），選項因此收斂到可以問了 |
+| ~~[25 部署與資料庫託管](./issues/25-deployment-and-hosting.md)~~ | ✅ **2026-09-01 已 resolve** —— **Vercel Hobby（`hnd1`）＋ Supabase Free（東京，僅作 Postgres 託管）＋ Supavisor transaction mode**。⚠️ 它**改寫了本節的前提**：v1 的成功標準是**作品集 ＋ 封閉測試**而非正式營運，可用性因此從產品需求降級成展示需求，免費層的代價成為**被寫下來的取捨**（六條 tripwire 就是反轉計畫）。產出**不變式 I** 與 [ADR-0012](../../docs/adr/0012-infrastructure-provides-mechanism-not-authority.md)、訪客 ephemeral user 的 TTL 清理政策，並確認 transaction mode 未撞到任何 domain invariant（`doc_seq` optimistic concurrency 不需要 session state）。**部署自此不再被任何票券擋住。** |
+| ~~[30 Better Auth 選型評估](./issues/30-better-auth-evaluation.md)~~ | ✅ **2026-09-01 已 resolve** —— 選定 **Better Auth `~1.7.x`**；`usr_` + nanoid 的 identity chain 保得住、不需 shadow table；**DB session ＋ cookie cache**，middleware 不做完整驗證，故部署層只剩「route handler 要連得到 Postgres」一條約束（已餵給票券 25） |
 
 ### 14.3 仍在迷霧（v1 不需要）
 
@@ -1212,3 +1216,6 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | [0007](../../docs/adr/0007-document-as-single-authority.md) | doc 為唯一權威，寫入只走 command abstraction |
 | [0008](../../docs/adr/0008-share-as-relationship-delivery-as-commitment.md) | 分享是關係，交付是承諾 |
 | [0009](../../docs/adr/0009-documents-hang-on-the-creative-unit-they-describe.md) | 文件掛載於它所描述的創作單位 |
+| [0010](../../docs/adr/0010-editor-representation-is-not-output-preview.md) | 編輯器的呈現不是輸出的預覽 |
+| [0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md) | 認證身分不直接授予領域權限 |
+| [0012](../../docs/adr/0012-infrastructure-provides-mechanism-not-authority.md) | 基礎設施提供機制，不提供授權真理 |
