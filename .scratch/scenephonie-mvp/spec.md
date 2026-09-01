@@ -549,7 +549,8 @@ future collaboration = Yjs（票券 19 已驗證可行）
 
 | 表 | 欄位 | 備註 |
 |---|---|---|
-| `projects` | `id`, `type`（單一劇本專案）, `title`, meta 欄位 | v1 只有一種 type |
+| `users` | `id`（`usr_`）, auth library 的 schema（`session`／`account` 等隨附表） | **id 產生規則由我們控制**；domain 只讀 `users.id`，**永不讀 `account`**（[ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)）。`is_demo` 等 lifecycle 欄位是 infrastructure metadata，不進 domain model |
+| `projects` | `id`, `type`（單一劇本專案）, `title`, **`owner_id`（→ `users.id`）**, meta 欄位 | v1 只有一種 type；`owner_id` 是 **v1 authorization 的最小掛點** |
 | `screenplays` | `id`, `project_id`, `doc jsonb`, `doc_schema_version`, `doc_seq` | **一個劇本一列** |
 | `characters` | `id`（`ch_`）, `project_id`, `name`, `description` | append-only |
 | `locations` | `id`（`lo_`）, `project_id`, `name` | append-only，**無描述欄** |
@@ -1061,6 +1062,7 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | **D** | **交付的判準是承諾而非通道**：任何對外承諾「在後續 canonical state 改變後仍保持不變」的動作，都必須先建立一筆交付；該動作輸出的一切都指向那筆交付 | application |
 | **E** | **semantic freeze / visual drift**：渲染器日後的純視覺變更**可以**影響已存在的交付；但**不得重新計算該次交付已承諾的語意推導值** | 渲染管線 |
 | **F** | **`documents.kind` 固定其合法層級**，不由使用者決定 | 資料層 ＋ command |
+| **H** | **Authentication identity 不直接授予 domain authority**；domain write operations 必須以**已授權的 project context** 進入 command pipeline（command 不負責建立 authorization） | application（[ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)） |
 | — | **一筆交付必須能獨立重建它承諾的語意**（寫成能力，不寫成欄位 —— 存不存 doc 是 persistence concern） | 交付寫入路徑 |
 | — | **backup ＋ canonical document update 是同一個 atomic state transition**；**schema migration ＋ doc 更新 ＋ `doc_seq` 遞增**同理 | persistence 模組 |
 | — | **距上一筆自動備份 ≥ 2 小時就先寫一筆**（對外：任何時候最多退回兩小時） | persistence 模組 |
@@ -1125,6 +1127,8 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 - **`doc_seq` 已經是 optimistic concurrency token** —— 多寫入者的地基已經在。
 - **command → Step → doc 三層**：中間層 `Step` 就是協作的傳輸單位，已經預留。
 - **五條保護規則**（§11）。
+- **使用者是一等實體，`projects.owner_id` 是 v1 authorization 的最小掛點**（[票券 24](./issues/24-auth-and-project-owner.md)）—— v1 就是多租戶的，所以協作要加的是 members／invitations，是**在 owner 之上加東西**，不是把單人模型改成多人模型。
+- **授權的責任釘在 application 邊界，不在 auth library**（不變式 H，[ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)）—— 換 library、換 session model、或從 owner 擴充到 organization，都不必動 domain。
 - **⚠️ 「日後遷移不貴」這條承重事實已實測成立**（[票券 19](./issues/19-yjs-migration-spike.md)）：六項驗收全過（node type／tree／attrs／`sceneId`／text／marks），含子場次、場次群組、雜景多值地點、草稿在內的完整 fixture 往返等價，且中間走過真正的 bytes 持久化；`prosemirrorToYDoc()` / `yDocToProsemirror()` 兩個方向都有，遷移是無狀態的離線批次腳本。附帶：**Y.Doc 沒有比 JSON 大**（0.91×），「換 Yjs 會撐大儲存」不是有效論據。
 
 ---
@@ -1140,7 +1144,8 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | 編輯器 | **Tiptap 3.30.x ＋ React** | **已鎖定**（原型驗證，[03](./issues/03-editor-prototype.md)） |
 | PDF | **Puppeteer/Playwright ＋ `@sparticuz/chromium`** | **已鎖定**（[05](./issues/05-pdf-export-tech.md)） |
 | 部署 | 未定 —— 見[票券 25](./issues/25-deployment-and-hosting.md)。**硬邊界：不可用 Cloudflare Workers 純執行模式** | — |
-| 認證 | 未定 —— 見[票券 24](./issues/24-auth-and-project-owner.md) | — |
+| 認證 | **自架 auth library ＋ 自己的 Postgres**（[24](./issues/24-auth-and-project-owner.md)）。登入方式 **Google OAuth**，magic link 不進 v1，密碼出局 | **形狀已鎖定**；library 待[票券 30](./issues/30-better-auth-evaluation.md) 定（Better Auth 優先候選、Auth.js v5 對照）—— **它是可替換的 infrastructure decision**（[ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)） |
+| 授權 | **application layer 的 gate；command 只接受已授權的 project handle** | **已鎖定**（不變式 H） |
 
 ### 13.2 建議順序
 
@@ -1152,11 +1157,12 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | **1** | **domain command 層**＋不變式測試（§11 全部） | 不變式的家。**在有 UI 之前先寫**，否則它們會散進最難測的那一層 |
 | **2** | **編輯器**：場次 ＋ 三種區塊 ＋ 內嵌簡表 ＋ `/next` ＋ Tab 環 ＋ IME | 最小可寫作單元。⚠️ 六個 bug 家族在這裡 |
 | **3** | **persistence 模組**（存／載入／`doc_seq`／自動備份，全部藏在一個模組後面） | Yjs 保護規則 3 |
+| **3.5** | **認證 ＋ 授權 gate ＋ `ownerId`**：Google OAuth、env var allowlist、訪客體驗入口（ephemeral user ＋ clone 一份 demo project） | persistence 一出現，「這是誰的資料」就同時出現 —— 一個沒有 owner 的 `screenplays` 表，之後每張掛上去的表都得回頭補。`ShareViewer` 那一側留到階段 8 |
 | **4** | **實體**：人物、地點、自動補全三列、群演、登場人物提示 | 依賴 1 的引用完整性規則 |
 | **5** | **階層與平行**：子場次（兩種種類）、場次群組、拖曳跨層 | 依賴 2 與 4；⚠️ 拖曳 bug 會部分重來 |
 | **6** | **草稿** ＋ **場次表**檢視 | 依賴 0 的推導函式 |
 | **7** | **PDF 匯出** ＋ **交付** ＋ 匯出前防呆 | 依賴 3、6 |
-| **8** | **分享連結**（即時 ＋ 凍結） | 依賴 7 的交付 |
+| **8** | **分享連結**（即時 ＋ 凍結） | 依賴 7 的交付；`ShareViewer` 這個 authorization subject 在此長出，具體型別於此決定 |
 | **9** | **交件文件**：交件大綱、角色設定表、專案 meta 欄位、四區段 PDF | 依賴 4、7 |
 | **10** | **分場大綱** | 獨立，最小 |
 
@@ -1180,7 +1186,7 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 
 | 票券 | 為什麼現在才開 |
 |---|---|
-| [24 認證方案與專案擁有者欄位](./issues/24-auth-and-project-owner.md) | 兩者耦合（owner 指向誰取決於認證形狀），且[票券 12](./issues/12-share-link-live-or-frozen.md) 已把範圍縮小到「只涵蓋編劇自己這一側」（讀者端 by-token，不需要帳號）。現在問題夠銳利了 |
+| ~~[24 認證方案與專案擁有者欄位](./issues/24-auth-and-project-owner.md)~~ | ✅ **2026-09-01 已 resolve** —— 產出不變式 H 與 [ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)，`owner_id` 進 §6.2，新增階段 3.5。⚠️ 它**修正了本節原本的問法**：`ownerId` 不是「為協作預留」，**v1 從第一天就是多租戶**，它是 v1 authorization 的必要資料。認證因此**不再約束部署平台**，票券 25 少一條約束；library 選型畢業成[票券 30](./issues/30-better-auth-evaluation.md)（research，擋階段 3.5 的實作、不擋開工） |
 | [25 部署與資料庫託管](./issues/25-deployment-and-hosting.md) | [票券 05](./issues/05-pdf-export-tech.md) 給了硬邊界條件（不可用 Cloudflare Workers 純執行模式），選項因此收斂到可以問了 |
 
 ### 14.3 仍在迷霧（v1 不需要）
