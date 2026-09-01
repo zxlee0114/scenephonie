@@ -1,0 +1,77 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@600&family=Lato:wght@700&family=IBM+Plex+Sans:wght@600&family=Noto+Sans:wght@600&display=swap" rel="stylesheet">
+<style>
+ body{margin:0;background:#fff;font:12px/1.5 -apple-system,system-ui,sans-serif;color:#18181B;padding:26px 30px}
+ h1{font-size:15px;margin:0 0 4px}
+ h2{font-size:12.5px;margin:26px 0 8px}
+ .sub{color:#777;margin:0 0 6px;max-width:1050px}
+ .strip{display:flex;gap:0;align-items:center;background:#EDEDF0;padding:6px;border-radius:7px;width:max-content;margin-top:10px}
+ .tab{display:flex;align-items:center;gap:7px;background:#fff;border-radius:6px;padding:7px 13px 7px 9px;font-size:11.5px;color:#3f3f46;box-shadow:0 1px 2px rgba(0,0,0,.07);margin-right:4px;white-space:nowrap}
+ .tab canvas{width:16px;height:16px;display:block}
+ .grid{display:flex;gap:26px;align-items:flex-end;margin-top:10px;flex-wrap:wrap}
+ .g{text-align:center}
+ .g .lab{font-size:9.5px;color:#999;margin-top:6px}
+ .g canvas.big{image-rendering:pixelated;border:1px solid #E5E7EB}
+ .note{margin-top:10px;color:#777;font-size:11px;line-height:1.7;max-width:1050px}
+ code{background:#F4F4F5;padding:1px 4px;border-radius:3px;font-size:10.5px}
+</style></head><body>
+<h1>Gate 1 續 — favicon 的 identity 來自哪裡？</h1>
+<p class="sub">上一份測試證明<strong>單字母 S 在 16px 可辨識</strong>。這一份問的是下一個問題：<strong>可辨識 ≠ 可識別</strong>。</p>
+
+<h2>測試 A ─ 四個候選字體的 16px「S」放在一起，還分得出來嗎？</h2>
+<p class="sub">若分不出來，代表 favicon 的 identity <strong>不可能來自字體選擇</strong> —— 光柵化在 16px 已經把字體差異抹平。</p>
+<div class="grid" id="gA"></div>
+
+<h2>測試 B ─ 放進真實的 tab 列，挑得出來嗎？</h2>
+<p class="sub">單色字母 favicon 與其他 tab 混在一起的樣子。</p>
+<div class="strip" id="sB"></div>
+
+<h2>測試 C ─ 加上顏色之後（機制驗證，<strong>不是配色提案</strong>）</h2>
+<p class="sub">色值全部是<strong>任意佔位色</strong>，用來驗證「顏色能不能救回 identity」這個機制。brand color 仍未決（Q7 已撤回），此處不得被讀成選色。</p>
+<div class="strip" id="sC"></div>
+<div class="note" id="note"></div>
+</body>
+<script>
+const FONTS=[["Source Sans 3",600],["Lato",700],["IBM Plex Sans",600],["Noto Sans",600]];
+function ras(txt,fam,wt,fg,bg,round){
+  const c=document.createElement('canvas');c.width=16;c.height=16;
+  const x=c.getContext('2d');
+  if(bg){ x.fillStyle=bg;
+    if(round){x.beginPath();x.roundRect(0,0,16,16,4);x.fill();}else{x.fillRect(0,0,16,16);} }
+  else {x.fillStyle='#fff';x.fillRect(0,0,16,16);}
+  x.fillStyle=fg;x.textAlign='center';x.textBaseline='alphabetic';
+  x.font=`${wt} 15px "${fam}"`;
+  const m=x.measureText(txt);
+  x.fillText(txt,8,8+(m.actualBoundingBoxAscent-m.actualBoundingBoxDescent)/2);
+  return c;
+}
+function up(src,f){const c=document.createElement('canvas');c.width=16*f;c.height=16*f;
+  const x=c.getContext('2d');x.imageSmoothingEnabled=false;x.drawImage(src,0,0,16*f,16*f);return c;}
+document.fonts.ready.then(()=>{
+ const gA=document.getElementById('gA');
+ FONTS.forEach(([f,w])=>{const r=ras('S',f,w,'#18181B',null,false);
+  const d=document.createElement('div');d.className='g';
+  const b=up(r,7);b.className='big';d.appendChild(b);
+  const l=document.createElement('div');l.className='lab';l.textContent=f;d.appendChild(l);gA.appendChild(d);});
+
+ const others=[['#4285F4','G','Gmail 之類'],['#1DB954','●','某音樂服務'],['#E5484D','▲','某雲端硬碟'],['#0A0A0A','N','某筆記工具']];
+ const sB=document.getElementById('sB');
+ const mk=(cv,label)=>{const t=document.createElement('div');t.className='tab';t.appendChild(cv);
+   const s=document.createElement('span');s.textContent=label;t.appendChild(s);return t;};
+ sB.appendChild(mk(ras('G','Noto Sans',600,'#4285F4',null,false),'收件匣'));
+ sB.appendChild(mk(ras('N','Noto Sans',600,'#0A0A0A',null,false),'My workspace'));
+ sB.appendChild(mk(ras('S','IBM Plex Sans',600,'#18181B',null,false),'Scenephonie'));
+ sB.appendChild(mk(ras('S','Noto Sans',600,'#18181B',null,false),'Slack'));
+ sB.appendChild(mk(ras('D','Noto Sans',600,'#18181B',null,false),'Docs'));
+
+ const sC=document.getElementById('sC');
+ sC.appendChild(mk(ras('G','Noto Sans',600,'#4285F4',null,false),'收件匣'));
+ sC.appendChild(mk(ras('N','Noto Sans',600,'#0A0A0A',null,false),'My workspace'));
+ sC.appendChild(mk(ras('S','IBM Plex Sans',600,'#FFFFFF','#18181B',true),'Scenephonie'));
+ sC.appendChild(mk(ras('S','Noto Sans',600,'#18181B',null,false),'Slack'));
+ sC.appendChild(mk(ras('D','Noto Sans',600,'#18181B',null,false),'Docs'));
+
+ document.getElementById('note').innerHTML='測試 B 的第三格與第四格都是深色的 S —— <strong>那正是問題本身</strong>。';
+});
+</script></html>

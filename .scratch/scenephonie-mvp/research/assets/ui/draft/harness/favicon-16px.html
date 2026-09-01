@@ -1,0 +1,60 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Lato:wght@400;700;900&family=IBM+Plex+Sans:wght@400;600;700&family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+ body{margin:0;background:#fff;font:12px/1.4 -apple-system,system-ui,sans-serif;color:#18181B;padding:26px 30px}
+ h1{font-size:15px;margin:0 0 4px}
+ .sub{color:#777;margin:0 0 20px;max-width:1000px}
+ table{border-collapse:collapse}
+ th{font-size:9px;letter-spacing:.08em;color:#aaa;text-transform:uppercase;font-weight:600;padding:0 14px 8px;text-align:center}
+ th.l{text-align:left;padding-left:0}
+ td{padding:9px 14px;border-top:1px solid #E5E7EB;text-align:center;vertical-align:middle}
+ td.l{text-align:left;padding-left:0;font-weight:600;font-size:12px;white-space:nowrap}
+ td.l em{display:block;font-weight:400;font-style:normal;color:#999;font-size:10px}
+ canvas{display:block;margin:0 auto;image-rendering:pixelated}
+ .true{border:1px solid #E5E7EB}
+ .note{margin-top:24px;color:#777;font-size:11px;border-top:1px solid #E5E7EB;padding-top:13px;max-width:1100px;line-height:1.7}
+</style></head><body>
+<h1>Gate 1 — favicon 真實光柵化測試（16×16，非縮放預覽）</h1>
+<p class="sub">每一格都經過 <code>字體 → 瀏覽器光柵化 → 16×16 點陣</code>，右側放大版是<strong>最近鄰放大</strong>（<code>imageSmoothingEnabled=false</code>），看到的每個方塊都是一個真實像素。測的是 Q12(b)：<strong>favicon 能不能由 wordmark 自然退化而來</strong>，而不是另外畫一個 logo。</p>
+<table id="t"></table>
+<div class="note" id="note"></div>
+<script>
+const fonts=[["Source Sans 3",600],["Lato",700],["IBM Plex Sans",600],["Noto Sans",600]];
+const variants=[["S","單字母 S",1.0],["S","單字母 S（撐滿）",1.18],["Sc","雙字母 Sc",1.0],["Sp","首尾 Sp",1.0]];
+function raster(txt,fam,wt,scale){
+  const c=document.createElement('canvas');c.width=16;c.height=16;
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,16,16);
+  x.fillStyle='#18181B';x.textAlign='center';x.textBaseline='alphabetic';
+  const size=Math.round(13*scale);
+  x.font=`${wt} ${size}px "${fam}"`;
+  const m=x.measureText(txt);
+  const asc=m.actualBoundingBoxAscent,desc=m.actualBoundingBoxDescent;
+  x.fillText(txt,8,8+(asc-desc)/2);
+  return c;
+}
+function upscale(src,f){
+  const c=document.createElement('canvas');c.width=16*f;c.height=16*f;
+  const x=c.getContext('2d');x.imageSmoothingEnabled=false;
+  x.drawImage(src,0,0,16*f,16*f);return c;
+}
+document.fonts.ready.then(()=>{
+ const t=document.getElementById('t');
+ let html='<tr><th class="l">字體</th>';
+ variants.forEach(v=>{html+=`<th colspan="2">${v[1]}</th>`});
+ html+='</tr>';
+ t.innerHTML=html;
+ fonts.forEach(([fam,wt])=>{
+  const tr=document.createElement('tr');
+  const td0=document.createElement('td');td0.className='l';
+  td0.innerHTML=`${fam}<em>weight ${wt}</em>`;tr.appendChild(td0);
+  variants.forEach(([txt,,sc])=>{
+    const r=raster(txt,fam,wt,sc);
+    const a=document.createElement('td');const ca=r;ca.className='true';a.appendChild(ca);tr.appendChild(a);
+    const b=document.createElement('td');b.appendChild(upscale(r,9));tr.appendChild(b);
+  });
+  t.appendChild(tr);
+ });
+ document.getElementById('note').innerHTML='左小圖為 <strong>1:1 的實際 favicon 尺寸</strong>（就是瀏覽器 tab 上的樣子），右大圖為同一份點陣的 9× 最近鄰放大。<br>判準：在<strong>左邊那顆</strong>認得出來才算過 Gate 1 —— 右邊放大版只用來解釋左邊為什麼糊。';
+});
+</script></body></html>

@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&family=Lato:wght@300;400;700&family=IBM+Plex+Sans:wght@300;400;600&family=Noto+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+ body{margin:0;background:#fff;font:12px/1.5 -apple-system,system-ui,sans-serif;color:#18181B;padding:24px 28px}
+ h1{font-size:15px;margin:0 0 4px}
+ .sub{color:#777;margin:0 0 18px;max-width:1100px}
+ table{border-collapse:collapse}
+ th{font-size:9px;letter-spacing:.08em;color:#aaa;text-transform:uppercase;font-weight:600;padding:0 10px 9px;text-align:center}
+ th.l{text-align:left;padding-left:0;width:190px}
+ td{padding:8px 10px;border-top:1px solid #EDEDF0;vertical-align:middle}
+ td.l{padding-left:0;font-size:11px;font-weight:600;line-height:1.4}
+ td.l em{display:block;font-weight:400;font-style:normal;color:#999;font-size:10px;margin-top:2px}
+ .hdr{height:48px;display:flex;align-items:center;padding:0 13px;background:#FAFAF9;border:1px solid #E5E7EB;border-radius:6px;min-width:186px}
+ .wm{white-space:nowrap;color:#18181B}
+ .ss{font-family:'Source Sans 3'}.la{font-family:'Lato'}.ip{font-family:'IBM Plex Sans'}.ns{font-family:'Noto Sans'}
+ .note{margin-top:20px;color:#777;font-size:11px;line-height:1.75;max-width:1100px;border-top:1px solid #E5E7EB;padding-top:13px}
+</style></head><body>
+<h1>Q16a(b) 驗證 — identity 能不能只由大小寫、字距、比例、字重做出來？</h1>
+<p class="sub">字母形狀<strong>全程未改</strong>（Q6a）。每一列只改排版參數，四個字體並列。所有格子都是<strong>真實 48px header</strong>。</p>
+<table id="t"></table>
+<div class="note">判準不是「哪個好看」，而是：<strong>同一個排版處理套到四個不同字體上，做出來的東西彼此像不像？</strong><br>若某一列的四格看起來明顯是「同一個字標」，代表 identity 真的來自那個處理而非字體 —— Q16a(b) 成立。<br>若四格看起來仍是四個不同的東西，代表處理不足以承載 identity，identity 就得退回字體或別處。</div>
+<script>
+const FONTS=[["Source Sans 3","ss"],["Lato","la"],["IBM Plex Sans","ip"],["Noto Sans","ns"]];
+const T=[
+ ["基準線","sentence case、預設字距、600","Scenephonie","font-size:20px;font-weight:600"],
+ ["緊排","字距 -0.025em，600","Scenephonie","font-size:20px;font-weight:600;letter-spacing:-.025em"],
+ ["疏排 小寫","lowercase、字距 +0.08em、400","scenephonie","font-size:18px;font-weight:400;letter-spacing:.08em"],
+ ["疏排 全大寫","ALL CAPS、字距 +0.18em、600、降級","SCENEPHONIE","font-size:12.5px;font-weight:600;letter-spacing:.18em"],
+ ["輕量 大字","字重 300、字級拉大","Scenephonie","font-size:23px;font-weight:300;letter-spacing:.005em"],
+ ["字重分段","Scene 600 ／ phonie 300，無空隙","SPLIT","font-size:21px"],
+];
+document.getElementById('t').innerHTML=
+ '<tr><th class="l">排版處理</th>'+FONTS.map(f=>`<th>${f[0]}</th>`).join('')+'</tr>'+
+ T.map(([n,d,txt,css])=>`<tr><td class="l">${n}<em>${d}</em></td>`+FONTS.map(([,c])=>{
+   const inner = txt==='SPLIT'
+     ? `<span class="wm ${c}" style="${css};font-weight:600">Scene</span><span class="wm ${c}" style="${css};font-weight:300">phonie</span>`
+     : `<span class="wm ${c}" style="${css}">${txt}</span>`;
+   return `<td><div class="hdr">${inner}</div></td>`;
+ }).join('')+'</tr>').join('');
+</script></body></html>
