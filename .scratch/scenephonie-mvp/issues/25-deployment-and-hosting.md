@@ -32,3 +32,30 @@ Blocked by:
 ### 它擋什麼
 
 **擋部署，不擋開工。** [規格書](../spec.md) §13.2 的階段 0–2 完全不需要知道這張票的答案。
+
+---
+
+## Comments
+
+### 2026-09-01 — 來自[票券 30](./30-better-auth-evaluation.md)的回饋：session model 對部署的約束
+
+票券 30 已 resolve，選定 **Better Auth `~1.7.x`**，session model 裁決為 **DB session（存我們自己的 Postgres）＋ cookie cache**。由此推出的部署約束：
+
+**硬約束（只有一條）**
+
+1. **跑 route handler 的地方必須連得到 Postgres。** session 的完整驗證（`auth.api.getSession()`）要查 DB，而 raw TCP socket 在 edge runtime 普遍不可用。
+   ➡️ **排除「整個 app 跑在 edge runtime」的部署形態。** 若本票想保留 edge 選項，就得改用 HTTP-based 的 Postgres driver（如 Neon serverless driver）—— **那會讓 driver 選擇升格成本票的 blocking 決策**。
+
+**已被刻意消除的約束**
+
+票券 30 同時裁決 **middleware 只做 optimistic redirect**（`getCookieCache()`，已簽章驗證、無 DB 往返、Edge 可跑），真正的授權在 page／route handler 的 application layer gate 完成（[ADR-0011](../../../docs/adr/0011-authentication-identity-is-not-domain-authority.md) 指定的位置）。
+
+➡️ **效果是 middleware 層對部署形態幾乎沒有要求。** 本票因此可以在**長駐 Node server** 與 **serverless Node function** 之間自由選，只有 edge-only 被排除 —— 而那條線本來就已經被[票券 05](./05-pdf-export-tech.md) 的 Puppeteer 邊界畫掉了（Cloudflare Workers 10 MiB）。**認證沒有再收窄票券 25 的選項空間。**
+
+**次要事實（版本，非平台）**
+
+- 若日後想在 middleware 做完整驗證：需 Next.js ≥ 15.2.0 並設 `runtime: "nodejs"`；Next.js 16+ 檔名為 `proxy.ts`、函式名為 `proxy`。這綁的是 Next.js 版本與平台對 Node runtime middleware 的支援度，**在上面的建議形狀下用不到**。
+- 每請求成本：cookie cache 命中時 auth 貢獻 **0 次** DB 往返，過期時 1 次；主要成本落在我們自己的 ownership 查詢上。
+- 跨區低延遲若成為問題，Better Auth 支援 secondary storage（Redis）與 `deferSessionRefresh`（read replica）—— **v1 之後的優化，不進本票**。
+
+證據與來源見[研究報告](../research/30-better-auth-evaluation.md) §3、§〈回饋給票券 25〉。

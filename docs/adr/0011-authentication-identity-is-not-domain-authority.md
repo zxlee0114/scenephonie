@@ -48,3 +48,5 @@ v1 從第一天就是**多租戶**的 —— 同一個部署上有作者本人�
 **③ 所有 authentication entry point 都收斂進同一條 pipeline。** Google OAuth 與訪客體驗入口都取得正常的 `UserId`，之後走完全相同的 `User → ownership → Authorization → Command`。**domain 不知道誰是訪客** —— 訪客體驗因此不需要任何授權例外，這是保持一致性的方式，不是為 demo 犧牲一致性。
 
 **④ `ownerId` 是 v1 authorization 的最小掛點，不是永久模型。** 未來演進成 members／invitations／organization 時，是在它之上加東西，不必否定它。
+
+**⑤ 採用 auth library 的 plugin 時，只採用其資料模型，不採用其授權判斷。** 2026-09-01，[票券 30](../../.scratch/scenephonie-mvp/issues/30-better-auth-evaluation.md) 補記。選定的 Better Auth 其 `organization` plugin 自帶完整 RBAC（`createAccessControl` / `hasPermission` / `organizationRole` / `session.activeOrganizationId`），官方文件自述「the plugin enforces all role-based access control checks」—— **那正是上面〈Considered Options〉第一條否決的形狀**。plugin 的存在不改變那個裁決，只是把誘惑放到手邊。禁止清單：`createAccessControl`、`hasPermission`、`organizationRole` 的 dynamic AC，以及**以 `session.activeOrganizationId` 作為授權依據**（它是 UI 狀態不是權限 —— 授權主體必須從 request 的 project 參數推導，否則使用者換 tab 就換權限）。可採用的是它的**資料表**：`member(organizationId, userId, role)` 正是 ④ 所說「在 `ownerId` 之上加的東西」，把 `role` 當領域事實讀進 application layer gate 即可。這條與 ① 的「domain 永不讀 `account`」同屬**一條 grep 就能驗**的邊界 —— 因為靠慣例維持的東西會說謊。
