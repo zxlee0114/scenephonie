@@ -1,0 +1,52 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+ body{margin:0;background:#fff;font:12px/1.5 -apple-system,system-ui,sans-serif;color:#18181B;padding:26px 30px}
+ h1{font-size:15px;margin:0 0 4px}
+ h2{font-size:12.5px;margin:28px 0 8px}
+ .sub{color:#777;margin:0 0 10px;max-width:1080px;line-height:1.7}
+ table{border-collapse:collapse}
+ th{font-size:9px;letter-spacing:.08em;color:#aaa;text-transform:uppercase;font-weight:600;padding:0 10px 9px;text-align:center}
+ th.l{text-align:left;padding-left:0;width:150px}
+ td{padding:8px 10px;border-top:1px solid #EDEDF0;vertical-align:middle}
+ td.l{padding-left:0;font-size:11px;font-weight:600;line-height:1.4}
+ td.l em{display:block;font-weight:400;font-style:normal;color:#999;font-size:10px;margin-top:2px}
+ .hdr{height:48px;display:flex;align-items:center;padding:0 13px;background:#FAFAF9;border:1px solid #E5E7EB;border-radius:6px;min-width:200px}
+ .hdr.dk{background:#18181B;border-color:#27272A}
+ .wm{white-space:nowrap;font-family:'Source Sans 3';color:#18181B}
+ .dk .wm{color:#FAFAFA}
+ .big{padding:22px 0 6px}
+ .note{margin-top:14px;color:#777;font-size:11px;line-height:1.75;max-width:1080px;border-top:1px solid #E5E7EB;padding-top:13px}
+ code{background:#F4F4F5;padding:1px 4px;border-radius:3px;font-size:10.5px}
+</style></head><body>
+<h1>Q17／Q18 定案後 — wordmark 的具體參數</h1>
+<p class="sub">固定：<code>Source Sans 3</code>、<code>Scene 600</code>／<code>phonie 300</code>、sentence case、兩段之間無空隙、字母形狀未改。<br>
+只掃兩個參數：<strong>字級</strong>與<strong>字距</strong>。每一格都是<strong>真實 48px header</strong>（背景 <code>#FAFAF9</code>）。</p>
+<table id="t1"></table>
+
+<h2>放大檢視 ─ 字重對比在大尺寸下的樣子</h2>
+<p class="sub">同一組參數放到 44px。這一格判斷的是<strong>字標本身</strong>：600 與 300 的落差夠不夠明顯、又不至於斷成兩個字。</p>
+<div class="big" id="b1"></div>
+
+<h2>Gate 2 ─ 單色測試</h2>
+<p class="sub">去掉一切顏色。左為淺底黑字、右為深底白字。<strong>反白時 300 那半是否失重</strong>是這一格的重點 —— 深底會讓細字重視覺上更細。</p>
+<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap" id="b2"></div>
+<div class="note">判準不是「哪個好看」，而是三條：<br>
+① <strong>300 那半在該字級下有沒有失重</strong>（糊掉、比 600 那半視覺上退太多）；<br>
+② <strong>兩段的落差是否仍讀成同一個字</strong>（落差太大會讀成 <em>Scene phonie</em> 兩個詞）；<br>
+③ <strong>48px header 裡的重量</strong>（太大搶戲、太小撐不起 header）。</div>
+<script>
+const SIZES=[19,21,23];
+const TRACK=[["-0.015em","緊"],["0","預設"],["0.02em","疏"]];
+function wm(size,ls,dark){
+  return `<div class="hdr${dark?' dk':''}"><span class="wm" style="font-size:${size}px;letter-spacing:${ls};font-weight:600">Scene</span><span class="wm" style="font-size:${size}px;letter-spacing:${ls};font-weight:300">phonie</span></div>`;
+}
+document.getElementById('t1').innerHTML=
+ '<tr><th class="l">字距</th>'+SIZES.map(s=>`<th>${s}px</th>`).join('')+'</tr>'+
+ TRACK.map(([ls,n])=>`<tr><td class="l">${n}<em>letter-spacing: ${ls}</em></td>`+
+   SIZES.map(s=>`<td>${wm(s,ls,false)}</td>`).join('')+'</tr>').join('');
+document.getElementById('b1').innerHTML=
+ `<span class="wm" style="font-size:44px;letter-spacing:0;font-weight:600">Scene</span><span class="wm" style="font-size:44px;letter-spacing:0;font-weight:300">phonie</span>`;
+document.getElementById('b2').innerHTML=wm(21,'0',false)+wm(21,'0',true)+wm(19,'0',true);
+</script></body></html>

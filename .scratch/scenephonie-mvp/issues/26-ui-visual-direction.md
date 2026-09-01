@@ -75,11 +75,19 @@ Blocked by:
 
 **暫緩的是元件**：tab／routes／split view／sidebar 留給後續視覺互動決定。
 
-### 4. 色彩系統：一個 accent、一個 warning、一組 neutral
+### 4. 色彩系統：accent／draft／error／neutral
 
 第 5 題與第 6 題合起來**縮小**了色彩系統 —— decoration 不靠顏色、區塊型別不靠顏色，tokens 檔 §2.2 原列的七個角色有三個因此不需要顏色。
 
-v1 限定三個角色，**暫不建立 success semantic role**（交付狀態用文字說）。warning **不得**與 accent 同色：「這裡不完整、會擋你匯出」與「這裡可以點」是相反的語意。
+v1 限定四個角色，**暫不建立 success semantic role**（交付狀態用文字說）。
+
+> ⚠️ **2026-09-01（[票券 28](./28-brand-identity.md)）回寫。** 本節原寫「一個 accent、一個 warning、一組 neutral」，並以「warning 不得與 accent 同色 —— 兩者語意相反」立規。**規則留下，理由換掉**：
+>
+> - 原理由的前提是 **accent 已知**（取自 brand Amber），而該前提已被 Q7 撤回。
+> - 更好的理由由 Q4 提供：`draft` 是 **document state**（常駐、大量、判準是不疲勞），`error` 是 **action consequence**（只在匯出彈窗出現、可以刺眼）。**兩者不同色不是因為撞色，是因為語意不在同一層。**
+> - 因此 `warning` 拆成 `draft` 與 `error`，`warning` 在 v1 沒有消費者。
+>
+> ➕ 一併確立**依賴方向**：semantic UI color 依各自語意獨立設計；**accent 的具體色值歸本票，不歸票券 28**。v1 沒有 brand color（Q22）。
 
 ### 5. decoration 怎麼浮現
 

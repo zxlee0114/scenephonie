@@ -1,0 +1,104 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300..700&display=swap" rel="stylesheet">
+<style>
+ body{margin:0;background:#fff;font:12px/1.5 -apple-system,system-ui,sans-serif;color:#18181B;padding:26px 30px}
+ h1{font-size:15px;margin:0 0 4px}
+ h2{font-size:12.5px;margin:26px 0 6px}
+ .sub{color:#777;margin:0 0 10px;max-width:1120px;line-height:1.7}
+ table{border-collapse:collapse}
+ th{font-size:9px;letter-spacing:.08em;color:#aaa;text-transform:uppercase;font-weight:600;padding:0 10px 9px;text-align:center}
+ th.l{text-align:left;padding-left:0;width:150px}
+ td{padding:9px 10px;border-top:1px solid #EDEDF0;vertical-align:middle}
+ td.l{padding-left:0;font-size:11px;font-weight:600;line-height:1.4}
+ td.l em{display:block;font-weight:400;font-style:normal;color:#999;font-size:10px;margin-top:2px}
+ tr.ctl td{background:#FCFCFD}
+ tr.ctl td.l{color:#999}
+ .hdr{height:48px;display:flex;align-items:center;padding:0 13px;background:#FAFAF9;border:1px solid #E5E7EB;border-radius:6px;min-width:200px}
+ .hdr.dk{background:#18181B;border-color:#27272A}
+ .wm{white-space:nowrap;font-family:'Source Sans 3';color:#18181B;letter-spacing:0}
+ .dk .wm{color:#FAFAFA}
+ .m{font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+ .m td{text-align:right;padding:6px 12px}
+ .m td:first-child{text-align:left;font-family:-apple-system,system-ui,sans-serif;font-weight:600}
+ .m th{text-align:right;padding:0 12px 8px}
+ .m th:first-child{text-align:left}
+ .bar{display:inline-block;height:8px;background:#18181B;border-radius:2px;vertical-align:middle}
+ .note{margin-top:14px;color:#777;font-size:11px;line-height:1.75;max-width:1120px;border-top:1px solid #E5E7EB;padding-top:12px}
+ code{background:#F4F4F5;padding:1px 4px;border-radius:3px;font-size:10.5px}
+</style></head><body>
+<h1>Q17 第二輪 — 分段<strong>幅度</strong>（方向不重測）</h1>
+<p class="sub">承載條件全部沿用已定案值：<code>Source Sans 3</code>、sentence case、<strong>21px @ 48px header</strong>、<code>letter-spacing 0</code>、字母形狀未改、light ／ reversed 都測。<br>
+唯一變數是<strong>兩段的字重差</strong>。<code>600/600</code> 是<strong>不分段對照組</strong> —— 它量出的是<strong>字形本身</strong>造成的重量偏差（<code>Scene</code> 有大寫 <code>S</code>、<code>phonie</code> 多一個字母），是判讀 Gate 5b 的基準線。</p>
+<table id="t1"></table>
+
+<h2>放大檢視 ─ 44px</h2>
+<div id="b1"></div>
+
+<h2>Gate 5b 的客觀量測 ─ 每段的著墨面積</h2>
+<p class="sub">在 200px 下光柵化各段，累加 alpha 覆蓋率得到<strong>著墨面積</strong>，再除以字母數（<code>Scene</code>=5、<code>phonie</code>=6）得到<strong>每字母墨量</strong>。<br>
+⚠️ 量測用 <code>FontFace</code> 把每個字重<strong>各釘成一個獨立 family</strong> —— Chrome 的 canvas 2D 不插值 variable 軸，直接寫 <code>350</code> 會被吸附回 <code>300</code>，量出假數據。<br><strong>判準不是「比值等於 1」</strong> —— 對照組 <code>600/600</code> 的比值就是字形自帶的偏差。要看的是<strong>各方案偏離對照組多少</strong>。</p>
+<table class="m" id="t2"></table>
+<div class="note" id="note"></div>
+<script>
+const PAIRS=[[600,300],[600,350],[600,400],[500,400],[600,600]];
+function wm(w1,w2,size,dark){
+  return `<div class="hdr${dark?' dk':''}"><span class="wm" style="font-size:${size}px;font-weight:${w1}">Scene</span><span class="wm" style="font-size:${size}px;font-weight:${w2}">phonie</span></div>`;
+}
+const VF='https://fonts.gstatic.com/s/sourcesans3/v19/nwpStKy2OAdR1K-IwhWudF-R3w8aZejf5Hc.woff2';
+// Chrome 的 canvas 2D 不插值 variable 軸（350 會被吸附回 300），
+// 因此每個字重各釘成一個只有單一 weight 的 family，強迫 canvas 拿到真值。
+const PINNED=[...new Set(PAIRS.flat())].map(w=>{
+  const f=new FontFace('SS3w'+w,`url(${VF})`,{weight:w+' '+w});
+  document.fonts.add(f);return f.load();
+});
+function ink(txt,wt){
+  const S=200,c=document.createElement('canvas');
+  const x=c.getContext('2d');
+  x.font=`${S}px "SS3w${wt}"`;
+  const w=Math.ceil(x.measureText(txt).width)+40;
+  c.width=w;c.height=S*2;
+  const y=c.getContext('2d');
+  y.fillStyle='#fff';y.fillRect(0,0,w,S*2);
+  y.font=`${S}px "SS3w${wt}"`;y.fillStyle='#000';y.textBaseline='alphabetic';
+  y.fillText(txt,20,S*1.35);
+  const d=y.getImageData(0,0,w,S*2).data;
+  let sum=0;for(let i=0;i<d.length;i+=4)sum+=(255-d[i])/255;
+  return sum/(S*S); // 正規化成「em 平方」單位
+}
+Promise.all([document.fonts.ready,...PINNED]).then(()=>{
+ document.getElementById('t1').innerHTML=
+  '<tr><th class="l">字重組合</th><th>淺底 48px header</th><th>深底 48px header</th></tr>'+
+  PAIRS.map(([a,b])=>{
+    const ctl=(a===b);
+    return `<tr class="${ctl?'ctl':''}"><td class="l">${a} / ${b}${ctl?'':''}<em>${ctl?'不分段 · 對照組':'Scene '+a+' ／ phonie '+b}</em></td>`+
+      `<td>${wm(a,b,21,false)}</td><td>${wm(a,b,21,true)}</td></tr>`;
+  }).join('');
+
+ document.getElementById('b1').innerHTML=PAIRS.map(([a,b])=>
+   `<div style="margin:14px 0 4px"><span class="wm" style="font-size:44px;font-weight:${a}">Scene</span><span class="wm" style="font-size:44px;font-weight:${b}">phonie</span>`+
+   `<span style="font-size:10px;color:#bbb;margin-left:16px">${a} / ${b}${a===b?'（對照組）':''}</span></div>`).join('');
+
+ const rows=PAIRS.map(([a,b])=>{
+   const iA=ink('Scene',a), iB=ink('phonie',b);
+   const pA=iA/5, pB=iB/6;
+   return {a,b,pA,pB,r:pA/pB};
+ });
+ const ctl=rows.find(r=>r.a===r.b).r;
+ const mx=Math.max(...rows.map(r=>Math.max(r.pA,r.pB)));
+ document.getElementById('t2').innerHTML=
+  '<tr><th>字重組合</th><th>Scene 每字母</th><th>phonie 每字母</th><th>比值</th><th>偏離對照組</th><th style="text-align:left;padding-left:20px">視覺化</th></tr>'+
+  rows.map(r=>{
+    const dev=((r.r/ctl-1)*100);
+    const isC=r.a===r.b;
+    return `<tr${isC?' class="ctl"':''}><td>${r.a} / ${r.b}${isC?'　對照組':''}</td>`+
+     `<td>${r.pA.toFixed(4)}</td><td>${r.pB.toFixed(4)}</td><td>${r.r.toFixed(3)}</td>`+
+     `<td>${isC?'—':(dev>0?'+':'')+dev.toFixed(1)+'%'}</td>`+
+     `<td style="text-align:left;padding-left:20px"><span class="bar" style="width:${r.pA/mx*110}px"></span> <span class="bar" style="width:${r.pB/mx*110}px;opacity:.45"></span></td></tr>`;
+  }).join('');
+ document.getElementById('note').innerHTML=
+  `對照組比值 <code>${ctl.toFixed(3)}</code> ＝ 同字重下 <code>Scene</code> 每字母就比 <code>phonie</code> 重這麼多，<strong>與分段無關</strong>。<br>`+
+  `Gate 5b 問的是：某個方案把這個既有落差<strong>又推遠了多少</strong>。偏離越大，<code>Scene &gt; phonie</code> 的 hierarchy 越強。<br>`+
+  `Gate 5a 則只能看圖：兩段還感知得到嗎、整體還讀成一個字嗎。<strong>兩關必須同時過。</strong>`;
+});
+</script></body></html>
