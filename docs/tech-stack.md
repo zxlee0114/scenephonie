@@ -7,7 +7,8 @@
 
 | 層 | 選擇 | 鎖定程度 | 在 repo 的落點 |
 |---|---|---|---|
-| 框架 | Next.js（App Router）＋ TypeScript | 初步 | `apps/web/` |
+| 框架 | Next.js **16**（App Router）＋ TypeScript | 初步（版本號不鎖，隨 upkeep 票升級） | `apps/web/`、`apps/web/package.json` |
+| Bundler | **Turbopack**（Next 16 起 `next dev` / `next build` 預設） | 隨框架 | `apps/web/next.config.ts` |
 | 資料庫 | PostgreSQL ＋ Drizzle ORM | 初步 | `apps/web/src/db/`、`apps/web/drizzle.config.ts` |
 | 測試 runner | Vitest | — | 各套件 `vitest.config.ts` |
 | isomorphic schema | 獨立套件，零瀏覽器相依，Node 可單獨跑測試 | 已鎖定（§5.5 / §13.2 階段 0） | `packages/schema/`（`tsconfig` 無 `lib.dom` ＋ ESLint 邊界規則） |
@@ -22,6 +23,24 @@
 - 不可用 Cloudflare Workers 純執行模式（票券 05，PDF 相關）。
 - Supabase Auth／RLS／Storage／Realtime **不作為 domain/application 授權權威**（不變式 I、
   [ADR-0012](./adr/0012-infrastructure-provides-mechanism-not-authority.md)）。Supabase 在 v1 僅是 Postgres 託管。
+
+## Bundler 與 caching（Next 16，票券 22）
+
+- **Bundler：Turbopack。** Next 16 起是 `next dev` / `next build` 的預設。本專案沒有自訂
+  webpack 設定，也沒有需要 webpack loader 的相依，故不加 `--webpack` 退回。`pnpm build`
+  已在 Turbopack 下綠燈。`transpilePackages` 與 `outputFileTracingRoot` 兩鍵在 Turbopack
+  下皆生效，monorepo file-tracing 無新 warning。
+- **Caching：不採用 `cacheComponents`。** Next 16 移除了 `experimental.dynamicIO` /
+  `experimental.useCache`，PPR flag 也一併移除；要選擇性預渲染改用頂層 `cacheComponents`。
+  骨架沒有任何 `'use cache'` 或 RSC 資料快取，啟用只會多出 Cache Components 模型的遷移
+  成本而無收益，故本票延後。`/api/health` 靠 route handler 預設 dynamic ＋ 顯式
+  `export const dynamic = "force-dynamic"` 維持對 Postgres 的 round-trip，`next build`
+  的路由表確認它是 `ƒ (Dynamic)`、未被靜態優化。屬保守預設，未達開 ADR 的門檻。
+- **`next lint` 與 `eslint` 設定鍵移除。** lint 一律由 CI 獨立 job 跑（`pnpm lint` =
+  `eslint .`，flat config，含 §5.5 isomorphic 邊界）；`next.config.ts` 不再有 `eslint` 鍵。
+- **`agentRules: false`。** Next 16 的 `next dev` 預設會在 app 目錄生成 `AGENTS.md` /
+  `CLAUDE.md`；本 repo 用單一 context 佈局（repo 根的 `CLAUDE.md` + `CONTEXT.md` +
+  `docs/adr/`），故在 `next.config.ts` 關閉。
 
 ## Region 意圖
 

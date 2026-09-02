@@ -14,7 +14,7 @@
   "dependencies": {
     "@scenephonie/schema": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "next": "^15.5.4",
+    "next": "^16.3.4",
     "postgres": "^3.4.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

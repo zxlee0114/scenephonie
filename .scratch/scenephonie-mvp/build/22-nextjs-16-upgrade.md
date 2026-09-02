@@ -6,7 +6,7 @@ drizzle-orm／drizzle-kit／react 已於本分支的相依 refresh commit 更新
 
 **Blocked by:** None —— 可獨立進行。**建議排在票券 04（編輯器）之前**，避免 Tiptap 整合完成後又要對整個 bundler／caching 行為重驗一次；若票券 18（PDF，`@sparticuz/chromium` + Puppeteer）先落地，本票需一併重驗 serverless function 打包。
 
-**Status:** ready-for-agent
+**Status:** in-review
 
 **風險與已知變動點（開工前確認官方 upgrade guide 為準）：**
 
@@ -19,11 +19,51 @@ drizzle-orm／drizzle-kit／react 已於本分支的相依 refresh commit 更新
 
 **驗收：**
 
-- [ ] 乾淨 checkout 下 `pnpm install --frozen-lockfile` → `pnpm build` 在 Next 16 綠燈；bundler 選擇（Turbopack 或退回 webpack）有紀錄與理由
-- [ ] `pnpm dev` 開得起來，`/` 與 `/api/health` 皆正常回應
-- [ ] `/api/health` 仍是 dynamic（對 Postgres round-trip），未被靜態優化；`getDb()` 的 lazy 連線路徑不受影響，`next build` 不需要 `DATABASE_URL`
-- [ ] `pnpm typecheck`、`pnpm test`、`pnpm lint` 全綠（§5.5 isomorphic 邊界的 lint job 照舊擋得住違規）
-- [ ] `transpilePackages` / `outputFileTracingRoot` 在所選 bundler 下有效，monorepo file-tracing 無新 warning
-- [ ] CI workflow（`.github/workflows/ci.yml`）如有對 Next 行為的隱含假設一併更新；PR 的 Vercel preview deployment 綠燈、route handler 在 preview／production 都連得到 Postgres
-- [ ] caching 模型的決定（採用 `cacheComponents`/`'use cache'` 或延後）寫下理由；非顯而易見的取捨開 ADR
-- [ ] `docs/tech-stack.md` 的技術棧表更新 Next 版本；`next.config.ts` 的設定變動有註解說明
+- [x] 乾淨 checkout 下 `pnpm install --frozen-lockfile` → `pnpm build` 在 Next 16 綠燈；bundler 選擇（Turbopack 或退回 webpack）有紀錄與理由
+- [x] `pnpm dev` 開得起來，`/` 與 `/api/health` 皆正常回應
+- [x] `/api/health` 仍是 dynamic（對 Postgres round-trip），未被靜態優化；`getDb()` 的 lazy 連線路徑不受影響，`next build` 不需要 `DATABASE_URL`
+- [x] `pnpm typecheck`、`pnpm test`、`pnpm lint` 全綠（§5.5 isomorphic 邊界的 lint job 照舊擋得住違規）
+- [x] `transpilePackages` / `outputFileTracingRoot` 在所選 bundler 下有效，monorepo file-tracing 無新 warning
+- [~] CI workflow（`.github/workflows/ci.yml`）如有對 Next 行為的隱含假設一併更新；PR 的 Vercel preview deployment 綠燈、route handler 在 preview／production 都連得到 Postgres
+- [x] caching 模型的決定（採用 `cacheComponents`/`'use cache'` 或延後）寫下理由；非顯而易見的取捨開 ADR
+- [x] `docs/tech-stack.md` 的技術棧表更新 Next 版本；`next.config.ts` 的設定變動有註解說明
+
+## Comments
+
+### 升級摘要（票券 22）
+
+**版本**：`next` `^15.5.4` → `^16.3.4`。react／react-dom 已於本分支的相依 refresh commit
+升到 `^19.2.8`（滿足 Next 16），本票未動。Node（`.nvmrc` = `22`、`engines` `>=22`）已滿足
+Next 16 的 `>=20.9`，未改。
+
+**`apps/web/next.config.ts` 變動**：
+
+- 移除 `eslint: { ignoreDuringBuilds: true }` —— Next 16 移除了 `eslint` 設定鍵與內建
+  `next lint`，`next build` 本來就不再跑 lint。lint 仍由 CI 獨立 job（`pnpm lint` =
+  `eslint .`，flat config，含 §5.5 邊界）負責。
+- 新增 `agentRules: false` —— Next 16 的 `next dev` 預設會在 app 目錄生成 `AGENTS.md` /
+  `CLAUDE.md`。本 repo 用單一 context 佈局（repo 根的 `CLAUDE.md` + `CONTEXT.md` +
+  `docs/adr/`），不要每個 app 各自長 agent 規則檔，故關閉。
+- `transpilePackages` / `outputFileTracingRoot` 未動；兩鍵在 Turbopack 下皆生效。註解補上
+  bundler 與 caching 的決策說明。
+
+**Bundler**：採 Next 16 預設的 Turbopack。無自訂 webpack 設定、無需 webpack loader 的相依，
+不加 `--webpack` 退回。`pnpm build` 在 Turbopack 下綠燈，monorepo file-tracing 無新 warning。
+
+**Caching**：不採用 `cacheComponents`（原 `experimental.dynamicIO` / `useCache`，Next 16 已移除；
+PPR flag 亦移除）。骨架無 `'use cache'` 或 RSC 資料快取，啟用只是多出 Cache Components 模型的
+遷移成本。理由寫進 `next.config.ts` 註解與 `docs/tech-stack.md`。屬保守預設，未開 ADR。
+
+**驗證**（乾淨 `pnpm install --frozen-lockfile` 後）：
+
+- `pnpm build`（Turbopack）綠燈；路由表 `/api/health` = `ƒ (Dynamic)`、`/` = `○ (Static)`。
+  build 不需 `DATABASE_URL`。
+- `pnpm dev` 綠燈；`GET /` → 200，`GET /api/health` → 打到 handler（本機無 `DATABASE_URL`
+  故回 503 `"DATABASE_URL 未設定"`，正好證明它會做 Postgres round-trip、未被靜態優化）。
+- `pnpm typecheck` / `pnpm test`（42 tests）/ `pnpm lint` 全綠。
+- `next-env.d.ts` 由 Next 16 重生（新增 typed-routes 的 `routes.d.ts` / `root-params.d.ts`
+  reference），一併提交。
+
+**未由本票驗證**：Vercel preview deployment 綠燈、preview／production 的 route handler 連
+Postgres —— 需 PR 開出後在 Vercel 上觀察，非本機可驗。`.github/workflows/ci.yml` 檢視過，
+對 Next 行為無隱含假設（`.nvmrc` 供版本、`NEXT_TELEMETRY_DISABLED` 仍有效），未改。
