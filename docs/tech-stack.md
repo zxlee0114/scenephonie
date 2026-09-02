@@ -12,7 +12,7 @@
 | 測試 runner | Vitest | — | 各套件 `vitest.config.ts` |
 | isomorphic schema | 獨立套件，零瀏覽器相依，Node 可單獨跑測試 | 已鎖定（§5.5 / §13.2 階段 0） | `packages/schema/`（`tsconfig` 無 `lib.dom` ＋ ESLint 邊界規則） |
 | 部署 | **Vercel Hobby，region `hnd1`（東京）** | 已鎖定（可反轉） | `vercel.json` (`regions: ["hnd1"]`) |
-| 資料庫託管 | **Supabase Free，東京（`ap-northeast-1`）**，僅作 PostgreSQL 託管 | 已鎖定 | `.env.example`、`docs/adr/0012-*` |
+| 資料庫託管 | **Supabase Free，東京（`ap-northeast-1`）**，僅作 PostgreSQL 託管 | 已鎖定 | `apps/web/.env.example`、`docs/adr/0012-*` |
 | 連線模型 | **`DATABASE_URL` 走 Supavisor transaction mode `:6543` ＋ `prepare: false`**；migration 走 **`DIRECT_URL`** session mode | 已鎖定 | `apps/web/src/db/client.ts`、`apps/web/drizzle.config.ts` |
 
 ### 硬邊界

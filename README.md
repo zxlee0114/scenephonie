@@ -19,16 +19,17 @@
 
 ```bash
 pnpm install
-cp .env.example .env            # 填入連線字串，或用下方本機 Postgres
+cp apps/web/.env.example apps/web/.env   # Next 與 drizzle-kit 都讀 apps/web/.env
 
 # 本機 Postgres：首選 `supabase start`（需 Supabase CLI），否則：
-docker compose up -d db         # localhost:5432
-# .env 內把 DATABASE_URL / DIRECT_URL 指向 postgresql://postgres:postgres@localhost:5432/scenephonie
+docker compose up -d db                  # localhost:5432
+# apps/web/.env 內把 DATABASE_URL / DIRECT_URL 指向
+#   postgresql://postgres:postgres@localhost:5432/scenephonie
 
-pnpm db:generate                # 由 src/db/schema.ts 生成 SQL migration
-pnpm db:migrate                 # 套用 migration（走 DIRECT_URL）
+pnpm db:generate                         # 由 src/db/schema.ts 生成 SQL migration
+pnpm db:migrate                          # 套用 migration（走 DIRECT_URL）
 
-pnpm dev                        # http://localhost:3000
+pnpm dev                                 # http://localhost:3000
 ```
 
 ## 檢查（與 CI 相同）
