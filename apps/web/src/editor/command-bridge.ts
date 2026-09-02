@@ -16,11 +16,12 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { docFromJSON, type CommandResult } from "@scenephonie/schema";
 
+import type { BlockAddress } from "./address";
 import { requestFocus, type PendingFocus } from "./focus";
 
 export interface RunOptions {
   /** replace 後把游標放回這個場次 ／ 區塊的內文（doc 座標由本模組在新 doc 上算）。 */
-  readonly caretAt?: { readonly sceneId: string; readonly blockIndex: number };
+  readonly caretAt?: BlockAddress;
   /** replace 後排入一個欄位 focus 請求（node view 掛載時 claim）。 */
   readonly focusField?: PendingFocus;
   /** true ＝ 把 focus 請求指向「新出現的那個場次」的 chip row（用 id 差集找出新場次）。 */

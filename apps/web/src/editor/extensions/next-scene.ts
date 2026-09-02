@@ -12,16 +12,12 @@ import type { Editor } from "@tiptap/core";
 
 import { createNextScene } from "@scenephonie/schema";
 
+import { sceneContext } from "../address";
 import { runKernelCommand } from "../command-bridge";
 
 /** 游標所在的頂層場次 id；不在任何場次裡回 `null`（→ 接在全劇最後一場之後）。 */
 export function currentSceneId(editor: Editor): string | null {
-  const { $from } = editor.state.selection;
-  for (let d = $from.depth; d > 0; d--) {
-    const node = $from.node(d);
-    if (node.type.name === "scene") return node.attrs.sceneId as string;
-  }
-  return null;
+  return sceneContext(editor.state.selection.$from)?.sceneId ?? null;
 }
 
 export function requestNextScene(editor: Editor, afterSceneId?: string | null): boolean {

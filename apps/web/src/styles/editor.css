@@ -203,19 +203,19 @@
 
 .block--insert-shot {
   max-inline-size: calc(var(--measure-body-ic) * 1ic);
-  /* 與動作的差別靠 rhythm 與一個結構標籤，不靠顏色、不靠框。 */
-  padding-inline-start: var(--space-3);
-  box-shadow: inset 2px 0 0 var(--rule-strong);
+  /* 與動作的差別靠縮排、spacing 與一個結構標籤（§7.11）——不靠顏色、不靠框、不靠線。 */
+  margin-inline-start: var(--space-5);
+  margin-block: var(--space-4);
 }
 
 .block--insert-shot .block__tag {
-  display: inline-block;
+  display: block;
   font-family: var(--font-ui);
   font-size: var(--text-sm);
   letter-spacing: 0.08em;
   color: var(--text-faint);
   user-select: none;
-  margin-inline-end: var(--space-2);
+  margin-block-end: var(--space-1);
 }
 
 .block__content {

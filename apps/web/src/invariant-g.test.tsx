@@ -57,18 +57,17 @@ describe("不變式 G —— CSS 不模擬輸出格式", () => {
 
 describe("不變式：原始碼不得出現 hex（tokens.css 是唯一例外）", () => {
   it("src/ 下除 tokens.css 外，CSS／TSX 無 hex 色碼", () => {
-    const globby = (dir: string): string[] => {
+    const walkFiles = (dir: string): string[] => {
       const out: string[] = [];
       for (const entry of readdirSync(dir)) {
         const full = join(dir, entry);
-        if (statSync(full).isDirectory()) out.push(...globby(full));
+        if (statSync(full).isDirectory()) out.push(...walkFiles(full));
         else if (/\.(css|tsx)$/.test(entry)) out.push(full);
       }
       return out;
     };
-    const srcDir = HERE;
     const offenders: string[] = [];
-    for (const file of globby(srcDir)) {
+    for (const file of walkFiles(HERE)) {
       if (file.endsWith("tokens.css")) continue;
       const body = readFileSync(file, "utf8");
       const hits = body.match(/#[0-9a-fA-F]{3,8}\b/g);

@@ -173,6 +173,22 @@ describe("⌘+A 漸進式全選", () => {
     expect(editor.state.selection.from).toBeLessThanOrEqual(1);
     expect(editor.state.selection.to).toBeGreaterThanOrEqual(editor.state.doc.content.size - 1);
   });
+
+  it("單區塊場次：不出現空按（區塊 → 整場 → 整份，每一步都有變化）", () => {
+    caretInBlock(1, 0); // 第二場只有一段
+
+    progressiveSelectAll(editor);
+    expect(editor.state.selection instanceof TextSelection).toBe(true);
+
+    progressiveSelectAll(editor);
+    // 區塊層與內文層在單區塊場次是同一個範圍 —— 直接跳到整場，不浪費一按
+    expect(editor.state.selection instanceof NodeSelection).toBe(true);
+    expect((editor.state.selection as NodeSelection).node.type.name).toBe("scene");
+
+    progressiveSelectAll(editor);
+    expect(editor.state.selection.from).toBeLessThanOrEqual(1);
+    expect(editor.state.selection.to).toBeGreaterThanOrEqual(editor.state.doc.content.size - 1);
+  });
 });
 
 describe("不變式 ⑥：同一份 doc 內 sceneId 不得重複", () => {

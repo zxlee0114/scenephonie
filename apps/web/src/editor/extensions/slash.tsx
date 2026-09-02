@@ -13,9 +13,10 @@ import type { Editor, Range } from "@tiptap/core";
 import Suggestion from "@tiptap/suggestion";
 import { useSyncExternalStore } from "react";
 
-import { setBlockType, type BlockType } from "@scenephonie/schema";
+import type { BlockType } from "@scenephonie/schema";
 
-import { runKernelCommand } from "../command-bridge";
+import { sceneContext } from "../address";
+import { BLOCK_META, setBlockTypeAt } from "../block-types";
 import { requestNextScene } from "./next-scene";
 
 type SlashItem = {
@@ -25,31 +26,11 @@ type SlashItem = {
   run: (editor: Editor, range: Range) => void;
 };
 
-const BLOCK_LABEL: Record<BlockType, string> = {
-  action: "動作",
-  dialogue: "對白",
-  insertShot: "插入畫面",
-};
-
-function locate(editor: Editor, at: number): { sceneId: string; blockIndex: number } | null {
-  const $pos = editor.state.doc.resolve(at);
-  for (let d = $pos.depth; d > 0; d--) {
-    if ($pos.node(d).type.name === "scene") {
-      return { sceneId: $pos.node(d).attrs.sceneId as string, blockIndex: $pos.index(d) };
-    }
-  }
-  return null;
-}
-
 function convertBlock(editor: Editor, range: Range, type: BlockType) {
   editor.view.dispatch(editor.state.tr.delete(range.from, range.to));
-  const target = locate(editor, editor.state.selection.from);
-  if (!target) return;
-  runKernelCommand(
-    editor,
-    (doc) => setBlockType(doc, { ...target, type }),
-    type === "dialogue" ? { focusField: { kind: "speaker", ...target } } : { caretAt: target },
-  );
+  const ctx = sceneContext(editor.state.selection.$from);
+  if (!ctx) return;
+  setBlockTypeAt(editor, { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex }, type);
 }
 
 const ITEMS: SlashItem[] = [
@@ -64,20 +45,20 @@ const ITEMS: SlashItem[] = [
   },
   {
     key: "shot",
-    label: BLOCK_LABEL.insertShot,
-    hint: "場次內部的單一畫面，不產生新場次",
+    label: BLOCK_META.insertShot.label,
+    hint: BLOCK_META.insertShot.hint,
     run: (editor, range) => convertBlock(editor, range, "insertShot"),
   },
   {
     key: "dialogue",
-    label: BLOCK_LABEL.dialogue,
-    hint: "也可以按 Tab 切換",
+    label: BLOCK_META.dialogue.label,
+    hint: BLOCK_META.dialogue.hint,
     run: (editor, range) => convertBlock(editor, range, "dialogue"),
   },
   {
     key: "action",
-    label: BLOCK_LABEL.action,
-    hint: "也可以按 Tab 切換",
+    label: BLOCK_META.action.label,
+    hint: BLOCK_META.action.hint,
     run: (editor, range) => convertBlock(editor, range, "action"),
   },
 ];
@@ -90,7 +71,8 @@ let menu: MenuState = { open: false, items: [], index: 0, rect: null };
 let pick: ((item: SlashItem) => void) | null = null;
 const listeners = new Set<() => void>();
 
-const set = (next: Partial<MenuState>) => {
+/** 合併一段 menu state 並通知訂閱者。 */
+const patchMenu = (next: Partial<MenuState>) => {
   menu = { ...menu, ...next };
   listeners.forEach((l) => l());
 };
@@ -113,7 +95,7 @@ export function SlashMenu() {
         <button
           key={item.key}
           className={i === state.index ? "is-active" : ""}
-          onMouseEnter={() => set({ index: i })}
+          onMouseEnter={() => patchMenu({ index: i })}
           onMouseDown={(e) => {
             e.preventDefault();
             pick?.(item);
@@ -143,24 +125,29 @@ export const Slash = Extension.create({
         render: () => ({
           onStart: (props) => {
             pick = (item) => props.command(item);
-            set({ open: true, items: props.items, index: 0, rect: props.clientRect?.() ?? null });
+            patchMenu({
+              open: true,
+              items: props.items,
+              index: 0,
+              rect: props.clientRect?.() ?? null,
+            });
           },
           onUpdate: (props) => {
-            set({ items: props.items, index: 0, rect: props.clientRect?.() ?? null });
+            patchMenu({ items: props.items, index: 0, rect: props.clientRect?.() ?? null });
           },
           onKeyDown: ({ event }) => {
             if (!menu.open) return false;
             if (event.isComposing) return false; // 組字期間完全不動作
             if (event.key === "Escape") {
-              set({ open: false });
+              patchMenu({ open: false });
               return true;
             }
             if (event.key === "ArrowDown") {
-              set({ index: (menu.index + 1) % menu.items.length });
+              patchMenu({ index: (menu.index + 1) % menu.items.length });
               return true;
             }
             if (event.key === "ArrowUp") {
-              set({ index: (menu.index - 1 + menu.items.length) % menu.items.length });
+              patchMenu({ index: (menu.index - 1 + menu.items.length) % menu.items.length });
               return true;
             }
             if (event.key === "Enter") {
@@ -172,7 +159,7 @@ export const Slash = Extension.create({
           },
           onExit: () => {
             pick = null;
-            set({ open: false, items: [], rect: null });
+            patchMenu({ open: false, items: [], rect: null });
           },
         }),
       }),

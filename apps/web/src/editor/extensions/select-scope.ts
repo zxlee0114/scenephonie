@@ -15,6 +15,8 @@ import { Extension } from "@tiptap/core";
 import type { Editor } from "@tiptap/core";
 import { AllSelection, NodeSelection, TextSelection } from "@tiptap/pm/state";
 
+import { sceneContext } from "../address";
+
 /** ⌘+A 一次：把選取範圍沿文件結構往外擴一層。回 `true` 表示已處理。 */
 export function progressiveSelectAll(editor: Editor): boolean {
   const { state, view } = editor;
@@ -27,13 +29,7 @@ export function progressiveSelectAll(editor: Editor): boolean {
     return true;
   }
 
-  let sceneDepth = -1;
-  for (let d = $from.depth; d > 0; d--) {
-    if ($from.node(d).type.name === "scene") {
-      sceneDepth = d;
-      break;
-    }
-  }
+  const sceneDepth = sceneContext($from)?.sceneDepth ?? -1;
   const scenePos = sceneDepth >= 0 ? $from.before(sceneDepth) : null;
 
   const blockSel = TextSelection.create(doc, $from.start(), $from.end());
@@ -47,9 +43,12 @@ export function progressiveSelectAll(editor: Editor): boolean {
 
   const atBlock = from === blockSel.from && to === blockSel.to;
   const atContent = !!contentSel && from === contentSel.from && to === contentSel.to;
+  // 單區塊場次：區塊層與內文層是同一個範圍，中間那一步是空按 —— 直接跳過。
+  const contentEqualsBlock =
+    !!contentSel && contentSel.from === blockSel.from && contentSel.to === blockSel.to;
 
   let next;
-  if (atContent && scenePos !== null) {
+  if ((atContent || (atBlock && contentEqualsBlock)) && scenePos !== null) {
     next = NodeSelection.create(doc, scenePos); // 整場，含 metadata
   } else if (atBlock && contentSel) {
     next = contentSel; // 這一場的內文

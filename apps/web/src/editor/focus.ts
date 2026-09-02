@@ -5,9 +5,11 @@
  * canonical doc 由 command 整份 replace，位置會變，所以用「場次 id ＋ 區塊序」定位而非
  * 絕對位置。node view 掛載時 `claim`，輪到自己就消費掉請求。
  */
+import type { BlockAddress } from "./address";
+
 export type PendingFocus =
   | { readonly kind: "sceneMeta"; readonly sceneId: string }
-  | { readonly kind: "speaker"; readonly sceneId: string; readonly blockIndex: number };
+  | ({ readonly kind: "speaker" } & BlockAddress);
 
 let pending: PendingFocus | null = null;
 

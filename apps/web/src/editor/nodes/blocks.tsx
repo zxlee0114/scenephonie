@@ -10,17 +10,19 @@
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useRef } from "react";
 
+import type { DialogueCharacterRef } from "@scenephonie/schema";
+
+import { sceneContext, type BlockAddress } from "../address";
 import { Action, Dialogue, InsertShot } from "../schema";
 import { CjkField } from "../cjk-field";
 import { claimFocus } from "../focus";
 
 /** 從 node view 反推它所在場次的 id 與自己在場次裡的序（給 pending-focus 比對用）。 */
-function locateBlock(props: NodeViewProps): { sceneId: string; blockIndex: number } | null {
+function locateBlock(props: NodeViewProps): BlockAddress | null {
   const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
   if (pos == null) return null;
-  const $pos = props.editor.state.doc.resolve(pos);
-  if ($pos.parent.type.name !== "scene") return null;
-  return { sceneId: $pos.parent.attrs.sceneId as string, blockIndex: $pos.index() };
+  const ctx = sceneContext(props.editor.state.doc.resolve(pos));
+  return ctx && { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex };
 }
 
 function ActionView() {
@@ -34,7 +36,10 @@ function ActionView() {
 function DialogueView(props: NodeViewProps) {
   const { node, editor, updateAttributes } = props;
   const inputRef = useRef<HTMLInputElement>(null);
-  const character = (node.attrs.character ?? null) as { id: string | null; displayName: string } | null;
+  // 票券 04 尚無人物實體（票券 08）—— id 先為 null，形狀已是 kernel 的 DialogueCharacterRef。
+  const character = (node.attrs.character ?? null) as
+    | (Omit<DialogueCharacterRef, "id"> & { id: string | null })
+    | null;
 
   useEffect(() => {
     const here = locateBlock(props);
@@ -62,13 +67,16 @@ function DialogueView(props: NodeViewProps) {
         }}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return;
-          // 欄位裡的 Tab 是「進台詞」，不能冒泡到 BlockCycle 把這個區塊轉掉。
-          if (e.key === "Tab" && !e.shiftKey) {
-            e.preventDefault();
+          // 欄位裡的 Tab（兩個方向都要）不能冒泡到 BlockCycle 把這個區塊轉掉（§7.1）。
+          if (e.key === "Tab") {
             e.stopPropagation();
-            const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
-            if (pos != null) {
-              editor.chain().focus().setTextSelection(pos + 1).run();
+            if (!e.shiftKey) {
+              // 正向 Tab：打完人物名就進台詞。反向 Tab：留在欄位，什麼都不做。
+              e.preventDefault();
+              const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
+              if (pos != null) {
+                editor.chain().focus().setTextSelection(pos + 1).run();
+              }
             }
           }
         }}

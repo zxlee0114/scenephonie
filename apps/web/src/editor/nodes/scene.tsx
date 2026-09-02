@@ -20,7 +20,7 @@ import {
 import type { Decoration } from "@tiptap/pm/view";
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
-import { INT_EXT_VALUES, TIME_VALUES } from "@scenephonie/schema";
+import { INT_EXT_VALUES, TIME_VALUES, type LocationRef } from "@scenephonie/schema";
 
 import { CjkField } from "../cjk-field";
 import { claimFocus } from "../focus";
@@ -33,7 +33,8 @@ const swallowTab = (e: ReactKeyboardEvent) => {
   if (e.key === "Tab") e.stopPropagation();
 };
 
-type LocationRef = { locationId: string | null; displayName: string } | null;
+// 票券 04 尚無地點實體（票券 08）—— locationId 先為 null，形狀已是 kernel 的 LocationRef。
+type SceneLocation = (Omit<LocationRef, "locationId"> & { locationId: string | null }) | null;
 
 function SceneView({ node, editor, updateAttributes, decorations }: NodeViewProps) {
   const firstField = useRef<HTMLSelectElement>(null);
@@ -52,7 +53,7 @@ function SceneView({ node, editor, updateAttributes, decorations }: NodeViewProp
 
   const intExt = (node.attrs.intExt as string | null) ?? "";
   const time = (node.attrs.time as string | null) ?? "";
-  const location = (node.attrs.location as LocationRef) ?? null;
+  const location = (node.attrs.location as SceneLocation) ?? null;
 
   return (
     <NodeViewWrapper className={`scene${spec?.selected ? " is-node-selected" : ""}`}>

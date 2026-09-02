@@ -116,21 +116,8 @@ function sceneBlock(name: string, dataType: string, attributes?: () => Record<st
 export const Action = sceneBlock("action", "action");
 
 export const Dialogue = sceneBlock("dialogue", "dialogue", () => ({
-  // 人物引用 { id, displayName }；可為 null（尚未指定說話者）。
-  character: {
-    default: null,
-    parseHTML: (el: HTMLElement) => {
-      const raw = el.getAttribute("data-character");
-      if (raw == null) return null;
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return null;
-      }
-    },
-    renderHTML: (attrs: Record<string, unknown>) =>
-      attrs.character == null ? {} : { "data-character": JSON.stringify(attrs.character) },
-  },
+  // 人物引用 { id, displayName }；可為 null（尚未指定說話者）。走 JSON attr，同場次的實體引用。
+  character: { default: null, ...jsonAttr("character") },
   // 發聲方式：不允許 null，default '一般'（§5.3）。
   voiceStyle: {
     default: "一般",
