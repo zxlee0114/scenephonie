@@ -2,15 +2,8 @@ import { Node } from "prosemirror-model";
 import { describe, expect, it } from "vitest";
 
 import { mintSceneId } from "./ids";
-import { nullableSceneAttrNames, schema, VOICE_VALUES } from "./schema";
-
-function makeScene(attrs: Record<string, unknown> = {}, text = "走進房間") {
-  return schema.node(
-    "scene",
-    { sceneId: mintSceneId(), ...attrs },
-    schema.node("action", null, text ? [schema.text(text)] : []),
-  );
-}
+import { INT_EXT_VALUES, nullableSceneAttrNames, schema, TIME_VALUES, VOICE_VALUES } from "./schema";
+import { makeDoc, makeScene } from "./testing";
 
 function sceneAttrSpec(name: string) {
   const attrs = schema.nodes.scene.spec.attrs;
@@ -75,6 +68,20 @@ describe("null 鐵律：可為 null 的欄位 default 也是 null（§5.3，票�
       expect(back.firstChild!.attrs[name]).toBe(null);
     },
   );
+
+  it("`dialogue.人物` 也適用：default null，往返後不被靜默改寫", () => {
+    expect(schema.nodes.dialogue.spec.attrs!.人物!.default).toBe(null);
+
+    const dialogueJson = schema
+      .node("dialogue", { 人物: null }, [schema.text("台詞")])
+      .toJSON() as { attrs: Record<string, unknown> };
+    delete dialogueJson.attrs.人物;
+    const back = Node.fromJSON(schema, {
+      type: "doc",
+      content: [{ type: "scene", attrs: { sceneId: mintSceneId() }, content: [dialogueJson] }],
+    });
+    expect(back.firstChild!.firstChild!.attrs.人物).toBe(null);
+  });
 });
 
 describe("發聲方式：不允許 null（§5.3，「要嘛預設 null、要嘛不允許 null」）", () => {
@@ -116,6 +123,28 @@ describe("發聲方式：不允許 null（§5.3，「要嘛預設 null、要嘛�
   it("三個合法值都放行", () => {
     for (const v of VOICE_VALUES) {
       expect(() => schema.node("dialogue", { 發聲方式: v }, [])).not.toThrow();
+    }
+  });
+});
+
+describe("時間／內外：封閉列舉，放行 null、擋列舉外的值（§4.3）", () => {
+  it("null 與每個列舉值都往返得回來", () => {
+    for (const [attr, values] of [
+      ["時間", TIME_VALUES],
+      ["內外", INT_EXT_VALUES],
+    ] as const) {
+      for (const v of [null, ...values]) {
+        const doc = makeDoc(makeScene({ [attr]: v }));
+        expect(Node.fromJSON(schema, doc.toJSON()).firstChild!.attrs[attr]).toBe(v);
+      }
+    }
+  });
+
+  it("列舉外的值在 Node.fromJSON 被擋下", () => {
+    for (const attr of ["時間", "內外"] as const) {
+      const json = makeScene().toJSON() as { attrs: Record<string, unknown> };
+      json.attrs[attr] = "白天";
+      expect(() => Node.fromJSON(schema, { type: "doc", content: [json] })).toThrow(RangeError);
     }
   });
 });

@@ -59,14 +59,28 @@ export interface DialogueCharacterRef {
  *
  * 於是每個「可為 null」的 attr 都 `default: null`；不想要 null 語意的欄位則**不允許 null**
  * （給 `default` 且值非 null）——「要嘛預設 null、要嘛不允許 null，不要兩者兼有」。
+ *
+ * 這個名單是 `scene` 上 default 必須為 null 的 attr（`dialogue.人物` 同規則，但在
+ * dialogue 節點上，另外處理）。
  */
-const NULLABLE_SCENE_ATTRS = ["時間", "內外", "地點", "登場人物"] as const;
+export const nullableSceneAttrNames = ["時間", "內外", "地點", "登場人物"] as const;
 
-function 發聲方式Validator(value: unknown): void {
-  // 不允許 null：這正是票券 19 點名的受害候選，驗證器把「不允許」變成會炸的事實。
-  if (!VOICE_VALUES.includes(value as VoiceStyle)) {
-    throw new RangeError(`發聲方式 只能是 ${VOICE_VALUES.join("／")}，收到 ${JSON.stringify(value)}`);
-  }
+/**
+ * 列舉欄位的驗證器。ProseMirror 只在 `check()` / `Node.fromJSON` 呼叫它（載入／
+ * y-prosemirror 往返路徑），不在 `create()` 呼叫——那正好對上威脅模型：被持久化或
+ * 遷移過的稿，違規值在載入時被攔。建立節點時的把關由 command 層負責（票券 03）。
+ *
+ * `nullable` 決定 `null` 是否放行——就是 §5.3「要嘛預設 null、要嘛不允許 null」的
+ * 開關：`時間`／`內外` 為 true，`發聲方式` 為 false。
+ */
+function enumValidator(attrName: string, values: readonly string[], { nullable }: { nullable: boolean }) {
+  return (value: unknown): void => {
+    if (nullable && value === null) return;
+    if (typeof value !== "string" || !values.includes(value)) {
+      const allowed = nullable ? `${values.join("／")} 或 null` : values.join("／");
+      throw new RangeError(`${attrName} 只能是 ${allowed}，收到 ${JSON.stringify(value)}`);
+    }
+  };
 }
 
 /**
@@ -74,7 +88,7 @@ function 發聲方式Validator(value: unknown): void {
  *
  * 內容規則：
  * ```
- * doc   := scene+
+ * doc   := scene*                 （§5.1 意圖 scene+，見下方註解）
  * scene := sceneBlock+            isolating, defining
  * sceneBlock := action | dialogue | insertShot   （group，不是節點）
  * action / dialogue / insertShot := inline*
@@ -103,8 +117,10 @@ export const schema = new Schema({
         // （`Node.fromJSON` 少了這個 attr 會直接 throw）。鑄造見 ./ids 的 mintSceneId()。
         sceneId: {},
         // 可為 null（§5.3）：空 metadata → 自動草稿，是草稿防呆的地基。default 也是 null。
-        時間: { default: null },
-        內外: { default: null },
+        // 時間／內外 是封閉列舉（§4.3），驗證器放行 null 與列舉值、擋掉其餘。
+        時間: { default: null, validate: enumValidator("時間", TIME_VALUES, { nullable: true }) },
+        內外: { default: null, validate: enumValidator("內外", INT_EXT_VALUES, { nullable: true }) },
+        // 地點／登場人物 是實體引用（物件／陣列），形狀由 command 層與 TS 型別把關，不做字串列舉驗證。
         地點: { default: null },
         登場人物: { default: null },
         // 不允許 null：空陣列就是「沒有」，不需要「未填 vs 空」的區別（不參與草稿完整性判定）。
@@ -126,8 +142,8 @@ export const schema = new Schema({
       attrs: {
         // 人物引用 { id, 顯示名 }；可為 null（尚未指定說話者）→ default null。
         人物: { default: null },
-        // 不允許 null，三值列舉，default '一般'（§5.3）。驗證器讓「不允許 null」會炸。
-        發聲方式: { default: "一般", validate: 發聲方式Validator },
+        // 不允許 null，三值列舉，default '一般'（§5.3）。nullable: false 讓塞 null 會炸。
+        發聲方式: { default: "一般", validate: enumValidator("發聲方式", VOICE_VALUES, { nullable: false }) },
       },
     },
 
@@ -142,6 +158,3 @@ export const schema = new Schema({
   },
   marks: {},
 });
-
-/** `scene` 節點上，schema `default` 必須為 `null` 的 attr 名單（null 鐵律，§5.3）。 */
-export const nullableSceneAttrNames: readonly string[] = NULLABLE_SCENE_ATTRS;
