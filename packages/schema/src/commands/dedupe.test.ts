@@ -118,7 +118,7 @@ describe("dedupeIdsPlugin（appendTransaction，Node 裡跑 EditorState、不需
     const a = makeScene();
     const state = withPlugin(makeDoc(a, makeScene()));
     // 一筆什麼都沒插入、不撞號的 transaction
-    const noop = state.tr.setNodeMarkup(0, undefined, { ...a.attrs, 時間: "日" });
+    const noop = state.tr.setNodeMarkup(0, undefined, { ...a.attrs, time: "日" });
     const { transactions } = state.applyTransaction(noop);
     expect(transactions.length).toBe(1);
   });

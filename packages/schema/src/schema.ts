@@ -8,46 +8,60 @@
  * **本票券（02）的範圍**：`doc`、`scene`、`sceneBlock`（`action`／`dialogue`／`insertShot`）。
  * **先不含**子場次（`subscene`）與場次群組（`sceneGroup`／`groupMember`／`groupFragment`）——
  * 那些在票券 05／後續長出，屆時沿用同一份 schema、同一套 null 鐵律。其中 `subscene` 的
- * `種類`（`插入｜接續`）比照 `發聲方式` 走「不允許 null」，但**無 default、建立時必填**
+ * `kind`（`插入｜接續`）比照 `voiceStyle` 走「不允許 null」，但**無 default、建立時必填**
  * （它是編劇按下哪個入口的宣告，系統不代填）。
+ *
+ * ── 詞彙 ↔ 識別碼對照（票券 23）────────────────────────────────────────
+ * 程式碼識別碼用英文小駝峰，領域詞彙（`CONTEXT.md` 詞條）維持中文，兩邊靠這張表對接。
+ * **只有鍵／識別碼羅馬化；欄位「值」（`日｜夜…`、`內景｜外景…`、`一般｜V.O.…`）是領域資料、
+ * 會被持久化、輸出照印，維持中文。**
+ *
+ * | 詞彙 | 識別碼 | | 詞彙 | 識別碼 |
+ * |---|---|---|---|---|
+ * | 時間（順場表「光」） | `time` | | 人物（`dialogue` attr） | `character` |
+ * | 內外（順場表「景」） | `intExt` | | 顯示名（引用上的名字） | `displayName` |
+ * | 地點 | `location` | | 描述（群演） | `description` |
+ * | 登場人物（判準：入鏡） | `appearingCharacters` | | 人數（群演） | `count` |
+ * | 群演 | `extras` | | 種類（子場次，票券 11） | `kind` |
+ * | 發聲方式 | `voiceStyle` | | | |
  */
 import { Schema } from "prosemirror-model";
 
-/** `時間` 欄位的合法值（業界順場表稱「光」）。可為 null —— null ＝ 尚未填。 */
+/** `time` 欄位（時間，業界順場表稱「光」）的合法值。可為 null —— null ＝ 尚未填。 */
 export const TIME_VALUES = ["日", "夜", "晨", "昏"] as const;
 export type SceneTime = (typeof TIME_VALUES)[number];
 
-/** `內外` 欄位的合法值（業界順場表稱「景」）。`雜景` 是逃生口：宣告「橫跨多個未指定地點」。 */
+/** `intExt` 欄位（內外，業界順場表稱「景」）的合法值。`雜景` 是逃生口：宣告「橫跨多個未指定地點」。 */
 export const INT_EXT_VALUES = ["內景", "外景", "內外景", "雜景"] as const;
 export type SceneIntExt = (typeof INT_EXT_VALUES)[number];
 
-/** `發聲方式` 的三個值。**不允許 null**，`default: '一般'`（§5.3）。輸出渲染為 `小明（V.O.）`。 */
+/** `voiceStyle`（發聲方式）的三個值。**不允許 null**，`default: '一般'`（§5.3）。輸出渲染為 `小明（V.O.）`。 */
 export const VOICE_VALUES = ["一般", "V.O.", "O.S."] as const;
 export type VoiceStyle = (typeof VOICE_VALUES)[number];
 
-/** 場次 `地點` 欄的引用形狀：實體 id ＋ 這一場顯示的名字（漸進揭露，§4.7）。 */
+/** 場次 `location` 欄的引用形狀：實體 id ＋ 這一場顯示的名字（漸進揭露，§4.7）。 */
 export interface LocationRef {
   locationId: string;
-  顯示名: string;
+  displayName: string;
 }
 
-/** 場次 `登場人物` 欄的引用形狀。判準是入鏡，不是有沒有台詞。 */
+/** 場次 `appearingCharacters` 欄的引用形狀。判準是入鏡，不是有沒有台詞。 */
 export interface CharacterRef {
   characterId: string;
-  顯示名: string;
+  displayName: string;
 }
 
-/** 場次 `群演` 欄的形狀。場次限定實體，id 只在該場次內有意義。 */
+/** 場次 `extras` 欄的形狀（群演）。場次限定實體，id 只在該場次內有意義。 */
 export interface ExtraRef {
   extraId: string;
-  描述: string;
-  人數: number;
+  description: string;
+  count: number;
 }
 
-/** `dialogue` 節點 `人物` attr 的引用形狀（§5.1：`{ id, 顯示名 }`）。合法目標是人物或本場次的群演。 */
+/** `dialogue` 節點 `character` attr 的引用形狀（§5.1：`{ id, displayName }`）。合法目標是人物或本場次的群演。 */
 export interface DialogueCharacterRef {
   id: string;
-  顯示名: string;
+  displayName: string;
 }
 
 /**
@@ -60,10 +74,10 @@ export interface DialogueCharacterRef {
  * 於是每個「可為 null」的 attr 都 `default: null`；不想要 null 語意的欄位則**不允許 null**
  * （給 `default` 且值非 null）——「要嘛預設 null、要嘛不允許 null，不要兩者兼有」。
  *
- * 這個名單是 `scene` 上 default 必須為 null 的 attr（`dialogue.人物` 同規則，但在
+ * 這個名單是 `scene` 上 default 必須為 null 的 attr（`dialogue.character` 同規則，但在
  * dialogue 節點上，另外處理）。
  */
-export const nullableSceneAttrNames = ["時間", "內外", "地點", "登場人物"] as const;
+export const nullableSceneAttrNames = ["time", "intExt", "location", "appearingCharacters"] as const;
 
 /**
  * 列舉欄位的驗證器。ProseMirror 只在 `check()` / `Node.fromJSON` 呼叫它（載入／
@@ -71,14 +85,16 @@ export const nullableSceneAttrNames = ["時間", "內外", "地點", "登場人�
  * 遷移過的稿，違規值在載入時被攔。建立節點時的把關由 command 層負責（票券 03）。
  *
  * `nullable` 決定 `null` 是否放行——就是 §5.3「要嘛預設 null、要嘛不允許 null」的
- * 開關：`時間`／`內外` 為 true，`發聲方式` 為 false。
+ * 開關：`time`／`intExt` 為 true，`voiceStyle` 為 false。
+ *
+ * `label` 只進錯誤訊息，刻意用領域詞（中文）——診斷文字給人讀，不是識別碼。
  */
-function enumValidator(attrName: string, values: readonly string[], { nullable }: { nullable: boolean }) {
+function enumValidator(label: string, values: readonly string[], { nullable }: { nullable: boolean }) {
   return (value: unknown): void => {
     if (nullable && value === null) return;
     if (typeof value !== "string" || !values.includes(value)) {
       const allowed = nullable ? `${values.join("／")} 或 null` : values.join("／");
-      throw new RangeError(`${attrName} 只能是 ${allowed}，收到 ${JSON.stringify(value)}`);
+      throw new RangeError(`${label} 只能是 ${allowed}，收到 ${JSON.stringify(value)}`);
     }
   };
 }
@@ -117,14 +133,15 @@ export const schema = new Schema({
         // （`Node.fromJSON` 少了這個 attr 會直接 throw）。鑄造見 ./ids 的 mintSceneId()。
         sceneId: {},
         // 可為 null（§5.3）：空 metadata → 自動草稿，是草稿防呆的地基。default 也是 null。
-        // 時間／內外 是封閉列舉（§4.3），驗證器放行 null 與列舉值、擋掉其餘。
-        時間: { default: null, validate: enumValidator("時間", TIME_VALUES, { nullable: true }) },
-        內外: { default: null, validate: enumValidator("內外", INT_EXT_VALUES, { nullable: true }) },
-        // 地點／登場人物 是實體引用（物件／陣列），形狀由 command 層與 TS 型別把關，不做字串列舉驗證。
-        地點: { default: null },
-        登場人物: { default: null },
+        // time（時間）／intExt（內外）是封閉列舉（§4.3），驗證器放行 null 與列舉值、擋掉其餘。
+        time: { default: null, validate: enumValidator("時間", TIME_VALUES, { nullable: true }) },
+        intExt: { default: null, validate: enumValidator("內外", INT_EXT_VALUES, { nullable: true }) },
+        // location（地點）／appearingCharacters（登場人物）是實體引用（物件／陣列），
+        // 形狀由 command 層與 TS 型別把關，不做字串列舉驗證。
+        location: { default: null },
+        appearingCharacters: { default: null },
         // 不允許 null：空陣列就是「沒有」，不需要「未填 vs 空」的區別（不參與草稿完整性判定）。
-        群演: { default: [] as ExtraRef[] },
+        extras: { default: [] as ExtraRef[] },
         dismissedCharacterIds: { default: [] as string[] },
         // 不允許 null，default false（§5.3）。手動標記為草稿；不存狀態機。
         manualDraft: { default: false, validate: "boolean" },
@@ -140,10 +157,13 @@ export const schema = new Schema({
       group: "sceneBlock",
       content: "inline*",
       attrs: {
-        // 人物引用 { id, 顯示名 }；可為 null（尚未指定說話者）→ default null。
-        人物: { default: null },
-        // 不允許 null，三值列舉，default '一般'（§5.3）。nullable: false 讓塞 null 會炸。
-        發聲方式: { default: "一般", validate: enumValidator("發聲方式", VOICE_VALUES, { nullable: false }) },
+        // character（人物）引用 { id, displayName }；可為 null（尚未指定說話者）→ default null。
+        character: { default: null },
+        // voiceStyle（發聲方式）：不允許 null，三值列舉，default '一般'（§5.3）。nullable: false 讓塞 null 會炸。
+        voiceStyle: {
+          default: "一般",
+          validate: enumValidator("發聲方式", VOICE_VALUES, { nullable: false }),
+        },
       },
     },
 

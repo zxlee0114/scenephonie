@@ -60,7 +60,7 @@ describe("null 鐵律：可為 null 的欄位 default 也是 null（§5.3，票�
   it.each([...nullableSceneAttrNames])(
     "往返後 `%s` 不被 default 靜默改寫（模擬傳輸層丟掉 null attr）",
     (name) => {
-      const scene = makeScene({ 時間: null, 內外: null, 地點: null, 登場人物: null });
+      const scene = makeScene({ time: null, intExt: null, location: null, appearingCharacters: null });
       const json = scene.toJSON() as { attrs: Record<string, unknown> };
       // y-prosemirror 不儲存 null attr —— 把它從序列化結果整個拿掉，回程只剩 default 可補
       delete json.attrs[name];
@@ -69,49 +69,49 @@ describe("null 鐵律：可為 null 的欄位 default 也是 null（§5.3，票�
     },
   );
 
-  it("`dialogue.人物` 也適用：default null，往返後不被靜默改寫", () => {
-    expect(schema.nodes.dialogue.spec.attrs!.人物!.default).toBe(null);
+  it("`dialogue.character` 也適用：default null，往返後不被靜默改寫", () => {
+    expect(schema.nodes.dialogue.spec.attrs!.character!.default).toBe(null);
 
     const dialogueJson = schema
-      .node("dialogue", { 人物: null }, [schema.text("台詞")])
+      .node("dialogue", { character: null }, [schema.text("台詞")])
       .toJSON() as { attrs: Record<string, unknown> };
-    delete dialogueJson.attrs.人物;
+    delete dialogueJson.attrs.character;
     const back = Node.fromJSON(schema, {
       type: "doc",
       content: [{ type: "scene", attrs: { sceneId: mintSceneId() }, content: [dialogueJson] }],
     });
-    expect(back.firstChild!.firstChild!.attrs.人物).toBe(null);
+    expect(back.firstChild!.firstChild!.attrs.character).toBe(null);
   });
 });
 
-describe("發聲方式：不允許 null（§5.3，「要嘛預設 null、要嘛不允許 null」）", () => {
+describe("voiceStyle（發聲方式）：不允許 null（§5.3，「要嘛預設 null、要嘛不允許 null」）", () => {
   it("default 是 '一般'，不是 null", () => {
-    const spec = schema.nodes.dialogue.spec.attrs!.發聲方式!;
+    const spec = schema.nodes.dialogue.spec.attrs!.voiceStyle!;
     expect(spec.default).toBe("一般");
     expect(spec.default).not.toBe(null);
   });
 
   it("不指定時建出 '一般'", () => {
     const d = schema.node("dialogue", null, [schema.text("台詞")]);
-    expect(d.attrs.發聲方式).toBe("一般");
+    expect(d.attrs.voiceStyle).toBe("一般");
   });
 
   it("往返後補回 '一般' 是正確行為（非 null 欄位，default 補值無害）", () => {
     const d = schema.node("dialogue", null, [schema.text("台詞")]);
     const json = d.toJSON() as { attrs: Record<string, unknown> };
-    delete json.attrs.發聲方式;
+    delete json.attrs.voiceStyle;
     const back = Node.fromJSON(schema, { type: "doc", content: [{ type: "scene", attrs: { sceneId: mintSceneId() }, content: [json] }] });
-    expect(back.firstChild!.firstChild!.attrs.發聲方式).toBe("一般");
+    expect(back.firstChild!.firstChild!.attrs.voiceStyle).toBe("一般");
   });
 
   it("塞 null 或列舉外的值：Node.check() 與 Node.fromJSON 會擋下", () => {
     // ProseMirror 的 validate 跑在 check()／fromJSON（載入路徑），不跑在 create()——
     // 持久化的稿被 y-prosemirror 往返或從 DB 載入時，違規值會在這裡被攔。
-    expect(() => schema.node("dialogue", { 發聲方式: "旁白" }, []).check()).toThrow(RangeError);
-    expect(() => schema.node("dialogue", { 發聲方式: null }, []).check()).toThrow(RangeError);
+    expect(() => schema.node("dialogue", { voiceStyle: "旁白" }, []).check()).toThrow(RangeError);
+    expect(() => schema.node("dialogue", { voiceStyle: null }, []).check()).toThrow(RangeError);
 
     const json = schema.node("dialogue", null, []).toJSON() as { attrs: Record<string, unknown> };
-    json.attrs.發聲方式 = null;
+    json.attrs.voiceStyle = null;
     expect(() =>
       Node.fromJSON(schema, {
         type: "doc",
@@ -122,16 +122,16 @@ describe("發聲方式：不允許 null（§5.3，「要嘛預設 null、要嘛�
 
   it("三個合法值都放行", () => {
     for (const v of VOICE_VALUES) {
-      expect(() => schema.node("dialogue", { 發聲方式: v }, [])).not.toThrow();
+      expect(() => schema.node("dialogue", { voiceStyle: v }, [])).not.toThrow();
     }
   });
 });
 
-describe("時間／內外：封閉列舉，放行 null、擋列舉外的值（§4.3）", () => {
+describe("time／intExt（時間／內外）：封閉列舉，放行 null、擋列舉外的值（§4.3）", () => {
   it("null 與每個列舉值都往返得回來", () => {
     for (const [attr, values] of [
-      ["時間", TIME_VALUES],
-      ["內外", INT_EXT_VALUES],
+      ["time", TIME_VALUES],
+      ["intExt", INT_EXT_VALUES],
     ] as const) {
       for (const v of [null, ...values]) {
         const doc = makeDoc(makeScene({ [attr]: v }));
@@ -141,7 +141,7 @@ describe("時間／內外：封閉列舉，放行 null、擋列舉外的值（§
   });
 
   it("列舉外的值在 Node.fromJSON 被擋下", () => {
-    for (const attr of ["時間", "內外"] as const) {
+    for (const attr of ["time", "intExt"] as const) {
       const json = makeScene().toJSON() as { attrs: Record<string, unknown> };
       json.attrs[attr] = "白天";
       expect(() => Node.fromJSON(schema, { type: "doc", content: [json] })).toThrow(RangeError);
@@ -158,10 +158,10 @@ describe("其餘不允許 null 的欄位（§5.3）", () => {
     expect(() => Node.fromJSON(schema, { type: "doc", content: [json] })).toThrow();
   });
 
-  it("群演 / dismissedCharacterIds：default 空陣列，非 null", () => {
-    expect(sceneAttrSpec("群演").default).toEqual([]);
+  it("extras（群演）/ dismissedCharacterIds：default 空陣列，非 null", () => {
+    expect(sceneAttrSpec("extras").default).toEqual([]);
     expect(sceneAttrSpec("dismissedCharacterIds").default).toEqual([]);
-    expect(makeScene().attrs.群演).toEqual([]);
+    expect(makeScene().attrs.extras).toEqual([]);
     expect(makeScene().attrs.dismissedCharacterIds).toEqual([]);
   });
 });
@@ -173,11 +173,11 @@ describe("同一份 schema 餵給 Node.fromJSON（Yjs 升級路徑預留，不�
         "scene",
         {
           sceneId: mintSceneId(),
-          時間: "夜",
-          內外: "內景",
-          地點: { locationId: "lo_abc", 顯示名: "海豚公寓房間" },
-          登場人物: [{ characterId: "ch_1", 顯示名: "小明" }],
-          群演: [{ extraId: "ex_1", 描述: "路人", 人數: 3 }],
+          time: "夜",
+          intExt: "內景",
+          location: { locationId: "lo_abc", displayName: "海豚公寓房間" },
+          appearingCharacters: [{ characterId: "ch_1", displayName: "小明" }],
+          extras: [{ extraId: "ex_1", description: "路人", count: 3 }],
           manualDraft: false,
           dismissedCharacterIds: ["ch_9"],
         },
@@ -185,7 +185,7 @@ describe("同一份 schema 餵給 Node.fromJSON（Yjs 升級路徑預留，不�
           schema.node("action", null, [schema.text("小明走進房間。")]),
           schema.node(
             "dialogue",
-            { 人物: { id: "ch_1", 顯示名: "小明" }, 發聲方式: "V.O." },
+            { character: { id: "ch_1", displayName: "小明" }, voiceStyle: "V.O." },
             [schema.text("我回來了。")],
           ),
           schema.node("insertShot", null, [schema.text("牆上的時鐘特寫。")]),
@@ -201,10 +201,10 @@ describe("同一份 schema 餵給 Node.fromJSON（Yjs 升級路徑預留，不�
   it("雜景多值地點也往返等價", () => {
     const doc = schema.node("doc", null, [
       makeScene({
-        內外: "雜景",
-        地點: [
-          { locationId: "lo_1", 顯示名: "巷口" },
-          { locationId: "lo_2", 顯示名: "警局" },
+        intExt: "雜景",
+        location: [
+          { locationId: "lo_1", displayName: "巷口" },
+          { locationId: "lo_2", displayName: "警局" },
         ],
       }),
     ]);

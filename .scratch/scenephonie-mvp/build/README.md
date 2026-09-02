@@ -56,3 +56,4 @@ blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開
 | 票券 | 內容 |
 |---|---|
 | [22](./22-nextjs-16-upgrade.md) | Next.js 15 → 16 升級。無 blocker，建議排在票券 04 之前。 |
+| [23](./23-schema-attr-romanization.md) | schema attr 鍵名羅馬化（中文 → 英文小駝峰，詞彙表不動）。blocked by 03，排在 03 合併之後。 |
