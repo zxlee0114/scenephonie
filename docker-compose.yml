@@ -1,0 +1,21 @@
+# 本機開發用的 Postgres（Supabase CLI 未安裝時的替代）。
+# 正式環境走 Supabase Free（東京 ap-northeast-1），僅作為 PostgreSQL 託管 —— 見 docs/tech-stack.md。
+services:
+  db:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: scenephonie
+    volumes:
+      - scenephonie_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  scenephonie_pgdata:
