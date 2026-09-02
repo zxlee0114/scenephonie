@@ -1,7 +1,7 @@
 # Scenephonie MVP 規格書
 
-> **狀態**：v1 定稿（2026-08-31，[票券 06](./issues/06-mvp-spec-writeup.md)）
-> **這份文件是什麼**：把[尋路圖](./map.md)上二十三張票券的決策整合成一份可直接開工的規格。
+> **狀態**：v1 定稿（2026-08-31，[票券 06](./issues/06-mvp-spec-writeup.md)）。定稿後 **2026-09-01** 再折入兩批後續決策：認證與部署（[24](./issues/24-auth-and-project-owner.md)／[25](./issues/25-deployment-and-hosting.md)／[30](./issues/30-better-auth-evaluation.md)，見 §6.2、§13、§14.2）與**編輯器呈現層**（[26](./issues/26-ui-visual-direction.md)–[29](./issues/29-cjk-webfont-loading-strategy.md)，見 §7.9–§7.12、不變式 G）。
+> **這份文件是什麼**：把[尋路圖](./map.md)上的票券決策整合成一份可直接開工的規格。
 > **權威分工** —— 三份文件不重複，讀法固定：
 >
 > | 文件 | 裝什麼 | 什麼時候讀 |
@@ -23,6 +23,7 @@
 5. [編輯器 schema](#5-編輯器-schema)
 6. [儲存模型](#6-儲存模型)
 7. [編輯器與輸入體驗](#7-編輯器與輸入體驗)
+7A. [編輯器呈現與前端結構](#7a-編輯器呈現與前端結構)（§7.9 不變式 G／§7.10 前端結構與導覽／§7.11 Typography 與色彩 token／§7.12 品牌資產）
 8. [場次表規格](#8-場次表規格)
 9. [PDF 匯出規格](#9-pdf-匯出規格)
 10. [分享與交付](#10-分享與交付)
@@ -77,6 +78,8 @@
 | F14 | **唯讀分享連結**：即時分享 ＋ 凍結分享（交付的把手） | [ADR-0008](../../docs/adr/0008-share-as-relationship-delivery-as-commitment.md) |
 | F15 | **交付**（每次 PDF 匯出建立一筆，append-only、無查閱 UI） | [07](./issues/07-scene-numbering-and-anchor.md)、[12](./issues/12-share-link-live-or-frozen.md) |
 | F16 | **自動備份**（before-image，無 UI，最多退回兩小時） | [04](./issues/04-screenplay-storage-model.md) Q7 |
+| F17 | **編輯器呈現層**：不變式 G、前端結構與導覽、Typography／色彩 token、字型載入 | [ADR-0010](../../docs/adr/0010-editor-representation-is-not-output-preview.md)、[26](./issues/26-ui-visual-direction.md)–[29](./issues/29-cjk-webfont-loading-strategy.md)（見 §7.9–§7.12） |
+| F18 | **品牌資產**：wordmark ＋ favicon（v1 **無 brand color**） | [28](./issues/28-brand-identity.md)（見 §7.12） |
 
 ### 3.2 不做（Out of scope）
 
@@ -94,7 +97,7 @@
 | **匯入既有劇本** | 文件收成場次序列後，貼上的散文沒有落地區；Word 劇本的場次標題有幾十種寫法，是獨立的解析問題 |
 | **使用者手打的字母尾綴編號**（`S5A`） | 假保護 —— 一搬移就變成 `S2A`。它在業界成立是因為底下有顏色稿的鎖定層，我們沒有那一層 |
 | **人物關係圖** | GHSA 明文禁止圖片；且它是一個編輯器不是一個欄位。⚠️ 但**歸迷霧不歸永久排除** —— 消費者是編劇與劇組而非評審 |
-| **劇情文字裡的人物／地點行內引用** | 沒有 v1 消費者：它答的是「被提及」，而登場人物的判準是**入鏡** |
+| **劇情文字裡的人物／地點行內引用** | 沒有 v1 消費者：它答的是「被提及」，而登場人物的判準是**入鏡**。**形狀已想清楚並寫進 §4.7 的「架構預留」** |
 | **版本鎖定／顏色稿** | 解的是紙本流通問題，我們有共同的資料來源 |
 | **投稿攤平**（把子場次攤平成連續 1..N） | 已複審維持（[13](./issues/13-inserted-scene-conventions-in-practice.md)）：攤平自己會製造新的說謊面。岔路不封 —— 加回來是一個推導函式加一個匯出選項 |
 | **便利貼、AI 寫作建議、協作評論、資料儀表板** | 次要功能 |
@@ -104,10 +107,12 @@
 | 項目 | 狀態 |
 |---|---|
 | `5.1` 在製作端會不會被讀成鏡號 | [票券 21](./issues/21-ask-industry-scene-numbering.md)（作者外出訪談，問卷已備妥）。**結論若翻轉，成本是一個推導函式加一個匯出選項，不動資料模型** |
-| 認證方案與專案擁有者欄位 | [票券 24](./issues/24-auth-and-project-owner.md) —— 擋部署，不擋編輯器與資料模型 |
-| 部署與資料庫託管 | [票券 25](./issues/25-deployment-and-hosting.md) —— 同上；硬邊界條件見 §9.1 |
-| 新手引導的形式 | 迷霧。「場次之外不能打字」與 Tab 語意都需要引導，但形式還不夠銳利 |
+| ~~認證方案與專案擁有者欄位~~ | ✅ **2026-09-01 resolve**（[24](./issues/24-auth-and-project-owner.md)／[30](./issues/30-better-auth-evaluation.md)）—— 不變式 H、`owner_id`、階段 3.5。見 §6.2、§14.2 |
+| ~~部署與資料庫託管~~ | ✅ **2026-09-01 resolve**（[25](./issues/25-deployment-and-hosting.md)）—— Vercel Hobby ＋ Supabase Free，不變式 I。見 §13.1、§14.2；PDF 硬邊界仍見 §9.1 |
+| 新手引導的形式 | 迷霧。「場次之外不能打字」與 Tab 語意都需要引導，但形式還不夠銳利。⚠️ [票券 26](./issues/26-ui-visual-direction.md) 已削掉一部分 —— 「場次之外不能打字」有了視覺答案（§7.9），降低了 onboarding burden，但整體引導形式仍未決 |
 | 按實體聚合的清單視圖 | 迷霧，v1 不做。**它是 [ADR-0007](../../docs/adr/0007-document-as-single-authority.md) 的具名觸發點** —— 它畢業時要重評角色設定表該是 document 還是 projection |
+| **使用者自訂的場次 Tag** | 迷霧，v1 不做（[票券 27](./issues/27-ui-component-layer.md)）。方向：`Scene ←→ Tag` 多對多、`Tag { id, name, color }`、顏色不承載 identity、非結構性、不進場次表也不進 PDF。不做的理由是**還沒有真實劇本資料**知道編劇會拿它標什麼 |
+| **劇本全文搜尋** | 迷霧，v1 不做（[票券 27](./issues/27-ui-component-layer.md)）。v1 只做場次導覽 sidebar 的清單篩選（§7.10）；含動作與對白內文的全文搜尋是另一個量級，且歸宿可能是 `⌘+K` 而非 sidebar |
 
 ---
 
@@ -326,6 +331,15 @@
 - **地點實體之間沒有包含關係。** 公寓 ⊃ 客廳 這種樹不做：沒有 v1 消費者、要人另外填、而且沒有底（公寓 ⊃ 客廳 ⊃ 沙發？）。
 
 **地點的身分判準是「美術上要不要分開處理」** —— 不是名字，也不是地理位置。同一個房間的「二十年前」與「現在」是**兩個**地點實體（美術要陳設兩次）；「未知大樓房間」與「海豚公寓房間」是**同一個**實體的兩個顯示名（陳設只有一套）。這兩個案例方向相反，正好界定了這條判準。
+
+#### 架構預留：劇情文字裡的行內引用（v1 不做）
+
+劇情文字裡對人物／地點的行內引用（`@小明` 出現在動作段落中）**移出 v1**（§3.2）—— 沒有 v1 消費者：它答的是「被提及」，而登場人物欄的判準是**入鏡**。形狀已想清楚，寫在這裡供日後接續，**不進 v1 的 schema**：
+
+- 引用形狀是 **`{ id, 顯示文字 }`**，內嵌在 inline 內容裡（與對白人物欄同型，只是住在正文中）。
+- **顯示文字是權威的渲染來源** —— id 斷開（實體被 ⌘Z 掉、跨劇本貼上）只是少一條可聚合的連結，**PDF 照印顯示文字**，與 §6.6「讀取容忍懸空引用」同一條規則。
+- **改名不自動代換全文** —— 實體改名只改各引用上的顯示名，正文裡既有的行內引用文字不動（漸進揭露下那可能正是編劇要的）。最強的反方論點「改名要找出那 12 處」用純文字搜尋就能辦到。
+- 加回來是新增一種 inline mark／node，不動場次與實體的資料模型。
 
 #### 自動補全選單：三列
 
@@ -562,6 +576,16 @@ future collaboration = Yjs（票券 19 已驗證可行）
 **⚠️ 資料庫沒有 `scenes` 表。** 理由同「存在＝被引用」：場次「存在」就是它在那棵樹上。登記簿等於第二份權威，而它唯一的好處（外鍵完整性）在 v1 沒有消費者。
 
 **這同時回答了「id 如何在編輯器與資料庫之間保持一致」：不必保持一致，因為資料庫沒有要跟著同步的副本。** 唯一的一致性要求是**同一份 doc 內 id 不得重複**（§6.5）。
+
+**認證與訪客（[票券 24](./issues/24-auth-and-project-owner.md)／[25](./issues/25-deployment-and-hosting.md)／[30](./issues/30-better-auth-evaluation.md)）：**
+
+- **`users.id` 由我們控制** —— `usr_` ＋ nanoid（比照 `sc_`／`gr_`）。auth library（**Better Auth `~1.7.x`**）的隨附表（`session`／`account` …）存在，但 **domain 只讀 `users.id`，永不讀 `account`**（一條 grep 可驗的規則，[ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)）。**不做影子表** —— 「換 library 時 `owner_id` 不動」直接免費拿到。
+- **identity chain**：`Scenephonie UserId → users.id → projects.owner_id`。v1 從第一天就是**多租戶**，`owner_id` 不是為協作預留，是 v1 authorization 的必要資料。
+- **登入方式**：Google OAuth 進 v1；magic link 不進（成本是 email delivery／token lifecycle／account linking 的 operational surface，而 v1 使用者 < 10 人且全部有 Google 帳號）；密碼出局。
+- **allowlist**：Google OAuth 的 registration/access policy，實作為 **env var 逗號清單**，**不建 `invitations` 表**（建表等於在 v1 猜 members 的形狀；env var 一看就知道是暫時物）。理由是產品邊界，不是儲存成本。
+- **訪客體驗（demo access）**：登入頁一顆「以訪客身分體驗」入口，**不放公開帳密**（那會把剛否決的密碼從後門放回來）。每次進入**建立 ephemeral user ＋ clone 一份 demo project**，**不用共用帳號**（共用帳號撞上「無同步層 ＋ 一列 jsonb 整列重寫」＝ last-write-wins 互相覆蓋，且打破「一個 `user` 列 ＝ 一個人」）。兩條入口收斂進同一條 pipeline，**domain 不知道誰是訪客、零授權例外**。
+- **`is_demo`**：`users` 上的 infrastructure/lifecycle metadata，**不進 domain model**，**TTL 清理（7 天）**。不長出 demo lifecycle domain。
+- **`ShareViewer`**（[票券 12](./issues/12-share-link-live-or-frozen.md) 的 `/s/<token>` 沒有帳號卻仍要授權）是**另一種 authorization subject 而非第二套機制**，寫路徑不接受它；具體型別延到階段 8。
 
 **`documents` 的 `kind` 與層級**（不變式 F：`kind` 固定其合法層級，不由使用者決定）：
 
@@ -832,6 +856,150 @@ PDF、場次表、匯出前草稿清單**共用同一次走訪**（場次號、�
 
 ---
 
+## 7A. 編輯器呈現與前端結構
+
+> 規格書定稿（2026-08-31）時，這一塊還沒有答案 —— 整張地圖的目的地是**資料模型與功能邊界**，呈現層一直只以「約束 2 擋在資料模型外」的形式出現。**2026-09-01 由票券 26–29 補齊**，是它們的整合。PDF 那一套（§9）是它的已知對照組。
+
+### 7.9 編輯器呈現：不變式 G（[ADR-0010](../../docs/adr/0010-editor-representation-is-not-output-preview.md)）
+
+> **不變式 G：編輯器可以呈現 screenplay 的閱讀與創作語意，但不得為模擬特定輸出格式而引入非必要的版面約束或視覺結構。**
+
+措辭**刻意不具名 GHSA** —— 綁在具體對象上，多一種輸出格式就要重寫。價值在**可否證**，每個視覺決定都能判對錯：
+
+| 出局（只為模擬輸出而存在） | 留下（劇本的閱讀語意，不依賴任何輸出格式） |
+|---|---|
+| A4 紙感、分頁線、標楷體、12 級字、三角形、框框 | 場次成塊、動作與對白的節奏、對白較窄的閱讀寬度 |
+
+**兩個不明顯的後果：**
+
+1. **唯讀分享頁沿用編輯器的閱讀呈現，不是 PDF 預覽**（§10.1、§7.10）—— 分享頁若給 GHSA 版面，等於從後門把輸出格式塞回螢幕。
+2. **編輯器的 typography 不繼承 PDF 模板的數字**（§7.11）—— 字型、字級、行高各自依螢幕上的長時間寫作重新決定。
+
+**參照／反參照**（reference／anti-reference，不是視覺拼貼）：
+
+> 像 **Ulysses 的沉靜**，借 **Notion 的區塊語意**，刻意不像 **Final Draft 的版面權威**與 **Scrivener 的窗格密度**。
+
+Final Draft／WriterDuet 的價值主張是「保證你的格式沒錯」，與我們的「格式不該是你的事」相反；Notion 的區塊語意已經借了，但它的介面密度是為多人文件工具設計的；Scrivener 把結構化表達成滿螢幕的窗格，而我們的結構化在資料裡。
+
+**結構邊界靠位置與間距建立，不靠描繪：**
+
+- **場次是有起點的內容容器，但不畫邊框** —— 靠場次標記、gutter 與場次間距建立邊界；**場次之外不存在 canonical text insertion point**。⚠️ 否決畫邊框：框會把畫面推回台灣舊格式的「框框」，而框框與三角形正是 GHSA 2022 改版拿掉的東西。
+- **新增場次 affordance**：insertion zone 在 hover／focus 時出現；**最後一場下方固定呈現**（明確的 append）。
+- **decoration 怎麼浮現**（場次號、子場次號、草稿標籤、群組宣告）：靠 ①**空間位置**（gutter、不進 content flow）②**interaction boundary**（不可編輯、不可 select）③**typography role**；低對比只是輔助（單靠它會失效 —— 草稿標籤需要警示意味）。`以下對剪` 同屬 decoration system，但語意上是 **editorial annotation**，可有獨立視覺權重（它在編輯器裡是 decoration，卻要印進 PDF）。
+
+### 7.10 前端結構與導覽（[票券 27](./issues/27-ui-component-layer.md)）
+
+票券 27 不產生不變式（故不開 ADR），產出一組**條件成立的元件選擇**。
+
+**導覽：純 routes ＋ 專案首頁 hub，沒有文件 sidebar。** 專案首頁當 hub，分「專案層文件」與「劇本層文件」兩區 —— 導覽形狀本身在教 [ADR-0009](../../docs/adr/0009-documents-hang-on-the-creative-unit-they-describe.md) 的掛載規則。編輯器頁只有一條極簡 header／breadcrumb 回專案。
+
+> ⚠️ **此裁決以「單一劇本專案」為前提**（文件數少、沒有橫向的兄弟序列）。系列劇本專案一來，兩個前提同時失效（文件數乘以集數、日常操作變成在集之間跳），**那時 sidebar 才第一次有正當理由**。route tree `/projects/:id/screenplays/:id` 已編碼層級，sidebar 是漸進增強，不堵死。
+
+**劇本編輯器 ↔ 場次表：子路由 ＋ 頁內 segmented control**（「劇本／場次表」）。場次表是同一份劇本的另一種讀法，不是另一份 document。**否決 split view**（Scrivener 的密度，且場次表沒有寫入路徑，並排看不能編輯）。切換時以**游標所在場次**為 scroll anchor，兩邊互相對位。
+
+**場次導覽 sidebar（票券 27 新增，與「文件 sidebar」是兩回事）：**
+
+列出場次，每列形如 `S1 內 日 廚房`（欄序比照 §8），點擊捲動到該場。**可收合、預設展開、狀態持久化**（130 場時是剛需、8 場時是噪音）。
+
+**分工（多處以它為判準）**：**sidebar ＝ 創作中的定位**（跟隨游標高亮、**含草稿場次**、只為了跳）；**場次表 ＝ 交付用的投影**（零新增資訊、給製作端、可印、可深連結）。**草稿是唯一的分歧。**
+
+| 顯示 | sidebar | 場次表（§8） |
+|---|---|---|
+| 草稿場次 | ✅ 顯示並標示 | ❌ |
+| 子場次 | ✅ 縮排一級 | ✅ 自佔一列 |
+| 群組成員 | ✅ 各自一列，看得出同組 | ✅ 各自一列 |
+| 群組本身 | ❌ | ❌ |
+
+**搜尋框**：v1 只做**清單篩選**（比對場次號／地點／人物／時間，純前端 filter over 已在記憶體的投影，沒有新的資料路徑）。**全文搜尋不做**（另一個量級，歸宿可能是 `⌘+K` 而非 sidebar；§3.3）。
+
+**場次表的列可點，跳回編輯器並定位到該場** —— 跳轉掛在**永久 id** 上，重排場次也不會跳錯（約束 1 的產品紅利）。
+
+**v1 不做 focus mode，也不做 metadata 的 global collapse。** 收 sidebar 這個動作已吃掉絕大部分需求；chip row 的 global collapse 直接踩 §7.11 的防呆警告。票券 26「不鎖死永遠不可收合」是**留退路，不是要求 v1 做**。
+
+**新增場次 affordance 與 Tab 序**：只有最後一場下方那個固定的 append 按鈕是真實的 `<button>`、**進 Tab 序**；場次之間的 insertion zone **不進**。判準是「保留可被探索發現的鍵盤入口」，不是「把每個 affordance 都塞進 Tab 序」—— 全部進會在每一場之間插一個停點，毀掉 §7.1 的焦點串接（130 場 ＝ 130 個停點）。
+
+**行長的相對表達：`ic`（`em` 作 fallback）。** `ic` ＝ 字型中「水」（U+6C34）的 advance，是「一個全形字寬」的規範表達。寫法：先 `max-inline-size: 34em` 再 `max-inline-size: 34ic`，靠 CSS 級聯自然降級，**不需要 `@supports`**。⚠️ `ic` **表達的是需求語意**，`em` 只是實作近似的堪用 fallback —— 論據**刻意不建立在**「Noto Sans TC 的水剛好是全形所以 `1ic ≈ 1em`」這個當前字型的巧合上。⚠️ **30–40 全形字是閱讀基準不是統一欄寬**，動作／對白等區塊可以有不同的 reading measure。
+
+**分享頁：兩個視圖各有 URL、同一個 share identity。** `/s/<token>`、`/s/<token>/table`；切換元件就是上面那個 segmented control。⚠️ **URL 是 view 的定位，不是新的 share** —— 兩個網址仍是同一個 share、同一條 token、同一個生命週期（§10.1 否決的是兩個 identity，不是「一條連結的兩個位址」）。分享頁的場次導覽**沿用同一種場次導航能力，依 delivery context 重建其內容與互動語意**：不顯示草稿（§8 已把草稿排除在交付投影外）、高亮跟隨**閱讀位置**（分享頁沒有游標）、搜尋／場次定位保留。
+
+### 7.11 Typography 與色彩 token（[票券 26](./issues/26-ui-visual-direction.md)／[28](./issues/28-brand-identity.md)／[29](./issues/29-cjk-webfont-loading-strategy.md)）
+
+具體 token 值與逐格理由見 [`research/ui-tokens-draft.md`](./research/ui-tokens-draft.md)（primary source，留原地不刪）。以下是可開工的結論。
+
+**內嵌簡表是 chip row。** 預設常駐；原則是 **metadata 預設可見，且缺漏不可被預設 UI 隱藏**（摺起來就看不到自己缺什麼，「空 metadata → 自動草稿 → 匯出前被攔」的防呆會變成驚喜）。**否決表格形狀** —— 六個欄位會撐成比內容還重的視覺物件。
+
+**三種區塊型別不用顏色區分** —— 它們是**內容**不是 decoration，上顏色等於重建「格式即內容」的暗示。改以**縮排、欄寬、spacing 與閱讀 rhythm** 表達。
+
+**Typography：**
+
+| token | v1 值 | 性質 |
+|---|---|---|
+| `--font-body` | self-host **Noto Sans TC** | 已定 —— 唯一可合法 self-host 的繁中黑體（蘋方受 Apple 嵌入限制、微軟正黑體 Monotype 立場不明，只能當 fallback；純系統字在 Android 塌成單一字重） |
+| `--font-ui` | **system-ui** stack | 已定 —— 「介面像你的作業系統、內容像你的稿子」 |
+| 字重 | **只載 Regular 400** | 已定 —— 約束 2 已把粗體從資料裡拿掉，字重不得表達內容語意；場次標題層級改用**字級、spacing 與結構位置**。不為視覺偏好承擔一整套 CJK payload |
+| `--text-base` | **17px** | ⚠️ **prototype hypothesis**（繁中在 16px 下筆畫密的字開始糊）—— 於 `prototypes/editor` 實測後定案 |
+| `--leading-base` | **1.85**（可探索 1.75–2.0，**無單位比值**） | ⚠️ **prototype hypothesis** —— 同上 |
+
+- **fallback 鏈**：`"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "Heiti TC", sans-serif`。
+- 兩套字型**不是 invariant** —— 真正的原則是 content 與 editor UI 需要不同的 **typographic role**，family 只是目前的手段。
+- **楷體／明體不進螢幕編輯器**（螢幕長時間閱讀吃力，且違反不變式 G）—— 它們屬 PDF 那一套。
+
+**色彩：所有 UI 色彩必須透過 semantic token 表達，程式碼裡不得出現 hex。v1 僅定義 Light theme**（深色是純換值，不是重做）。
+
+| 角色 | 用在哪 | 判準 |
+|---|---|---|
+| **accent** | 可點擊、選取、focus | **依自身語意獨立設計，不從 brand color 衍生**（依賴方向反轉，票券 28）。accent 色值歸票券 26 |
+| **draft** | 草稿場次標籤 | **document state** —— 常駐、大量、判準是**不疲勞** |
+| **error** | 匯出前防呆的錯誤態 | **action consequence** —— 只在匯出彈窗出現，**可以刺眼** |
+| **neutral** | 文字與介面層次（主色調） | 判準是**不搶戲** |
+
+- **暫不建立 `success` semantic role** —— 交付狀態用文字說。
+- `draft` 與 `error` **不同色不是因為撞色，是因為語意不在同一層**（`warning` 這個舊角色在 v1 因此沒有消費者）。
+
+**字型載入（[票券 29](./issues/29-cjk-webfont-loading-strategy.md)，不開 ADR）：**
+
+- **主線：靜態 105 塊 unicode-range 切分。** 來源 `google/fonts` 的 `NotoSansTC[wght].ttf` → `fonttools varLib.instancer` 取 `wght=400` → 依 Google `css2` 端點公開的 105 段 `unicode-range` 表跑 `pyftsubset` 切成 105 個 woff2 → 手寫 105 個 `@font-face`、`font-display: swap` → `<head>` preload 最高頻數塊。**不需要新工具**（`cn-font-split` 否決 —— 不是不好，是不需要）。
+- **否決動態 subset** —— 編輯器用字無法預先窮舉（使用者按下一鍵那個字**此刻才存在**），subset URL 獨一無二使 CDN 命中率趨近 0，還把往返延遲搬到打字上。靜態分塊付的 6–8 倍體積是「用字無法窮舉」的**保險費**，因為劇本是使用者產生內容。
+- **`font-display` 只能用 `swap`** —— 分塊載入**持續發生在打字過程中**，`block` ＝ 按鍵後螢幕空白，`optional`／`fallback` ＝ 同頁字型永久混排且不自我修復。
+- **行高寫無單位 `line-height`**（`--leading-base` 已是這形狀）—— 字型換手時中文字寬不跳（全形都是 1.000 em），但**行高會跳 3.43%**；而兩個顯然的修法都是陷阱（`ascent-override` 家族 **Safari 完全不支援**，`size-adjust` 會縮放 glyph advance **弄壞 `ic` 欄寬**）。
+- **不對部署平台預先關門** —— 產物是純靜態 woff2，各平台皆可（動態 subset 會讓 Cloudflare Workers Free 出局）。
+- ⚠️ **實作期最大量測缺口**：覆蓋率表是拿技術散文當代理算的，**須用真實劇本語料重跑**（有十份真實劇本就重跑一次，據以決定 preload 幾塊）。
+
+### 7.12 品牌資產（[票券 28](./issues/28-brand-identity.md)）
+
+> **範圍**：app 層級的識別，**不是編輯器 typography**。⚠️ **wordmark 是 brand asset，不是 UI typography** —— 日後要改字距、比例或字重，**不在 CSS runtime 調**，而是回到 design artifact 重新輸出 SVG。
+
+**wordmark（定案）：**
+
+| 項目 | 值 |
+|---|---|
+| 字體 | **Source Sans 3**（SIL OFL 1.1 —— 明確允許 embed／bundle／modify／轉外框，只需避開 Reserved Font Name「Source」）|
+| 字重 | **`Scene` 600 ／ `phonie` 400**（唯一同時滿足 Gate 5a segmentation 與 5b balance 的一格；著墨面積比值 1.301）|
+| 大小寫 | sentence case |
+| 兩段之間 | 無空隙、無分隔符 |
+| 字母形狀 | **未改** |
+| 字距 | `letter-spacing: 0` |
+| 承載尺寸 | **21px @ 48px header** |
+| 交付形式 | **SVG outline**（字母轉路徑）—— 固定字形幾何與排版結果，不依賴 runtime font loading 或 fallback；非標準字重因此完全免費 |
+
+**favicon（形式定案，顏色由 neutral 供應）：**
+
+| 項目 | 值 |
+|---|---|
+| 形式 | 深色圓角實心容器 ＋ 反白字母 `S` |
+| 字體字重 | Source Sans 3 **600** |
+| 字級 | **15px @ 16px 容器** |
+| 圓角 | **3px**（整數 —— 16px 光柵化下非整數半徑會讓四角吃到半像素灰階）|
+| 容器底色 | **票券 26 的 neutral 色階最深階**。⚠️ 這是確定值，**不是佔位色，也不是品牌決定** |
+
+**v1 沒有 brand color。** 承載位置盤點後沒有格子可填：wordmark 過單色測試（深底淺底都成立）、favicon 的 identity 來自**形式**而非顏色、UI accent 是 semantic role **不得由它決定**、v1 無 landing page。與「不做中文品牌名」「不做 tagline」同一把尺：**目前沒有需求證明需要**。否決把中性深色升格為 brand color —— neutral 是所有角色裡最寬的一個，讓它兼任等於**讓最寬的先佔位**。
+
+**不新增獨立 mark。** v1 品牌識別資產**止於 wordmark ＋ favicon**。➕ mark 的定義不是「有沒有幾何形狀」，而是**「能不能離開承載位置獨立部署」** —— favicon 的圓角方塊離開 16px 就只是一個沒有來歷的黑方塊，它是 favicon 這個資產的一部分，不是第三個品牌資產。
+
+⚠️ **本票交付規格，不交付 SVG 檔** —— 資產輸出是實作期的事。
+
+---
+
 ## 8. 場次表規格
 
 **第一層投影：純從劇本推導，零新增資訊。**
@@ -1062,6 +1230,7 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | **D** | **交付的判準是承諾而非通道**：任何對外承諾「在後續 canonical state 改變後仍保持不變」的動作，都必須先建立一筆交付；該動作輸出的一切都指向那筆交付 | application |
 | **E** | **semantic freeze / visual drift**：渲染器日後的純視覺變更**可以**影響已存在的交付；但**不得重新計算該次交付已承諾的語意推導值** | 渲染管線 |
 | **F** | **`documents.kind` 固定其合法層級**，不由使用者決定 | 資料層 ＋ command |
+| **G** | **編輯器可以呈現 screenplay 的閱讀與創作語意，但不得為模擬特定輸出格式而引入非必要的版面約束或視覺結構**（§7.9） | 前端（[ADR-0010](../../docs/adr/0010-editor-representation-is-not-output-preview.md)）—— 可否證：每個視覺決定都能判對錯 |
 | **H** | **Authentication identity 不直接授予 domain authority**；domain write operations 必須以**已授權的 project context** 進入 command pipeline（command 不負責建立 authorization） | application（[ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)） |
 | **I** | **任何由 infrastructure、auth library、plugin 或 database provider 提供的 access-control mechanism，都不得成為 domain/application authorization 的權威來源**（可使用其 mechanism，不可當作 authority） | application（[ADR-0012](../../docs/adr/0012-infrastructure-provides-mechanism-not-authority.md)） |
 | — | **一筆交付必須能獨立重建它承諾的語意**（寫成能力，不寫成欄位 —— 存不存 doc 是 persistence concern） | 交付寫入路徑 |
@@ -1111,10 +1280,13 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | 縮排、置中、空行規則 | CSS 模板 |
 | 登場人物印不印、時間戳印不印 | 匯出選項 |
 | 對白行內式 vs 置中分行式 | CSS 模板（§9.5） |
+| 編輯器的字型／字級／行高／色彩 | semantic token（§7.11）—— **不繼承 PDF 模板的數字** |
 
 **型別本身在強制這條**：`projectSceneTable(doc)` 的簽名裡沒有 doc 以外的輸入，有人想加一欄製作端另填的東西時會發現簽名裝不下（§6.4）。
 
 **兩次被擋下的漏水口**：通用備註欄（[15](./issues/15-multi-spacetime-scenes.md)，沒有消費者）、專案自訂欄位的界線（[20](./issues/20-submission-docs-product-shape.md)，只能裝文件層級的散文）。
+
+**編輯器側的對應約束是不變式 G**（§7.9、[ADR-0010](../../docs/adr/0010-editor-representation-is-not-output-preview.md)）：約束 2 把呈現性資訊擋在**資料模型**外，不變式 G 把「為模擬 PDF 而長出的版面結構」擋在**編輯器**外 —— 同一條界線的兩端。
 
 ### 約束 3：不得堵死協作
 
@@ -1149,6 +1321,9 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | 連線模型 | **Supavisor transaction mode `:6543` ＋ `prepare: false`**（`DATABASE_URL`）；migration 走 direct／session mode（`DIRECT_URL`）。⚠️ Supabase direct connection 是 IPv6-only 而 Vercel 不支援 IPv6，**pooler 是必要條件不是優化** | **已鎖定**（[25](./issues/25-deployment-and-hosting.md)） |
 | 認證 | **自架 auth library ＋ 自己的 Postgres**（[24](./issues/24-auth-and-project-owner.md)）。登入方式 **Google OAuth**，magic link 不進 v1，密碼出局 | **已鎖定**：**Better Auth `~1.7.x`**（[30](./issues/30-better-auth-evaluation.md)，Auth.js v5 出局）、**DB session ＋ cookie cache**（`compact`, 5 分鐘）；middleware 只做 optimistic redirect，授權在 route handler 的 gate —— **它是可替換的 infrastructure decision**（[ADR-0011](../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)） |
 | 授權 | **application layer 的 gate；command 只接受已授權的 project handle** | **已鎖定**（不變式 H） |
+| 前端呈現 | **不變式 G**（§7.9）；semantic color token（accent／draft／error／neutral，僅 Light theme）；`--font-body` = self-host **Noto Sans TC** Regular 400、`--font-ui` = **system-ui**（§7.11）；導覽走純 routes ＋ 專案首頁 hub（§7.10） | **已鎖定**（[26](./issues/26-ui-visual-direction.md)／[27](./issues/27-ui-component-layer.md)，不變式僅 G） |
+| 字型載入 | **靜態 105 塊 unicode-range subset**（build 期 `fonttools`／`pyftsubset` 自切、手寫 `@font-face`、`font-display: swap`、preload 高頻塊）（[29](./issues/29-cjk-webfont-loading-strategy.md)）。否決動態 subset；產物純靜態 woff2，不對部署平台預先關門 | **已鎖定**（不開 ADR） |
+| 品牌資產 | **wordmark**（Source Sans 3、`Scene` 600／`phonie` 400、SVG outline）＋ **favicon**（neutral 最深階容器）；**v1 無 brand color**（§7.12） | **已鎖定**（[28](./issues/28-brand-identity.md)） |
 
 ### 13.2 建議順序
 
@@ -1158,9 +1333,9 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 |---|---|---|
 | **0** | **isomorphic schema 模組**（node spec，node view 分家）＋ `projectScenes()` ＋ `projectSceneTable()` | 所有東西的地基。純函式、無瀏覽器相依，可在 Node 裡跑測試 |
 | **1** | **domain command 層**＋不變式測試（§11 全部） | 不變式的家。**在有 UI 之前先寫**，否則它們會散進最難測的那一層 |
-| **2** | **編輯器**：場次 ＋ 三種區塊 ＋ 內嵌簡表 ＋ `/next` ＋ Tab 環 ＋ IME | 最小可寫作單元。⚠️ 六個 bug 家族在這裡 |
+| **2** | **編輯器**：場次 ＋ 三種區塊 ＋ 內嵌簡表 ＋ `/next` ＋ Tab 環 ＋ IME。**呈現、前端結構、typography／色彩 token、字型載入見 §7.9–§7.12**（票券 26／27／29 擋在此階段之前） | 最小可寫作單元。⚠️ 六個 bug 家族在這裡 |
 | **3** | **persistence 模組**（存／載入／`doc_seq`／自動備份，全部藏在一個模組後面） | Yjs 保護規則 3 |
-| **3.5** | **認證 ＋ 授權 gate ＋ `ownerId`**：Google OAuth、env var allowlist、訪客體驗入口（ephemeral user ＋ clone 一份 demo project） | persistence 一出現，「這是誰的資料」就同時出現 —— 一個沒有 owner 的 `screenplays` 表，之後每張掛上去的表都得回頭補。`ShareViewer` 那一側留到階段 8 |
+| **3.5** | **認證 ＋ 授權 gate ＋ `ownerId`**：Google OAuth、env var allowlist（不建 `invitations` 表）、訪客體驗入口（「以訪客身分體驗」按鈕、不放公開帳密、每次進入建 ephemeral user ＋ clone demo project、`is_demo` TTL 7 天清理）。**細節見 §6.2「認證與訪客」** | persistence 一出現，「這是誰的資料」就同時出現 —— 一個沒有 owner 的 `screenplays` 表，之後每張掛上去的表都得回頭補。`ShareViewer` 那一側留到階段 8 |
 | **4** | **實體**：人物、地點、自動補全三列、群演、登場人物提示 | 依賴 1 的引用完整性規則 |
 | **5** | **階層與平行**：子場次（兩種種類）、場次群組、拖曳跨層 | 依賴 2 與 4；⚠️ 拖曳 bug 會部分重來 |
 | **6** | **草稿** ＋ **場次表**檢視 | 依賴 0 的推導函式 |
@@ -1193,11 +1368,22 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | ~~[25 部署與資料庫託管](./issues/25-deployment-and-hosting.md)~~ | ✅ **2026-09-01 已 resolve** —— **Vercel Hobby（`hnd1`）＋ Supabase Free（東京，僅作 Postgres 託管）＋ Supavisor transaction mode**。⚠️ 它**改寫了本節的前提**：v1 的成功標準是**作品集 ＋ 封閉測試**而非正式營運，可用性因此從產品需求降級成展示需求，免費層的代價成為**被寫下來的取捨**（六條 tripwire 就是反轉計畫）。產出**不變式 I** 與 [ADR-0012](../../docs/adr/0012-infrastructure-provides-mechanism-not-authority.md)、訪客 ephemeral user 的 TTL 清理政策，並確認 transaction mode 未撞到任何 domain invariant（`doc_seq` optimistic concurrency 不需要 session state）。**部署自此不再被任何票券擋住。** |
 | ~~[30 Better Auth 選型評估](./issues/30-better-auth-evaluation.md)~~ | ✅ **2026-09-01 已 resolve** —— 選定 **Better Auth `~1.7.x`**；`usr_` + nanoid 的 identity chain 保得住、不需 shadow table；**DB session ＋ cookie cache**，middleware 不做完整驗證，故部署層只剩「route handler 要連得到 Postgres」一條約束（已餵給票券 25） |
 
-### 14.3 仍在迷霧（v1 不需要）
+### 14.3 定稿後折入的呈現層（2026-09-01，不擋開工）
 
-新手引導的形式、按實體聚合的清單視圖、人物關係圖。三者都**不影響 v1 的資料模型與開工**。
+規格書定稿時，編輯器呈現層只以「約束 2 擋在資料模型外」的形式存在，未被寫定 —— 它不在原本的目的地（資料模型與功能邊界）內。票券 26–29 於 2026-09-01 補齊並整合進 **§7.9–§7.12**：
 
-### 14.4 開著但不擋規格書的票券
+| 票券 | 產出 | 進了哪 |
+|---|---|---|
+| ~~[26 UI 視覺方向](./issues/26-ui-visual-direction.md)~~ | **不變式 G**（[ADR-0010](../../docs/adr/0010-editor-representation-is-not-output-preview.md)）、色彩角色、chip row 原則、內容欄寬 | §7.9、§7.11、§11（G） |
+| ~~[27 UI 元件層](./issues/27-ui-component-layer.md)~~ | 導覽（純 routes ＋ hub）、場次表子路由、場次導覽 sidebar、Tab 序、`ic` 行長、分享頁 URL；➕ 迷霧：場次 Tag、全文搜尋 | §7.10、§3.3 |
+| ~~[28 品牌識別](./issues/28-brand-identity.md)~~ | wordmark ＋ favicon 規格；**v1 無 brand color** | §7.12 |
+| ~~[29 字型載入策略](./issues/29-cjk-webfont-loading-strategy.md)~~ | 靜態 105 塊 unicode-range subset、`font-display: swap`、無單位 `line-height` | §7.11、§13.1 |
+
+### 14.4 仍在迷霧（v1 不需要）
+
+新手引導的形式、按實體聚合的清單視圖、人物關係圖、使用者自訂場次 Tag、劇本全文搜尋（§3.3）。**都不影響 v1 的資料模型與開工。**
+
+### 14.5 開著但不擋規格書的票券
 
 [票券 21](./issues/21-ask-industry-scene-numbering.md)（`5.1` 在製作端的誤讀風險）—— 作者外出訪談，問卷已備妥。**它是事後複核**：結論若翻轉，成本是一個推導函式加一個匯出選項，不動資料模型。
 
