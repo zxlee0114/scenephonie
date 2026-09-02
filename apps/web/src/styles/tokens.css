@@ -1,0 +1,118 @@
+/*
+ * Semantic design token —— 規格 §7.11 / research/ui-tokens-draft.md（primary source）。
+ *
+ * 規則（票券 26）：
+ *   - 所有 UI 色彩必須透過 semantic token 表達；**原始碼裡不得出現 hex**。
+ *     這個檔案是唯一的例外 —— 色彩的原始值只住在這裡，其餘一切用 var(--*)。
+ *   - v1 僅定義 Light theme。深色是「純換值」不是重做：primitive ramp 換一組值即可，
+ *     語意層（--text-*, --surface-*, --accent-* …）不動。dark 的落點見檔尾。
+ *
+ * 色彩角色只有四個（其餘「原本以為需要顏色」的都不需要，見 ui-tokens-draft.md §2.2）：
+ *   accent  —— 可點擊／選取／focus。依自身語意獨立設計，不從 brand color 衍生（v1 無 brand color）。
+ *   draft   —— 草稿場次標籤。document state，常駐、大量，判準是「不疲勞」。
+ *   error   —— 匯出前防呆的錯誤態。action consequence，只在匯出彈窗出現，可以刺眼。
+ *   neutral —— 文字與介面層次，主色調。判準是「不搶戲」。
+ *
+ * ⚠️ 具體色值是 v1 的工作值，不是 design pass 的定案 —— ui-tokens-draft.md 對色彩只給了
+ * 角色與判準，沒有給數字。這裡的 hex 依那些判準挑：neutral 微偏冷、低彩度；accent 是沉靜的
+ * 藍（參照 Ulysses 的沉靜，ADR-0010），不搶戲；draft 是低彩度赭黃，長時間看不累；error 是清楚
+ * 的紅。design pass 到位時只改本檔。
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ── primitive：neutral ramp（微偏冷的近中性灰）─────────────────── */
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #f7f7f5;
+  --color-neutral-100: #eeeeeb;
+  --color-neutral-200: #e2e3df;
+  --color-neutral-300: #cdcec8;
+  --color-neutral-400: #a6a89f;
+  --color-neutral-500: #7d7f75;
+  --color-neutral-600: #61635a;
+  --color-neutral-700: #474840;
+  --color-neutral-800: #333430;
+  --color-neutral-900: #23241f;
+
+  /* ── primitive：accent（沉靜的藍，不搶戲）──────────────────────── */
+  --color-accent: #2f6087;
+  --color-accent-hover: #244d6d;
+  --color-accent-weak: #e3edf4;
+
+  /* ── primitive：draft（低彩度赭黃，不疲勞）─────────────────────── */
+  --color-draft: #8a6a20;
+  --color-draft-weak: #f3ecd7;
+
+  /* ── primitive：error（清楚的紅，可以刺眼）─────────────────────── */
+  --color-error: #b23a2c;
+  --color-error-weak: #f6e3e0;
+
+  /* primitive：陰影用的半透明黑（primitive 才可寫色彩字面） */
+  --color-shadow-8: #23241f14; /* neutral-900 @ 8% */
+
+  /* ── semantic：文字層次 ───────────────────────────────────────── */
+  --text-primary: var(--color-neutral-900);
+  --text-secondary: var(--color-neutral-600);
+  /* decoration（場次號等）的 typography role：低對比只是輔助支撐，主要靠位置與 interaction boundary */
+  --text-faint: var(--color-neutral-400);
+  --text-on-accent: var(--color-neutral-0);
+
+  /* ── semantic：介面表面與分隔 ─────────────────────────────────── */
+  --surface-page: var(--color-neutral-0);
+  --surface-raised: var(--color-neutral-50);
+  --surface-sunken: var(--color-neutral-100);
+  --rule: var(--color-neutral-200);
+  --rule-strong: var(--color-neutral-300);
+
+  /* ── semantic：互動 ─────────────────────────────────────────── */
+  --focus-ring: var(--color-accent);
+  --selection-bg: var(--color-accent-weak);
+  --control-fg: var(--color-neutral-700);
+  --control-border: var(--color-neutral-300);
+
+  /* ── semantic：草稿與錯誤 ───────────────────────────────────── */
+  --draft-fg: var(--color-draft);
+  --draft-bg: var(--color-draft-weak);
+  --error-fg: var(--color-error);
+  --error-bg: var(--color-error-weak);
+
+  --shadow-popover: 0 4px 16px var(--color-shadow-8);
+
+  /* ── Typography（§7.11 / ui-tokens-draft.md §1）─────────────────
+   * --font-body：唯一可合法 self-host 的繁中黑體。楷體／明體不進螢幕編輯器。
+   * --font-ui：介面像作業系統、內容像稿子。
+   * 只載 Regular 400 —— 約束 2 已把粗體從資料模型拿掉，字重不得表達內容語意。 */
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "Heiti TC", sans-serif;
+  --font-ui: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", sans-serif;
+
+  /* 定案值與理由見 docs/editor-typography.md。無單位行高：字型換手時行高不跳，且所有瀏覽器成立。 */
+  --text-base: 17px;
+  --leading-base: 1.85;
+
+  /* decoration / chip row 用的次級字級（由 --text-base 推導，避免另立 magic number） */
+  --text-sm: 0.8125rem;
+  --leading-sm: 1.5;
+
+  /* 內容行長（全形字數）。§7.10：ic 表達需求語意，em 只是 fallback；30–40 是閱讀基準非統一欄寬。 */
+  --measure-body-ic: 36;
+  --measure-dialogue-ic: 26;
+
+  /* 間距節奏（偏鬆 —— 判準是八小時的疲勞度） */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-gutter: 3.5rem; /* 場次號等 decoration 住的左側 gutter 寬 */
+}
+
+/*
+ * v1 不實作深色。留這個區塊當落點：dark 只換 primitive ramp（neutral-0 變深、
+ * neutral-900 變淺、accent/draft/error 提亮），semantic 層與版面完全不動。
+ *
+ * @media (prefers-color-scheme: dark) {
+ *   :root { color-scheme: dark; --color-neutral-0: #1a1b17; ... }
+ * }
+ */

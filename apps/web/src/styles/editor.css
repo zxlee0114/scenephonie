@@ -1,0 +1,296 @@
+/*
+ * 編輯器版面 —— 規格 §7.9（不變式 G）/ §7.10 / §7.11。
+ *
+ * 不變式 G（可否證）：不畫 A4 紙感／分頁線／邊框／標楷體／12 級字。結構邊界靠**位置與間距**
+ * 建立，不靠描繪。場次是有起點的內容容器但**不畫邊框**。decoration 與 canonical content 的
+ * 區分主要靠①空間位置（gutter、不進 content flow）②interaction boundary（不可編輯、不可 select）
+ * ③typography role；低對比只是輔助。
+ *
+ * 只用 var(--*)（tokens.css）。這個檔案不得出現任何 hex。
+ */
+
+/* ─────────────────────────────────────────── 頁面殼 */
+
+.editor-shell {
+  min-block-size: 100dvh;
+  background: var(--surface-page);
+}
+
+.editor-shell__bar {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  block-size: 48px;
+  padding-inline: var(--space-5);
+  border-block-end: 1px solid var(--rule);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.editor-shell__home {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.editor-shell__crumb {
+  color: var(--text-secondary);
+}
+
+.editor-shell__crumb::before {
+  content: "/";
+  margin-inline-end: var(--space-3);
+  color: var(--text-faint);
+}
+
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ─────────────────────────────────────────── 內容區 */
+
+.screenplay-page {
+  /* 內容像稿子。無 A4 寬度、無紙感、無邊框 —— 只有一條由全形字數決定的閱讀行長。 */
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) 40vh;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 400;
+  /* 無單位行高：字型換手時中文字寬不跳、行高不跳（research §5）。 */
+  line-height: var(--leading-base);
+  /* 先 em、再 ic —— 靠級聯自然降級，不需要 @supports（§7.10）。 */
+  max-inline-size: 40em;
+  max-inline-size: calc(var(--measure-body-ic) * 1ic + var(--space-gutter));
+}
+
+.screenplay-page :is(.ProseMirror):focus {
+  outline: none;
+}
+
+.screenplay-page ::selection {
+  background: var(--selection-bg);
+}
+
+/* ─────────────────────────────────────────── 場次 */
+
+.scene {
+  position: relative;
+  /* 左側 gutter 給 decoration 住；場次本體不佔那條。 */
+  padding-inline-start: var(--space-gutter);
+  /* 場次之間的邊界：間距，不是線也不是框。 */
+  margin-block: var(--space-6);
+  border: 0; /* 明示：不變式 G —— 場次不畫邊框 */
+}
+
+.scene:first-child {
+  margin-block-start: var(--space-2);
+}
+
+/* 整場被選取（⌘+A 的第三段：NodeSelection）時的整塊反白。
+ * 不靠瀏覽器原生選取畫 —— 場次 DOM 混了 contentEditable=false 的 chip row 與腳部按鈕，
+ * 原生高亮跨過那些區域畫不出來（原型 scene-schema.tsx 註解）。 */
+.scene.is-node-selected {
+  background: var(--selection-bg);
+  border-radius: var(--space-1);
+}
+
+/* ── 場次號 decoration —— gutter、不進 content flow、不可 select ── */
+
+.scene__number {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 0;
+  inline-size: var(--space-gutter);
+  padding-inline-end: var(--space-3);
+  text-align: end;
+  /* typography role：介面字、次級字級、低對比（第三支撐，非主要手段）。 */
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-base);
+  color: var(--text-faint);
+  /* interaction boundary：不可選、不吃指標事件、不進 tab 序。 */
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 內嵌簡表（chip row）——常駐，不可被預設 UI 收合（§7.11）── */
+
+.scene__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-3);
+  padding: var(--space-1) 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+
+.scene__chip,
+.scene__chip select,
+.scene__chip input {
+  font: inherit;
+  color: var(--control-fg);
+  background: var(--surface-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--space-1);
+  padding: 2px var(--space-2);
+}
+
+.scene__chip select:focus-visible,
+.scene__chip input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.scene__chip input {
+  min-inline-size: 8ch;
+}
+
+.scene__chip--empty select,
+.scene__chip--empty input {
+  /* 缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）—— 但不上 error 色，只是弱化。 */
+  border-style: dashed;
+  color: var(--text-faint);
+}
+
+/* ─────────────────────────────────────────── 內容區塊 */
+/* 三種區塊型別不用顏色區分（它們是內容不是 decoration）。改以縮排、欄寬、spacing、rhythm。 */
+
+.scene__body > * {
+  margin-block: var(--space-3);
+}
+
+.block--action {
+  max-inline-size: calc(var(--measure-body-ic) * 1ic);
+}
+
+.block--dialogue {
+  /* 對白：較窄的閱讀寬度 + 縮排。這是劇本的閱讀語意，不依賴任何輸出格式。 */
+  max-inline-size: calc(var(--measure-dialogue-ic) * 1ic);
+  margin-inline-start: var(--space-6);
+}
+
+.block--dialogue .block__speaker {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  padding: 0 0 2px;
+  margin-block-end: var(--space-1);
+}
+
+.block--dialogue .block__speaker:focus-visible {
+  outline: none;
+  border-bottom-color: var(--focus-ring);
+}
+
+.block--insert-shot {
+  max-inline-size: calc(var(--measure-body-ic) * 1ic);
+  /* 與動作的差別靠 rhythm 與一個結構標籤，不靠顏色、不靠框。 */
+  padding-inline-start: var(--space-3);
+  box-shadow: inset 2px 0 0 var(--rule-strong);
+}
+
+.block--insert-shot .block__tag {
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  user-select: none;
+  margin-inline-end: var(--space-2);
+}
+
+.block__content {
+  /* NodeViewContent 的落點；行內文字就住這裡。 */
+}
+
+/* ─────────────────────────────────────────── 新增下一場 */
+
+.scene__foot {
+  margin-block-start: var(--space-3);
+  /* 只有最後一場下方那顆固定 append 按鈕真的常駐可見（§7.10）。 */
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.scene:hover .scene__foot,
+.scene:focus-within .scene__foot,
+.scene:last-child .scene__foot {
+  opacity: 1;
+}
+
+.scene__foot button {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.scene__foot button:hover {
+  color: var(--text-primary);
+  border-color: var(--control-border);
+}
+
+.scene__foot button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* ─────────────────────────────────────────── slash 選單 */
+
+.slash-menu {
+  position: absolute;
+  z-index: 20;
+  min-inline-size: 15rem;
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-2);
+  box-shadow: var(--shadow-popover);
+  padding: var(--space-1);
+  font-family: var(--font-ui);
+}
+
+.slash-menu button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  inline-size: 100%;
+  text-align: start;
+  background: transparent;
+  border: 0;
+  border-radius: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.slash-menu button.is-active {
+  background: var(--selection-bg);
+}
+
+.slash-menu button span {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
