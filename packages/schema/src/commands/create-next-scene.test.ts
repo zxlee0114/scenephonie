@@ -60,7 +60,7 @@ describe("createNextScene", () => {
     const fresh = topLevelScenes(r.value)[1]!.node;
     expect(fresh.childCount).toBe(1);
     expect(fresh.child(0).type.name).toBe("action");
-    expect(fresh.attrs.時間).toBe(null);
+    expect(fresh.attrs.time).toBe(null);
     expect(fresh.attrs.manualDraft).toBe(false);
   });
 

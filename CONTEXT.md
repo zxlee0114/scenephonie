@@ -4,6 +4,8 @@
 
 ## Language
 
+> **詞彙用中文，程式碼識別碼用英文小駝峰。** 這份詞彙表是領域概念的權威名稱；`packages/schema` 的 node attr／型別欄位用慣例英文命名，兩者的對照表在 [`packages/schema/src/schema.ts`](./packages/schema/src/schema.ts) 檔頭（票券 23）。欄位的**值**（`日｜夜｜晨｜昏`、`內景｜外景…`、`一般｜V.O.｜O.S.`）是領域資料、維持中文。
+
 ### 劇本結構
 
 **場次**：

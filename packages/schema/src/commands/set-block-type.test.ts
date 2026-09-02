@@ -26,13 +26,13 @@ describe("setBlockType", () => {
     const b = sceneAt(r.value).child(0);
     expect(b.type.name).toBe("dialogue");
     expect(b.textContent).toBe("你回來了");
-    expect(b.attrs.發聲方式).toBe("一般");
-    expect(b.attrs.人物).toBe(null);
+    expect(b.attrs.voiceStyle).toBe("一般");
+    expect(b.attrs.character).toBe(null);
   });
 
-  it("dialogue → action：對白的 attr（人物／發聲方式）不帶過去", () => {
+  it("dialogue → action：對白的 attr（character／voiceStyle）不帶過去", () => {
     const s = sceneWith([
-      block.dialogue("我在這", { 人物: { id: "ch_1", 顯示名: "小明" }, 發聲方式: "V.O." }),
+      block.dialogue("我在這", { character: { id: "ch_1", displayName: "小明" }, voiceStyle: "V.O." }),
     ]);
     const doc = makeDoc(s);
     const r = setBlockType(doc, { sceneId: s.attrs.sceneId as string, blockIndex: 0, type: "action" });
@@ -41,7 +41,7 @@ describe("setBlockType", () => {
     const b = sceneAt(r.value).child(0);
     expect(b.type.name).toBe("action");
     expect(b.textContent).toBe("我在這");
-    expect(b.attrs.人物).toBeUndefined();
+    expect(b.attrs.character).toBeUndefined();
   });
 
   it("所在場次的 sceneId 與其他區塊原封不動（不變式 ⑦）", () => {

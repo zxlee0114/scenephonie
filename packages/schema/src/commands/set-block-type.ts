@@ -48,7 +48,7 @@ export function setBlockType(doc: ProseMirrorNode, options: SetBlockTypeOptions)
   const block = scene.child(blockIndex);
   if (block.type.name === type) return ok(doc); // 已經是目標型別 —— no-op
 
-  // 保留 inline 內容；不搬 attr（型別換了，`人物`／`發聲方式` 由新節點的 schema 預設補）。
+  // 保留 inline 內容；不搬 attr（型別換了，`character`／`voiceStyle` 由新節點的 schema 預設補）。
   const nextBlock = schema.node(type, null, block.content);
   const nextScene = replaceChild(scene, blockIndex, nextBlock);
 
