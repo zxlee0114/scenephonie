@@ -31,14 +31,12 @@ export default tseslint.config(
         { name: "localStorage", message: "schema 套件不得碰瀏覽器 API（規格 §5.5）" },
         { name: "sessionStorage", message: "schema 套件不得碰瀏覽器 API（規格 §5.5）" }
       ],
+      // ESLint 的 import 黑名單是 defense-in-depth。真正 allowlist 形狀的鎖是
+      // packages/schema/tsconfig.json 的 `lib: ["ES2022"]` + `types: []`：
+      // 任何瀏覽器 API（不論來自哪個套件）都會是 tsc 型別錯誤。
       "no-restricted-imports": [
         "error",
         {
-          paths: [
-            { name: "react", message: "schema 套件不得相依 React（規格 §5.5）" },
-            { name: "react-dom", message: "schema 套件不得相依 React（規格 §5.5）" },
-            { name: "next", message: "schema 套件不得相依 Next.js（規格 §5.5）" }
-          ],
           patterns: [
             {
               group: [

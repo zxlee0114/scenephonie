@@ -21,7 +21,8 @@
 pnpm install
 cp .env.example .env            # 填入連線字串，或用下方本機 Postgres
 
-docker compose up -d db         # 本機 Postgres（localhost:5432）
+# 本機 Postgres：首選 `supabase start`（需 Supabase CLI），否則：
+docker compose up -d db         # localhost:5432
 # .env 內把 DATABASE_URL / DIRECT_URL 指向 postgresql://postgres:postgres@localhost:5432/scenephonie
 
 pnpm db:generate                # 由 src/db/schema.ts 生成 SQL migration

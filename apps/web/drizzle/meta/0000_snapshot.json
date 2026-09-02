@@ -1,5 +1,5 @@
 {
-  "id": "f9520e52-20b1-4003-b1b0-7afa35430998",
+  "id": "3f71f54a-6ebc-428c-8d38-3aef5c32c802",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -21,12 +21,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
