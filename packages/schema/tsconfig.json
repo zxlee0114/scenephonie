@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // 無 DOM lib、無自動注入的 @types —— 規格 §5.5 的邊界，由型別檢查強制。
+    // 這一半碰到 `window`／`document`／React 型別會直接 tsc 失敗。
+    "lib": ["ES2022"],
+    "types": [],
+    "noEmit": true
+  },
+  "include": ["src"]
+}

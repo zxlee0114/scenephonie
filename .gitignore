@@ -7,3 +7,11 @@ dist/
 !.env.example
 
 .claude/worktrees/
+
+# Next.js
+.next/
+.vercel/
+
+# test / build artifacts
+coverage/
+*.tsbuildinfo
