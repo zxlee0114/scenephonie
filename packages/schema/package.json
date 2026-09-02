@@ -15,5 +15,9 @@
   "devDependencies": {
     "typescript": "^5.7.2",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "nanoid": "^6.0.1",
+    "prosemirror-model": "^1.25.11"
   }
 }

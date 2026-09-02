@@ -50,3 +50,9 @@
 ## Frontier
 
 blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開工。純線性起點：01 → 02 → 03 → 04 → 05，之後分岔。
+
+## Upkeep（不在 tracer-bullet 依賴圖裡）
+
+| 票券 | 內容 |
+|---|---|
+| [22](./22-nextjs-16-upgrade.md) | Next.js 15 → 16 升級。無 blocker，建議排在票券 04 之前。 |
