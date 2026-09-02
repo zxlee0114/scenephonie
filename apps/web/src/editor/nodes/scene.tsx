@@ -5,9 +5,9 @@
  * 場次號是 decoration（`../extensions/scene-numbers`）—— 住 gutter、不進 content flow、不可 select、
  * 不進 tab 序；typography role 只是第三支撐。內嵌簡表（chip row）**常駐、不可被預設 UI 收合**。
  *
- * node view 預設「節點沒變就不重繪」，decoration 變了會直接跳過 —— 場次號與整場選取狀態都活在
- * decoration 裡，所以自訂重繪條件（比自己那一份的簽章，不是整個 decoration 陣列，否則每按一鍵
- * 全部場次重繪）。§7.7。
+ * 自訂重繪條件（見檔尾 `update`）：只在 metadata（node attr）或「場次號／整場選取」簽章變了才
+ * 重繪 —— 內文改動交給 `NodeViewContent`，不驚動 React；簽章比的是自己那一份、不是整個 decoration
+ * 陣列（否則每按一鍵全部場次重繪）。§7.7。
  */
 "use client";
 
@@ -18,12 +18,14 @@ import {
   type NodeViewProps,
 } from "@tiptap/react";
 import type { Decoration } from "@tiptap/pm/view";
-import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { INT_EXT_VALUES, TIME_VALUES, type LocationRef } from "@scenephonie/schema";
 
+import { ChipSelect } from "../chip-select";
 import { CjkField } from "../cjk-field";
-import { claimFocus } from "../focus";
+import { claimFocus, subscribeFocusRequest } from "../focus";
+import { consumeSceneBirth } from "../scene-birth";
 import { requestNextScene } from "../extensions/next-scene";
 import { sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
 import { Scene } from "../schema";
@@ -36,15 +38,36 @@ const swallowTab = (e: ReactKeyboardEvent) => {
 // 票券 04 尚無地點實體（票券 08）—— locationId 先為 null，形狀已是 kernel 的 LocationRef。
 type SceneLocation = (Omit<LocationRef, "locationId"> & { locationId: string | null }) | null;
 
-function SceneView({ node, editor, updateAttributes, decorations }: NodeViewProps) {
-  const firstField = useRef<HTMLSelectElement>(null);
+function SceneView({ node, editor, updateAttributes, decorations, getPos }: NodeViewProps) {
+  const firstField = useRef<HTMLButtonElement>(null);
   const sceneId = node.attrs.sceneId as string;
 
+  // 「新增下一場」的即時回饋：這一場若剛被建立出來，短暫掛上 .scene--just-added（CSS 自己淡出）。
+  const [justBorn, setJustBorn] = useState(false);
   useEffect(() => {
-    if (claimFocus((p) => p.kind === "sceneMeta" && p.sceneId === sceneId)) {
-      firstField.current?.focus();
-    }
-  });
+    if (!consumeSceneBirth(sceneId)) return;
+    setJustBorn(true);
+    const t = setTimeout(() => setJustBorn(false), 1400);
+    return () => clearTimeout(t);
+  }, [sceneId]);
+
+  /** 把游標送進本場第一個區塊的內文開頭（getPos → 場次前；+1 進場次、+1 進首區塊）。 */
+  const enterBody = () => {
+    const pos = typeof getPos === "function" ? getPos() : undefined;
+    if (pos != null) editor.chain().focus().setTextSelection(pos + 2).run();
+  };
+
+  // 焦點串接（§7.7）是一次性的：建場 → requestFocus → 新 node view 消費掉。掛載時試領一次
+  // （`/next` 的請求早於掛載），並訂閱後續請求（初次進編輯器時 `onCreate` 的請求晚於掛載）。
+  useEffect(() => {
+    const tryClaim = () => {
+      if (claimFocus((p) => p.kind === "sceneMeta" && p.sceneId === sceneId)) {
+        firstField.current?.focus();
+      }
+    };
+    tryClaim();
+    return subscribeFocusRequest(tryClaim);
+  }, [sceneId]);
 
   const spec: SceneNumberSpec | undefined = sceneNumberOf(
     decorations as unknown as readonly Decoration[],
@@ -56,41 +79,39 @@ function SceneView({ node, editor, updateAttributes, decorations }: NodeViewProp
   const location = (node.attrs.location as SceneLocation) ?? null;
 
   return (
-    <NodeViewWrapper className={`scene${spec?.selected ? " is-node-selected" : ""}`}>
+    <NodeViewWrapper
+      className={`scene${justBorn ? " scene--just-added" : ""}${
+        spec?.selected ? " is-node-selected" : ""
+      }`}
+    >
       {/* 場次號 decoration：gutter、不可編輯、不可 select、不吃指標事件（CSS 也再擋一層）。 */}
       <div className="scene__number" contentEditable={false} aria-hidden="true">
         {label}
       </div>
 
-      {/* 內嵌簡表 —— 常駐。缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）。 */}
+      {/* 內嵌簡表 —— 常駐。缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）。
+          下拉比照 slash 選單外觀（ChipSelect），不用原生 <select>。 */}
       <div className="scene__chips" contentEditable={false} onKeyDown={swallowTab}>
-        <label className={`scene__chip${intExt ? "" : " scene__chip--empty"}`}>
-          <span className="sr-only">內外</span>
-          <select
+        <span className={`scene__chip${intExt ? "" : " scene__chip--empty"}`}>
+          <ChipSelect
             ref={firstField}
+            className="scene__chip-control"
+            placeholder="內外"
             value={intExt}
-            onChange={(e) => updateAttributes({ intExt: e.target.value || null })}
-          >
-            <option value="">內外</option>
-            {INT_EXT_VALUES.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={INT_EXT_VALUES}
+            onChange={(v) => updateAttributes({ intExt: v || null })}
+          />
+        </span>
 
-        <label className={`scene__chip${time ? "" : " scene__chip--empty"}`}>
-          <span className="sr-only">時間</span>
-          <select value={time} onChange={(e) => updateAttributes({ time: e.target.value || null })}>
-            <option value="">時間</option>
-            {TIME_VALUES.map((v) => (
-              <option key={v} value={v}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </label>
+        <span className={`scene__chip${time ? "" : " scene__chip--empty"}`}>
+          <ChipSelect
+            className="scene__chip-control"
+            placeholder="時間"
+            value={time}
+            options={TIME_VALUES}
+            onChange={(v) => updateAttributes({ time: v || null })}
+          />
+        </span>
 
         <span className={`scene__chip${location ? "" : " scene__chip--empty"}`}>
           <CjkField
@@ -100,6 +121,16 @@ function SceneView({ node, editor, updateAttributes, decorations }: NodeViewProp
               const name = v.trim();
               // 票券 04 尚無地點實體（票券 08）—— 先存無 id 的引用形狀。
               updateAttributes({ location: name ? { locationId: null, displayName: name } : null });
+            }}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing || e.key !== "Tab") return;
+              // 地點是 chip row 最後一格。正向 Tab：直接落進場次內文開始撰寫（不是跳到腳部按鈕，
+              // 那顆已 tabIndex=-1）。反向 Tab：交給瀏覽器原生回到時間欄；BlockCycle 的攔截由外層
+              // swallowTab 擋掉。§7.1 焦點串接。
+              if (e.shiftKey) return;
+              e.preventDefault();
+              e.stopPropagation();
+              enterBody();
             }}
           />
         </span>
@@ -111,6 +142,7 @@ function SceneView({ node, editor, updateAttributes, decorations }: NodeViewProp
       <div className="scene__foot" contentEditable={false}>
         <button
           type="button"
+          tabIndex={-1}
           onMouseDown={(e) => {
             e.preventDefault();
             requestNextScene(editor, sceneId);
@@ -132,10 +164,15 @@ function sigOf(decorations: readonly Decoration[]): string {
 export const SceneNode = Scene.extend({
   addNodeView() {
     return ReactNodeViewRenderer(SceneView, {
+      // SceneView 只畫 metadata（chip row）、場次號與整場選取狀態 —— 內文由 `NodeViewContent`
+      // 交給 ProseMirror 直接維護，React 不必參與。所以「內文改了」（`oldNode !== newNode` 但
+      // markup 相同）**不重繪**：否則場次裡打每一個字都會整棵 SceneView（兩個 select、CjkField、
+      // 腳部按鈕）reconcile 一次，dev 疊上 StrictMode 雙跑會變成每鍵兩次無謂重繪。
+      // 只有 attr（intExt／time／location／sceneId）或號碼／選取簽章變了才 `updateProps()`。§7.7。
       update: ({ oldNode, newNode, oldDecorations, newDecorations, updateProps }) => {
         if (oldNode.type !== newNode.type) return false;
         if (
-          oldNode !== newNode ||
+          !oldNode.sameMarkup(newNode) ||
           sigOf(oldDecorations as unknown as readonly Decoration[]) !==
             sigOf(newDecorations as unknown as readonly Decoration[])
         ) {

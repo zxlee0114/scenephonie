@@ -132,6 +132,26 @@ describe("Tab 環（只換型別、不動容器、不生成東西）", () => {
     cycleBlock(editor, 1);
     expect(textAt(0, 0)).toBe("第一場的動作");
   });
+
+  // 使用者回饋 2026-09-03：填了人物名的對白，Tab／Shift+Tab 不轉型（動作／插入畫面沒有
+  // character attr，轉過去會靜默吃掉人物名）。清掉人物名後才恢復可轉。
+  it("填了人物名的對白：Tab 被吞掉、型別不變；清掉人物名後恢復可轉", () => {
+    caretInBlock(0, 0);
+    cycleBlock(editor, 1);
+    expect(blockTypeAt(0, 0)).toBe("dialogue");
+
+    editor.commands.updateAttributes("dialogue", { character: { id: null, displayName: "小明" } });
+    caretInBlock(0, 0);
+    expect(cycleBlock(editor, 1)).toBe(true); // 已處理
+    expect(blockTypeAt(0, 0)).toBe("dialogue"); // 但沒轉成插入畫面
+    expect(cycleBlock(editor, -1)).toBe(true);
+    expect(blockTypeAt(0, 0)).toBe("dialogue"); // 反向也擋
+
+    editor.commands.updateAttributes("dialogue", { character: null });
+    caretInBlock(0, 0);
+    cycleBlock(editor, 1);
+    expect(blockTypeAt(0, 0)).toBe("insertShot");
+  });
 });
 
 function nthScene(i: number) {

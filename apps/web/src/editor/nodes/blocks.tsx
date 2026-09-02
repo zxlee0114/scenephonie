@@ -4,15 +4,21 @@
  * 三種型別**不用顏色區分** —— 它們是內容不是 decoration，上顏色等於重建「格式即內容」的暗示
  * （§7.11）。差別靠縮排、欄寬、spacing 與 rhythm（見 editor.css），加對白的人物欄與插入畫面的
  * 結構標籤。
+ *
+ * 「動作」「插入畫面」是純結構外殼 —— 用原生 ProseMirror node view（`staticBlockView`），不進
+ * React。只有「對白」有互動狀態（人物欄 `CjkField`＋焦點串接）才用 `ReactNodeViewRenderer`。
+ * 動機見 `staticBlockView` 註解（票券 04 驗收 #7：React node view mount 期 `flushSync` 卡死）。
  */
 "use client";
 
+import type { NodeViewRenderer } from "@tiptap/core";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useRef } from "react";
 
 import type { DialogueCharacterRef } from "@scenephonie/schema";
 
 import { sceneContext, type BlockAddress } from "../address";
+import { setBlockTypeAt } from "../block-types";
 import { Action, Dialogue, InsertShot } from "../schema";
 import { CjkField } from "../cjk-field";
 import { claimFocus } from "../focus";
@@ -25,12 +31,38 @@ function locateBlock(props: NodeViewProps): BlockAddress | null {
   return ctx && { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex };
 }
 
-function ActionView() {
-  return (
-    <NodeViewWrapper className="block block--action">
-      <NodeViewContent className="block__content" />
-    </NodeViewWrapper>
-  );
+/**
+ * 純結構 node view（無 React）——「動作」「插入畫面」只是固定外殼＋一個內容洞，沒有 React
+ * 狀態。用原生 ProseMirror node view 就夠，藉此避開 `@tiptap/react` `ReactRenderer` 建構子在
+ * mount 當下同步 `flushSync(render)`（dist/index.js:613，無 opt-out）與 ProseMirror `DOMObserver`
+ * 互咬的重繪失控：按 Enter 會 `splitBlock` 出新區塊、掛新 node view，開著 Chrome DevTools 時
+ * DOMObserver 遞送時機被打亂即卡死整個 renderer（票券 04 驗收 #7）。§7.7。
+ *
+ * `chrome`（如插入畫面的結構標籤）是 `contentEditable=false` 的裝飾，其 DOM 變動不是內容編輯，
+ * `ignoreMutation` 只認 contentDOM 內的。
+ */
+function staticBlockView(wrapperClass: string, chrome?: () => HTMLElement): NodeViewRenderer {
+  return () => {
+    const dom = document.createElement("div");
+    dom.className = wrapperClass;
+    if (chrome) dom.appendChild(chrome());
+    const contentDOM = document.createElement("div");
+    contentDOM.className = "block__content";
+    dom.appendChild(contentDOM);
+    return {
+      dom,
+      contentDOM,
+      ignoreMutation: (m) => m.type !== "selection" && !contentDOM.contains(m.target as Node),
+    };
+  };
+}
+
+function insertShotTag(): HTMLElement {
+  const tag = document.createElement("span");
+  tag.className = "block__tag";
+  tag.setAttribute("contenteditable", "false");
+  tag.textContent = "插入畫面";
+  return tag;
 }
 
 function DialogueView(props: NodeViewProps) {
@@ -41,6 +73,8 @@ function DialogueView(props: NodeViewProps) {
     | (Omit<DialogueCharacterRef, "id"> & { id: string | null })
     | null;
 
+  // 一次性：Tab 把區塊轉成對白後，新掛載的這個 node view 消費掉待決焦點請求 —— 心流串接是
+  // 建立當下的動作，不是持續行為，所以只在掛載時試領（無 deps 會每次 render 都重跑）。
   useEffect(() => {
     const here = locateBlock(props);
     if (
@@ -51,7 +85,14 @@ function DialogueView(props: NodeViewProps) {
     ) {
       inputRef.current?.focus();
     }
-  });
+    // deps 空陣列：props 之後的變動不該再搶焦點（見上）。
+  }, []);
+
+  /** 把游標從人物欄送進台詞開頭（getPos → 對白節點之前；+1 進內容）。正向 Tab 與 Enter 共用。 */
+  const enterDialogueBody = () => {
+    const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
+    if (pos != null) editor.chain().focus().setTextSelection(pos + 1).run();
+  };
 
   return (
     <NodeViewWrapper className="block block--dialogue">
@@ -67,16 +108,21 @@ function DialogueView(props: NodeViewProps) {
         }}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return;
+          // 人物欄打完按 Enter：直接進台詞（不要「按了沒反應」的錯愕）——與正向 Tab 同終點。
+          // 移動焦點會 blur 這個 input，CjkField 的 onBlur 負責回寫人物名（使用者回饋 2026-09-03）。
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            enterDialogueBody();
+            return;
+          }
           // 欄位裡的 Tab（兩個方向都要）不能冒泡到 BlockCycle 把這個區塊轉掉（§7.1）。
           if (e.key === "Tab") {
             e.stopPropagation();
             if (!e.shiftKey) {
               // 正向 Tab：打完人物名就進台詞。反向 Tab：留在欄位，什麼都不做。
               e.preventDefault();
-              const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
-              if (pos != null) {
-                editor.chain().focus().setTextSelection(pos + 1).run();
-              }
+              enterDialogueBody();
             }
           }
         }}
@@ -86,20 +132,9 @@ function DialogueView(props: NodeViewProps) {
   );
 }
 
-function InsertShotView() {
-  return (
-    <NodeViewWrapper className="block block--insert-shot">
-      <span className="block__tag" contentEditable={false}>
-        插入畫面
-      </span>
-      <NodeViewContent className="block__content" />
-    </NodeViewWrapper>
-  );
-}
-
 export const ActionNode = Action.extend({
   addNodeView() {
-    return ReactNodeViewRenderer(ActionView);
+    return staticBlockView("block block--action");
   },
 });
 
@@ -111,6 +146,29 @@ export const DialogueNode = Dialogue.extend({
 
 export const InsertShotNode = InsertShot.extend({
   addNodeView() {
-    return ReactNodeViewRenderer(InsertShotView);
+    return staticBlockView("block block--insert-shot", insertShotTag);
+  },
+
+  // Enter 在插入畫面裡的行為（使用者回饋 2026-09-03）：插入畫面是可多行的模式。
+  //  - 非空 ＋ Enter：切出「另一個插入畫面」（ProseMirror 預設會切成 action，這裡覆寫）。
+  //  - 空 ＋ Enter（＝double enter）：離開此模式，換回動作。換型別是意圖，走 kernel command。
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => {
+        const { state } = this.editor;
+        const { $from, empty } = state.selection;
+        if (!empty || $from.parent.type.name !== "insertShot") return false;
+
+        if ($from.parent.content.size === 0) {
+          const ctx = sceneContext($from);
+          return ctx ? setBlockTypeAt(this.editor, ctx, "action") : false;
+        }
+
+        return this.editor.commands.command(({ tr, dispatch }) => {
+          if (dispatch) tr.split($from.pos, 1, [{ type: this.type }]).scrollIntoView();
+          return true;
+        });
+      },
+    };
   },
 });

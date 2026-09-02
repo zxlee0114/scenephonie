@@ -18,6 +18,7 @@ import { docFromJSON, type CommandResult } from "@scenephonie/schema";
 
 import type { BlockAddress } from "./address";
 import { requestFocus, type PendingFocus } from "./focus";
+import { markSceneBorn } from "./scene-birth";
 
 export interface RunOptions {
   /** replace 後把游標放回這個場次 ／ 區塊的內文（doc 座標由本模組在新 doc 上算）。 */
@@ -77,7 +78,10 @@ export function runKernelCommand(
 
   if (options.focusNewSceneMeta) {
     const added = topLevelSceneIds(view.state.doc).find((id) => !before.has(id));
-    if (added) requestFocus({ kind: "sceneMeta", sceneId: added });
+    if (added) {
+      markSceneBorn(added); // 新場次的短暫浮現回饋（SceneView 掛載時領取）
+      requestFocus({ kind: "sceneMeta", sceneId: added });
+    }
   } else if (options.focusField) {
     requestFocus(options.focusField);
   }

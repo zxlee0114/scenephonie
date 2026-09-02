@@ -103,6 +103,32 @@
   border-radius: var(--space-1);
 }
 
+/* 新增下一場：新場次柔和地浮現底色＋外框，再淡出 —— §7.10「明確 append」的即時回饋。
+ * 這是動作回饋（與 .is-node-selected 用同一個 --selection-bg），不是常駐邊框，不牴觸不變式 G。 */
+@keyframes scene-just-added {
+  from {
+    background: var(--selection-bg);
+    outline-color: var(--focus-ring);
+  }
+  to {
+    background: transparent;
+    outline-color: transparent;
+  }
+}
+
+.scene--just-added {
+  outline: 1px solid transparent;
+  outline-offset: var(--space-2);
+  border-radius: var(--space-1);
+  animation: scene-just-added 1400ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene--just-added {
+    animation: none;
+  }
+}
+
 /* ── 場次號 decoration —— gutter、不進 content flow、不可 select ── */
 
 .scene__number {
@@ -111,11 +137,15 @@
   inset-block-start: 0;
   inline-size: var(--space-gutter);
   padding-inline-end: var(--space-3);
+  /* 對齊 chip row 第一個控制項的文字光學中心：越過 .scene__chips 的上內距（--space-1）＋
+   * 控制項邊框（1px）＋控制項上內距（2px），再補一半的行盒高度差（號碼 --text-sm、控制項 1rem）。
+   * 純視覺對齊，靠瀏覽器目視微調（使用者回饋 2026-09-03）。 */
+  padding-block-start: calc(var(--space-2) + 2px);
   text-align: end;
   /* typography role：介面字、次級字級、低對比（第三支撐，非主要手段）。 */
   font-family: var(--font-ui);
   font-size: var(--text-sm);
-  line-height: var(--leading-base);
+  line-height: var(--leading-sm);
   color: var(--text-faint);
   /* interaction boundary：不可選、不吃指標事件、不進 tab 序。 */
   user-select: none;
@@ -131,7 +161,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  margin-block-end: var(--space-3);
+  margin-block-end: var(--space-4);
   padding: var(--space-1) 0;
   font-family: var(--font-ui);
   font-size: var(--text-sm);
@@ -139,10 +169,17 @@
   color: var(--text-secondary);
 }
 
-.scene__chip,
-.scene__chip select,
+.scene__chip {
+  display: inline-flex;
+}
+
+.scene__chip-control,
 .scene__chip input {
-  font: inherit;
+  /* chip 控制項一律 16px：作業系統把原生控制項字級往下壓，寬螢幕上 --text-sm 讀起來太小
+   * （使用者回饋 2026-09-03）；16px 同時避開 iOS 聚焦自動放大（<16px 會觸發）。 */
+  font-size: 1rem;
+  line-height: var(--leading-sm);
+  font-family: var(--font-ui);
   color: var(--control-fg);
   background: var(--surface-raised);
   border: 1px solid var(--rule);
@@ -150,7 +187,12 @@
   padding: 2px var(--space-2);
 }
 
-.scene__chip select:focus-visible,
+.scene__chip-control {
+  cursor: pointer;
+  text-align: start;
+}
+
+.scene__chip-control:focus-visible,
 .scene__chip input:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
@@ -160,11 +202,51 @@
   min-inline-size: 8ch;
 }
 
-.scene__chip--empty select,
+.scene__chip--empty .scene__chip-control,
 .scene__chip--empty input {
   /* 缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）—— 但不上 error 色，只是弱化。 */
   border-style: dashed;
   color: var(--text-faint);
+}
+
+/* ── chip 下拉：比照 slash 選單的外觀，不用原生 <select>（使用者回饋 2026-09-03）── */
+
+.chip-select {
+  position: relative;
+  display: inline-flex;
+}
+
+.chip-select__menu {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-start: 0;
+  min-inline-size: 100%;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-2);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+}
+
+.chip-select__menu li {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--space-1);
+  color: var(--text-primary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip-select__menu li.is-active {
+  background: var(--selection-bg);
+}
+
+.chip-select__menu li[aria-selected="true"] {
+  color: var(--focus-ring);
 }
 
 /* ─────────────────────────────────────────── 內容區塊 */
@@ -182,18 +264,23 @@
   /* 對白：較窄的閱讀寬度 + 縮排。這是劇本的閱讀語意，不依賴任何輸出格式。 */
   max-inline-size: calc(var(--measure-dialogue-ic) * 1ic);
   margin-inline-start: var(--space-6);
+  /* 對白單元（人名＋台詞）與前後動作之間留更明顯的呼吸（使用者回饋 2026-09-03）。 */
+  margin-block: var(--space-5);
 }
 
 .block--dialogue .block__speaker {
   display: block;
   font-family: var(--font-ui);
-  font-size: var(--text-sm);
+  /* 人名比次級字級大一些，讀得出「誰在說」；font-ui ＋ 次級色仍讓它不與台詞爭主體
+   * （使用者回饋 2026-09-03）。 */
+  font-size: var(--text-base);
   color: var(--text-secondary);
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--rule);
   padding: 0 0 2px;
-  margin-block-end: var(--space-1);
+  /* 人名與其台詞之間的間隔（使用者回饋 2026-09-03）。 */
+  margin-block-end: var(--space-2);
 }
 
 .block--dialogue .block__speaker:focus-visible {
@@ -222,13 +309,29 @@
   /* NodeViewContent 的落點；行內文字就住這裡。 */
 }
 
+.scene__body {
+  /* 就算場次只有一個空區塊，也留出「這裡是下筆的地方」的空間。 */
+  min-block-size: calc(1em * var(--leading-base) * 3);
+}
+
 /* ─────────────────────────────────────────── 新增下一場 */
+/* 場次之間的分隔：兩側虛線 + 置中的「＋新增下一場」（不是一顆孤立的框按鈕）。 */
 
 .scene__foot {
-  margin-block-start: var(--space-3);
-  /* 只有最後一場下方那顆固定 append 按鈕真的常駐可見（§7.10）。 */
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+  /* 只有最後一場下方那條分隔真的常駐可見（§7.10）。 */
   opacity: 0;
   transition: opacity 120ms ease;
+}
+
+.scene__foot::before,
+.scene__foot::after {
+  content: "";
+  flex: 1 1 0;
+  border-block-start: 1px dashed var(--rule);
 }
 
 .scene:hover .scene__foot,
@@ -238,11 +341,12 @@
 }
 
 .scene__foot button {
+  flex: 0 0 auto;
   font-family: var(--font-ui);
   font-size: var(--text-sm);
   color: var(--text-secondary);
   background: transparent;
-  border: 1px dashed var(--rule-strong);
+  border: 0;
   border-radius: var(--space-1);
   padding: var(--space-1) var(--space-3);
   cursor: pointer;
@@ -250,7 +354,6 @@
 
 .scene__foot button:hover {
   color: var(--text-primary);
-  border-color: var(--control-border);
 }
 
 .scene__foot button:focus-visible {
