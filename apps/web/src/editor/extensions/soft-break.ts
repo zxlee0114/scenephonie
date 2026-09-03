@@ -1,11 +1,12 @@
 /**
  * `Shift+Enter` —— 同一區塊內的軟換行（使用者回饋 2026-09-03）。
  *
- * `Enter` 仍交給 ProseMirror 預設 `splitBlock`（切出新區塊）。`Shift+Enter` 在**當前區塊內**
+ * `Enter` 延續當前區塊型別（`extensions/continue-block`）。`Shift+Enter` 在**當前區塊內**
  * 插入一個 `\n` 文字字元 —— 不是 `hardBreak` 節點：kernel schema（`@scenephonie/schema`）
- * 的節點集合刻意不含它，加進來會撐破 schema-equivalence 與 null 鐵律。ProseMirror 預設
- * `white-space: pre-wrap`，`\n` 直接顯示為換行；經 JSON 往返仍是 kernel 的 `text` 節點，
- * 資料模型不需要新增任何東西（已用 `docFromJSON` 往返驗證）。
+ * 的節點集合刻意不含它，加進來會撐破 schema-equivalence 與 null 鐵律。`\n` 要顯示成換行
+ * 靠 `editor.css` 的 `.ProseMirror { white-space: pre-wrap }`（沒有那條 `<p>` 會把 `\n`
+ * 收合成空白）；經 JSON 往返仍是 kernel 的 `text` 節點，資料模型不需要新增任何東西
+ * （`keyboard-feedback.test.ts` 用 `docFromJSON` 往返驗過）。
  *
  * ⚠️ 約束 2（資料模型不含呈現性資訊）：區塊內換行在此視為**編劇寫下的內容結構**（與文字
  * 本身同級），非樣式。若 spec owner 認定它屬呈現層，移除本擴充即可讓 `Shift+Enter` 回到無效。

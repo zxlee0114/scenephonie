@@ -3,8 +3,8 @@
  * 使用者回饋 2026-09-03 的鍵盤回歸樁（headless）：
  *  - `Shift+Enter` 在同一區塊內軟換行（`\n` 文字，非 hardBreak 節點）——`extensions/soft-break`。
  *    另驗 `\n` 原封不動進入 canonical document（`schema.nodeFromJSON` 往返後仍是單一 text 節點）。
- *  - `Enter` 延續當前區塊型別（描述接描述、對白接對白、插入畫面接插入畫面），人物引用帶著走
- *    ——`extensions/continue-block`。換型別是 Tab／`/` 選單的意圖，不是 Enter 的副作用。
+ *  - `Enter` 延續當前區塊型別（描述接描述、對白接對白、插入畫面接插入畫面）——`extensions/
+ *    continue-block`。對白的新那段說話者清空（要重新指定）。換型別是 Tab／`/` 選單的意圖。
  *
  * 用無 React 根的 headless Editor：`InsertShotNode` 是原生 ProseMirror node view（靜態外殼），
  * 不需要 React；`Scene`／`Action`／`Dialogue` 用 schema-only 版本。
@@ -128,7 +128,7 @@ describe("Enter：延續當前區塊型別", () => {
     expect(blockTypes()).toEqual(["insertShot", "insertShot", "insertShot"]);
   });
 
-  it("對白 + Enter：切出另一段對白，人物引用帶著走（同一個人繼續講）", () => {
+  it("對白 + Enter：切出另一段對白，說話者清空（新那段要重新指定人名）", () => {
     build([
       {
         type: "dialogue",
@@ -141,8 +141,9 @@ describe("Enter：延續當前區塊型別", () => {
     editor.commands.keyboardShortcut("Enter");
 
     expect(blockTypes()).toEqual(["dialogue", "dialogue"]);
-    const next = editor.state.doc.child(0).child(1);
-    expect(next.attrs.character).toEqual({ id: null, displayName: "小明" });
-    expect(next.attrs.voiceStyle).toBe("一般");
+    const [first, next] = [editor.state.doc.child(0).child(0), editor.state.doc.child(0).child(1)];
+    expect(first.attrs.character).toEqual({ id: null, displayName: "小明" }); // 原本那段不動
+    expect(next.attrs.character).toBeNull(); // 新那段：說話者清空
+    expect(next.attrs.voiceStyle).toBe("一般"); // schema 預設
   });
 });

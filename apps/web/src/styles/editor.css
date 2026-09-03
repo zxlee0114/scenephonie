@@ -76,6 +76,13 @@
   outline: none;
 }
 
+.screenplay-page .ProseMirror {
+  /* 區塊內軟換行（`extensions/soft-break` 的 `\n` text）要真的顯示成換行 —— 沒有這條，
+   * `<p>` 會把 `\n` 收合成一個空白。ProseMirror 官方 base style 也就是這一條。 */
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
 .screenplay-page ::selection {
   background: var(--selection-bg);
 }
@@ -133,9 +140,11 @@
   inset-inline-start: 0;
   inset-block-start: 0;
   inline-size: var(--space-gutter);
-  /* 與 chip row 拉開明顯的間距 —— 場次號與 metadata 是並列同等的關係，不是擠在一起
-   * （使用者回饋 2026-09-03）。 */
-  padding-inline-end: var(--space-5);
+  /* 與 chip row 拉開明顯的間距 —— 場次號與 metadata 是並列同等的關係，不是擠在一起。
+   * 基準：號碼字盒右緣到「內外」選單**框線**的距離 ＝ 這個值（--space-gutter 同時是
+   * .scene 的左內距，兩者對齊，所以 padding-inline-end 直接就是那段間距）。
+   * 使用者回饋 2026-09-03（兩輪）。 */
+  padding-inline-end: var(--space-6);
   /* 對齊 chip row 第一個控制項的文字：越過 .scene__chips 的上內距（--space-1）＋控制項
    * 邊框（1px）＋控制項上內距（2px）。號碼與控制項同為 1rem，不再補行盒高度差。
    * 純視覺對齊，靠瀏覽器目視微調（使用者回饋 2026-09-03）。 */
@@ -315,8 +324,9 @@
 }
 
 /* ─────────────────────────────────────────── 新增下一場 */
-/* 場次之間的分隔：一條常駐的虛線；游標離開時就只剩這條線，hover／focus／最後一場時
- * 中間浮現「＋新增下一場」（使用者回饋 2026-09-03）。 */
+/* 場次之間的分隔：一條常駐的虛線；**滑鼠移開就只剩這條線**，hover 時（或最後一場）中間
+ * 才浮現「＋新增下一場」。不看 :focus-within —— 正在打字的場次一直是 focus-within，會讓
+ * 按鈕永遠不收起（使用者回饋 2026-09-03，兩輪）。 */
 
 .scene__foot {
   display: flex;
@@ -347,18 +357,17 @@
   transition: opacity 120ms ease;
 }
 
-.scene:not(:hover):not(:focus-within):not(:last-child) .scene__foot {
+.scene:not(:hover):not(:last-child) .scene__foot {
   gap: 0;
 }
 
-.scene:not(:hover):not(:focus-within):not(:last-child) .scene__foot button {
+.scene:not(:hover):not(:last-child) .scene__foot button {
   max-inline-size: 0;
   padding-inline: 0;
   overflow: hidden;
 }
 
 .scene:hover .scene__foot button,
-.scene:focus-within .scene__foot button,
 .scene:last-child .scene__foot button {
   opacity: 1;
 }

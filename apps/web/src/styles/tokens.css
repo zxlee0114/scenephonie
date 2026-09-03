@@ -105,7 +105,7 @@
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
-  --space-gutter: 3.5rem; /* 場次號等 decoration 住的左側 gutter 寬 */
+  --space-gutter: 4rem; /* 場次號等 decoration 住的左側 gutter 寬（含號碼與 chip 框線的間距） */
 }
 
 /*
