@@ -25,7 +25,7 @@ import { INT_EXT_VALUES, TIME_VALUES, type LocationRef } from "@scenephonie/sche
 import { ChipSelect } from "../chip-select";
 import { CjkField } from "../cjk-field";
 import { claimFocus, subscribeFocusRequest } from "../focus";
-import { consumeSceneBirth } from "../scene-birth";
+import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
 import { requestNextScene } from "../extensions/next-scene";
 import { sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
 import { Scene } from "../schema";
@@ -43,12 +43,22 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   const sceneId = node.attrs.sceneId as string;
 
   // 「新增下一場」的即時回饋：這一場若剛被建立出來，短暫掛上 .scene--just-added（CSS 自己淡出）。
+  // 掛載時領一次（append 情境），並訂閱 markSceneBorn（中間插入時 node view 被沿用、不重新掛載，
+  // 靠通知才收得到）——使用者回饋 2026-09-03：「只有最新一場會動、插入時有時不動」。
   const [justBorn, setJustBorn] = useState(false);
   useEffect(() => {
-    if (!consumeSceneBirth(sceneId)) return;
-    setJustBorn(true);
-    const t = setTimeout(() => setJustBorn(false), 1400);
-    return () => clearTimeout(t);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const claim = () => {
+      if (!consumeSceneBirth(sceneId)) return;
+      setJustBorn(true);
+      timer = setTimeout(() => setJustBorn(false), 900);
+    };
+    claim();
+    const unsubscribe = subscribeSceneBirth(claim);
+    return () => {
+      unsubscribe();
+      if (timer) clearTimeout(timer);
+    };
   }, [sceneId]);
 
   /** 把游標送進本場第一個區塊的內文開頭（getPos → 場次前；+1 進場次、+1 進首區塊）。 */

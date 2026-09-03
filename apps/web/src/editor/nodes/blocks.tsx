@@ -18,7 +18,6 @@ import { useEffect, useRef } from "react";
 import type { DialogueCharacterRef } from "@scenephonie/schema";
 
 import { sceneContext, type BlockAddress } from "../address";
-import { setBlockTypeAt } from "../block-types";
 import { Action, Dialogue, InsertShot } from "../schema";
 import { CjkField } from "../cjk-field";
 import { claimFocus } from "../focus";
@@ -148,27 +147,5 @@ export const InsertShotNode = InsertShot.extend({
   addNodeView() {
     return staticBlockView("block block--insert-shot", insertShotTag);
   },
-
-  // Enter 在插入畫面裡的行為（使用者回饋 2026-09-03）：插入畫面是可多行的模式。
-  //  - 非空 ＋ Enter：切出「另一個插入畫面」（ProseMirror 預設會切成 action，這裡覆寫）。
-  //  - 空 ＋ Enter（＝double enter）：離開此模式，換回動作。換型別是意圖，走 kernel command。
-  addKeyboardShortcuts() {
-    return {
-      Enter: () => {
-        const { state } = this.editor;
-        const { $from, empty } = state.selection;
-        if (!empty || $from.parent.type.name !== "insertShot") return false;
-
-        if ($from.parent.content.size === 0) {
-          const ctx = sceneContext($from);
-          return ctx ? setBlockTypeAt(this.editor, ctx, "action") : false;
-        }
-
-        return this.editor.commands.command(({ tr, dispatch }) => {
-          if (dispatch) tr.split($from.pos, 1, [{ type: this.type }]).scrollIntoView();
-          return true;
-        });
-      },
-    };
-  },
+  // Enter 的行為（延續當前型別，不多行）統一在 `extensions/continue-block` —— 三種區塊同一套。
 });

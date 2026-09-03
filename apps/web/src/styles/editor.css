@@ -103,24 +103,21 @@
   border-radius: var(--space-1);
 }
 
-/* 新增下一場：新場次柔和地浮現底色＋外框，再淡出 —— §7.10「明確 append」的即時回饋。
- * 這是動作回饋（與 .is-node-selected 用同一個 --selection-bg），不是常駐邊框，不牴觸不變式 G。 */
+/* 新增下一場：新場次柔和地浮現淺底色再淡出 —— §7.10「明確 append」的即時回饋。
+ * 動作回饋（與 .is-node-selected 用同一個 --selection-bg），不是常駐邊框，不牴觸不變式 G。
+ * 使用者回饋 2026-09-03：拿掉外框線、只留底色，時長縮短。 */
 @keyframes scene-just-added {
   from {
     background: var(--selection-bg);
-    outline-color: var(--focus-ring);
   }
   to {
     background: transparent;
-    outline-color: transparent;
   }
 }
 
 .scene--just-added {
-  outline: 1px solid transparent;
-  outline-offset: var(--space-2);
   border-radius: var(--space-1);
-  animation: scene-just-added 1400ms ease-out;
+  animation: scene-just-added 900ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -136,15 +133,18 @@
   inset-inline-start: 0;
   inset-block-start: 0;
   inline-size: var(--space-gutter);
-  padding-inline-end: var(--space-3);
-  /* 對齊 chip row 第一個控制項的文字光學中心：越過 .scene__chips 的上內距（--space-1）＋
-   * 控制項邊框（1px）＋控制項上內距（2px），再補一半的行盒高度差（號碼 --text-sm、控制項 1rem）。
+  /* 與 chip row 拉開明顯的間距 —— 場次號與 metadata 是並列同等的關係，不是擠在一起
+   * （使用者回饋 2026-09-03）。 */
+  padding-inline-end: var(--space-5);
+  /* 對齊 chip row 第一個控制項的文字：越過 .scene__chips 的上內距（--space-1）＋控制項
+   * 邊框（1px）＋控制項上內距（2px）。號碼與控制項同為 1rem，不再補行盒高度差。
    * 純視覺對齊，靠瀏覽器目視微調（使用者回饋 2026-09-03）。 */
-  padding-block-start: calc(var(--space-2) + 2px);
+  padding-block-start: calc(var(--space-1) + 3px);
   text-align: end;
-  /* typography role：介面字、次級字級、低對比（第三支撐，非主要手段）。 */
+  /* typography role：介面字、低對比（第三支撐）。字級與 metadata 齊平（1rem），靠位置＋
+   * 不可選＋低對比把它跟 canonical content 分開，不再靠縮小字級。 */
   font-family: var(--font-ui);
-  font-size: var(--text-sm);
+  font-size: 1rem;
   line-height: var(--leading-sm);
   color: var(--text-faint);
   /* interaction boundary：不可選、不吃指標事件、不進 tab 序。 */
@@ -315,16 +315,14 @@
 }
 
 /* ─────────────────────────────────────────── 新增下一場 */
-/* 場次之間的分隔：兩側虛線 + 置中的「＋新增下一場」（不是一顆孤立的框按鈕）。 */
+/* 場次之間的分隔：一條常駐的虛線；游標離開時就只剩這條線，hover／focus／最後一場時
+ * 中間浮現「＋新增下一場」（使用者回饋 2026-09-03）。 */
 
 .scene__foot {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   margin-block-start: var(--space-4);
-  /* 只有最後一場下方那條分隔真的常駐可見（§7.10）。 */
-  opacity: 0;
-  transition: opacity 120ms ease;
 }
 
 .scene__foot::before,
@@ -334,12 +332,7 @@
   border-block-start: 1px dashed var(--rule);
 }
 
-.scene:hover .scene__foot,
-.scene:focus-within .scene__foot,
-.scene:last-child .scene__foot {
-  opacity: 1;
-}
-
+/* 按鈕：游標離開時收起（寬度歸零 → 兩段虛線接成一條），hover／focus／最後一場時浮現。 */
 .scene__foot button {
   flex: 0 0 auto;
   font-family: var(--font-ui);
@@ -350,6 +343,24 @@
   border-radius: var(--space-1);
   padding: var(--space-1) var(--space-3);
   cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.scene:not(:hover):not(:focus-within):not(:last-child) .scene__foot {
+  gap: 0;
+}
+
+.scene:not(:hover):not(:focus-within):not(:last-child) .scene__foot button {
+  max-inline-size: 0;
+  padding-inline: 0;
+  overflow: hidden;
+}
+
+.scene:hover .scene__foot button,
+.scene:focus-within .scene__foot button,
+.scene:last-child .scene__foot button {
+  opacity: 1;
 }
 
 .scene__foot button:hover {

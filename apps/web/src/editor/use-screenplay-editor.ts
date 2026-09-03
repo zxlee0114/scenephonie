@@ -18,6 +18,7 @@ import { requestFocus } from "./focus";
 import { ActionNode, DialogueNode, InsertShotNode } from "./nodes/blocks";
 import { SceneNode } from "./nodes/scene";
 import { BlockCycle } from "./extensions/block-cycle";
+import { ContinueBlock } from "./extensions/continue-block";
 import { NextScene } from "./extensions/next-scene";
 import { SceneIds } from "./extensions/scene-ids";
 import { SceneNumbers } from "./extensions/scene-numbers";
@@ -50,6 +51,7 @@ export function useScreenplayEditor(initialContent?: object) {
       SceneIds,
       SceneNumbers,
       BlockCycle,
+      ContinueBlock,
       SelectScope,
       NextScene,
       Slash,
