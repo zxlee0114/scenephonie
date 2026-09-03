@@ -18,6 +18,7 @@ import { useEffect, useRef } from "react";
 import type { DialogueCharacterRef } from "@scenephonie/schema";
 
 import { sceneContext, type BlockAddress } from "../address";
+import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { Action, Dialogue, InsertShot } from "../schema";
 import { CjkField } from "../cjk-field";
 import { claimFocus } from "../focus";
@@ -112,6 +113,13 @@ function DialogueView(props: NodeViewProps) {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             e.stopPropagation();
+            // 人名與台詞都還空著 → Enter ＝ 取消這個對白，變回描述。與內文裡按 Enter
+            // （`extensions/continue-block`）同一條退路（使用者回饋 2026-09-03，第四輪）。
+            const here = locateBlock(props);
+            if (here && isBlankBlock(node)) {
+              setBlockTypeAt(editor, here, "action");
+              return;
+            }
             enterDialogueBody();
             return;
           }

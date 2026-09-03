@@ -16,6 +16,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 
@@ -40,6 +41,11 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
 
   // 全部可選列：第 0 列是「回到未選」（空字串），其後是各列舉值。
   const rows = ["", ...options];
+
+  // 控制項寬度**固定**，不隨選到什麼而伸縮（否則整條 chip row 每選一次就重排）。基準是
+  // 「placeholder 與所有選項裡最長的那個」的字數，所以最長的選項也不會被截掉。
+  // 使用者回饋 2026-09-03。
+  const widthInChars = Math.max(...[placeholder, ...options].map((s) => [...s].length));
 
   // 點到元件外就關閉。
   useEffect(() => {
@@ -97,6 +103,7 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={placeholder}
+        style={{ "--chip-chars": widthInChars } as CSSProperties}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={onKeyDown}
       >

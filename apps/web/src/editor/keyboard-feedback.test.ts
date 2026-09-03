@@ -5,6 +5,7 @@
  *    另驗 `\n` 原封不動進入 canonical document（`schema.nodeFromJSON` 往返後仍是單一 text 節點）。
  *  - `Enter` 延續當前區塊型別（描述接描述、對白接對白、插入畫面接插入畫面）——`extensions/
  *    continue-block`。對白的新那段說話者清空（要重新指定）。換型別是 Tab／`/` 選單的意圖。
+ *  - 例外：**還什麼都沒寫**的對白／插入畫面按 `Enter` ＝ 取消型別、退回描述（選錯型別的退路）。
  *
  * 用無 React 根的 headless Editor：`InsertShotNode` 是原生 ProseMirror node view（靜態外殼），
  * 不需要 React；`Scene`／`Action`／`Dialogue` 用 schema-only 版本。
@@ -116,7 +117,7 @@ describe("Enter：延續當前區塊型別", () => {
     expect(blockTypes()).toEqual(["insertShot", "insertShot"]);
   });
 
-  it("空的插入畫面 + Enter：仍是插入畫面（不再 double-enter 跳回動作；換型別走 Tab）", () => {
+  it("空的插入畫面 + Enter：取消型別，變回描述（不是再生一個空的插入畫面）", () => {
     build([
       { type: "insertShot", content: [{ type: "text", text: "牆上的時鐘" }] },
       { type: "insertShot" },
@@ -125,7 +126,33 @@ describe("Enter：延續當前區塊型別", () => {
 
     editor.commands.keyboardShortcut("Enter");
 
-    expect(blockTypes()).toEqual(["insertShot", "insertShot", "insertShot"]);
+    expect(blockTypes()).toEqual(["insertShot", "action"]);
+  });
+
+  it("空的對白（人名也空）+ Enter：取消型別，變回描述", () => {
+    build([
+      { type: "action", content: [{ type: "text", text: "門開了" }] },
+      { type: "dialogue" },
+    ]);
+    caretAtEndOfBlock(1);
+
+    editor.commands.keyboardShortcut("Enter");
+
+    expect(blockTypes()).toEqual(["action", "action"]);
+  });
+
+  it("只填了人名、台詞還空的對白 + Enter：不取消（人名是已寫下的東西）", () => {
+    build([
+      {
+        type: "dialogue",
+        attrs: { character: { id: null, displayName: "小明" }, voiceStyle: "一般" },
+      },
+    ]);
+    caretAtEndOfBlock(0);
+
+    editor.commands.keyboardShortcut("Enter");
+
+    expect(blockTypes()).toEqual(["dialogue", "dialogue"]);
   });
 
   it("對白 + Enter：切出另一段對白，說話者清空（新那段要重新指定人名）", () => {

@@ -16,7 +16,7 @@ import type { Editor } from "@tiptap/core";
 import type { BlockType } from "@scenephonie/schema";
 
 import { sceneContext } from "../address";
-import { BLOCK_CYCLE, setBlockTypeAt } from "../block-types";
+import { BLOCK_CYCLE, isBlankBlock, setBlockTypeAt } from "../block-types";
 
 /** 把游標所在區塊沿環轉一格（`+1` 動作→對白→插入畫面，`-1` 反向）。不在區塊裡時回 `false`。 */
 export function cycleBlock(editor: Editor, dir: 1 | -1): boolean {
@@ -36,7 +36,12 @@ export function cycleBlock(editor: Editor, dir: 1 | -1): boolean {
   if (!ctx) return false;
 
   const type = BLOCK_CYCLE[(idx + dir + BLOCK_CYCLE.length) % BLOCK_CYCLE.length]!;
-  return setBlockTypeAt(editor, { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex }, type);
+  // 已經寫了字的區塊轉成對白時，焦點**不**搶進人物欄 —— 游標留在內文，Tab 才能繼續轉下去。
+  // 否則焦點落進人物欄那顆 `<input>`（它的 Tab 被 stopPropagation 擋著），環當場卡死，
+  // 而且接著打的字會跑進人名欄（使用者回饋 2026-09-03）。
+  return setBlockTypeAt(editor, { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex }, type, {
+    focusSpeaker: isBlankBlock($from.parent),
+  });
 }
 
 export const BlockCycle = Extension.create({

@@ -205,6 +205,15 @@
 .scene__chip-control {
   cursor: pointer;
   text-align: start;
+  white-space: nowrap;
+  /* 寬度固定，不隨選到的值伸縮（否則每選一次整條 chip row 就重排）。--chip-chars 由
+   * ChipSelect 依「placeholder 與所有選項裡最長的那個」的字數給，所以最長的選項也不會被
+   * 截掉。1ic ＝ 一個全形字寬；先 em 後 ic，靠級聯自然降級（同 .screenplay-page 的做法）。
+   * 這裡沒有全域 box-sizing reset，要自己宣告，padding 才算進寬度內。
+   * 使用者回饋 2026-09-03。 */
+  box-sizing: border-box;
+  inline-size: calc(var(--chip-chars, 3) * 1em + var(--space-2) * 2 + 2px);
+  inline-size: calc(var(--chip-chars, 3) * 1ic + var(--space-2) * 2 + 2px);
 }
 
 .scene__chip-control:focus-visible,
@@ -337,42 +346,43 @@
  * 使用者回饋 2026-09-03（三輪）。 */
 
 .scene__foot {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  justify-content: center;
   margin-block-start: var(--space-4);
 }
 
-.scene__foot::before,
-.scene__foot::after {
+/* 虛線：絕對定位、**不參與版面** —— 從頭到尾都在，長度也不變。 */
+.scene__foot::before {
   content: "";
-  flex: 1 1 0;
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 50%;
   border-block-start: 1px dashed var(--rule);
 }
 
-/* 按鈕：游標離開時收起（寬度歸零 → 兩段虛線接成一條），hover／focus／最後一場時浮現。 */
+/* 按鈕：盒子尺寸**永遠不變**，顯隱只換 opacity —— 連同背景一起淡出，虛線就從底下透出來；
+ * 淡入時不透明的背景把線的中段蓋掉，看起來就是「線上長出一顆按鈕」。
+ *
+ * ⚠️ 不可以用寬度／padding／gap 來收合：`max-inline-size: 0` ＋ `overflow: hidden` 會讓
+ * 「＋ 新增下一場」在零寬盒子裡逐字換行，盒子**變高**（overflow 只是裁掉、不縮高度）——
+ * 場次於是在 hover 進出時忽大忽小，滑鼠一到分隔線附近就展開→版面推走→脫離 hover→收起→
+ * 又回到滑鼠下，無限閃動。使用者回饋 2026-09-03（第四輪）。 */
 .scene__foot button {
+  position: relative; /* 疊在虛線上方 */
   flex: 0 0 auto;
+  white-space: nowrap;
   font-family: var(--font-ui);
   font-size: var(--text-sm);
   color: var(--text-secondary);
-  background: transparent;
+  background: var(--surface-page);
   border: 0;
   border-radius: var(--space-1);
   padding: var(--space-1) var(--space-3);
   cursor: pointer;
   opacity: 0;
   transition: opacity 120ms ease;
-}
-
-.scene:not(:hover):not(.scene--last) .scene__foot {
-  gap: 0;
-}
-
-.scene:not(:hover):not(.scene--last) .scene__foot button {
-  max-inline-size: 0;
-  padding-inline: 0;
-  overflow: hidden;
 }
 
 .scene:hover .scene__foot button,

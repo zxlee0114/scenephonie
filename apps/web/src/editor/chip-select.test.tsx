@@ -81,3 +81,26 @@ describe("ChipSelect", () => {
     expect(btn.textContent).toBe("時間"); // 清空 → 顯示 placeholder
   });
 });
+
+describe("寬度固定，不隨選到的值伸縮", () => {
+  it("--chip-chars ＝ placeholder 與所有選項裡最長的字數（最長的選項不會被截掉）", () => {
+    const { getByRole, rerender } = render(
+      <ChipSelect value="" options={["內景", "外景", "內外景", "雜景"]} placeholder="內外" onChange={() => {}} />,
+    );
+    const button = getByRole("button");
+    expect(button.style.getPropertyValue("--chip-chars")).toBe("3"); // 「內外景」
+
+    // 選到最短的值，寬度基準不變 —— chip row 不會因此重排。
+    rerender(
+      <ChipSelect value="雜景" options={["內景", "外景", "內外景", "雜景"]} placeholder="內外" onChange={() => {}} />,
+    );
+    expect(getByRole("button").style.getPropertyValue("--chip-chars")).toBe("3");
+  });
+
+  it("時間：選項都是一個字，基準退回 placeholder 的長度", () => {
+    const { getByRole } = render(
+      <ChipSelect value="" options={["日", "夜", "晨", "昏"]} placeholder="時間" onChange={() => {}} />,
+    );
+    expect(getByRole("button").style.getPropertyValue("--chip-chars")).toBe("2");
+  });
+});

@@ -132,3 +132,35 @@ describe("人物欄按 Enter 直接進台詞", () => {
     expect(editor.state.selection.$from.parent.type.name).toBe("action");
   });
 });
+
+describe("空的對白在人物欄按 Enter：取消區塊，變回描述", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("人名與台詞都空 → Enter 把對白換成 action", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(container.querySelector(".block--dialogue")).not.toBeNull());
+
+    // 先在對白內文尾端按 Enter，起一段全新的空對白（焦點會落在它的人物欄）。
+    const scene = editor.state.doc.child(0);
+    const bodyEnd = 1 + scene.child(0).nodeSize + 1 + scene.child(1).content.size;
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.near(editor.state.doc.resolve(bodyEnd))),
+    );
+    editor.commands.keyboardShortcut("Enter");
+    await waitFor(() => expect(container.querySelectorAll(".block--dialogue").length).toBe(2));
+
+    const speakers = container.querySelectorAll<HTMLInputElement>(".block__speaker");
+    const fresh = speakers[speakers.length - 1]!;
+    await waitFor(() => expect(document.activeElement).toBe(fresh));
+
+    // 什麼都沒打就 Enter → 這一段取消，回到描述。
+    fireEvent.keyDown(fresh, { key: "Enter" });
+
+    await waitFor(() => expect(container.querySelectorAll(".block--dialogue").length).toBe(1));
+    const after = editor.state.doc.child(0);
+    expect([after.child(1).type.name, after.child(2).type.name]).toEqual(["dialogue", "action"]);
+  });
+});

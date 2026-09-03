@@ -10,6 +10,7 @@ import { docFromJSON, mintSceneId, projectScenes, schema as kernelSchema } from 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { cycleBlock } from "./extensions/block-cycle";
+import { claimFocus } from "./focus";
 import { NextScene, requestNextScene } from "./extensions/next-scene";
 import { SceneIds } from "./extensions/scene-ids";
 import { SceneNumbers } from "./extensions/scene-numbers";
@@ -151,6 +152,33 @@ describe("Tab 環（只換型別、不動容器、不生成東西）", () => {
     caretInBlock(0, 0);
     cycleBlock(editor, 1);
     expect(blockTypeAt(0, 0)).toBe("insertShot");
+  });
+
+  // 使用者回饋 2026-09-03（第四輪）：「在有描述的地方按 tab，後續行為變得很奇怪」。
+  // 成因：轉成對白時焦點被排進人物欄那顆 `<input>`，正在打字的人下一個字就打進人名欄，
+  // 而且那顆欄位的 Tab 被 stopPropagation 擋著 —— Tab 環當場卡死、轉不下去。
+  it("有內容的區塊轉成對白：不搶焦點到人物欄，Tab 環照樣能繼續轉", () => {
+    claimFocus(() => true); // 清掉前面測試可能留下的請求
+    caretInBlock(0, 0); // 「第一場的動作」——有內容
+
+    cycleBlock(editor, 1);
+    expect(blockTypeAt(0, 0)).toBe("dialogue");
+    expect(claimFocus(() => true)).toBe(false); // 沒有排任何焦點請求
+
+    caretInBlock(0, 0);
+    cycleBlock(editor, 1);
+    expect(blockTypeAt(0, 0)).toBe("insertShot"); // 環沒卡死
+  });
+
+  it("空區塊轉成對白：照樣把焦點排給人物欄（該打人名了）", () => {
+    claimFocus(() => true);
+    caretInBlock(0, 0);
+    editor.commands.deleteRange({ from: editor.state.selection.from, to: editor.state.selection.from + 6 });
+
+    caretInBlock(0, 0);
+    cycleBlock(editor, 1);
+    expect(blockTypeAt(0, 0)).toBe("dialogue");
+    expect(claimFocus((p) => p.kind === "speaker")).toBe(true);
   });
 });
 

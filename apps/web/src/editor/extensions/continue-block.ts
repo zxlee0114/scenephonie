@@ -14,15 +14,22 @@
  * 攔截條件：塌陷或單一區塊內的文字選取，且落在 `action`／`dialogue`／`insertShot`。
  * 其餘情況（跨區塊選取、`AllSelection`、非場次區塊）回 `false`，交還 ProseMirror 預設。
  *
+ * **例外**：還什麼都沒寫的對白／插入畫面（`isBlankBlock`）按 `Enter` ＝ 取消型別、退回描述
+ * （action）——選錯型別時的退路，不是再生一個同樣空的區塊。
+ *
  * `Shift+Enter` 不歸這裡管 —— 那是 `extensions/soft-break` 的區塊內軟換行。
  */
 import { Extension } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
 
 import { sceneContext } from "../address";
+import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { requestFocus } from "../focus";
 
 const SCENE_BLOCKS = new Set(["action", "dialogue", "insertShot"]);
+
+/** 「還什麼都沒寫就按 Enter」＝ 取消這個型別，退回描述。動作本身就是退路，不在其中。 */
+const ESCAPABLE = new Set(["dialogue", "insertShot"]);
 
 export const ContinueBlock = Extension.create({
   name: "continueBlock",
@@ -39,17 +46,27 @@ export const ContinueBlock = Extension.create({
         const parent = $from.parent;
         if (!SCENE_BLOCKS.has(parent.type.name)) return false;
 
+        const ctx = sceneContext($from);
+
+        // 空的對白／插入畫面按 Enter ＝ 取消這個區塊，直接變回描述（action）——不是再生一個
+        // 同樣空的區塊。選錯型別的退路，與「空區塊上按 Tab 換型別」同一組手勢。
+        // 使用者回饋 2026-09-03（第四輪）。
+        if (ctx && ESCAPABLE.has(parent.type.name) && isBlankBlock(parent)) {
+          return setBlockTypeAt(
+            this.editor,
+            { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex },
+            "action",
+          );
+        }
+
         // 對白：新那段要重新指定說話者 —— 先排一個「人物欄」focus 請求，指向即將生出的
         // 下一個區塊（blockIndex + 1）。requestFocus 早於新 DialogueView 掛載，掛載時 claim。
-        if (parent.type.name === "dialogue") {
-          const ctx = sceneContext($from);
-          if (ctx) {
-            requestFocus({
-              kind: "speaker",
-              sceneId: ctx.sceneId,
-              blockIndex: ctx.blockIndex + 1,
-            });
-          }
+        if (parent.type.name === "dialogue" && ctx) {
+          requestFocus({
+            kind: "speaker",
+            sceneId: ctx.sceneId,
+            blockIndex: ctx.blockIndex + 1,
+          });
         }
 
         return this.editor.commands.command(({ tr, dispatch }) => {
