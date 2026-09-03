@@ -44,21 +44,19 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
 
   // 「新增下一場」的即時回饋：這一場若剛被建立出來，短暫掛上 .scene--just-added（CSS 自己淡出）。
   // 掛載時領一次（append 情境），並訂閱 markSceneBorn（中間插入時 node view 被沿用、不重新掛載，
-  // 靠通知才收得到）——使用者回饋 2026-09-03：「只有最新一場會動、插入時有時不動」。
+  // 靠通知才收得到）。
+  //
+  // ⚠️ 卸 class 走 animationend，**不用 setTimeout**：StrictMode 會把 effect 跑兩次
+  // （run → cleanup → run），cleanup 清掉計時器後第二次已領不到（born 被消費掉），class 就永遠
+  // 留著；同一個 node view 之後被沿用給另一場新生場次時，class 已在 → CSS 動畫不會重播。
+  // 這就是使用者回饋 2026-09-03（兩輪）的「動畫有時候不會出現」。
   const [justBorn, setJustBorn] = useState(false);
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
     const claim = () => {
-      if (!consumeSceneBirth(sceneId)) return;
-      setJustBorn(true);
-      timer = setTimeout(() => setJustBorn(false), 900);
+      if (consumeSceneBirth(sceneId)) setJustBorn(true);
     };
     claim();
-    const unsubscribe = subscribeSceneBirth(claim);
-    return () => {
-      unsubscribe();
-      if (timer) clearTimeout(timer);
-    };
+    return subscribeSceneBirth(claim);
   }, [sceneId]);
 
   /** 把游標送進本場第一個區塊的內文開頭（getPos → 場次前；+1 進場次、+1 進首區塊）。 */
@@ -90,9 +88,19 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
 
   return (
     <NodeViewWrapper
-      className={`scene${justBorn ? " scene--just-added" : ""}${
-        spec?.selected ? " is-node-selected" : ""
-      }`}
+      className={[
+        "scene",
+        justBorn && "scene--just-added",
+        spec?.selected && "is-node-selected",
+        // 位置旗標走 decoration，不靠 :first-child／:last-child（見 extensions/scene-numbers）。
+        spec?.isFirst && "scene--first",
+        spec?.isLast && "scene--last",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      // 動畫播完就卸 class，下次再生時才能重播。reduced-motion 下 animation: none、事件不會來，
+      // 但那時本來就沒有動畫可播，class 留著不影響外觀。
+      onAnimationEnd={() => setJustBorn(false)}
     >
       {/* 場次號 decoration：gutter、不可編輯、不可 select、不吃指標事件（CSS 也再擋一層）。 */}
       <div className="scene__number" contentEditable={false} aria-hidden="true">
@@ -165,10 +173,12 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   );
 }
 
-/** 重繪判斷：號碼或整場選取狀態變了才重繪這一場（不比整個 decoration 陣列）。 */
+/** 重繪判斷：號碼、整場選取狀態或首尾位置變了才重繪這一場（不比整個 decoration 陣列）。 */
 function sigOf(decorations: readonly Decoration[]): string {
   const spec = sceneNumberOf(decorations);
-  return `${spec?.sceneNo ?? ""}:${spec?.selected ? 1 : 0}`;
+  return `${spec?.sceneNo ?? ""}:${spec?.selected ? 1 : 0}:${spec?.isFirst ? 1 : 0}${
+    spec?.isLast ? 1 : 0
+  }`;
 }
 
 export const SceneNode = Scene.extend({

@@ -25,6 +25,12 @@ export interface SceneNumberSpec {
   sceneNo: string;
   /** 整場被選取範圍完整涵蓋（⌘+A 第三段）——整塊反白由 node view 畫，不靠瀏覽器原生。 */
   selected: boolean;
+  /** 全劇第一場／最後一場。
+   * ⚠️ 不能用 CSS `:first-child`／`:last-child` 判斷：`ReactNodeViewRenderer` 會替每個 node view
+   * 包一層 host `<div>`，`.scene` 永遠是那層 host 的唯一子元素 —— 兩個偽類對**每一場**都成立
+   * （腳部按鈕因此永遠不收起、場次間距也套錯）。位置只有文件知道，所以走 decoration。 */
+  isFirst: boolean;
+  isLast: boolean;
 }
 
 /** 給 node view 用：從它收到的 decorations 取出本場的 spec。 */
@@ -52,7 +58,8 @@ export const SceneNumbers = Extension.create({
             );
 
             const decos: Decoration[] = [];
-            state.doc.forEach((node, pos) => {
+            const last = state.doc.childCount - 1;
+            state.doc.forEach((node, pos, index) => {
               if (node.type.name !== "scene") return;
               const n = numberBySceneId.get(node.attrs.sceneId as string);
               const label = n == null ? "?" : String(n);
@@ -62,7 +69,12 @@ export const SceneNumbers = Extension.create({
                   pos,
                   pos + node.nodeSize,
                   { "data-scene-no": label },
-                  { sceneNo: label, selected: covered } satisfies SceneNumberSpec,
+                  {
+                    sceneNo: label,
+                    selected: covered,
+                    isFirst: index === 0,
+                    isLast: index === last,
+                  } satisfies SceneNumberSpec,
                 ),
               );
             });

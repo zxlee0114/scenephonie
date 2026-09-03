@@ -111,12 +111,20 @@ export function SlashMenu() {
 
 export const Slash = Extension.create({
   name: "slash",
+  // ⚠️ 必須壓過 `continueBlock`（1101）與 `softBreak`（1100）：Tiptap 依 priority 由高到低把
+  // 外掛排進 ProseMirror，`Enter` 會被先排到的那個吃掉。選單開著時 Enter 卻在換行，就是這個
+  // 順序反了（使用者回饋 2026-09-03）。
+  priority: 1200,
   addProseMirrorPlugins() {
     return [
       Suggestion<SlashItem>({
         editor: this.editor,
         char: "/",
         allowSpaces: false,
+        // `/` 只是**動作**區塊的指令入口。對白內文與插入畫面裡的斜線是內容（畫面比例、日期、
+        // 台詞裡的停頓寫法），不該彈選單；要換型別走 Tab，要開下一場走 ⌘+Enter 或腳部按鈕。
+        // 使用者回饋 2026-09-03。
+        allow: ({ state }) => state.selection.$from.parent.type.name === "action",
         items: ({ query }) => {
           const q = query.toLowerCase();
           return ITEMS.filter((i) => i.key.startsWith(q) || i.label.includes(query));

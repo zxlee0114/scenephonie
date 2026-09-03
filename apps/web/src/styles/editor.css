@@ -98,7 +98,10 @@
   border: 0; /* 明示：不變式 G —— 場次不畫邊框 */
 }
 
-.scene:first-child {
+/* 首尾旗標由 decoration 給（extensions/scene-numbers）。不能用 :first-child／:last-child ——
+ * ReactNodeViewRenderer 會替每個 node view 包一層 host <div>，`.scene` 永遠是那層的唯一子元素，
+ * 兩個偽類對每一場都成立（使用者回饋 2026-09-03：按鈕始終呈現）。 */
+.scene--first {
   margin-block-start: var(--space-2);
 }
 
@@ -140,11 +143,14 @@
   inset-inline-start: 0;
   inset-block-start: 0;
   inline-size: var(--space-gutter);
+  /* ⚠️ 專案沒有全域 box-sizing reset，預設是 content-box —— 沒有這行，padding-inline-end 會加在
+   * 64px 之外，號碼字盒右緣正好落在 .scene 內容邊（＝chip 框線）上，實際間距是 0。前兩輪把
+   * padding 從 12→24→32px 完全沒有效果就是這個原因（使用者回饋 2026-09-03，三輪）。 */
+  box-sizing: border-box;
   /* 與 chip row 拉開明顯的間距 —— 場次號與 metadata 是並列同等的關係，不是擠在一起。
    * 基準：號碼字盒右緣到「內外」選單**框線**的距離 ＝ 這個值（--space-gutter 同時是
-   * .scene 的左內距，兩者對齊，所以 padding-inline-end 直接就是那段間距）。
-   * 使用者回饋 2026-09-03（兩輪）。 */
-  padding-inline-end: var(--space-6);
+   * .scene 的左內距，兩者對齊，所以 padding-inline-end 直接就是那段間距）。 */
+  padding-inline-end: var(--space-5);
   /* 對齊 chip row 第一個控制項的文字：越過 .scene__chips 的上內距（--space-1）＋控制項
    * 邊框（1px）＋控制項上內距（2px）。號碼與控制項同為 1rem，不再補行盒高度差。
    * 純視覺對齊，靠瀏覽器目視微調（使用者回饋 2026-09-03）。 */
@@ -324,9 +330,11 @@
 }
 
 /* ─────────────────────────────────────────── 新增下一場 */
-/* 場次之間的分隔：一條常駐的虛線；**滑鼠移開就只剩這條線**，hover 時（或最後一場）中間
- * 才浮現「＋新增下一場」。不看 :focus-within —— 正在打字的場次一直是 focus-within，會讓
- * 按鈕永遠不收起（使用者回饋 2026-09-03，兩輪）。 */
+/* 場次之間的分隔：一條常駐的虛線；**滑鼠移開就只剩這條線**，hover 時（或最後一場，全劇末尾
+ * 沒有「下一場」可分隔）中間才浮現「＋新增下一場」。
+ * 不看 :focus-within —— 正在打字的場次一直是 focus-within，按鈕會永遠不收起。
+ * 「最後一場」用 .scene--last（decoration 給的），不是 :last-child —— 見 .scene--first 的註解。
+ * 使用者回饋 2026-09-03（三輪）。 */
 
 .scene__foot {
   display: flex;
@@ -357,18 +365,18 @@
   transition: opacity 120ms ease;
 }
 
-.scene:not(:hover):not(:last-child) .scene__foot {
+.scene:not(:hover):not(.scene--last) .scene__foot {
   gap: 0;
 }
 
-.scene:not(:hover):not(:last-child) .scene__foot button {
+.scene:not(:hover):not(.scene--last) .scene__foot button {
   max-inline-size: 0;
   padding-inline: 0;
   overflow: hidden;
 }
 
 .scene:hover .scene__foot button,
-.scene:last-child .scene__foot button {
+.scene--last .scene__foot button {
   opacity: 1;
 }
 
