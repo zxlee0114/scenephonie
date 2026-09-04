@@ -103,6 +103,27 @@ function sceneBlock(name: string, dataType: string, attributes?: () => Record<st
     content: "inline*",
     marks: "",
     priority: 1100,
+    /**
+     * **區塊內的空白是內容，不要正規化**（票券 28）。
+     *
+     * 這一行是 `Shift+Enter` 軟換行（`extensions/soft-break` 插的那個 `\n`）能活下來的
+     * 唯一理由。ProseMirror 每次從 DOM 讀回變動（`readDOMChange` → `parseBetween`）都會依
+     * 游標所在**區塊型別**決定要不要保留空白：
+     *
+     *   preserveWhitespace: $from.parent.type.whitespace == "pre" ? "full" : true
+     *                                                    （prosemirror-view）
+     *
+     * 而 `true`（不是 `"full"`）那條路會執行 `value.replace(/\r?\n|\r/g, " ")`
+     * （prosemirror-model）—— **明文把換行換成一個半形空格**。沒有這一行的話，`\n` 在
+     * 按下 `Shift+Enter` 的當下是好的（畫面真的換行、caret 真的在第二行），但**打下一個字
+     * 的瞬間就被洗成空格**，整段塌回一行。症狀看起來像「游標跳回第一行」，其實是換行字元
+     * 被刪掉了（票券 28 的原始診斷因此指錯方向，見該票 Comments）。
+     *
+     * kernel schema（`@scenephonie/schema`）不需要這一行 —— 它 isomorphic、永遠不碰 DOM，
+     * `docFromJSON` 走 JSON 不走 parser。`whitespace` 是 DOM parse 的提示，屬 view 半邊，
+     * 所以 `schema-equivalence.test.ts` 的對齊清單不含它。
+     */
+    whitespace: "pre" as const,
     ...(attributes ? { addAttributes: attributes } : {}),
     parseHTML() {
       return [{ tag: `p[data-type="${dataType}"]` }];
