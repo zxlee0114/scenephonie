@@ -17,6 +17,7 @@ import type { BlockType } from "@scenephonie/schema";
 
 import { sceneContext } from "../address";
 import { BLOCK_META, setBlockTypeAt } from "../block-types";
+import { dismissOnOutsidePointer } from "../dismiss-on-outside-pointer";
 import { slashMenuPosition } from "../slash-menu-position";
 import { currentSceneId, requestNextScene } from "./next-scene";
 
@@ -166,6 +167,13 @@ export function SlashMenu() {
       window.removeEventListener("resize", place);
     };
   }, [open, caret, items]);
+
+  // 點選單外面就收起來 —— 和 Escape 走同一個出口（只關 UI，suggestion 之後自己 exit）。
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !open) return;
+    return dismissOnOutsidePointer(el, () => patchMenu({ open: false }));
+  }, [open]);
 
   if (!open || !caret || items.length === 0) return null;
 
