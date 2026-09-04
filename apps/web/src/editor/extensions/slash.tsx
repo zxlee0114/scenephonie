@@ -11,12 +11,13 @@
 import { Extension } from "@tiptap/core";
 import type { Editor, Range } from "@tiptap/core";
 import Suggestion from "@tiptap/suggestion";
-import { useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import type { BlockType } from "@scenephonie/schema";
 
 import { sceneContext } from "../address";
 import { BLOCK_META, setBlockTypeAt } from "../block-types";
+import { slashMenuPosition } from "../slash-menu-position";
 import { currentSceneId, requestNextScene } from "./next-scene";
 
 type SlashItem = {
@@ -89,9 +90,18 @@ const ITEMS: SlashItem[] = [
 
 // ── 選單狀態（external store，畫在編輯器外層）──────────────────────────
 
-type MenuState = { open: boolean; items: SlashItem[]; index: number; rect: DOMRect | null };
+/**
+ * `caret` 存的是 Suggestion 給的 `clientRect` **函式**而不是當下的 DOMRect：捲動或改變視窗大小
+ * 之後要重新問一次，選單才不會與游標脫節（票券 29）。
+ */
+type MenuState = {
+  open: boolean;
+  items: SlashItem[];
+  index: number;
+  caret: (() => DOMRect | null) | null;
+};
 
-let menu: MenuState = { open: false, items: [], index: 0, rect: null };
+let menu: MenuState = { open: false, items: [], index: 0, caret: null };
 let pick: ((item: SlashItem) => void) | null = null;
 const listeners = new Set<() => void>();
 
@@ -111,10 +121,47 @@ export function SlashMenu() {
     () => menu,
   );
 
-  if (!state.open || !state.rect || state.items.length === 0) return null;
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const { caret, items } = state;
+
+  // 量到選單的實際尺寸才知道下方／右邊塞不塞得下，所以定位在 layout effect 裡做：先渲染
+  // （這一幀用 visibility: hidden 藏著，避免閃一下），量完在上畫面之前把座標補上。
+  // `caret` 與 `items` 每次 onStart／onUpdate 都是新的，項目變動改變高度時會重新算。
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !caret) {
+      setPos(null);
+      return;
+    }
+    const place = () => {
+      const rect = caret();
+      if (!rect) return;
+      setPos(
+        slashMenuPosition(rect, el.getBoundingClientRect(), {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }),
+      );
+    };
+    place();
+    // capture 才收得到編輯器內層容器的捲動（打字時的 typewriter 捲動也走這裡）。
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [caret, items]);
+
+  if (!state.open || !caret || items.length === 0) return null;
 
   return (
-    <div className="slash-menu" style={{ top: state.rect.bottom + 6, left: state.rect.left }}>
+    <div
+      ref={ref}
+      className="slash-menu"
+      style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? undefined : "hidden" }}
+    >
       {state.items.map((item, i) => (
         <button
           key={item.key}
@@ -161,11 +208,11 @@ export const Slash = Extension.create({
               open: true,
               items: props.items,
               index: 0,
-              rect: props.clientRect?.() ?? null,
+              caret: props.clientRect ?? null,
             });
           },
           onUpdate: (props) => {
-            patchMenu({ items: props.items, index: 0, rect: props.clientRect?.() ?? null });
+            patchMenu({ items: props.items, index: 0, caret: props.clientRect ?? null });
           },
           onKeyDown: ({ event }) => {
             if (!menu.open) return false;
@@ -191,7 +238,7 @@ export const Slash = Extension.create({
           },
           onExit: () => {
             pick = null;
-            patchMenu({ open: false, items: [], rect: null });
+            patchMenu({ open: false, items: [], caret: null });
           },
         }),
       }),
