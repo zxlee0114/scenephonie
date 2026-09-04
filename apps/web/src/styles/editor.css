@@ -435,8 +435,16 @@
 
 /* ─────────────────────────────────────────── slash 選單 */
 
+/*
+ * `fixed` 是刻意的：座標來自 Tiptap suggestion 的 `clientRect()`，那是 `getBoundingClientRect()`
+ * 的**視窗座標**。用 `absolute` 解析出來的是文件座標，兩者差一個 scrollY —— 頁面頂端剛好重合，
+ * 一捲下去選單就飛到視窗上緣之外（票券 29）。
+ *
+ * ⚠️ 隱性耦合：祖先只要有 transform／filter／contain，就會變成 fixed 的包含塊，這裡又會壞掉。
+ * `.screenplay-page` 一路上去目前都沒有，加的時候要記得這件事。
+ */
 .slash-menu {
-  position: absolute;
+  position: fixed;
   z-index: 20;
   min-inline-size: 15rem;
   background: var(--surface-page);
