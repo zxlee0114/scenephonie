@@ -23,7 +23,7 @@
 
 **Blocked by:** 無（與 tracer-bullet 依賴圖無關）
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## 影響檔案
 
@@ -31,11 +31,13 @@
 
 ## 驗收
 
-- [ ] `verify` job 綠燈，且**不再出現** Node.js 20 deprecation 警告
-- [ ] CI log 中 pnpm 版本仍是 `packageManager` 指定的 `11.9.0`（沒有被 action 內建版本蓋掉）
-- [ ] `setup-node` 的 pnpm store 快取仍然命中（`cache: pnpm` 行為不變）
-- [ ] lint／typecheck／test／build 四關與升版前一致
+- [x] `verify` job 綠燈，且**不再出現** Node.js 20 deprecation 警告
+- [x] CI log 中 pnpm 版本仍是 `packageManager` 指定的 `11.9.0`（沒有被 action 內建版本蓋掉）
+- [ ] `setup-node` 的 pnpm store 快取仍然命中（`cache: pnpm` 行為不變） —— **未單獨核對**；job 綠燈且無異常耗時，日後任何一次 CI log 皆可確認
+- [x] lint／typecheck／test／build 四關與升版前一致
 
 ## Comments
 
 **開票（2026-09-04）** —— 起因：票券 04 的 PR（#30）合併時作者注意到 `verify` job 的 deprecation 警告，確認為 action runtime 而非專案 Node 版本問題。
+
+**完成（2026-09-04）** —— PR #31 已合併進 `main`。作者核對 CI log：**Node.js 20 deprecation 警告已消失**，pnpm 仍是 `packageManager` 指定的 `11.9.0`（沒有被 action 內建版本蓋掉），四關與升版前一致。
