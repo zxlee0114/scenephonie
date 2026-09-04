@@ -17,7 +17,7 @@
 
 **Blocked by:** 26（`initialFocus` 的分岔在該票交付）
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## 影響檔案
 
@@ -31,12 +31,28 @@
 
 ## 驗收
 
-- [ ] 載入一份「最後一場剛建好、metadata 全空且無內文」的劇本，焦點落在該場的 chip row
-- [ ] 載入一份「最後一場已填 metadata」的劇本，焦點仍落在文件末端（票券 26 不回歸）
-- [ ] `/next` 建完場次後、重整前後的焦點落點一致
-- [ ] 新建劇本仍落在第一場的 chip row（§7.1 不回歸）
-- [ ] `pnpm lint` / `typecheck` / `test` / `build` 全綠
+- [x] 載入一份「最後一場剛建好、metadata 全空且無內文」的劇本，焦點落在該場的 chip row
+- [x] 載入一份「最後一場已填 metadata」的劇本，焦點仍落在文件末端（票券 26 不回歸）
+- [x] `/next` 建完場次後、重整前後的焦點落點一致
+- [x] 新建劇本仍落在第一場的 chip row（§7.1 不回歸）
+- [x] `pnpm lint` / `typecheck` / `test` / `build` 全綠
 
 ## Comments
 
 **開票（2026-09-04）** —— 票券 26 的本機驗收中由使用者發現：「重整之後，游標跑到文件中，可能是預期行為，但小小的不太一致」。
+
+**實作（2026-09-04）** —— `hasEmptySceneMeta`（`packages/schema/src/scene-meta.ts`）＋ `use-screenplay-editor.ts` 的 `isUnstartedScene`。
+
+兩個待決的落點：
+
+- 判準取**全空**，且「全空」＝ §5.3 的 `nullableSceneAttrNames` 全為 null／空陣列。比票券字面多一欄 `appearingCharacters`（目前不在 chip row 上，未來才有入口）—— 這是照票券「schema 裡若已有類似的東西就用那個」走：null 鐵律名單本來就是「空著＝尚未填」那份名單，另立一套會分歧。
+- 「沒有內文」判準不是 `textContent === ""`，而是**單一空 `action` 區塊**（＝ kernel `emptyScene()` 的形狀）。空的對白／插入畫面區塊也沒有文字，但那是人已經把游標帶進內文按過 Tab 的痕跡，一樣不搶。
+
+**已知範圍限制** —— 新分支只看 `doc.lastChild`。`/next` 若在文件**中間**建場（腳部按鈕、游標在中段），那一場重整後仍落在文件末端。票券限定「最後一場」，把焦點拉回中段場次是另一個判斷（會把人從稿子末端拽走），沒做。
+
+本機驗收待使用者確認。
+
+**本機驗收（2026-09-04）** —— 基本通過。使用者追加一條：末端若是「人名、台詞都空」的對白，
+焦點該落在**人物欄**，而不是台詞內文。同一條判準的下一格 —— 對白是按 Tab 轉出來的，人剛宣告
+「這裡要有人講話」卻還沒說是誰。已補 `unstartedDialogueIndex`，走既有的 `speaker` focus 請求
+（`PendingFocus` 不必新增種類）。填了人物就不搶，仍落文件末端。

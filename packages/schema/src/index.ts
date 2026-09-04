@@ -27,6 +27,8 @@ export type {
   DialogueCharacterRef,
 } from "./schema";
 
+export { hasEmptySceneMeta } from "./scene-meta";
+
 export { projectScenes, docFromJSON } from "./project-scenes";
 export type { SceneNumber } from "./project-scenes";
 

@@ -10,6 +10,9 @@
 "use client";
 
 import { useEditor } from "@tiptap/react";
+import type { Node as PMNode } from "@tiptap/pm/model";
+
+import { hasEmptySceneMeta } from "@scenephonie/schema";
 
 import { topLevelSceneIds } from "./command-bridge";
 import { emptyScreenplay } from "./empty-screenplay";
@@ -32,13 +35,51 @@ import { baseStarterKit } from "./starter-kit";
  * 進站時游標該落在哪裡（票券 26）。
  *
  * `sceneMeta` ＝ 新建的劇本：第一場的「內外景」欄，那是「請你先填這裡」的引導（§7.1）。
- * `documentEnd` ＝ 載入既有劇本：**文件末端**，也就是稿子目前的最後面。
+ * `documentEnd` ＝ 載入既有劇本：**文件末端**，也就是稿子目前的最後面 —— 除非最後一場
+ * 還沒開工（metadata 全空且沒有內文），那時落點是該場的 chip row（票券 31，見 `lastScene`
+ * 附近的註解）。
  * 兩者的判準是同一條 —— 手不必先去點一下才能開始工作。
  *
  * 注意 `documentEnd` 不是「上次游標停的地方」—— 上次寫到第三場然後關掉分頁的人，回來會落在
  * 第五十場的末端。真要記住游標得存 selection，那是另一件事（且要先想清楚多裝置怎麼算）。
  */
 export type InitialFocus = "sceneMeta" | "documentEnd";
+
+/** doc 的最後一個頂層場次；doc 為空時 `null`。 */
+function lastScene(doc: PMNode): PMNode | null {
+  const last = doc.lastChild;
+  return last && last.type.name === "scene" ? last : null;
+}
+
+/**
+ * 「這一場還沒開工」——`/next` 剛建完、人還沒填任何東西的樣子（票券 31）。
+ *
+ * metadata 全空**且**沒有內文兩條都要成立：
+ * - 填了一半代表人已經在處理這一場，把游標搶回 chip 會打斷他；
+ * - 有內文（先寫戲再回頭填表）代表工作已經在內文裡，一樣不該搶。
+ */
+function isUnstartedScene(scene: PMNode): boolean {
+  if (!hasEmptySceneMeta(scene)) return false;
+  // 「沒有內文」＝ 還是 `/next` 剛產出的形狀：單一空 `action` 區塊（kernel 的 `emptyScene()`）。
+  // 用 `textContent === ""` 判會太寬 —— 空的對白或插入畫面區塊也沒有文字，但那是人已經把
+  // 游標帶進內文、按過 Tab 的痕跡，一樣不該把焦點搶回 chip。
+  const only = scene.childCount === 1 ? scene.firstChild : null;
+  return only != null && only.type.name === "action" && only.content.size === 0;
+}
+
+/**
+ * 末端那個區塊若是「人名、台詞都空」的對白，它的區塊序；否則 `null`（使用者回饋 2026-09-04）。
+ *
+ * 同一條判準的下一格：空對白的「請你先填這裡」是人物欄，不是台詞內文 —— 對白區塊在
+ * `/next` 之後是按 Tab 轉出來的，人剛宣告「這裡要有人講話」，卻還沒說是誰。
+ * 填了人物就代表已經在寫台詞，不再搶。
+ */
+function unstartedDialogueIndex(scene: PMNode): number | null {
+  const index = scene.childCount - 1;
+  const last = index >= 0 ? scene.child(index) : null;
+  if (!last || last.type.name !== "dialogue") return null;
+  return last.attrs.character == null && last.content.size === 0 ? index : null;
+}
 
 export function useScreenplayEditor(
   initialContent?: object,
@@ -67,13 +108,28 @@ export function useScreenplayEditor(
     content: initialContent ?? emptyScreenplay(),
     // 進入編輯器時，手不必先去點一下 —— 落點由 `initialFocus` 決定。
     // `sceneMeta` 走焦點串接（SceneView 掛載時 claim，見 nodes/scene.tsx 的 useEffect）；
-    // `documentEnd` 沒有節點要認領，直接把游標放到文件末端並捲進畫面。
+    // `documentEnd` 一般沒有節點要認領，直接把游標放到文件末端並捲進畫面；但末場若還沒開工，
+    // 落點改為該場的 chip row —— 同一個文件狀態不該因為「剛建完」還是「重整回來」而有兩種答案
+    // （票券 31）。
     onCreate({ editor }) {
       if (initialFocus === "documentEnd") {
         // 上一個 editor instance 可能留下沒人認領的請求（`/next` 發完請求，新 SceneView
         // 還沒掛載使用者就離開了）。`pending` 活在 module 層，不清掉的話回到 /editor 時
         // 同一個 sceneId 掛上來就被 claim，chip 會把焦點從文件末端搶走。
         claimFocus(() => true);
+        const last = lastScene(editor.state.doc);
+        if (last) {
+          const sceneId = last.attrs.sceneId as string;
+          if (isUnstartedScene(last)) {
+            requestFocus({ kind: "sceneMeta", sceneId });
+            return;
+          }
+          const blockIndex = unstartedDialogueIndex(last);
+          if (blockIndex != null) {
+            requestFocus({ kind: "speaker", sceneId, blockIndex });
+            return;
+          }
+        }
         editor.commands.focus("end");
         return;
       }
