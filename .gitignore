@@ -17,3 +17,6 @@ next-env.d.ts
 # test / build artifacts
 coverage/
 *.tsbuildinfo
+
+# 個人 permission 設定，不共用
+.claude/settings.local.json
