@@ -123,26 +123,39 @@ export function SlashMenu() {
 
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const { caret, items } = state;
+  const { open, caret, items } = state;
 
   // 量到選單的實際尺寸才知道下方／右邊塞不塞得下，所以定位在 layout effect 裡做：先渲染
   // （這一幀用 visibility: hidden 藏著，避免閃一下），量完在上畫面之前把座標補上。
-  // `caret` 與 `items` 每次 onStart／onUpdate 都是新的，項目變動改變高度時會重新算。
+  // `caret` 與 `items` 每次 onStart／onUpdate 都是新的，項目變動改變高度時會重新算；
+  // `open` 也要在 deps 裡 —— Escape 只把 open 關掉、caret 不變，少了它 cleanup 不會跑，
+  // 捲動監聽器會留在已卸載的節點上。
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el || !caret) {
+    if (!el || !caret || !open) {
       setPos(null);
       return;
     }
+    let last: { top: number; left: number } | null = null;
     const place = () => {
       const rect = caret();
-      if (!rect) return;
-      setPos(
-        slashMenuPosition(rect, el.getBoundingClientRect(), {
-          width: window.innerWidth,
-          height: window.innerHeight,
-        }),
-      );
+      // 選單還開著但 decoration 一時不在 DOM 裡（Tiptap 用 querySelector 找不到就回 null）：
+      // 藏起來，比留在舊座標上假裝還貼著游標好。
+      if (!rect) {
+        last = null;
+        setPos(null);
+        return;
+      }
+      const next = slashMenuPosition(rect, el.getBoundingClientRect(), {
+        // `documentElement.clientWidth/Height` 才是扣掉捲軸的可視區；`innerWidth` 會讓
+        // 靠右夾限的選單躲到捲軸底下，吃掉留的那 8px。
+        width: document.documentElement.clientWidth,
+        height: document.documentElement.clientHeight,
+      });
+      // 平滑捲動一幀一個事件，座標沒變就別重繪。
+      if (last && last.top === next.top && last.left === next.left) return;
+      last = next;
+      setPos(next);
     };
     place();
     // capture 才收得到編輯器內層容器的捲動（打字時的 typewriter 捲動也走這裡）。
@@ -152,9 +165,9 @@ export function SlashMenu() {
       window.removeEventListener("scroll", place, true);
       window.removeEventListener("resize", place);
     };
-  }, [caret, items]);
+  }, [open, caret, items]);
 
-  if (!state.open || !caret || items.length === 0) return null;
+  if (!open || !caret || items.length === 0) return null;
 
   return (
     <div
