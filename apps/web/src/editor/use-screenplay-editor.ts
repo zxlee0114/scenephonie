@@ -17,6 +17,7 @@ import { hasEmptySceneMeta } from "@scenephonie/schema";
 import { topLevelSceneIds } from "./command-bridge";
 import { emptyScreenplay } from "./empty-screenplay";
 import { claimFocus, requestFocus } from "./focus";
+import { resetSceneBirth } from "./scene-birth";
 import { ActionNode, DialogueNode, InsertShotNode } from "./nodes/blocks";
 import { SceneNode } from "./nodes/scene";
 import { BlockCycle } from "./extensions/block-cycle";
@@ -106,6 +107,19 @@ export function useScreenplayEditor(
       VerticalNav,
     ],
     content: initialContent ?? emptyScreenplay(),
+    // 上一個 editor instance 可能留下沒人認領的一次性請求（`/next` 發完請求，新 SceneView
+    // 還沒掛載使用者就離開了）。兩本登記簿都活在 module 層，不清掉的話回到 /editor 時同一個
+    // sceneId 掛上來就被領走：focus 的 `pending` 會讓 chip 把焦點從文件末端搶走（票券 26），
+    // scene-birth 的 `born` 會讓「載入」被當成「剛新增」—— 重播浮現動畫並捲一次打字餘裕
+    // （票券 27）。
+    //
+    // ⚠️ 清在 `onBeforeCreate` 不是 `onCreate`：`onCreate` **晚於**首批 node view 掛載
+    // （見 `./focus` 的註解），那時 SceneView 已經把過期的登記領走了。`onBeforeCreate` 在
+    // 建構當下同步跑，早於任何 node view。
+    onBeforeCreate() {
+      claimFocus(() => true);
+      resetSceneBirth();
+    },
     // 進入編輯器時，手不必先去點一下 —— 落點由 `initialFocus` 決定。
     // `sceneMeta` 走焦點串接（SceneView 掛載時 claim，見 nodes/scene.tsx 的 useEffect）；
     // `documentEnd` 一般沒有節點要認領，直接把游標放到文件末端並捲進畫面；但末場若還沒開工，
@@ -113,10 +127,6 @@ export function useScreenplayEditor(
     // （票券 31）。
     onCreate({ editor }) {
       if (initialFocus === "documentEnd") {
-        // 上一個 editor instance 可能留下沒人認領的請求（`/next` 發完請求，新 SceneView
-        // 還沒掛載使用者就離開了）。`pending` 活在 module 層，不清掉的話回到 /editor 時
-        // 同一個 sceneId 掛上來就被 claim，chip 會把焦點從文件末端搶走。
-        claimFocus(() => true);
         const last = lastScene(editor.state.doc);
         if (last) {
           const sceneId = last.attrs.sceneId as string;

@@ -26,6 +26,7 @@ import { ChipSelect } from "../chip-select";
 import { CjkField } from "../cjk-field";
 import { claimFocus, subscribeFocusRequest } from "../focus";
 import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
+import { scrollToWritingPosition } from "../typewriter-scroll";
 import { requestNextScene } from "../extensions/next-scene";
 import { sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
 import { Scene } from "../schema";
@@ -51,9 +52,15 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   // 留著；同一個 node view 之後被沿用給另一場新生場次時，class 已在 → CSS 動畫不會重播。
   // 這就是使用者回饋 2026-09-03（兩輪）的「動畫有時候不會出現」。
   const [justBorn, setJustBorn] = useState(false);
+  // 同一次誕生也決定捲動落點（票券 27）。狀態之外再留一支 ref：焦點串接要**同步**讀得到
+  // 「這一場是剛生出來的嗎」（見下一個 effect），而 setState 要等下一次 render 才看得到。
+  const bornForScroll = useRef(false);
   useEffect(() => {
     const claim = () => {
-      if (consumeSceneBirth(sceneId)) setJustBorn(true);
+      if (consumeSceneBirth(sceneId)) {
+        setJustBorn(true);
+        bornForScroll.current = true;
+      }
     };
     claim();
     return subscribeSceneBirth(claim);
@@ -69,9 +76,14 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   // （`/next` 的請求早於掛載），並訂閱後續請求（初次進編輯器時 `onCreate` 的請求晚於掛載）。
   useEffect(() => {
     const tryClaim = () => {
-      if (claimFocus((p) => p.kind === "sceneMeta" && p.sceneId === sceneId)) {
-        firstField.current?.focus();
-      }
+      if (!claimFocus((p) => p.kind === "sceneMeta" && p.sceneId === sceneId)) return;
+      // 剛誕生的場次自己決定落點（打字餘裕，票券 27）—— 所以要擋掉 `focus()` 的原生捲動，
+      // 否則瀏覽器先把它推到視窗底緣、我們再捲一次，看起來是跳兩下。
+      // 不是新生場次（載入時的焦點串接，票券 26／31）就照原生行為捲進可視範圍。
+      const born = bornForScroll.current;
+      bornForScroll.current = false;
+      firstField.current?.focus({ preventScroll: born });
+      if (born) scrollToWritingPosition(firstField.current?.closest(".scene"));
     };
     tryClaim();
     return subscribeFocusRequest(tryClaim);

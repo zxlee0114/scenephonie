@@ -88,7 +88,9 @@ export function runKernelCommand(
     if (pos != null) tr.setSelection(TextSelection.near(tr.doc.resolve(pos)));
   }
 
-  view.dispatch(tr.scrollIntoView());
+  // 新場次的落點由 node view 自己決定（打字餘裕，票券 27）—— 這裡不要先用原生 `scrollIntoView`
+  // 把它推到視窗底緣，否則畫面會跳兩下。其他 command 照舊「捲進可視範圍」就好。
+  view.dispatch(options.focusNewSceneMeta ? tr : tr.scrollIntoView());
 
   if (options.focusNewSceneMeta) {
     const added = topLevelSceneIds(view.state.doc).find((id) => !before.has(id));

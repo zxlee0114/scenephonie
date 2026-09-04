@@ -25,3 +25,12 @@ if (typeof Range !== "undefined") {
     Object.assign([] as DOMRect[], { item: () => null }) as unknown as DOMRectList;
   Range.prototype.getBoundingClientRect ??= () => ZERO_RECT;
 }
+
+/**
+ * 同一類環境缺件：jsdom 沒有捲動，`window.scrollTo` 只會印 "Not implemented"。打字餘裕
+ * （`editor/typewriter-scroll`）在新增場次後會呼叫它，落點的算術由該模組的純函式測試鎖住，
+ * 這裡給個 no-op 讓它安靜（要斷言有沒有捲，測試自己 `vi.spyOn`）。
+ */
+if (typeof window !== "undefined") {
+  window.scrollTo = () => {};
+}
