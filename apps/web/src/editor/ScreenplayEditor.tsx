@@ -5,7 +5,7 @@
 
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { useEffect, useReducer, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useReducer, useRef } from "react";
 
 import type { SaveScreenplay, SaveToken } from "@/persistence";
 
@@ -71,34 +71,51 @@ export function EmptyScreenplayState({ editor }: { editor: Editor | null }) {
  *   - ⌘+Z／⌘+⇧+Z：把整份稿救回來 —— 刪光是可以反悔的，這是票券 32 的核心承諾。
  *
  * 不是把 keymap 複製一份：零場次時**只有**這兩件事做得到，這就是那個狀態的全部合約。
+ *
+ * 監聽掛在 window 而不是這塊 div 上：焦點是「出現時的禮貌」不是「有效的前提」—— 使用者點一下
+ * 空白處焦點就掉到 body，那時 ⌘+Z 與 ⌘+Enter 都收不到，整個畫面又變回死路（使用者回饋
+ * 2026-09-04 第三輪）。零場次時全頁本來就沒有別的東西會用到這兩組鍵。
  */
 function EmptyScreenplayPanel({ editor }: { editor: Editor }) {
   const action = useRef<HTMLButtonElement>(null);
 
   // 空狀態出現的那一刻，原本承載焦點的內容（或整個 contenteditable）已經不在了。
-  // 焦點不接手就會掉到 body，鍵盤使用者連 ⌘+Z 都按不到。
+  // 焦點不接手就會掉到 body —— 鍵盤使用者要能直接按 Enter／空白。
   useEffect(() => {
     action.current?.focus();
   }, []);
 
-  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (!(event.metaKey || event.ctrlKey)) return;
-    if (event.key === "Enter") {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.key === "Enter") {
+        // 焦點在按鈕上時這一下同時也是按鈕的原生 click —— preventDefault 擋掉，
+        // 否則同一次按鍵會建出兩場。
+        event.preventDefault();
+        requestNextScene(editor, null);
+        return;
+      }
+      if (event.key.toLowerCase() !== "z") return;
       event.preventDefault();
-      requestNextScene(editor, null);
-      return;
-    }
-    if (event.key.toLowerCase() !== "z") return;
-    event.preventDefault();
-    if (event.shiftKey) editor.commands.redo();
-    else editor.commands.undo();
-    // 救回來了就把焦點還給編輯器 —— 這顆按鈕連同空狀態會在這次 render 之後消失。
-    // （還原不出東西時 doc 仍是空的，contenteditable 還關著，focus 也無處可去。）
-    if (editor.state.doc.childCount > 0) editor.view.focus();
-  };
+      if (event.shiftKey) editor.commands.redo();
+      else editor.commands.undo();
+      // 還原不出東西時 doc 仍是空的，contenteditable 還關著，focus 也無處可去。
+      if (editor.state.doc.childCount === 0) return;
+      // 刪光那一步的選取是 `AllSelection`，undo 會連選取一起還原 —— 整份稿於是頂著反白回來，
+      // 要點進內文才消失（使用者回饋 2026-09-04 第三輪，與新場次浮現動畫的底色同一個病灶）。
+      // 收成游標放在文件末端，對齊「載入既有劇本」的落點慣例（`documentEnd`，票券 26）。
+      editor.commands.setTextSelection(editor.state.doc.content.size);
+      // 救回來了就把焦點還給編輯器 —— 這顆按鈕連同空狀態會在這次 render 之後消失。
+      editor.view.focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [editor]);
 
   return (
-    <div className="empty-screenplay" onKeyDown={onKeyDown}>
+    <div className="empty-screenplay">
       {/* 刪掉最後一場時這句話是憑空出現的 —— 比照 .save-status 出個聲，
           否則螢幕閱讀器的使用者只會遇到一片安靜。 */}
       <p className="empty-screenplay__line" role="status" aria-live="polite">

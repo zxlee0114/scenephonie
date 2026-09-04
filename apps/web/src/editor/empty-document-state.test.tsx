@@ -199,4 +199,57 @@ describe("零場次的空狀態", () => {
     expect(editor.state.doc.textContent).toBe("內文");
     expect(emptyState(container)).toBeNull();
   });
+
+  it("⌘+Z 救回來之後不留整份反白（游標收在文件末端，不必點一下才消失）", async () => {
+    let editor!: Editor;
+    const { container } = render(
+      <Harness content={docWithOneScene()} onEditor={(e) => (editor = e)} />,
+    );
+    await waitFor(() => expect(container.querySelector(".scene")).not.toBeNull());
+
+    // ⌘+A 刪光那一步的選取是 `AllSelection`，undo 會連選取一起還原 —— 整份稿頂著反白回來，
+    // 要點進內文才消失（使用者回饋 2026-09-04 第三輪）。
+    editor.commands.selectAll();
+    editor.commands.deleteSelection();
+    await waitFor(() => expect(emptyState(container)).not.toBeNull());
+
+    fireEvent.keyDown(emptyState(container)!, { key: "z", metaKey: true });
+
+    await waitFor(() => expect(editor.state.doc.childCount).toBe(1));
+    expect(editor.state.selection.empty).toBe(true);
+    expect(container.querySelector(".scene")!.classList.contains("is-node-selected")).toBe(false);
+  });
+
+  it("焦點不在按鈕上時 ⌘+Enter 一樣建得出場次（點一下空白處不該變回死路）", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness content={emptyDoc()} onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(document.activeElement).toBe(emptyStateButton(container)));
+
+    // 焦點只是「出現時的禮貌」：使用者點一下空白處它就掉到 body，鍵盤合約不該跟著失效
+    // （使用者回饋 2026-09-04 第三輪）。所以監聽掛在 window 上。
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: "Enter", metaKey: true });
+
+    // 只建**一**場 —— 焦點在按鈕上時同一下也是原生 click，兩條路都跑就會建出兩場。
+    await waitFor(() => expect(editor.state.doc.childCount).toBe(1));
+    expect(editor.state.doc.childCount).toBe(1);
+  });
+
+  it("焦點不在按鈕上時 ⌘+Z 一樣救得回整份稿", async () => {
+    let editor!: Editor;
+    const { container } = render(
+      <Harness content={docWithOneScene()} onEditor={(e) => (editor = e)} />,
+    );
+    await waitFor(() => expect(container.querySelector(".scene")).not.toBeNull());
+
+    editor.commands.selectAll();
+    editor.commands.deleteSelection();
+    await waitFor(() => expect(document.activeElement).toBe(emptyStateButton(container)));
+
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true });
+
+    await waitFor(() => expect(editor.state.doc.childCount).toBe(1));
+    expect(editor.state.doc.textContent).toBe("內文");
+  });
 });
