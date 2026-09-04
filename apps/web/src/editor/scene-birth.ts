@@ -30,6 +30,16 @@ export function subscribeSceneBirth(fn: Listener): () => void {
   };
 }
 
+/**
+ * 丟掉還沒被領走的誕生登記 —— 與 `./focus` 的 `claimFocus(() => true)` 同一個理由：
+ * `born` 活在 module 層，會跨 editor instance 活下來。`/next` 建完場次、SceneView 還沒掛載
+ * 使用者就離開，回到 /editor 時同一個 sceneId 掛上來會領到那筆過期的誕生，於是「載入」被當成
+ * 「剛新增」—— 重播浮現動畫，還會捲一次打字餘裕（票券 27）。
+ */
+export function resetSceneBirth(): void {
+  born = null;
+}
+
 /** 這個 sceneId 是不是剛（1.5 秒內）被新增出來的？領到就清掉，只回一次 true。 */
 export function consumeSceneBirth(sceneId: string): boolean {
   if (born == null || born.sceneId !== sceneId) return false;
