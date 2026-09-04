@@ -128,17 +128,20 @@ export function useScreenplayEditor(
     onCreate({ editor }) {
       if (initialFocus === "documentEnd") {
         const last = lastScene(editor.state.doc);
-        if (last) {
-          const sceneId = last.attrs.sceneId as string;
-          if (isUnstartedScene(last)) {
-            requestFocus({ kind: "sceneMeta", sceneId });
-            return;
-          }
-          const blockIndex = unstartedDialogueIndex(last);
-          if (blockIndex != null) {
-            requestFocus({ kind: "speaker", sceneId, blockIndex });
-            return;
-          }
+        // 零場次的稿子沒有「文件末端」可以站（票券 32）——contenteditable 是空的，把焦點放進去
+        // 只是讓游標消失在一片空白裡；出口是空狀態那顆按鈕。而且 tiptap 的 `focus` 命令是排進
+        // requestAnimationFrame 的：那一幀落在使用者按下按鈕之後時，它會把焦點從新場次的
+        // 內外景欄搶回編輯器（焦點串接就這樣斷了）。零場次時什麼都不做才是對的。
+        if (!last) return;
+        const sceneId = last.attrs.sceneId as string;
+        if (isUnstartedScene(last)) {
+          requestFocus({ kind: "sceneMeta", sceneId });
+          return;
+        }
+        const blockIndex = unstartedDialogueIndex(last);
+        if (blockIndex != null) {
+          requestFocus({ kind: "speaker", sceneId, blockIndex });
+          return;
         }
         editor.commands.focus("end");
         return;

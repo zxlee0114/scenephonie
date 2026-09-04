@@ -88,6 +88,12 @@ describe("零場次的空狀態", () => {
     )!;
     // 焦點串接跨了「建場 → 新 node view 掛載 → claim」三步，機器忙時比預設 1s 還久。
     await waitFor(() => expect(document.activeElement).toBe(firstField), { timeout: 3000 });
+
+    // 而且**留得住**：載入零場次的稿時若還排了一個 `focus("end")`（tiptap 走
+    // requestAnimationFrame），那一幀會落在按下按鈕之後，把焦點從內外景欄搶回內文 ——
+    // 機器越忙越容易發生（CI 上必中）。多等幾幀確認沒有人來搶。
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(document.activeElement).toBe(firstField);
   });
 
   it("建出來的場次不帶整場反白（浮現動畫淡出後不會留下底色）", async () => {
