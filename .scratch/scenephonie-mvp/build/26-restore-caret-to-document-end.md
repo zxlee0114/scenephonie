@@ -8,7 +8,7 @@
 
 **Blocked by:** 05（persistence 模組；焦點要分兩種情形，得先有「載入既有劇本」這件事）
 
-**Status:** ready-for-agent
+**Status:** in-review
 
 ## 影響檔案
 
@@ -18,7 +18,7 @@
 
 ## 待決
 
-- 「新建 vs 載入」怎麼傳到編輯器？`loadOrCreateSoleScreenplay` 目前不回報它走了哪條路。最小改法是讓它多回一個布林；也可以由編輯器自己判斷（doc 只有一場且該場為空 ＝ 新建），但那是用形狀猜意圖，比較脆。傾向前者。
+- ~~「新建 vs 載入」怎麼傳到編輯器？~~ 已定：`LoadedScreenplay` 多一個 `origin: "created" | "loaded"`。比「`loadOrCreateSoleScreenplay` 回一個布林」更耐用 —— 這件事 `createScreenplay` 與 `loadScreenplay` 各自就知道，而 `loadOrCreateSoleScreenplay` 是票券 06 要刪掉的鷹架，欄位掛在它身上會跟著陪葬。
 - 捲動：`focus("end")` 會把游標捲進畫面，但落點是「剛好可見」還是「畫面中央」與票券 27 相關，兩張票的驗收要對齊。
 
 ## 驗收
@@ -26,9 +26,11 @@
 - [ ] 載入一份既有的、超過一個畫面高度的劇本，進站後游標在最後一個區塊末端，且該處在可視範圍內
 - [ ] 進站後不必點擊或按鍵即可直接輸入，輸入內容出現在最後一個區塊末端
 - [ ] 新建劇本（資料庫沒有任何劇本）時，焦點仍落在第一場的內外景欄（§7.1 不回歸）
-- [ ] 焦點串接的既有測試（`scene-chips-focus.test.tsx`）不回歸
-- [ ] `pnpm lint` / `typecheck` / `test` / `build` 全綠
+- [x] 焦點串接的既有測試（`scene-chips-focus.test.tsx`）不回歸
+- [x] `pnpm lint` / `typecheck` / `test` / `build` 全綠
 
 ## Comments
 
 **開票（2026-09-04）** —— 票券 05 的本機驗收中由使用者發現：「重整時焦點會落在場次一的地方，但最新場次已經更新，我希望焦點跟游標能停到文件內容的最後面」。
+
+**實作（2026-09-04）** —— `useScreenplayEditor(initialContent, initialFocus)` 多收一個 `"sceneMeta" | "documentEnd"`，預設 `sceneMeta`（§7.1 不回歸）。`documentEnd` 走 `editor.commands.focus("end")`，沒有節點要認領，所以不必新增 `PendingFocus` 種類。「剛建的還是載回來的」由 `LoadedScreenplay.origin` 從 persistence 一路傳到 `/editor` 頁面再往下傳給編輯器。新測試 `apps/web/src/editor/initial-focus.test.tsx`。前三條驗收（真實瀏覽器裡的落點與捲動）待本機驗收。

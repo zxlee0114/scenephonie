@@ -21,11 +21,18 @@ import { decodeSaveToken, encodeSaveToken, type SaveToken } from "./save-token";
 const SCREENPLAY_ID_PREFIX = "sp_";
 const BACKUP_ID_PREFIX = "bk_";
 
-/** 一份載進記憶體的劇本。`token` 是不透明的 —— 存檔時原封帶回即可。 */
+/**
+ * 一份載進記憶體的劇本。`token` 是不透明的 —— 存檔時原封帶回即可。
+ *
+ * `origin` 說的是「這一份是剛開的，還是撈回來的」。只有這裡知道走了哪條路，而編輯器需要它
+ * 才能決定進站時游標落在哪（票券 26）—— 用 doc 的形狀回猜（只有一場且為空＝新建）是拿形狀
+ * 猜意圖，多寫一場空戲就破功。
+ */
 export type LoadedScreenplay = {
   screenplayId: string;
   doc: PersistedDoc;
   token: SaveToken;
+  origin: "created" | "loaded";
 };
 
 /** 一次存檔請求。三個欄位永遠一起旅行 —— 它們是同一個東西。 */
@@ -48,7 +55,7 @@ export async function createScreenplay(doc: PersistedDoc): Promise<LoadedScreenp
     doc,
     docSchemaVersion: CURRENT_DOC_SCHEMA_VERSION,
   });
-  return { screenplayId, doc, token: encodeSaveToken(0) };
+  return { screenplayId, doc, token: encodeSaveToken(0), origin: "created" };
 }
 
 /**
@@ -73,6 +80,7 @@ export async function loadScreenplay(screenplayId: string): Promise<LoadedScreen
     screenplayId: row.id,
     doc: migrateDocToCurrent(row.doc as PersistedDoc, row.docSchemaVersion),
     token: encodeSaveToken(row.docSeq),
+    origin: "loaded",
   };
 }
 

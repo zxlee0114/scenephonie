@@ -13,6 +13,9 @@ export const dynamic = "force-dynamic";
  *
  * 劇本從 persistence 載進來（票券 05）。目前是「這個部署上的那一份」——
  * 專案 hub 與 `owner_id` 由票券 06 接上。
+ *
+ * 進站的游標落點跟著「剛建的還是載回來的」走（票券 26）：新建引導去填第一場的內外景欄，
+ * 載回既有的稿就停在上次寫到的地方。這件事只有伺服器端知道，所以在這裡決定、往下傳。
  */
 export default async function EditorPage() {
   const screenplay = await loadOrCreateSoleScreenplay(emptyScreenplay);
@@ -27,6 +30,7 @@ export default async function EditorPage() {
       </header>
       <ScreenplayEditor
         initialContent={screenplay.doc}
+        initialFocus={screenplay.origin === "created" ? "sceneMeta" : "documentEnd"}
         screenplayId={screenplay.screenplayId}
         initialToken={screenplay.token}
         save={saveScreenplayAction}
