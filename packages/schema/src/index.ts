@@ -30,7 +30,7 @@ export type {
 export { projectScenes, docFromJSON } from "./project-scenes";
 export type { SceneNumber } from "./project-scenes";
 
-export { mintSceneId, isSceneId, SCENE_ID_PREFIX } from "./ids";
+export { mintId, mintSceneId, isSceneId, SCENE_ID_PREFIX } from "./ids";
 
 // 寫入邊界：domain command 層（票券 03）。§6.3 —— 編輯器對外只曝露 command 與 projection。
 export * from "./commands";

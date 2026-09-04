@@ -11,9 +11,8 @@
 
 import { useEditor } from "@tiptap/react";
 
-import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
-
 import { topLevelSceneIds } from "./command-bridge";
+import { emptyScreenplay } from "./empty-screenplay";
 import { requestFocus } from "./focus";
 import { ActionNode, DialogueNode, InsertShotNode } from "./nodes/blocks";
 import { SceneNode } from "./nodes/scene";
@@ -28,15 +27,6 @@ import { SoftBreak } from "./extensions/soft-break";
 import { VerticalNav } from "./extensions/vertical-nav";
 import { Doc } from "./schema";
 import { baseStarterKit } from "./starter-kit";
-
-/** 一份只有一個空場次的 doc（ProseMirror JSON）。 */
-export function emptyScreenplay(): object {
-  return kernelSchema
-    .node("doc", null, [
-      kernelSchema.node("scene", { sceneId: mintSceneId() }, kernelSchema.node("action", null, [])),
-    ])
-    .toJSON() as object;
-}
 
 export function useScreenplayEditor(initialContent?: object) {
   return useEditor({

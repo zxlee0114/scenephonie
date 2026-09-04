@@ -20,7 +20,7 @@
   display: flex;
   align-items: baseline;
   gap: var(--space-3);
-  block-size: 48px;
+  block-size: var(--bar-height);
   padding-inline: var(--space-5);
   border-block-end: 1px solid var(--rule);
   font-family: var(--font-ui);
@@ -53,6 +53,31 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
+}
+
+/*
+ * 存檔狀態 —— 停在 header bar 那一列的右端。自動存檔是承諾不是功能，
+ * 所以它平時是沉默的，只在正在存或出事時才出聲（不變式 G：不畫東西，只說話）。
+ *
+ * 它是 `position: fixed` 貼到 page 擁有的那條 bar 上：狀態是 client state（誰在存、存壞了沒），
+ * 而 bar 住在 server component 裡。共用的 `--bar-height` 是這個耦合唯一的接點 ——
+ * 票券 06 把 header 換成有 breadcrumb 的真元件時，狀態應該搬進去，這段就整段刪掉。
+ */
+.save-status {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-end: var(--space-5);
+  display: flex;
+  align-items: center;
+  block-size: var(--bar-height);
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+}
+
+.save-status--loud {
+  color: var(--error-fg);
 }
 
 /* ─────────────────────────────────────────── 內容區 */
