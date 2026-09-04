@@ -10,7 +10,7 @@ import type { SaveScreenplay, SaveToken } from "@/persistence";
 import "../styles/editor.css";
 import { SlashMenu } from "./extensions/slash";
 import { useAutosave, type SaveStatus } from "./use-autosave";
-import { useScreenplayEditor } from "./use-screenplay-editor";
+import { useScreenplayEditor, type InitialFocus } from "./use-screenplay-editor";
 
 /**
  * 存檔狀態的文案。
@@ -28,16 +28,18 @@ const STATUS_TEXT: Record<SaveStatus, string> = {
 
 export function ScreenplayEditor({
   initialContent,
+  initialFocus,
   screenplayId,
   initialToken,
   save,
 }: {
   initialContent?: object;
+  initialFocus?: InitialFocus;
   screenplayId?: string;
   initialToken?: SaveToken;
   save?: SaveScreenplay;
 }) {
-  const editor = useScreenplayEditor(initialContent);
+  const editor = useScreenplayEditor(initialContent, initialFocus);
   const status = useAutosave({ editor, screenplayId, initialToken, save });
 
   return (

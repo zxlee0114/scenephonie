@@ -81,6 +81,12 @@ describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
     expect(await loadScreenplay("sp_不存在")).toBeNull();
   });
 
+  it("回報這一份是剛開的還是撈回來的", async () => {
+    const fresh = track(await createScreenplay(docWith("origin")));
+    expect(fresh.origin).toBe("created");
+    expect((await loadScreenplay(fresh.screenplayId))?.origin).toBe("loaded");
+  });
+
   it("兩個分頁拿同一份存檔：第二個被拒，第一個寫的內容不被覆蓋", async () => {
     const fresh = track(await createScreenplay(docWith("base")));
 
