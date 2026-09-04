@@ -62,3 +62,4 @@ blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開
 | [26](./26-restore-caret-to-document-end.md) | 重整後焦點落在文件末端（載入既有劇本時；新建仍落在第一場內外景欄）。blocked by 05。 |
 | [27](./27-keep-active-scene-centered.md) | 新增場次時把該場次留在畫面中央（typewriter scrolling）。blocked by 04，與 26 對齊。 |
 | [28](./28-soft-break-caret-at-block-end.md) | bug：`Shift+Enter` 後游標回到第一行（區塊結尾的 `\n` 不產生可見空行）。blocked by 04。 |
+| [29](./29-slash-menu-offscreen-positioning.md) | bug：slash 選單捲動後跑到視窗外（視窗座標餵給 `position: absolute`）。blocked by 04。 |
