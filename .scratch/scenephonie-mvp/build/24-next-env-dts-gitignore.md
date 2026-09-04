@@ -26,3 +26,5 @@
 ## Comments
 
 **開票（2026-09-02）** —— 起因：`main` 上 `apps/web/next-env.d.ts` 出現 `./.next/types/` → `./.next/dev/types/` 的本機改動，經確認為 Next 16 dev／build 兩形態互換所致，已 `git checkout` 撤銷。此票把根因處理掉。
+
+**實作（2026-09-04）** —— `.gitignore` 的 `# Next.js` 區塊加 `next-env.d.ts`（不加路徑前綴：monorepo 之後若再有 Next app 一體適用），`git rm --cached apps/web/next-env.d.ts`，檔案留在磁碟。驗收全過：刪掉檔案後 `pnpm --filter @scenephonie/web build` 會重新生成，`git status` 不再顯示它；`pnpm lint`／`typecheck`／`test`（66 passed）／`build` 全綠。
