@@ -3,9 +3,11 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { mintId } from "@scenephonie/schema";
 
+import { USER_ID_PREFIX } from "@/auth/auth";
 import { getDb } from "@/db/client";
 import { projects, users } from "@/db/schema";
 import { createScreenplay } from "@/persistence";
+import { PROJECT_ID_PREFIX, SINGLE_SCREENPLAY_PROJECT } from "@/projects/project-store";
 
 import { authorizeProjectForUser, authorizeScreenplayForUser } from "./gate";
 
@@ -24,7 +26,7 @@ describe.skipIf(!hasDatabase)("授權 gate（需要 Postgres）", () => {
   const createdUsers: string[] = [];
 
   const newUser = async (): Promise<string> => {
-    const id = mintId("usr_");
+    const id = mintId(USER_ID_PREFIX);
     // 直接寫 `users` —— gate 只認 `users.id`，它不知道也不該知道這個人是怎麼登入的。
     await db.insert(users).values({ id, name: "測試", email: `${id}@example.test` });
     createdUsers.push(id);
@@ -32,8 +34,8 @@ describe.skipIf(!hasDatabase)("授權 gate（需要 Postgres）", () => {
   };
 
   const newProject = async (ownerId: string): Promise<string> => {
-    const id = mintId("pj_");
-    await db.insert(projects).values({ id, type: "單一劇本專案", title: "測試專案", ownerId });
+    const id = mintId(PROJECT_ID_PREFIX);
+    await db.insert(projects).values({ id, type: SINGLE_SCREENPLAY_PROJECT, title: "測試專案", ownerId });
     return id;
   };
 
@@ -68,7 +70,7 @@ describe.skipIf(!hasDatabase)("授權 gate（需要 Postgres）", () => {
 
   it("不存在的專案與別人的專案回同一個答案 —— 否則它是一支存在性探針", async () => {
     const intruder = await newUser();
-    expect(await authorizeProjectForUser(intruder, mintId("pj_"))).toBeNull();
+    expect(await authorizeProjectForUser(intruder, mintId(PROJECT_ID_PREFIX))).toBeNull();
   });
 
   it("劇本的授權從專案來（screenplays.project_id → projects.owner_id）", async () => {

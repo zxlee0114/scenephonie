@@ -36,7 +36,7 @@
    `databaseHooks.user.create.before`（不在清單上連 `users` 都不會有一列）；**access 那一半在
    `authorization/session.ts` 自己再問一次** —— 因為「把 email 移出清單」要在下一次請求就生效
    而不是等 session 過期，也因為授權的權威必須在 application layer（不變式 I）。
-3. **`/projects` 是轉接口不是清單頁。** v1 使用者只會有一部作品在寫，專案清單是一個多出來的停點；
+3. **`/projects` 是轉接口不是清單頁。** v1 使用者只會有一個專案在寫，專案清單是一個多出來的停點；
    `/projects` 因此直接把人送去 `landingProject()`（沒有專案就開一個，連同它那一份劇本 ——
    1:1 是「單一劇本專案」這個 type 的**定義**，不是待放寬的限制）。多部作品那天它就是清單長出來的位置。
 4. **`screenplays.project_id` 的「回填」實際上是清空。** 這一欄之前的每一列劇本都由票券 05 的
@@ -60,3 +60,27 @@ ADR-0012 §① 的清單變成測試 —— domain 不讀 `accounts`、無 `crea
 **未在真實 Google OAuth 上跑過**：需要 Google Cloud Console 的 OAuth client 與對外網址，
 機器上沒有憑證。整條 callback 之後的路徑（建 user → 建 session → gate → 專案 hub）由整合測試涵蓋，
 **但 provider 那一段是文件層級的信心，不是行為層級的**。第一次部署時要親手走一次。
+
+**2026-09-04 — code review 後的修正（同一票，六項）。** 兩軸審查（standards／spec）各自跑完，
+以下六項是照著改的，其餘（meta 欄位只落 `title`、「回填」實為清空）維持上面已論證的裁決：
+
+1. **allowlist 不再每次請求查一次。** 原本 `currentUserId()` 也驗 email，但 allowlist 的定義是
+   「**Google OAuth** 的 registration/access policy」，而票券 24 §7 明寫「Guest 入口不進 allowlist」
+   —— 每次請求都查，等於逼票券 07 的訪客長出一個授權例外，正是 ADR-0011 §③ 要避免的。
+   現在只擋 Google 那道門；**撤銷存取＝刪掉那一列 `users`**（FK cascade 連 session 一起帶走）。
+2. **`generateId` 不再對未知 model 回 `false`。** `false` 在 Better Auth 的語意是「交給資料庫產生」，
+   而這四張表的主鍵都是沒有 default 的 `text` —— 日後 plugin 帶進新表時那會是一次 NOT NULL 失敗，
+   不是「library 自己產生」。改成一律鑄 `前綴 + nanoid`。
+3. **不再宣稱「最近改過的專案」。** 沒有任何一條路會更新 `projects.updated_at`（改稿改的是
+   `screenplays`），拿它排序是排一個永遠不動的欄位卻讓人以為它有意義。改成 `created_at`，
+   並把理由與「真要做要怎麼做」寫在旁邊。
+4. **登入落點變成冪等的。** `landingProject()` 是**一次 GET 上的寫入**：重試、prefetch 或兩個分頁
+   會各自鑄出一個空專案，而 v1 沒有刪專案這件事。改成鎖住 `users` 那一列後重查再建，
+   並補了三個測試（含兩個分頁同時第一次登入）。
+5. **hub 補上「劇本層文件」區。** §7.10 要的是**兩區並排**，因為那個形狀本身在教 ADR-0009 的
+   掛載規則；只有專案層那一區時，規則只講了一半。
+6. **雜項**：`SaveOutcome`／`SaveScreenplay` 從 persistence 搬到 `editor/save-capability.ts`
+   （`forbidden` 是授權的詞，persistence 看不到授權）；存檔狀態的「說什麼」與「要不要出聲」
+   併成一張表（原本是兩處對同一個型別的列舉，方向還相反）；登入頁不再把任何 `?error=`
+   都說成「不在受邀清單上」；測試改用 `USER_ID_PREFIX`／`PROJECT_ID_PREFIX`／
+   `SINGLE_SCREENPLAY_PROJECT` 而不是硬寫字串；詞彙表對齊（`作品` → `專案`）。

@@ -9,8 +9,10 @@ import {
   type AuthorizedProject,
   type AuthorizedScreenplay,
 } from "@/authorization";
+import { USER_ID_PREFIX } from "@/auth/auth";
 import { getDb } from "@/db/client";
 import { projects, screenplayBackups, screenplays, users } from "@/db/schema";
+import { PROJECT_ID_PREFIX, SINGLE_SCREENPLAY_PROJECT } from "@/projects/project-store";
 
 import { BACKUP_INTERVAL_MS } from "./backup-policy";
 import {
@@ -58,7 +60,7 @@ const docWith = (marker: string): PersistedDoc => ({
 
 describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
   const created: string[] = [];
-  const ownerId = mintId("usr_");
+  const ownerId = mintId(USER_ID_PREFIX);
   let project: AuthorizedProject;
 
   const track = <T extends { screenplayId: string }>(loaded: T): T => {
@@ -80,10 +82,10 @@ describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
     await getDb()
       .insert(users)
       .values({ id: ownerId, name: "測試", email: `${ownerId}@example.test` });
-    const projectId = mintId("pj_");
+    const projectId = mintId(PROJECT_ID_PREFIX);
     await getDb()
       .insert(projects)
-      .values({ id: projectId, type: "單一劇本專案", title: "測試專案", ownerId });
+      .values({ id: projectId, type: SINGLE_SCREENPLAY_PROJECT, title: "測試專案", ownerId });
     const granted = await authorizeProjectForUser(ownerId, projectId);
     if (!granted) throw new Error("剛建立的專案卻過不了 gate");
     project = granted;

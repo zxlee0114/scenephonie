@@ -32,7 +32,7 @@ export default async function ProjectHubPage({
   const project = await authorizeProject(projectId);
   if (!project) notFound();
 
-  const { title, screenplayIds } = await projectContents(project);
+  const { title, screenplayId } = await projectContents(project);
 
   return (
     <main className="project-hub">
@@ -45,23 +45,30 @@ export default async function ProjectHubPage({
 
       <section className="project-hub__section">
         <h2 className="project-hub__heading">劇本</h2>
-        <ul className="project-hub__list">
-          {screenplayIds.map((screenplayId, index) => (
-            <li key={screenplayId}>
-              <Link href={`/projects/${project.projectId}/screenplays/${screenplayId}`}>
-                {/* 單一劇本專案之下只有一份，名字就是專案名 —— 劇本沒有自己的標題欄位。 */}
-                {index === 0 ? title : `劇本 ${index + 1}`}
-              </Link>
+        {screenplayId ? (
+          <ul className="project-hub__list">
+            <li>
+              {/* 單一劇本專案之下只有一份，名字就是專案名 —— 劇本沒有自己的標題欄位。 */}
+              <Link href={`/projects/${project.projectId}/screenplays/${screenplayId}`}>{title}</Link>
             </li>
-          ))}
-        </ul>
+          </ul>
+        ) : (
+          <p className="project-hub__empty">這個專案還沒有劇本。</p>
+        )}
+      </section>
+
+      {/* 兩區並排就是那條掛載規則本身：**文件掛在它描述的創作單位上**（ADR-0009）。
+          交件大綱與角色設定表描述的是整個專案，分場大綱描述的是那一份劇本。
+          v1 兩區都還沒有內容（票券 21），但位置是對的 —— 空著比掛錯地方好，而且形狀
+          先站在這裡，日後加文件時不會有人需要重新決定它該掛哪。 */}
+      <section className="project-hub__section">
+        <h2 className="project-hub__heading">專案層文件</h2>
+        <p className="project-hub__empty">交件大綱與角色設定表尚未開放。</p>
       </section>
 
       <section className="project-hub__section">
-        <h2 className="project-hub__heading">專案層文件</h2>
-        {/* 交件大綱與角色設定表掛在專案而非劇本上（ADR-0009／§6.2），它們是票券 21 的事。
-            這一區現在是空的，但位置是對的 —— 空著比掛錯地方好。 */}
-        <p className="project-hub__empty">交件大綱與角色設定表尚未開放。</p>
+        <h2 className="project-hub__heading">劇本層文件</h2>
+        <p className="project-hub__empty">分場大綱尚未開放。</p>
       </section>
     </main>
   );

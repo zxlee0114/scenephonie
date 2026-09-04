@@ -9,6 +9,5 @@
  */
 export { createScreenplay, loadScreenplay, saveScreenplay } from "./screenplay-store";
 export type { LoadedScreenplay, SaveRequest, SaveResult } from "./screenplay-store";
-export type { SaveScreenplay, SaveScreenplayRequest, SaveOutcome } from "./save-screenplay";
 export type { SaveToken } from "./save-token";
 export type { PersistedDoc } from "./doc-schema-version";

@@ -22,12 +22,18 @@ import { ALLOWLIST_ENV, isAllowedEmail } from "./allowlist";
  * **provider identity（Google `sub`）留在 `accounts` 表，domain 永不讀它。**
  */
 
+/** `users.id` 的前綴。**只有這一個是領域事實** —— `projects.owner_id` 指著它。 */
+export const USER_ID_PREFIX = "usr_";
+
+/** 認不得的 model（日後某個 plugin 帶來的表）用的通用前綴。 */
+const UNKNOWN_MODEL_PREFIX = "id_";
+
 /** auth library 的 model 名 → 我們的 id 前綴。全專案同一個形狀：前綴 ＋ nanoid。 */
 const MODEL_PREFIXES: Record<string, string> = {
   // 文件的範例同時檢查單數與複數，`modelName` 改名後傳進來的確切字串有歧義（票券 30 §1），
   // 所以兩種拼法都掛上去 —— 兩邊指向同一個前綴，猜錯也不會鑄出錯的 id。
-  user: "usr_",
-  users: "usr_",
+  user: USER_ID_PREFIX,
+  users: USER_ID_PREFIX,
   session: "ses_",
   sessions: "ses_",
   account: "acc_",
@@ -37,14 +43,14 @@ const MODEL_PREFIXES: Record<string, string> = {
 };
 
 /**
- * 只有 `usr_` 是**領域事實**（`projects.owner_id` 指著它）；其餘三個前綴純粹是讓 `psql` 裡
- * 一眼看得出這列是什麼。認不得的 model（日後某個 plugin 帶來的）交還給 library 自己產生 ——
- * 那些表我們不引用，沒有理由替它們決定 id 格式。
+ * 其餘三個前綴純粹是讓 `psql` 裡一眼看得出這列是什麼。
+ *
+ * ⚠️ 認不得的 model **也要鑄一個 id**，不能回 `false` —— `false` 在 Better Auth 的語意是
+ * 「不要產生、交給資料庫」，而這些表的主鍵都是**沒有 default 的 `text`**，那會變成一次
+ * NOT NULL 失敗。日後 plugin 帶進新表時，它拿到的仍是本專案的形狀：前綴 ＋ nanoid。
  */
-const generateId = ({ model }: { model: string }): string | false => {
-  const prefix = MODEL_PREFIXES[model];
-  return prefix ? mintId(prefix) : false;
-};
+const generateId = ({ model }: { model: string }): string =>
+  mintId(MODEL_PREFIXES[model] ?? UNKNOWN_MODEL_PREFIX);
 
 const requireEnv = (name: string): string => {
   const value = process.env[name];
@@ -95,11 +101,13 @@ function createAuth() {
       user: {
         create: {
           /**
-           * allowlist 的 **registration** 那一半：不在清單上的人連 `users` 都不會有一列。
+           * allowlist —— 不在清單上的人連 `users` 都不會有一列。
            *
-           * ⚠️ 這裡是「大門口先擋一次」，**不是授權真理來源**（不變式 I）—— access 那一半
-           * 由 application layer 自己再問一次（`src/authorization/session.ts`），因為
-           * 「email 被移出清單」要在下一次請求就生效，而不是等 session 過期。
+           * ⚠️ **這是 Google 那道門，不是授權真理來源**（不變式 I）。它刻意只擋在這裡：
+           * allowlist 的定義是「Google OAuth 的 registration/access policy」（票券 24 §7），
+           * 而票券 07 的訪客入口**不進 allowlist** —— 若改成每次請求都查，訪客就得長出一個
+           * 授權例外，正是 ADR-0011 §③ 要避免的東西。撤銷存取＝刪掉那一列 `users`
+           * （FK cascade 連 session 一起帶走）。
            */
           before: async (user) => {
             if (!isAllowedEmail(user.email, process.env[ALLOWLIST_ENV])) {

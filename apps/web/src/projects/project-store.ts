@@ -4,18 +4,18 @@ import { mintId } from "@scenephonie/schema";
 
 import { authorizeProjectForUser, type AuthorizedProject } from "@/authorization";
 import { getDb } from "@/db/client";
-import { projects, screenplays } from "@/db/schema";
+import { projects, screenplays, users } from "@/db/schema";
 import { emptyScreenplay } from "@/editor/empty-screenplay";
 import { createScreenplay } from "@/persistence";
 
 /**
- * 專案 —— 「一部作品」這一層的存取（§4.2）。
+ * 專案這一層的存取（§4.2）。
  *
  * 讀取一律以 `ownerId` 為條件、寫入一律經過已授權的 handle。這個模組沒有第二條路可以
  * 拿到別人的專案，所以「這是誰的」不必在每個呼叫端重問一次。
  */
 
-const PROJECT_ID_PREFIX = "pj_";
+export const PROJECT_ID_PREFIX = "pj_";
 
 /**
  * v1 唯一的專案類型。**不提供選擇、不做 UI** —— 只有一種類型時給選就是說謊（§4.2）。
@@ -30,75 +30,86 @@ const DEFAULT_PROJECT_TITLE = "未命名專案";
 export type ProjectSummary = {
   projectId: string;
   title: string;
-  updatedAt: Date;
 };
 
-/** 這個人的專案，最近更新的在前。 */
+/**
+ * 這個人的專案，**最近建立的在前**。
+ *
+ * 刻意不是「最近改過的在前」：沒有任何一條路會更新 `projects.updated_at`（改稿改的是
+ * `screenplays`），拿它排序等於排一個永遠不動的欄位，卻讓讀的人以為它有意義。真要「最近
+ * 改過」，得在存檔時往上寫一筆或去 join `screenplays.updated_at` —— 兩者都等到有多個專案、
+ * 清單真的存在的那天再說。
+ */
 export async function ownedProjects(ownerId: string): Promise<ProjectSummary[]> {
   return getDb()
-    .select({ projectId: projects.id, title: projects.title, updatedAt: projects.updatedAt })
+    .select({ projectId: projects.id, title: projects.title })
     .from(projects)
     .where(eq(projects.ownerId, ownerId))
-    .orderBy(desc(projects.updatedAt));
-}
-
-/**
- * 開一個新專案 —— 連同它那一份劇本。
- *
- * 建完之後**回頭走一次 gate 才拿到 handle**，而不是就地捏一個。多一次 SELECT，換到的是
- * 「handle 永遠來自資料庫裡的 `owner_id`」這件事沒有例外 —— 有例外的規則等於沒有規則。
- */
-export async function createProjectFor(
-  ownerId: string,
-  title: string = DEFAULT_PROJECT_TITLE,
-): Promise<AuthorizedProject> {
-  const projectId = mintId(PROJECT_ID_PREFIX);
-  await getDb()
-    .insert(projects)
-    .values({ id: projectId, type: SINGLE_SCREENPLAY_PROJECT, title, ownerId });
-
-  const project = await authorizeProjectForUser(ownerId, projectId);
-  if (!project) throw new Error("剛建立的專案卻過不了 gate —— 這代表寫入沒有落地");
-
-  await createScreenplay(project, emptyScreenplay());
-  return project;
-}
-
-/**
- * 登入之後該落在哪個專案：最近改過的那一個，一個都沒有就開一個。
- *
- * 「第一次登入的人立刻有東西可以寫」是產品決定，不是資料模型的讓步 —— 專案與劇本都是
- * 正常建立的，沒有任何欄位為它特別開洞。
- */
-export async function landingProject(ownerId: string): Promise<AuthorizedProject> {
-  const [latest] = await ownedProjects(ownerId);
-  if (latest) {
-    const project = await authorizeProjectForUser(ownerId, latest.projectId);
-    if (project) return project;
-  }
-  return createProjectFor(ownerId);
+    .orderBy(desc(projects.createdAt));
 }
 
 export type ProjectContents = {
   title: string;
-  /** 單一劇本專案之下永遠只有一份；型別留成清單是因為那是 hub 要呈現的形狀（§7.10）。 */
-  screenplayIds: string[];
+  /** 單一劇本專案之下**只有一份**（1:1 是這個 type 的定義，不是巧合）。 */
+  screenplayId: string | null;
 };
 
 /** 專案 hub 要顯示的東西。只吃 handle —— 到得了這裡就代表已經授權過。 */
 export async function projectContents(project: AuthorizedProject): Promise<ProjectContents> {
   const db = getDb();
-  const [[row], scripts] = await Promise.all([
+  const [[row], [script]] = await Promise.all([
     db.select({ title: projects.title }).from(projects).where(eq(projects.id, project.projectId)),
     db
       .select({ id: screenplays.id })
       .from(screenplays)
       .where(eq(screenplays.projectId, project.projectId))
-      .orderBy(screenplays.createdAt),
+      .orderBy(screenplays.createdAt)
+      .limit(1),
   ]);
 
-  return {
-    title: row?.title ?? DEFAULT_PROJECT_TITLE,
-    screenplayIds: scripts.map((script) => script.id),
-  };
+  return { title: row?.title ?? DEFAULT_PROJECT_TITLE, screenplayId: script?.id ?? null };
+}
+
+/**
+ * 登入之後該落在哪個專案：最近建立的那一個，一個都沒有就開一個（連同它那一份劇本）。
+ *
+ * 「第一次登入的人立刻有東西可以寫」是產品決定，不是資料模型的讓步 —— 專案與劇本都是
+ * 正常建立的，沒有任何欄位為它特別開洞。
+ *
+ * ⚠️ **這是一次 GET 上的寫入，所以它必須冪等。** 第一次登入時的重試、prefetch 或兩個分頁
+ * 會同時走到這裡，而 v1 沒有刪專案這件事 —— 清不掉的東西不能靠「應該不會同時發生」來防。
+ * 序列化點取 `users` 的那一列：它是「這個人有沒有專案」的自然歸屬，而且第一次登入時
+ * `projects` 還沒有任何一列可以鎖。
+ *
+ * 建完之後**回頭走一次 gate 才拿到 handle**，而不是就地捏一個。多一次 SELECT，換到的是
+ * 「handle 永遠來自資料庫裡的 `owner_id`」這件事沒有例外 —— 有例外的規則等於沒有規則。
+ */
+export async function landingProject(ownerId: string): Promise<AuthorizedProject> {
+  const projectId = await getDb().transaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, ownerId)).for("update");
+
+    const [existing] = await tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.ownerId, ownerId))
+      .orderBy(desc(projects.createdAt))
+      .limit(1);
+    if (existing) return existing.id;
+
+    const id = mintId(PROJECT_ID_PREFIX);
+    await tx
+      .insert(projects)
+      .values({ id, type: SINGLE_SCREENPLAY_PROJECT, title: DEFAULT_PROJECT_TITLE, ownerId });
+    return id;
+  });
+
+  const project = await authorizeProjectForUser(ownerId, projectId);
+  if (!project) throw new Error("剛建立的專案卻過不了 gate —— 這代表寫入沒有落地");
+
+  // 劇本不在上面那個交易裡：交易只負責「恰好一個專案」，而它必須短 —— 它鎖著 `users` 那一列。
+  // 分兩步的代價是中間斷線會留下一個沒有劇本的專案，補法就是下一次進來時這一行。
+  const { screenplayId } = await projectContents(project);
+  if (!screenplayId) await createScreenplay(project, emptyScreenplay());
+
+  return project;
 }

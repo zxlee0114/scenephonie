@@ -3,7 +3,8 @@
 import { docFromJSON } from "@scenephonie/schema";
 
 import { authorizeScreenplay } from "@/authorization";
-import { saveScreenplay, type SaveOutcome, type SaveScreenplayRequest } from "@/persistence";
+import type { SaveOutcome, SaveScreenplayRequest } from "@/editor/save-capability";
+import { saveScreenplay } from "@/persistence";
 
 /**
  * 編輯器的存檔入口。

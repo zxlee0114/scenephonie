@@ -1,6 +1,5 @@
 import { headers } from "next/headers";
 
-import { ALLOWLIST_ENV, isAllowedEmail } from "@/auth/allowlist";
 import { getAuth } from "@/auth/auth";
 
 import { authorizeProjectForUser, authorizeScreenplayForUser } from "./gate";
@@ -14,18 +13,22 @@ import type { AuthorizedProject, AuthorizedScreenplay } from "./handles";
  * （ADR-0011 §①）。
  */
 
-/** 這次請求的 `UserId`，沒有登入或不在 allowlist 上就是 `null`。 */
+/**
+ * 這次請求的 `UserId`，沒有登入就是 `null`。
+ *
+ * ⚠️ **這裡刻意不查 allowlist。** allowlist 的定義是「**Google OAuth** 的 registration/access
+ * policy」（票券 24 §7），而這條路上每一種 authentication entry point 都會經過 ——
+ * 票券 07 的訪客入口拿到的是正常的 `UserId`，但它的 email 不在清單上（票券 24 §7 明寫
+ * 「Guest 入口不進 allowlist」）。在這裡查，等於逼票券 07 長出一個授權例外，
+ * 而 ADR-0011 §③ 說的正是「**domain 不知道誰是訪客**，訪客體驗因此不需要任何授權例外」。
+ *
+ * 所以 allowlist 只擋 Google 那道門（`auth/auth.ts` 的 `databaseHooks.user.create.before`）。
+ * **要撤銷某個人的存取，就刪掉他的 `users` 那一列** —— FK cascade 會連 session 一起帶走，
+ * 下一次請求立刻生效。v1 使用者 < 10 人，這是一行 SQL，不值得為它在每次請求上加一道檢查。
+ */
 export async function currentUserId(): Promise<string | null> {
   const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) return null;
-
-  // allowlist 的 **access** 那一半（registration 那一半在 auth 設定的 databaseHooks）。
-  // 在這裡再問一次，是因為「把某個 email 從清單移掉」要在下一次請求就生效，而不是等
-  // 那個人的 session 自己過期；也因為**授權的權威在 application layer，不在 library**
-  // （不變式 I）—— library 的 hook 只是大門口先擋一次。
-  if (!isAllowedEmail(session.user.email, process.env[ALLOWLIST_ENV])) return null;
-
-  return session.user.id;
+  return session?.user.id ?? null;
 }
 
 /** 這次請求能不能操作這個 project。未登入與不是你的，回同一個答案。 */

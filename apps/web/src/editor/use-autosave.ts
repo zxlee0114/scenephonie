@@ -3,8 +3,10 @@
 import type { Editor } from "@tiptap/core";
 import { useEffect, useRef, useState } from "react";
 
-import type { SaveScreenplay, SaveToken } from "@/persistence";
+import type { SaveToken } from "@/persistence";
 import { createSaveScheduler } from "@/persistence/save-scheduler";
+
+import type { SaveScreenplay } from "./save-capability";
 
 import { toPlainJson } from "./plain-json";
 

@@ -28,9 +28,15 @@ export default async function LoginPage({
       <h1 className="sign-in__wordmark">Scenephonie</h1>
       <p className="sign-in__lede">結構化的台灣影視編劇平台。</p>
       <GoogleSignIn />
-      {error ? (
+      {/* 只有 allowlist 那一種失敗說得出原因；其餘（使用者按取消、Google 端出錯…）
+          不硬猜，否則會把「你被拒絕了」栽贓給一個只是點錯的人。 */}
+      {error === "not-allowed" ? (
         <p className="sign-in__error" role="alert">
           這個 Google 帳號不在受邀清單上。v1 不公開註冊。
+        </p>
+      ) : error ? (
+        <p className="sign-in__error" role="alert">
+          登入沒有完成，請再試一次。
         </p>
       ) : null}
     </main>
