@@ -4,7 +4,7 @@
 
 **Blocked by:** 04（`extensions/soft-break` 在該票交付）
 
-**Status:** in-review
+**Status:** verified
 
 ## 已知的事實（不必重驗）
 
@@ -13,11 +13,18 @@
 
 ## 假設（開工前先證實或推翻）
 
+> ❌ **這一節與下一節都被推翻了，保留作為路標 —— 見 Comments。**
+> 真正的原因是 `\n` 被 DOM parse 換成半形空格，與行框、caret、pre-wrap 全都無關；
+> 落點也不是這裡列的任何一個檔案，而是 `apps/web/src/editor/schema.ts`。
+
 軟換行走的是「插入 `\n` 文字 ＋ CSS `white-space: pre-wrap`」（`extensions/soft-break.ts` 刻意不用 `hardBreak` 節點，理由見該檔註解）。但**位於區塊結尾的 `\n` 在瀏覽器裡不會產生一個可見的空行** —— pre-wrap 不為區塊末端的斷行留下行框。於是視覺上 caret 停在第一行末，接著輸入時 DOM selection 被映射回 `\n` 之前的位置，字就落在第一行。
 
 這個假設可以用一個 jsdom 測試以外的方式驗（jsdom 沒有真正的排版）：在瀏覽器裡打 `abc` → `Shift+Enter` → 檢查 `editor.state.selection.from` 是否確實在 `\n` 之後，以及該位置的 DOM coords。
 
 ## 兩條候選解法（需要決定）
+
+> ❌ **兩條都沒走。** 最後是第三條路：schema 上宣告 `whitespace: "pre"`，資料模型與節點集合
+> 都不動，因此**不需要回到票券 02**。
 
 **A. 用 `hardBreak` 節點（`<br>`）。** ProseMirror 的標準做法，瀏覽器行為正確。代價是 kernel schema 要多一個節點型別 —— 票券 04 明確拒絕過（會撐破 `schema-equivalence.test.ts` 與 §5.3 的 null 鐵律），而且它會進入 PDF 匯出、場次表推導等所有下游。**要走這條就得先回到票券 02 的 schema 決策。**
 
@@ -34,12 +41,12 @@
 
 ## 驗收
 
-- [ ] 打字 → `Shift+Enter` → 打字，第二段文字出現在**第二行**
-- [ ] `Shift+Enter` 之後、還沒打字時，看得見一個空的第二行，且 caret 在那一行上
-- [ ] 連續兩次 `Shift+Enter` 產生兩個空行，行為一致
-- [ ] `\n` 仍以單一 `text` 節點進入 canonical document（既有的往返測試不回歸），kernel schema 未新增節點型別（若最終走 A 則此條改寫並回到票券 02）
-- [ ] 存檔 → 重整後軟換行仍在正確的位置（跨 persistence 往返）
-- [ ] `pnpm lint` / `typecheck` / `test` / `build` 全綠
+- [x] 打字 → `Shift+Enter` → 打字，第二段文字出現在**第二行**
+- [x] `Shift+Enter` 之後、還沒打字時，看得見一個空的第二行，且 caret 在那一行上
+- [x] 連續兩次 `Shift+Enter` 產生兩個空行，行為一致
+- [x] `\n` 仍以單一 `text` 節點進入 canonical document（既有的往返測試不回歸），kernel schema 未新增節點型別（若最終走 A 則此條改寫並回到票券 02）
+- [x] 存檔 → 重整後軟換行仍在正確的位置（跨 persistence 往返）
+- [x] `pnpm lint` / `typecheck` / `test` / `build` 全綠
 
 ## Comments
 
@@ -116,3 +123,16 @@ DOM parse 的提示，屬 view 半邊，所以 `schema-equivalence.test.ts` 的�
 
 ⚠️ `pnpm lint` 有兩個錯誤，**與本票券無關**：eslint 的 `ignores` 沒排除 `.claude/worktrees/**`，
 掃進了票券 29 那個 worktree 底下的 `prototypes/yjs-migration-spike`。不在本票券範圍內，未動。
+**本機驗收（2026-09-04）** —— 使用者確認瀏覽器行為正確，六條全過。
+
+驗收 #4 的驗法（使用者提問，記在這裡免得下次再問一次）：這條是**三個獨立斷言**綁在一句話裡，
+沒有一項要手驗 ——
+
+| 斷言 | 證據 |
+|---|---|
+| kernel schema 未新增節點型別 | `git diff <base> -- packages/schema` 是**空的** —— 節點型別的唯一權威沒被碰過，不可能多出一個。第二層保險是 `schema-equivalence.test.ts` 的「節點名集合一致」（若在編輯器側偷加節點會紅）。 |
+| `\n` 以單一 `text` 節點進入 canonical document | `keyboard-feedback.test.ts` 兩條，`\n` 夾在中間與在結尾各一，皆在 `docFromJSON()` 往返後斷言 `childCount === 1`、`firstChild.type.name === "text"`、文字逐字相同。 |
+| 既有往返測試不回歸 | `schema-equivalence.test.ts`（5）＋ `plain-json.test.ts`（5）全綠，其中「kernel doc → Tiptap → kernel 往返後 JSON 不變」是正主。 |
+
+一行重跑：
+`cd apps/web && pnpm vitest run src/editor/schema-equivalence.test.ts src/editor/keyboard-feedback.test.ts src/editor/plain-json.test.ts`（24 passed）。
