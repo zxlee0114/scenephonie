@@ -10,6 +10,7 @@
 "use client";
 
 import { useEditor } from "@tiptap/react";
+import type { Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { hasEmptySceneMeta } from "@scenephonie/schema";
@@ -82,6 +83,27 @@ function unstartedDialogueIndex(scene: PMNode): number | null {
   return last.attrs.character == null && last.content.size === 0 ? index : null;
 }
 
+/**
+ * 零場次的文件不可編輯（票券 32）。
+ *
+ * doc 是 `scene*`，一場不剩是合法的 —— 但那時**沒有任何可以寫字的位置**。編輯器的 schema 裡
+ * `sceneId` 為了滿足 Tiptap「每個 attr 都要有 default」而補了 `default: null`（見 `./schema`），
+ * 於是 `scene` 在 view 這一側是可生成的：空 doc 上一有輸入，ProseMirror 就自己 `createAndFill`
+ * 出一場把字放進去 —— 繞過 command bridge（§6.3），chip 全空、沒有浮現動畫、沒有焦點串接，
+ * 而且注音在組字中途被結構修復打斷，未確認的字就落地了（使用者回饋 2026-09-04）。
+ *
+ * IME 擋不住：`compositionstart` 與 composition 的 `beforeinput` 依規範都不可取消，只要焦點在
+ * 一個 contenteditable 上就沒有辦法。所以把 contenteditable 關掉 —— 這也比較誠實：沒有位置可寫。
+ *
+ * ⚠️ 代價是 `keydown` 在 prosemirror-view 裡是 edit-only handler，而 tiptap 的 `Tabindex`
+ * 擴充在不可編輯時會拿掉 `tabindex` —— 也就是說編輯器的鍵盤路徑整條斷掉。零場次時能做的事
+ * 只有「建一場」與「還原」，這兩條由空狀態那塊 UI 自己接管（見 `EmptyScreenplayState`）。
+ */
+function syncEditable(editor: Editor): void {
+  const editable = editor.state.doc.childCount > 0;
+  if (editor.isEditable !== editable) editor.setEditable(editable, false);
+}
+
 export function useScreenplayEditor(
   initialContent?: object,
   initialFocus: InitialFocus = "sceneMeta",
@@ -120,25 +142,30 @@ export function useScreenplayEditor(
       claimFocus(() => true);
       resetSceneBirth();
     },
+    onUpdate({ editor }) {
+      syncEditable(editor);
+    },
     // 進入編輯器時，手不必先去點一下 —— 落點由 `initialFocus` 決定。
     // `sceneMeta` 走焦點串接（SceneView 掛載時 claim，見 nodes/scene.tsx 的 useEffect）；
     // `documentEnd` 一般沒有節點要認領，直接把游標放到文件末端並捲進畫面；但末場若還沒開工，
     // 落點改為該場的 chip row —— 同一個文件狀態不該因為「剛建完」還是「重整回來」而有兩種答案
     // （票券 31）。
     onCreate({ editor }) {
+      syncEditable(editor);
       if (initialFocus === "documentEnd") {
         const last = lastScene(editor.state.doc);
-        if (last) {
-          const sceneId = last.attrs.sceneId as string;
-          if (isUnstartedScene(last)) {
-            requestFocus({ kind: "sceneMeta", sceneId });
-            return;
-          }
-          const blockIndex = unstartedDialogueIndex(last);
-          if (blockIndex != null) {
-            requestFocus({ kind: "speaker", sceneId, blockIndex });
-            return;
-          }
+        // 零場次時 contenteditable 已經關掉（見 `syncEditable`），焦點歸空狀態那顆按鈕
+        // （見 ScreenplayEditor 的 EmptyScreenplayState）—— 這裡什麼都不做。
+        if (!last) return;
+        const sceneId = last.attrs.sceneId as string;
+        if (isUnstartedScene(last)) {
+          requestFocus({ kind: "sceneMeta", sceneId });
+          return;
+        }
+        const blockIndex = unstartedDialogueIndex(last);
+        if (blockIndex != null) {
+          requestFocus({ kind: "speaker", sceneId, blockIndex });
+          return;
         }
         editor.commands.focus("end");
         return;

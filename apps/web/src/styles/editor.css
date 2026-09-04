@@ -250,7 +250,12 @@
   inline-size: calc(var(--chip-chars, 3) * 1ic + var(--space-2) * 2 + 2px);
 }
 
+/* `.is-focus-handed` ＝ 焦點串接主動把游標交過來的那一刻（見 editor/focus.ts 的 `handOffFocus`）。
+ * 程式化 focus 拿不到 `:focus-visible` —— 除非上一個焦點元素自己就是 focus-visible，所以使用者
+ * 用滑鼠點過空白處之後建的新場次，chip 有焦點卻沒有環，看起來像「沒有初始焦點」。
+ * 我們交出去的焦點就由我們自己畫，失焦即卸。 */
 .scene__chip-control:focus-visible,
+.scene__chip-control.is-focus-handed,
 .scene__chip input:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
@@ -476,4 +481,73 @@
 .slash-menu button span {
   font-size: var(--text-sm);
   color: var(--text-secondary);
+}
+
+/* ─────────────────────────────────────────── 零場次的空狀態（票券 32） */
+/* 一場都不剩時唯一還在畫面上的東西：一句話 ＋ 一句出口，按鈕長在句子裡。
+ * 左緣對齊場次本體（gutter 之後），站在場次會出現的位置上，而不是另一塊獨立的區域。
+ * 場次本體仍然不畫框（不變式 G）—— 有框的是這顆按鈕，它是介面控制項不是文件的視覺結構，
+ * 而且**必須**看得出來可以按：空狀態下它是唯一的出口，暗示性的浮現按鈕在這裡不夠。 */
+.empty-screenplay {
+  padding-inline-start: var(--space-gutter);
+  padding-block-start: var(--space-4);
+  font-family: var(--font-ui);
+}
+
+.empty-screenplay__line,
+.empty-screenplay__how {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+}
+
+.empty-screenplay__how {
+  /* 行內有按鈕，行高要吃得下它（不然上下兩行會被撐開得參差）。 */
+  margin-block-start: var(--space-4);
+  line-height: 2.2;
+}
+
+/* 快捷鍵跟按鈕文字同色 —— 兩者是同一件事的兩條路，句子裡該讀起來一樣重
+ * （周圍的敘述文字仍是 --text-faint）。 */
+.empty-screenplay__key {
+  color: var(--control-fg);
+}
+
+/* 有外框的按鈕 —— 與腳部那顆「＋ 新增下一場」刻意不同：那顆住在場次之間，靠 hover 浮現就夠；
+ * 這顆是零場次時唯一能按的東西，形狀要先講清楚它是可按的。 */
+.empty-screenplay__action {
+  /* 行內：跟句子的基線走，不自成一行。 */
+  display: inline-flex;
+  align-items: center;
+  vertical-align: baseline;
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--control-fg);
+  background: var(--surface-page);
+  border: 1px solid var(--control-border);
+  border-radius: var(--space-1);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+/* 懸停：底色與框線各深一階、字轉為主要文字色 —— 動的是狀態不是尺寸，滑鼠經過時版面不會位移。 */
+.empty-screenplay__action:hover {
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border-color: var(--rule-strong);
+}
+
+/* 按下去的那一刻再深一階，手感上「壓下去了」。 */
+.empty-screenplay__action:active {
+  background: var(--surface-sunken);
+}
+
+.empty-screenplay__action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
