@@ -17,25 +17,42 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { InitialFocus } from "./use-screenplay-editor";
 import { useScreenplayEditor } from "./use-screenplay-editor";
+import { requestNextScene } from "./extensions/next-scene";
 
 const LAST_LINE = "最後一行";
 
+function scene(text: string, attrs: Record<string, unknown> = {}) {
+  return kernelSchema.node("scene", { sceneId: mintSceneId(), ...attrs }, [
+    kernelSchema.node("action", null, text ? [kernelSchema.text(text)] : []),
+  ]);
+}
+
 function docWithTwoScenes() {
-  const scene = (text: string) =>
-    kernelSchema.node("scene", { sceneId: mintSceneId() }, [
-      kernelSchema.node("action", null, [kernelSchema.text(text)]),
-    ]);
   return kernelSchema.node("doc", null, [scene("第一場"), scene(LAST_LINE)]).toJSON() as object;
+}
+
+/** 末場是 `/next` 剛建好的樣子：metadata 全空、單一空 action 區塊。 */
+function docWithUnfilledLastScene() {
+  return kernelSchema.node("doc", null, [scene("第一場"), scene("")]).toJSON() as object;
+}
+
+/** 最後一場 chip row 的第一格（「內外」欄）—— 焦點該落的地方。 */
+function lastSceneFirstField(container: HTMLElement): HTMLButtonElement | null {
+  const scenes = container.querySelectorAll<HTMLElement>(".scene");
+  const last = scenes[scenes.length - 1];
+  return last?.querySelector<HTMLButtonElement>(".scene__chips .scene__chip-control") ?? null;
 }
 
 function Harness({
   initialFocus,
   onEditor,
+  content = docWithTwoScenes(),
 }: {
   initialFocus: InitialFocus;
   onEditor: (e: Editor) => void;
+  content?: object;
 }) {
-  const editor = useScreenplayEditor(docWithTwoScenes(), initialFocus);
+  const editor = useScreenplayEditor(content, initialFocus);
   useEffect(() => {
     if (editor) onEditor(editor);
   }, [editor, onEditor]);
@@ -86,5 +103,96 @@ describe("載入既有劇本時的初始焦點", () => {
     )!;
     await waitFor(() => expect(document.activeElement).toBe(firstControl));
     expect(editor.state.selection.$from.parent.textContent).not.toBe(LAST_LINE);
+  });
+});
+
+describe("載入時最後一場還沒填 metadata（票券 31）", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("末場 metadata 全空且無內文：焦點落在該場的 chip row，不是文件末端", async () => {
+    let editor!: Editor;
+    const { container } = render(
+      <Harness
+        initialFocus="documentEnd"
+        content={docWithUnfilledLastScene()}
+        onEditor={(e) => (editor = e)}
+      />,
+    );
+    await waitFor(() => expect(editor).toBeDefined());
+
+    const controls = () =>
+      container.querySelectorAll<HTMLButtonElement>(".scene__chips .scene__chip-control");
+    await waitFor(() => expect(controls().length).toBeGreaterThan(1));
+    // 每場 chip row 的第一格是「內外」；末場的那一格才是該被搶到的落點。
+    await waitFor(() => expect(document.activeElement).toBe(lastSceneFirstField(container)));
+  });
+
+  it("末場已填 metadata：焦點仍落在文件末端（票券 26 不回歸）", async () => {
+    let editor!: Editor;
+    const filled = kernelSchema
+      .node("doc", null, [scene("第一場"), scene(LAST_LINE, { intExt: "內景" })])
+      .toJSON() as object;
+    render(
+      <Harness initialFocus="documentEnd" content={filled} onEditor={(e) => (editor = e)} />,
+    );
+    await waitFor(() => expect(editor).toBeDefined());
+    await waitFor(() => expect(editor.state.selection.$from.parent.textContent).toBe(LAST_LINE));
+  });
+
+  it("末場 metadata 全空但已有內文：不搶回 chip（工作已經在內文裡）", async () => {
+    let editor!: Editor;
+    render(
+      <Harness
+        initialFocus="documentEnd"
+        content={docWithTwoScenes()}
+        onEditor={(e) => (editor = e)}
+      />,
+    );
+    await waitFor(() => expect(editor).toBeDefined());
+    await waitFor(() => expect(editor.state.selection.$from.parent.textContent).toBe(LAST_LINE));
+  });
+
+  it("末場只有一個空的對白區塊：不搶回 chip（人已經把游標帶進內文按過 Tab）", async () => {
+    let editor!: Editor;
+    const tabbed = kernelSchema
+      .node("doc", null, [
+        scene("第一場"),
+        kernelSchema.node("scene", { sceneId: mintSceneId() }, [
+          kernelSchema.node("dialogue", null, []),
+        ]),
+      ])
+      .toJSON() as object;
+    const { container } = render(
+      <Harness initialFocus="documentEnd" content={tabbed} onEditor={(e) => (editor = e)} />,
+    );
+    await waitFor(() => expect(editor).toBeDefined());
+    await waitFor(() => expect(editor.state.selection.$from.parent.type.name).toBe("dialogue"));
+    expect(document.activeElement).not.toBe(lastSceneFirstField(container));
+  });
+
+  it("`/next` 建完場次後，重整前後的焦點落點一致（都在新場次的 chip row）", async () => {
+    let editor!: Editor;
+    const first = render(
+      <Harness initialFocus="documentEnd" onEditor={(e) => (editor = e)} />,
+    );
+    await waitFor(() => expect(editor).toBeDefined());
+
+    requestNextScene(editor, null);
+    await waitFor(() =>
+      expect(document.activeElement).toBe(lastSceneFirstField(first.container)),
+    );
+    const saved = editor.getJSON() as object;
+
+    // 重整：同一份稿重新掛一個編輯器（載入路徑 → documentEnd）。
+    first.unmount();
+    document.body.innerHTML = "";
+    let reloaded!: Editor;
+    const after = render(
+      <Harness initialFocus="documentEnd" content={saved} onEditor={(e) => (reloaded = e)} />,
+    );
+    await waitFor(() => expect(reloaded).toBeDefined());
+    await waitFor(() => expect(document.activeElement).toBe(lastSceneFirstField(after.container)));
   });
 });
