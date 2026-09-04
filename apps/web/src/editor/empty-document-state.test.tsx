@@ -235,6 +235,28 @@ describe("零場次的空狀態", () => {
     expect(editor.state.doc.childCount).toBe(1);
   });
 
+  it("焦點不在按鈕上時建出來的場次，內外景欄的焦點看得見（環由焦點串接自己畫）", async () => {
+    const { container } = render(<Harness content={emptyDoc()} />);
+    await waitFor(() => expect(document.activeElement).toBe(emptyStateButton(container)));
+
+    // `:focus-visible` 只在「上一個焦點元素自己就是 focus-visible」時跟著程式化 focus 傳遞：
+    // 使用者先用滑鼠點過空白處（activeElement 是 body）再建場，chip 拿得到焦點卻沒有環，
+    // 看起來就是「新場次沒有初始焦點」（使用者回饋 2026-09-04 第四輪）。
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.click(emptyStateButton(container)!);
+
+    await waitFor(() => expect(container.querySelector(".scene")).not.toBeNull());
+    const firstField = container.querySelector<HTMLButtonElement>(
+      ".scene__chips .scene__chip-control",
+    )!;
+    await waitFor(() => expect(document.activeElement).toBe(firstField), { timeout: 3000 });
+    expect(firstField.classList.contains("is-focus-handed")).toBe(true);
+
+    // 使用者自己移開焦點之後就交還給 `:focus-visible` 判斷 —— 環不該黏著。
+    firstField.blur();
+    expect(firstField.classList.contains("is-focus-handed")).toBe(false);
+  });
+
   it("焦點不在按鈕上時 ⌘+Z 一樣救得回整份稿", async () => {
     let editor!: Editor;
     const { container } = render(

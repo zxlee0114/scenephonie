@@ -24,7 +24,7 @@ import { INT_EXT_VALUES, TIME_VALUES, type LocationRef } from "@scenephonie/sche
 
 import { ChipSelect } from "../chip-select";
 import { CjkField } from "../cjk-field";
-import { claimFocus, subscribeFocusRequest } from "../focus";
+import { claimFocus, handOffFocus, subscribeFocusRequest } from "../focus";
 import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
 import { scrollToWritingPosition } from "../typewriter-scroll";
 import { requestNextScene } from "../extensions/next-scene";
@@ -82,7 +82,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
       // 不是新生場次（載入時的焦點串接，票券 26／31）就照原生行為捲進可視範圍。
       const born = bornForScroll.current;
       bornForScroll.current = false;
-      firstField.current?.focus({ preventScroll: born });
+      handOffFocus(firstField.current, { preventScroll: born });
       if (born) scrollToWritingPosition(firstField.current?.closest(".scene"));
     };
     tryClaim();

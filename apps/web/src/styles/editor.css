@@ -250,7 +250,12 @@
   inline-size: calc(var(--chip-chars, 3) * 1ic + var(--space-2) * 2 + 2px);
 }
 
+/* `.is-focus-handed` ＝ 焦點串接主動把游標交過來的那一刻（見 editor/focus.ts 的 `handOffFocus`）。
+ * 程式化 focus 拿不到 `:focus-visible` —— 除非上一個焦點元素自己就是 focus-visible，所以使用者
+ * 用滑鼠點過空白處之後建的新場次，chip 有焦點卻沒有環，看起來像「沒有初始焦點」。
+ * 我們交出去的焦點就由我們自己畫，失焦即卸。 */
 .scene__chip-control:focus-visible,
+.scene__chip-control.is-focus-handed,
 .scene__chip input:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
