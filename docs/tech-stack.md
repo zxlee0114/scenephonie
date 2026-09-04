@@ -50,8 +50,15 @@
 
 ## CI 與合併閘門
 
-`.github/workflows/ci.yml` 的 `verify` job 依序跑 **lint → typecheck → test → build**。其中 lint 同時強制
+`.github/workflows/ci.yml` 的 `verify` job 依序跑 **lint → typecheck → migrate → test → build**。其中 lint 同時強制
 §5.5 的 isomorphic 邊界（`packages/schema/` 不得 import `react`/`next`/`@tiptap/*`，不得碰 `window`/`document`）。
+
+**CI 起一顆真的 Postgres**（`services: postgres:16`，直連 `:5432`，`DATABASE_URL` 與 `DIRECT_URL` 都指它）。
+理由是 persistence 的並行控制、lazy 遷移與自動備份（§6.7）只有在真的資料庫上才成立 —— 用替身測交易邊界，
+測到的是替身。migrate 步驟先把表建起來，測試才有東西可跑。
+
+本機跑同一組測試：`docker compose up -d db`，並讓 `DATABASE_URL` 指向它。**沒設 `DATABASE_URL` 時
+整組整合測試會跳過**（其餘測試照跑），所以只改編輯器的人不必先開資料庫。
 
 **要讓「PR 全綠」成為合併必要條件**，需在 GitHub 專案設定手動開啟（repo 設定，非程式碼可控）：
 

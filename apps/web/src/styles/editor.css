@@ -55,6 +55,27 @@
   border: 0;
 }
 
+/*
+ * 存檔狀態 —— 停在 header bar 那一列的右端。自動存檔是承諾不是功能，
+ * 所以它平時是沉默的，只在正在存或出事時才出聲（不變式 G：不畫東西，只說話）。
+ */
+.save-status {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-end: var(--space-5);
+  display: flex;
+  align-items: center;
+  block-size: 48px;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+}
+
+.save-status--loud {
+  color: var(--error-fg);
+}
+
 /* ─────────────────────────────────────────── 內容區 */
 
 .screenplay-page {

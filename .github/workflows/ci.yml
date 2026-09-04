@@ -10,8 +10,29 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+
+    # persistence 的並行、遷移與備份行為只有在真的 Postgres 上才成立（票券 05），
+    # 所以測試不用替身 —— CI 起一顆真的資料庫。
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: scenephonie
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     env:
       NEXT_TELEMETRY_DISABLED: "1"
+      # CI 的 Postgres 是直連，沒有 pooler —— 兩條指向同一顆。
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/scenephonie
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/scenephonie
     steps:
       - uses: actions/checkout@v7
 
@@ -30,6 +51,9 @@ jobs:
 
       - name: Type check
         run: pnpm typecheck
+
+      - name: Migrate（persistence 整合測試要真的表）
+        run: pnpm db:migrate
 
       - name: Test
         run: pnpm test

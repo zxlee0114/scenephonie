@@ -14,13 +14,24 @@ import { nanoid } from "nanoid";
 export const SCENE_ID_PREFIX = "sc_";
 
 /**
+ * 鑄造一個帶前綴的 id。
+ *
+ * 全專案的 id 是同一個形狀 —— 前綴 ＋ nanoid（`sc_`、`gr_`、`ch_`、`lo_`、`usr_`…），
+ * 所以鑄造規則只有一份實作。前綴由呼叫端提供：**前綴屬於那個概念，不屬於這個機制**，
+ * 這裡不維護一張會跟不上的前綴清單。
+ */
+export function mintId(prefix: string): string {
+  return `${prefix}${nanoid()}`;
+}
+
+/**
  * 鑄造一個新的 `sceneId`。
  *
  * 全域唯一由 nanoid 的碰撞機率保證（21 字元、URL-safe 字母表）。「全域」是實作結果
  * 不是要維護的規則 —— 一份劇本的場次身分只在那份劇本裡有意義（ADR-0002）。
  */
 export function mintSceneId(): string {
-  return `${SCENE_ID_PREFIX}${nanoid()}`;
+  return mintId(SCENE_ID_PREFIX);
 }
 
 /**

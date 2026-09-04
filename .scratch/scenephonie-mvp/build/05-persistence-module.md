@@ -4,12 +4,12 @@
 
 **Blocked by:** 04, 01
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] 重整頁面，劇本內容還在
-- [ ] 並行寫入：`doc_seq` 不符時第二個寫入被拒
-- [ ] 舊 `doc_schema_version` 的 doc 載入時在記憶體遷移；PDF／場次表／分享等讀取路徑不觸發 DB 寫入
-- [ ] `screenplay_backups` append-only、無 UI；距上次備份 ≥ 2h 的存檔會先寫一筆備份
-- [ ] 備份與 canonical update 同一交易；migration + doc + `doc_seq` 同一交易
-- [ ] persistence 之外的程式碼只看到「存／載」，看不到「備份」「doc_seq」概念
-- [ ] debounce 是「停頓」＋ 15 秒上限；寫入放大靠調 debounce 不改資料模型
+- [x] 重整頁面，劇本內容還在
+- [x] 並行寫入：`doc_seq` 不符時第二個寫入被拒
+- [x] 舊 `doc_schema_version` 的 doc 載入時在記憶體遷移；PDF／場次表／分享等讀取路徑不觸發 DB 寫入
+- [x] `screenplay_backups` append-only、無 UI；距上次備份 ≥ 2h 的存檔會先寫一筆備份
+- [x] 備份與 canonical update 同一交易；migration + doc + `doc_seq` 同一交易
+- [x] persistence 之外的程式碼只看到「存／載」，看不到「備份」「doc_seq」概念
+- [x] debounce 是「停頓」＋ 15 秒上限；寫入放大靠調 debounce 不改資料模型
