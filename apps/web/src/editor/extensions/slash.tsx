@@ -11,12 +11,14 @@
 import { Extension } from "@tiptap/core";
 import type { Editor, Range } from "@tiptap/core";
 import Suggestion from "@tiptap/suggestion";
-import { useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import type { BlockType } from "@scenephonie/schema";
 
 import { sceneContext } from "../address";
 import { BLOCK_META, setBlockTypeAt } from "../block-types";
+import { dismissOnOutsidePointer } from "../dismiss-on-outside-pointer";
+import { slashMenuPosition } from "../slash-menu-position";
 import { currentSceneId, requestNextScene } from "./next-scene";
 
 type SlashItem = {
@@ -89,9 +91,18 @@ const ITEMS: SlashItem[] = [
 
 // ── 選單狀態（external store，畫在編輯器外層）──────────────────────────
 
-type MenuState = { open: boolean; items: SlashItem[]; index: number; rect: DOMRect | null };
+/**
+ * `caret` 存的是 Suggestion 給的 `clientRect` **函式**而不是當下的 DOMRect：捲動或改變視窗大小
+ * 之後要重新問一次，選單才不會與游標脫節（票券 29）。
+ */
+type MenuState = {
+  open: boolean;
+  items: SlashItem[];
+  index: number;
+  caret: (() => DOMRect | null) | null;
+};
 
-let menu: MenuState = { open: false, items: [], index: 0, rect: null };
+let menu: MenuState = { open: false, items: [], index: 0, caret: null };
 let pick: ((item: SlashItem) => void) | null = null;
 const listeners = new Set<() => void>();
 
@@ -111,10 +122,74 @@ export function SlashMenu() {
     () => menu,
   );
 
-  if (!state.open || !state.rect || state.items.length === 0) return null;
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const { open, caret, items } = state;
+
+  // 量到選單的實際尺寸才知道下方／右邊塞不塞得下，所以定位在 layout effect 裡做：先渲染
+  // （這一幀用 visibility: hidden 藏著，避免閃一下），量完在上畫面之前把座標補上。
+  // `caret` 與 `items` 每次 onStart／onUpdate 都是新的，項目變動改變高度時會重新算；
+  // `open` 也要在 deps 裡 —— Escape 只把 open 關掉、caret 不變，少了它 cleanup 不會跑，
+  // 捲動監聽器會留在已卸載的節點上。
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !caret || !open) {
+      setPos(null);
+      return;
+    }
+    let last: { top: number; left: number } | null = null;
+    const place = () => {
+      const rect = caret();
+      // 選單還開著但 decoration 一時不在 DOM 裡（Tiptap 用 querySelector 找不到就回 null）：
+      // 藏起來，比留在舊座標上假裝還貼著游標好。
+      if (!rect) {
+        last = null;
+        setPos(null);
+        return;
+      }
+      const next = slashMenuPosition(rect, el.getBoundingClientRect(), {
+        // `documentElement.clientWidth/Height` 才是扣掉捲軸的可視區；`innerWidth` 會讓
+        // 靠右夾限的選單躲到捲軸底下，吃掉留的那 8px。
+        width: document.documentElement.clientWidth,
+        height: document.documentElement.clientHeight,
+      });
+      // 平滑捲動一幀一個事件，座標沒變就別重繪。
+      if (last && last.top === next.top && last.left === next.left) return;
+      last = next;
+      setPos(next);
+    };
+    place();
+    // capture 才收得到編輯器內層容器的捲動（打字時的 typewriter 捲動也走這裡）。
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, caret, items]);
+
+  // 點選單外面就收起來 —— 和 Escape 走同一個出口（只關 UI，suggestion 之後自己 exit）。
+  //
+  // 這裡**不能**在 effect 執行的當下讀 `ref.current` 再據以決定要不要註冊：`open` 先變 true，
+  // 而選單要等 suggestion 交出 `clientRect` 才畫得出來，那一幀 ref 還是 null；deps 只有 `open`
+  // 就不會再跑第二次，監聽器於是從來沒被掛上（使用者回報 2026-09-04：點編輯器外部關不掉）。
+  // 元素改成在事件當下才問。
+  useLayoutEffect(() => {
+    if (!open) return;
+    return dismissOnOutsidePointer(
+      () => ref.current,
+      () => patchMenu({ open: false }),
+    );
+  }, [open]);
+
+  if (!open || !caret || items.length === 0) return null;
 
   return (
-    <div className="slash-menu" style={{ top: state.rect.bottom + 6, left: state.rect.left }}>
+    <div
+      ref={ref}
+      className="slash-menu"
+      style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? undefined : "hidden" }}
+    >
       {state.items.map((item, i) => (
         <button
           key={item.key}
@@ -161,11 +236,11 @@ export const Slash = Extension.create({
               open: true,
               items: props.items,
               index: 0,
-              rect: props.clientRect?.() ?? null,
+              caret: props.clientRect ?? null,
             });
           },
           onUpdate: (props) => {
-            patchMenu({ items: props.items, index: 0, rect: props.clientRect?.() ?? null });
+            patchMenu({ items: props.items, index: 0, caret: props.clientRect ?? null });
           },
           onKeyDown: ({ event }) => {
             if (!menu.open) return false;
@@ -191,7 +266,7 @@ export const Slash = Extension.create({
           },
           onExit: () => {
             pick = null;
-            patchMenu({ open: false, items: [], rect: null });
+            patchMenu({ open: false, items: [], caret: null });
           },
         }),
       }),

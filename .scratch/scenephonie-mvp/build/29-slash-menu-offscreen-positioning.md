@@ -4,7 +4,7 @@
 
 **Blocked by:** 04（`extensions/slash.tsx` 在該票交付）
 
-**Status:** ready-for-agent
+**Status:** verified
 
 ## 根因（已定位，不必再查）
 
@@ -40,13 +40,34 @@
 
 ## 驗收
 
-- [ ] 捲到文件後段的場次按 `/`，選單出現在游標正下方且完整可見
-- [ ] 第一場（未捲動）的行為不回歸
-- [ ] 選單開著時捲動頁面，選單不會與游標脫節（或依實作選擇直接關閉，但要是刻意的決定）
-- [ ] 游標接近視窗底緣時選單翻到上方，不被裁切；接近右緣時不超出視窗
-- [ ] `slash-menu.test.ts` 既有案例不回歸
-- [ ] `pnpm lint` / `typecheck` / `test` / `build` 全綠
+- [x] 捲到文件後段的場次按 `/`，選單出現在游標正下方且完整可見
+- [x] 第一場（未捲動）的行為不回歸
+- [x] 選單開著時捲動頁面，選單不會與游標脫節（選跟隨，不是關閉 —— 捲動時重問一次 `clientRect()`）
+- [x] 游標接近視窗底緣時選單翻到上方，不被裁切；接近右緣時不超出視窗
+- [x] `slash-menu.test.ts` 既有案例不回歸
+- [x] `pnpm lint` / `typecheck` / `test` / `build` 全綠
+- [x] （驗收中追加）點選單以外的任何地方都關閉選單，不限編輯器內部
 
 ## Comments
 
 **開票（2026-09-04）** —— 票券 05 的本機驗收中由使用者回報：「比較後面的場次開的 slash 選單會看不到，會在視窗之外的上方出現」。根因當場定位（視窗座標餵給文件座標的絕對定位），寫在上面。獨立開票而非併入 27／28：27 是捲動位置、28 是軟換行、本票是彈出層定位，三者成因不同、改的檔案也不同。
+
+**交付（2026-09-04）** —— 採方案 A。`.slash-menu` 改 `position: fixed`，CSS 留了註解記下
+「祖先出現 `transform`／`filter`／`contain` 就會再壞一次」這條隱性耦合。「rect → 座標」抽成
+`editor/slash-menu-position.ts` 純函式（票券預期的做法），下方塞不下翻上、右緣塞不下往左收、
+兩側各留 8px；捲動與改變視窗大小時重問一次 `clientRect()`，所以選單跟著游標而不是被關掉。
+視窗尺寸讀 `documentElement.clientWidth/Height` 而非 `innerWidth/Height` —— 後者含捲軸寬，
+會讓靠右夾限的選單躲到捲軸底下。
+
+**驗收中追加：點外面就收起來（2026-09-04）** —— 使用者回報「只能點編輯器內部才收得起來」。
+成因是關閉只有一條路：Tiptap suggestion 的 exit，而那要編輯器收到 transaction 才會發生；
+點 header、點頁面留白都不進編輯器，選單就留在畫面上。新增 `editor/dismiss-on-outside-pointer.ts`
+（capture 階段的 `pointerdown`，和 `Escape` 走同一個出口）。
+
+第一版接線是壞的，值得記下來：effect 在**執行的當下**讀 `ref.current` 才決定要不要註冊監聽器，
+但 `open` 先變 `true`、選單要等 suggestion 交出 `clientRect` 才畫得出來 —— 那一幀 ref 還是 null，
+deps 只有 `[open]` 就不會再跑第二次，監聽器從來沒被掛上。helper 的單元測試全綠也照樣漏掉：
+它只證明 helper 會呼叫 close，證不到它有沒有被接上去。改成在事件當下才問元素，並補
+`slash-menu-dismiss.test.tsx`（真的元件配真的 suggestion plugin），該支在修之前是紅的。
+
+**本機驗收（2026-09-04）** —— 七條全過。
