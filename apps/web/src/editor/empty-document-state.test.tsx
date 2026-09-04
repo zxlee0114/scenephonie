@@ -146,6 +146,16 @@ describe("零場次的空狀態", () => {
     expect(emptyState(container)).toBeNull();
   });
 
+  it("載入零場次的稿時編輯器仍持有焦點（否則 ⌘+Enter 的提示是句謊話）", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness content={emptyDoc()} onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(emptyState(container)).not.toBeNull());
+
+    // ⌘+Enter 綁在編輯器上 —— 重整回來焦點就掉了的話，空狀態寫的快捷鍵按了不會有反應。
+    await waitFor(() => expect(editor.isFocused).toBe(true));
+    expect(document.activeElement).toBe(editor.view.dom);
+  });
+
   it("空狀態下 ⌘+Enter 一樣建得出場次", async () => {
     let editor!: Editor;
     const { container } = render(<Harness content={emptyDoc()} onEditor={(e) => (editor = e)} />);

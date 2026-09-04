@@ -128,11 +128,17 @@ export function useScreenplayEditor(
     onCreate({ editor }) {
       if (initialFocus === "documentEnd") {
         const last = lastScene(editor.state.doc);
-        // 零場次的稿子沒有「文件末端」可以站（票券 32）——contenteditable 是空的，把焦點放進去
-        // 只是讓游標消失在一片空白裡；出口是空狀態那顆按鈕。而且 tiptap 的 `focus` 命令是排進
-        // requestAnimationFrame 的：那一幀落在使用者按下按鈕之後時，它會把焦點從新場次的
-        // 內外景欄搶回編輯器（焦點串接就這樣斷了）。零場次時什麼都不做才是對的。
-        if (!last) return;
+        // 零場次的稿子沒有「文件末端」可以站（票券 32），但編輯器仍要拿到焦點 —— 空狀態寫著
+        // 「或使用快捷鍵 ⌘ + Enter 開始寫作」，而那個鍵綁在編輯器上，焦點不在就是句謊話。
+        //
+        // ⚠️ 這裡用同步的 `view.focus()`，不是 tiptap 的 `commands.focus()`：後者排進
+        // requestAnimationFrame，那一幀若落在使用者按下「＋ 新增場次」之後，就會把焦點從新場次的
+        // 內外景欄搶回內文，焦點串接（§7.1）當場斷掉 —— 機器越忙越容易中，CI 上必中。
+        // 同步做完就沒有這個縫。
+        if (!last) {
+          editor.view.focus();
+          return;
+        }
         const sceneId = last.attrs.sceneId as string;
         if (isUnstartedScene(last)) {
           requestFocus({ kind: "sceneMeta", sceneId });
