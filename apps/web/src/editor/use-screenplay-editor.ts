@@ -67,6 +67,20 @@ function isUnstartedScene(scene: PMNode): boolean {
   return only != null && only.type.name === "action" && only.content.size === 0;
 }
 
+/**
+ * 末端那個區塊若是「人名、台詞都空」的對白，它的區塊序；否則 `null`（使用者回饋 2026-09-04）。
+ *
+ * 同一條判準的下一格：空對白的「請你先填這裡」是人物欄，不是台詞內文 —— 對白區塊在
+ * `/next` 之後是按 Tab 轉出來的，人剛宣告「這裡要有人講話」，卻還沒說是誰。
+ * 填了人物就代表已經在寫台詞，不再搶。
+ */
+function unstartedDialogueIndex(scene: PMNode): number | null {
+  const index = scene.childCount - 1;
+  const last = index >= 0 ? scene.child(index) : null;
+  if (!last || last.type.name !== "dialogue") return null;
+  return last.attrs.character == null && last.content.size === 0 ? index : null;
+}
+
 export function useScreenplayEditor(
   initialContent?: object,
   initialFocus: InitialFocus = "sceneMeta",
@@ -104,9 +118,17 @@ export function useScreenplayEditor(
         // 同一個 sceneId 掛上來就被 claim，chip 會把焦點從文件末端搶走。
         claimFocus(() => true);
         const last = lastScene(editor.state.doc);
-        if (last && isUnstartedScene(last)) {
-          requestFocus({ kind: "sceneMeta", sceneId: last.attrs.sceneId as string });
-          return;
+        if (last) {
+          const sceneId = last.attrs.sceneId as string;
+          if (isUnstartedScene(last)) {
+            requestFocus({ kind: "sceneMeta", sceneId });
+            return;
+          }
+          const blockIndex = unstartedDialogueIndex(last);
+          if (blockIndex != null) {
+            requestFocus({ kind: "speaker", sceneId, blockIndex });
+            return;
+          }
         }
         editor.commands.focus("end");
         return;

@@ -154,7 +154,7 @@ describe("載入時最後一場還沒填 metadata（票券 31）", () => {
     await waitFor(() => expect(editor.state.selection.$from.parent.textContent).toBe(LAST_LINE));
   });
 
-  it("末場只有一個空的對白區塊：不搶回 chip（人已經把游標帶進內文按過 Tab）", async () => {
+  it("末端是人名台詞都空的對白：焦點落在人物欄（不是台詞內文，也不搶回 chip）", async () => {
     let editor!: Editor;
     const tabbed = kernelSchema
       .node("doc", null, [
@@ -168,8 +168,28 @@ describe("載入時最後一場還沒填 metadata（票券 31）", () => {
       <Harness initialFocus="documentEnd" content={tabbed} onEditor={(e) => (editor = e)} />,
     );
     await waitFor(() => expect(editor).toBeDefined());
-    await waitFor(() => expect(editor.state.selection.$from.parent.type.name).toBe("dialogue"));
+    const speaker = () => container.querySelector<HTMLInputElement>(".block__speaker");
+    await waitFor(() => expect(speaker()).not.toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(speaker()));
     expect(document.activeElement).not.toBe(lastSceneFirstField(container));
+  });
+
+  it("對白已填人物：焦點仍落在文件末端的台詞內文", async () => {
+    let editor!: Editor;
+    const named = kernelSchema
+      .node("doc", null, [
+        scene("第一場"),
+        kernelSchema.node("scene", { sceneId: mintSceneId(), intExt: "內景" }, [
+          kernelSchema.node("dialogue", { character: { id: null, displayName: "小明" } }, []),
+        ]),
+      ])
+      .toJSON() as object;
+    const { container } = render(
+      <Harness initialFocus="documentEnd" content={named} onEditor={(e) => (editor = e)} />,
+    );
+    await waitFor(() => expect(editor).toBeDefined());
+    await waitFor(() => expect(editor.state.selection.$from.parent.type.name).toBe("dialogue"));
+    expect(document.activeElement).not.toBe(container.querySelector(".block__speaker"));
   });
 
   it("`/next` 建完場次後，重整前後的焦點落點一致（都在新場次的 chip row）", async () => {
