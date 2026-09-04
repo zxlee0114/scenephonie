@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import type { SaveScreenplay, SaveToken } from "@/persistence";
 import { createSaveScheduler } from "@/persistence/save-scheduler";
 
+import { toPlainJson } from "./plain-json";
+
 /**
  * 自動存檔 —— 編輯器這一端。
  *
@@ -43,7 +45,9 @@ export function useAutosave({
         try {
           const result = await save({
             screenplayId,
-            doc: editor.getJSON() as Record<string, unknown>,
+            // toPlainJson 不是防禦性複製，是必要的 —— ProseMirror 的 attrs 是 null-prototype
+            // 物件，直接交給 Server Action 會被靜默丟掉（見 ./plain-json.ts）。
+            doc: toPlainJson(editor.getJSON()) as Record<string, unknown>,
             token,
           });
           if (result.status === "conflict") {
