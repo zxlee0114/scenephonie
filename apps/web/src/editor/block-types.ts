@@ -32,7 +32,8 @@ export function isBlankBlock(node: PMNode): boolean {
 
 /**
  * 把某個區塊換成指定型別（意圖 ＝ kernel 的 `setBlockType`），並安置游標／焦點：
- * 一律把游標放回同一個區塊（否則連按會找不到區塊）；轉成對白時另外把焦點排給人物欄。
+ * 一律把游標放回同一個區塊的**文字末端**（否則連按會找不到區塊；末端是因為換型別之後接著
+ * 做的事是續寫，不是回頭改開頭 —— 使用者回饋 2026-09-04）；轉成對白時另外把焦點排給人物欄。
  *
  * `focusSpeaker: false` 用在「這個區塊已經寫了字」的轉型：把焦點搶進人物欄（一個 DOM
  * `<input>`）會讓正在打字的人突然打進欄位裡，而且那顆欄位的 Tab 被 `stopPropagation` 擋著，
@@ -46,6 +47,7 @@ export function setBlockTypeAt(
 ): boolean {
   return runKernelCommand(editor, (doc) => setBlockType(doc, { ...at, type }), {
     caretAt: at,
+    caretPlace: "end",
     ...(type === "dialogue" && focusSpeaker
       ? { focusField: { kind: "speaker" as const, ...at } }
       : {}),

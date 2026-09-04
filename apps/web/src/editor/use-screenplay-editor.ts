@@ -25,6 +25,7 @@ import { SceneNumbers } from "./extensions/scene-numbers";
 import { SelectScope } from "./extensions/select-scope";
 import { Slash } from "./extensions/slash";
 import { SoftBreak } from "./extensions/soft-break";
+import { VerticalNav } from "./extensions/vertical-nav";
 import { Doc } from "./schema";
 import { baseStarterKit } from "./starter-kit";
 
@@ -56,6 +57,7 @@ export function useScreenplayEditor(initialContent?: object) {
       NextScene,
       Slash,
       SoftBreak,
+      VerticalNav,
     ],
     content: initialContent ?? emptyScreenplay(),
     // 進入編輯器時，手不必先去點 chip row —— 焦點落在第一場的「內外景」欄（§7.1）。

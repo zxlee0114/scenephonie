@@ -133,6 +133,72 @@ describe("人物欄按 Enter 直接進台詞", () => {
   });
 });
 
+/**
+ * 上下方向鍵的垂直動線（使用者回饋 2026-09-04）——人物欄是 DOM `<input>`，不在 ProseMirror
+ * 的位置空間裡，兩個方向都得自己接：文件側在 `extensions/vertical-nav`，欄位側在 node view。
+ */
+describe("人物欄與台詞之間的上下導航", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("人物欄按 ↓：回到自己的台詞，游標在文字末端", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(container.querySelector(".block__speaker")).not.toBeNull());
+
+    const speaker = container.querySelector<HTMLInputElement>(".block__speaker")!;
+    speaker.focus();
+    fireEvent.keyDown(speaker, { key: "ArrowDown" });
+
+    await waitFor(() => {
+      const { $from, empty } = editor.state.selection;
+      expect(empty).toBe(true);
+      expect($from.parent.type.name).toBe("dialogue");
+      expect($from.parentOffset).toBe("還有位子嗎？".length);
+    });
+  });
+
+  it("人物欄按 ↑：到上一個區塊（動作）的文字末端", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(container.querySelector(".block__speaker")).not.toBeNull());
+
+    const speaker = container.querySelector<HTMLInputElement>(".block__speaker")!;
+    speaker.focus();
+    fireEvent.keyDown(speaker, { key: "ArrowUp" });
+
+    await waitFor(() => {
+      const { $from, empty } = editor.state.selection;
+      expect(empty).toBe(true);
+      expect($from.parent.type.name).toBe("action");
+      expect($from.parentOffset).toBe("門開了".length);
+    });
+  });
+
+  it("台詞第一行按 ↑：焦點回到人物欄（補填人名）", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(container.querySelector(".block__speaker")).not.toBeNull());
+
+    // 游標放進台詞開頭。
+    const scene = editor.state.doc.child(0);
+    const bodyStart = 1 + scene.child(0).nodeSize + 1;
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.near(editor.state.doc.resolve(bodyStart))),
+    );
+
+    // 真的派一顆 keydown（走瀏覽器同一條路徑）——`commands.keyboardShortcut` 會包
+    // captureTransaction，與這裡「不改 doc、只搬焦點」的行為對不上。
+    editor.view.dom.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true }),
+    );
+
+    const speaker = container.querySelector<HTMLInputElement>(".block__speaker")!;
+    await waitFor(() => expect(document.activeElement).toBe(speaker));
+  });
+});
+
 describe("空的對白在人物欄按 Enter：取消區塊，變回描述", () => {
   afterEach(() => {
     document.body.innerHTML = "";

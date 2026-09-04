@@ -91,10 +91,18 @@
 
 .scene {
   position: relative;
+  /* 上下內距 —— 「新增下一場」的浮現底色與整場選取的反白原本上下切齊文字、左邊卻含著
+   * 64px 的 gutter，看起來像被削掉一半。給它上下呼吸空間：比 gutter 小一階（視覺上平衡，
+   * 不喧賓奪主），但明顯不貼著場次主體（使用者回饋 2026-09-04）。
+   * ⚠️ 場次號 decoration 是絕對定位，參考的是**padding box**，不會被這個內距推下去 ——
+   * 它的 padding-block-start 要自己把這一段補回來，兩邊共用 --scene-pad-block。 */
+  --scene-pad-block: var(--space-4);
   /* 左側 gutter 給 decoration 住；場次本體不佔那條。 */
   padding-inline-start: var(--space-gutter);
-  /* 場次之間的邊界：間距，不是線也不是框。 */
-  margin-block: var(--space-6);
+  padding-block: var(--scene-pad-block);
+  /* 場次之間的邊界：間距，不是線也不是框。內距吃掉一部分節奏，margin 相應收斂
+   * （相鄰 margin 會摺疊，場次間的實際留白 ＝ margin ＋ 兩側內距）。 */
+  margin-block: var(--space-3);
   border: 0; /* 明示：不變式 G —— 場次不畫邊框 */
 }
 
@@ -102,7 +110,8 @@
  * ReactNodeViewRenderer 會替每個 node view 包一層 host <div>，`.scene` 永遠是那層的唯一子元素，
  * 兩個偽類對每一場都成立（使用者回饋 2026-09-03：按鈕始終呈現）。 */
 .scene--first {
-  margin-block-start: var(--space-2);
+  /* 第一場的上緣留白由頁面內距（.screenplay-page）＋場次上內距給，不再額外加 margin。 */
+  margin-block-start: 0;
 }
 
 /* 整場被選取（⌘+A 的第三段：NodeSelection）時的整塊反白。
@@ -154,7 +163,7 @@
   /* 對齊 chip row 第一個控制項的文字：越過 .scene__chips 的上內距（--space-1）＋控制項
    * 邊框（1px）＋控制項上內距（2px）。號碼與控制項同為 1rem，不再補行盒高度差。
    * 純視覺對齊，靠瀏覽器目視微調（使用者回饋 2026-09-03）。 */
-  padding-block-start: calc(var(--space-1) + 3px);
+  padding-block-start: calc(var(--scene-pad-block, 0px) + var(--space-1) + 3px);
   text-align: end;
   /* typography role：介面字、低對比（第三支撐）。字級與 metadata 齊平（1rem），靠位置＋
    * 不可選＋低對比把它跟 canonical content 分開，不再靠縮小字級。 */

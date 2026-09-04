@@ -23,6 +23,8 @@ import { markSceneBorn } from "./scene-birth";
 export interface RunOptions {
   /** replace 後把游標放回這個場次 ／ 區塊的內文（doc 座標由本模組在新 doc 上算）。 */
   readonly caretAt?: BlockAddress;
+  /** 游標放在該區塊內文的開頭還是**末端**（換型別時是續寫，末端才對）。預設開頭。 */
+  readonly caretPlace?: BlockCaretPlace;
   /** replace 後排入一個欄位 focus 請求（node view 掛載時 claim）。 */
   readonly focusField?: PendingFocus;
   /** true ＝ 把 focus 請求指向「新出現的那個場次」的 chip row（用 id 差集找出新場次）。 */
@@ -38,15 +40,22 @@ export function topLevelSceneIds(doc: PMNode): string[] {
   return ids;
 }
 
-/** 場次內第 `blockIndex` 個區塊的內文起點（doc 座標）；找不到回 `null`。 */
-export function blockContentPos(doc: PMNode, sceneId: string, blockIndex: number): number | null {
+export type BlockCaretPlace = "start" | "end";
+
+/** 場次內第 `blockIndex` 個區塊的內文起點／末端（doc 座標）；找不到回 `null`。 */
+export function blockContentPos(
+  doc: PMNode,
+  sceneId: string,
+  blockIndex: number,
+  place: BlockCaretPlace = "start",
+): number | null {
   let found: number | null = null;
   doc.forEach((scene, scenePos) => {
     if (found != null || scene.type.name !== "scene" || scene.attrs.sceneId !== sceneId) return;
     if (blockIndex < 0 || blockIndex >= scene.childCount) return;
     let pos = scenePos + 1; // 進入場次內容
     for (let i = 0; i < blockIndex; i++) pos += scene.child(i).nodeSize;
-    found = pos + 1; // 進入區塊內容
+    found = pos + 1 + (place === "end" ? scene.child(blockIndex).content.size : 0);
   });
   return found;
 }
@@ -70,7 +79,12 @@ export function runKernelCommand(
   const tr = state.tr.replaceWith(0, state.doc.content.size, nextDoc.content);
 
   if (options.caretAt) {
-    const pos = blockContentPos(tr.doc, options.caretAt.sceneId, options.caretAt.blockIndex);
+    const pos = blockContentPos(
+      tr.doc,
+      options.caretAt.sceneId,
+      options.caretAt.blockIndex,
+      options.caretPlace,
+    );
     if (pos != null) tr.setSelection(TextSelection.near(tr.doc.resolve(pos)));
   }
 

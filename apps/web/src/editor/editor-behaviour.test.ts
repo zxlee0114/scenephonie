@@ -170,6 +170,17 @@ describe("Tab 環（只換型別、不動容器、不生成東西）", () => {
     expect(blockTypeAt(0, 0)).toBe("insertShot"); // 環沒卡死
   });
 
+  // 使用者回饋 2026-09-04：換型別之後接著做的事是續寫，游標該在文字末端而不是開頭。
+  it("有內容的區塊轉型：游標停在文字末端", () => {
+    caretInBlock(0, 0); // 「第一場的動作」——6 個字
+    cycleBlock(editor, 1);
+
+    const { $from, empty } = editor.state.selection;
+    expect(empty).toBe(true);
+    expect($from.parent.type.name).toBe("dialogue");
+    expect($from.parentOffset).toBe(6);
+  });
+
   it("空區塊轉成對白：照樣把焦點排給人物欄（該打人名了）", () => {
     claimFocus(() => true);
     caretInBlock(0, 0);

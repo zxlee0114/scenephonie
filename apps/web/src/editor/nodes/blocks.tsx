@@ -12,6 +12,7 @@
 "use client";
 
 import type { NodeViewRenderer } from "@tiptap/core";
+import { TextSelection } from "@tiptap/pm/state";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useRef } from "react";
 
@@ -21,7 +22,7 @@ import { sceneContext, type BlockAddress } from "../address";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { Action, Dialogue, InsertShot } from "../schema";
 import { CjkField } from "../cjk-field";
-import { claimFocus } from "../focus";
+import { claimFocus, subscribeFocusRequest } from "../focus";
 
 /** 從 node view 反推它所在場次的 id 與自己在場次裡的序（給 pending-focus 比對用）。 */
 function locateBlock(props: NodeViewProps): BlockAddress | null {
@@ -73,25 +74,52 @@ function DialogueView(props: NodeViewProps) {
     | (Omit<DialogueCharacterRef, "id"> & { id: string | null })
     | null;
 
-  // 一次性：Tab 把區塊轉成對白後，新掛載的這個 node view 消費掉待決焦點請求 —— 心流串接是
-  // 建立當下的動作，不是持續行為，所以只在掛載時試領（無 deps 會每次 render 都重跑）。
+  // Tab 把區塊轉成對白後，這個 node view 消費掉待決焦點請求。掛載時試領一次（轉型當下這個
+  // view 才剛生出來），並**訂閱**後續請求 —— 台詞裡按 ↑ 回人物欄時 view 早就掛好了，只靠掛載
+  // 那一次領不到（使用者回饋 2026-09-04）。請求一律在 doc 改完之後才發（見 continue-block），
+  // 所以訂閱者比對到的區塊序不會是舊的。
   useEffect(() => {
-    const here = locateBlock(props);
-    if (
-      here &&
-      claimFocus(
-        (p) => p.kind === "speaker" && p.sceneId === here.sceneId && p.blockIndex === here.blockIndex,
-      )
-    ) {
-      inputRef.current?.focus();
-    }
-    // deps 空陣列：props 之後的變動不該再搶焦點（見上）。
+    const claim = () => {
+      const here = locateBlock(props);
+      if (
+        here &&
+        claimFocus(
+          (p) =>
+            p.kind === "speaker" && p.sceneId === here.sceneId && p.blockIndex === here.blockIndex,
+        )
+      ) {
+        inputRef.current?.focus();
+      }
+    };
+    claim();
+    return subscribeFocusRequest(claim);
+    // deps 空陣列：`props.getPos`／`props.editor` 由 node view 持有、身分穩定，claim 每次呼叫
+    // 都重新定位，不吃過期的座標。
   }, []);
 
-  /** 把游標從人物欄送進台詞開頭（getPos → 對白節點之前；+1 進內容）。正向 Tab 與 Enter 共用。 */
-  const enterDialogueBody = () => {
+  /**
+   * 把游標從人物欄送進台詞（getPos → 對白節點之前；+1 進內容）。
+   * `"end"` ＝ 文字末端：從人物欄按 ↓ 回台詞是「回去接著寫」，不是回頭改開頭。
+   */
+  const enterDialogueBody = (place: "start" | "end" = "start") => {
     const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
-    if (pos != null) editor.chain().focus().setTextSelection(pos + 1).run();
+    if (pos == null) return;
+    const at = pos + 1 + (place === "end" ? node.content.size : 0);
+    editor.chain().focus().setTextSelection(at).run();
+  };
+
+  /**
+   * 人物欄按 ↑：跳到**上一個**可放游標的區塊的文字末端（使用者回饋 2026-09-04）。
+   * 用 `TextSelection.near(…, -1)` 往回找，所以同場次的前一個區塊、或前一場的最後一個區塊
+   * 都自然涵蓋。前面什麼都沒有（全劇第一個區塊）時回 `false`，把這顆鍵還給瀏覽器。
+   */
+  const focusPreviousBlockEnd = (): boolean => {
+    const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
+    if (pos == null) return false;
+    const before = TextSelection.near(editor.state.doc.resolve(pos), -1);
+    if (before.from >= pos) return false; // 往回找不到，near 折回自己身上
+    editor.chain().focus().setTextSelection(before.from).run();
+    return true;
   };
 
   return (
@@ -121,6 +149,21 @@ function DialogueView(props: NodeViewProps) {
               return;
             }
             enterDialogueBody();
+            return;
+          }
+          // 上下方向鍵把人物欄接進文件的垂直動線（使用者回饋 2026-09-04）：
+          //   ↓ 回自己的台詞末端；↑ 到上一個區塊的文字末端。
+          // 兩顆都要 stopPropagation —— 事件從 input 冒泡到 .ProseMirror 會被 keymap 當成
+          // 文件內的游標移動再處理一次。
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            e.stopPropagation();
+            enterDialogueBody("end");
+            return;
+          }
+          if (e.key === "ArrowUp") {
+            e.stopPropagation();
+            if (focusPreviousBlockEnd()) e.preventDefault();
             return;
           }
           // 欄位裡的 Tab（兩個方向都要）不能冒泡到 BlockCycle 把這個區塊轉掉（§7.1）。

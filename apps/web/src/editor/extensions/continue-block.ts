@@ -59,17 +59,7 @@ export const ContinueBlock = Extension.create({
           );
         }
 
-        // 對白：新那段要重新指定說話者 —— 先排一個「人物欄」focus 請求，指向即將生出的
-        // 下一個區塊（blockIndex + 1）。requestFocus 早於新 DialogueView 掛載，掛載時 claim。
-        if (parent.type.name === "dialogue" && ctx) {
-          requestFocus({
-            kind: "speaker",
-            sceneId: ctx.sceneId,
-            blockIndex: ctx.blockIndex + 1,
-          });
-        }
-
-        return this.editor.commands.command(({ tr, dispatch }) => {
+        const split = this.editor.commands.command(({ tr, dispatch }) => {
           if (dispatch) {
             tr.deleteSelection();
             // 同型別、attr 走 schema 預設（對白 → character 清空）。
@@ -78,6 +68,19 @@ export const ContinueBlock = Extension.create({
           }
           return true;
         });
+
+        // 對白：新那段要重新指定說話者 —— 焦點請求指向剛切出來的那個區塊（blockIndex + 1）。
+        // ⚠️ 一定要在 split **之後**才發：DialogueView 現在會訂閱後續請求，若先發，位在
+        // blockIndex + 1 的**舊**對白會搶先認領，焦點就落到別人的人物欄去了。
+        if (split && parent.type.name === "dialogue" && ctx) {
+          requestFocus({
+            kind: "speaker",
+            sceneId: ctx.sceneId,
+            blockIndex: ctx.blockIndex + 1,
+          });
+        }
+
+        return split;
       },
     };
   },
