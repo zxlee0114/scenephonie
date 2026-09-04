@@ -13,6 +13,7 @@ export {
   loadOrCreateSoleScreenplay,
   saveScreenplay,
 } from "./screenplay-store";
-export type { LoadedScreenplay, SaveResult } from "./screenplay-store";
+export type { LoadedScreenplay, SaveRequest, SaveResult } from "./screenplay-store";
+export type { SaveScreenplay } from "./save-screenplay";
 export type { SaveToken } from "./save-token";
 export type { PersistedDoc } from "./doc-schema-version";

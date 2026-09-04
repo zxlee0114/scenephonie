@@ -28,6 +28,13 @@ export type LoadedScreenplay = {
   token: SaveToken;
 };
 
+/** 一次存檔請求。三個欄位永遠一起旅行 —— 它們是同一個東西。 */
+export type SaveRequest = {
+  screenplayId: string;
+  doc: PersistedDoc;
+  token: SaveToken;
+};
+
 export type SaveResult =
   | { status: "saved"; token: SaveToken }
   /** 這份劇本在別處被改過了（另一個分頁、另一台裝置、伺服器端 command）。本次寫入未生效。 */
@@ -84,11 +91,7 @@ export async function saveScreenplay({
   screenplayId,
   doc,
   token,
-}: {
-  screenplayId: string;
-  doc: PersistedDoc;
-  token: SaveToken;
-}): Promise<SaveResult> {
+}: SaveRequest): Promise<SaveResult> {
   const expectedDocSeq = decodeSaveToken(token);
   if (expectedDocSeq === null) return { status: "conflict" };
 

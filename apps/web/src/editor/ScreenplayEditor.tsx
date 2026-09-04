@@ -5,7 +5,7 @@
 
 import { EditorContent } from "@tiptap/react";
 
-import type { SaveToken } from "@/persistence";
+import type { SaveScreenplay, SaveToken } from "@/persistence";
 
 import "../styles/editor.css";
 import { SlashMenu } from "./extensions/slash";
@@ -30,13 +30,15 @@ export function ScreenplayEditor({
   initialContent,
   screenplayId,
   initialToken,
+  save,
 }: {
   initialContent?: object;
   screenplayId?: string;
   initialToken?: SaveToken;
+  save?: SaveScreenplay;
 }) {
   const editor = useScreenplayEditor(initialContent);
-  const status = useAutosave({ editor, screenplayId, initialToken });
+  const status = useAutosave({ editor, screenplayId, initialToken, save });
 
   return (
     <div className="screenplay-page">

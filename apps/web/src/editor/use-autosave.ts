@@ -3,8 +3,7 @@
 import type { Editor } from "@tiptap/core";
 import { useEffect, useRef, useState } from "react";
 
-import { saveScreenplayAction } from "@/app/editor/actions";
-import type { SaveToken } from "@/persistence";
+import type { SaveScreenplay, SaveToken } from "@/persistence";
 import { createSaveScheduler } from "@/persistence/save-scheduler";
 
 /**
@@ -12,6 +11,8 @@ import { createSaveScheduler } from "@/persistence/save-scheduler";
  *
  * 這個 hook 對儲存的認識就是它該有的全部：把 doc 交出去，拿回一個下次要帶上的 token。
  * 備份、並行控制、schema 遷移都在 persistence 模組後面（§6.7）。
+ *
+ * 存檔函式是**注入**的，不是這裡 import 的 —— 編輯器不認識路由層（§6.3 edge boundary）。
  */
 export type SaveStatus = "idle" | "saving" | "saved" | "conflict" | "error";
 
@@ -19,10 +20,12 @@ export function useAutosave({
   editor,
   screenplayId,
   initialToken,
+  save,
 }: {
   editor: Editor | null;
   screenplayId: string | undefined;
   initialToken: SaveToken | undefined;
+  save: SaveScreenplay | undefined;
 }): SaveStatus {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const tokenRef = useRef<SaveToken | undefined>(initialToken);
@@ -30,7 +33,7 @@ export function useAutosave({
   const stoppedRef = useRef(false);
 
   useEffect(() => {
-    if (!editor || !screenplayId || !tokenRef.current) return;
+    if (!editor || !screenplayId || !save || !tokenRef.current) return;
 
     const scheduler = createSaveScheduler({
       save: async () => {
@@ -38,7 +41,7 @@ export function useAutosave({
         if (!token || stoppedRef.current) return;
         setStatus("saving");
         try {
-          const result = await saveScreenplayAction({
+          const result = await save({
             screenplayId,
             doc: editor.getJSON() as Record<string, unknown>,
             token,
@@ -50,9 +53,10 @@ export function useAutosave({
           }
           tokenRef.current = result.token;
           setStatus("saved");
-        } catch {
-          // 網路斷了之類 —— doc 還是 dirty，下一次變更會再排一次。
+        } catch (error) {
+          // 網路斷了之類。往上拋 —— 排程器要知道這份變更沒落地，才會維持待存並再排一次。
           setStatus("error");
+          throw error;
         }
       },
     });
@@ -61,21 +65,27 @@ export function useAutosave({
       if (stoppedRef.current) return;
       scheduler.changed();
     };
-    // 分頁被藏起來／要關掉時把待存的變更趕出去。best-effort：這是縮短暴露窗口，
+    // 分頁被藏起來／要關掉時把待存的變更趕出去。best-effort：這是縮短那 2.5 秒的暴露窗口，
     // 不是保證 —— 保證由「停頓 ＋ 上限」那條節奏提供。
-    const onHide = (): void => {
-      if (document.visibilityState === "hidden") void scheduler.flush();
+    const flushPending = (): void => void scheduler.flush();
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === "hidden") flushPending();
     };
 
     editor.on("update", onUpdate);
-    document.addEventListener("visibilitychange", onHide);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    // pagehide 補的是 visibilitychange 沒涵蓋的離開方式（bfcache、部分行動瀏覽器）。
+    window.addEventListener("pagehide", flushPending);
 
     return () => {
       editor.off("update", onUpdate);
-      document.removeEventListener("visibilitychange", onHide);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", flushPending);
+      // 這裡只丟計時器不 flush —— 卸載時 editor 可能已經被 Tiptap 拆掉，`getJSON()` 沒有東西可讀。
+      // 真正要保住稿的是上面兩個離開事件。
       scheduler.cancel();
     };
-  }, [editor, screenplayId]);
+  }, [editor, screenplayId, save]);
 
   return status;
 }

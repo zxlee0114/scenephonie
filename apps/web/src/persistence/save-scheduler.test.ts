@@ -88,6 +88,37 @@ describe("自動存檔的節奏", () => {
     expect(save).toHaveBeenCalledTimes(2);
   });
 
+  it("存不進去時維持待存並自己再排一次 —— 使用者停手不打字，那份稿也不會消失", async () => {
+    const save = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("網路斷了"))
+      .mockResolvedValue(undefined);
+    const scheduler = createSaveScheduler({ save });
+
+    scheduler.changed();
+    await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS);
+    expect(save).toHaveBeenCalledTimes(1);
+
+    // 之後一個字都沒再打。
+    await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS);
+    expect(save).toHaveBeenCalledTimes(2);
+
+    // 這次成功了，就不該再重試下去。
+    await vi.advanceTimersByTimeAsync(SAVE_MAX_WAIT_MS * 2);
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it("存檔失敗不會讓 flush 炸到呼叫端 —— 排程繼續轉", async () => {
+    const save = vi.fn(async () => {
+      throw new Error("伺服器 500");
+    });
+    const scheduler = createSaveScheduler({ save });
+
+    scheduler.changed();
+    await expect(scheduler.flush()).resolves.toBeUndefined();
+    scheduler.cancel();
+  });
+
   it("cancel 之後不再存", async () => {
     const save = vi.fn(async () => {});
     const scheduler = createSaveScheduler({ save });

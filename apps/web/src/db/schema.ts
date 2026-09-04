@@ -39,7 +39,13 @@ export const screenplays = pgTable("screenplays", {
  * append-only before-image —— 被某次存檔覆蓋掉的那一份 doc（§6.7 自動備份）。
  *
  * **它是 recovery 機制，不是版本歷史功能**：無查閱 UI、v1 全部保留、要救稿時從 `psql` 手動撈。
- * 沒有 `updated_at`、沒有刪除路徑；只有 `INSERT` 與人工 `SELECT`。
+ * 沒有 `updated_at`，程式碼只 `INSERT` 與人工 `SELECT`。
+ *
+ * append-only 在 v1 是**程式碼層的規則，不是資料庫權限層的保證** —— 誠實話：FK 的
+ * `onDelete: "cascade"` 就是一條刪除路徑。它只在整列劇本被刪掉時觸發（v1 的產品面沒有刪劇本
+ * 這件事，整合測試靠它清場），而一份劇本不在了，它的 before-image 也沒有消費者。真要把
+ * append-only 變成保證，該做的是撤掉執行期角色的 `UPDATE`／`DELETE` 權限 —— 那要等票券 06
+ * 有了真正的角色分離才有地方掛。
  *
  * `doc_schema_version` 是規格 §6.2 那張表沒列、但備份非有不可的欄位：before-image 存的是
  * **當時儲存的那一份 doc**，它的 schema 版本可能低於現行版本；沒有這一欄，撈回來的 doc

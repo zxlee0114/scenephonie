@@ -2,6 +2,8 @@ import { ScreenplayEditor } from "@/editor/ScreenplayEditor";
 import { emptyScreenplay } from "@/editor/empty-screenplay";
 import { loadOrCreateSoleScreenplay } from "@/persistence";
 
+import { saveScreenplayAction } from "./actions";
+
 // route handler／server component 必須連得到 Postgres —— 不可 edge-only（§13.1）。
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +29,7 @@ export default async function EditorPage() {
         initialContent={screenplay.doc}
         screenplayId={screenplay.screenplayId}
         initialToken={screenplay.token}
+        save={saveScreenplayAction}
       />
     </main>
   );

@@ -8,6 +8,9 @@
  * 用「停頓」而非「節流」：打字停 `pauseMs` 才存，另加一個 `maxWaitMs` 的強制上限，
  * 免得一直打字就一直不存。這個模組不知道 doc 是什麼、也不碰網路 —— 它只決定「何時該存」，
  * 存什麼由 `save` callback 自己去讀當下的狀態。
+ *
+ * `save` 失敗（reject）＝那份變更還沒落地，於是它維持待存並自己排下一次；`flush()` 本身
+ * 不會因此 reject —— 呼叫端要的是「排程繼續轉」，不是一個要接的例外。
  */
 
 /** 打字停多久算一次停頓。 */
@@ -46,24 +49,37 @@ export function createSaveScheduler({
     maxTimer = undefined;
   }
 
+  /** 起算停頓；強制上限已經在跑的話不重設，否則一直打字就一直沒有上限。 */
+  function arm(): void {
+    if (pauseTimer !== undefined) clearTimeout(pauseTimer);
+    pauseTimer = setTimeout(() => void flush(), pauseMs);
+    if (maxTimer === undefined) maxTimer = setTimeout(() => void flush(), maxWaitMs);
+  }
+
   async function flush(): Promise<void> {
     clearTimers();
     // 前一次存檔還在路上 —— 排在它後面，永遠不讓兩次存檔同時飛（後發的 token 會是舊的）。
     if (inFlight) await inFlight;
     if (!dirty) return;
     dirty = false;
-    inFlight = save().finally(() => {
-      inFlight = undefined;
-    });
+    inFlight = save()
+      .catch(() => {
+        // 存不進去（斷網、伺服器 500）—— 這份變更**還沒落地**，所以它仍然是 dirty，
+        // 而且要自己排下一次。少了這一段，使用者存檔失敗後只要停手不打字，
+        // 那份修改就永遠不會再被寫出去，而畫面還說「會再試一次」。
+        dirty = true;
+        arm();
+      })
+      .finally(() => {
+        inFlight = undefined;
+      });
     await inFlight;
   }
 
   return {
     changed(): void {
       dirty = true;
-      if (pauseTimer !== undefined) clearTimeout(pauseTimer);
-      pauseTimer = setTimeout(() => void flush(), pauseMs);
-      if (maxTimer === undefined) maxTimer = setTimeout(() => void flush(), maxWaitMs);
+      arm();
     },
     flush,
     cancel(): void {
