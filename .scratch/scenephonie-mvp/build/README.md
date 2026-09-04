@@ -59,3 +59,6 @@ blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開
 | [23](./23-schema-attr-romanization.md) | schema attr 鍵名羅馬化（中文 → 英文小駝峰，詞彙表不動）。blocked by 03，排在 03 合併之後。 |
 | [24](./24-next-env-dts-gitignore.md) | `next-env.d.ts` 移出版控（Next 16 dev／build 兩形態互換造成的假 diff）。無 blocker。 |
 | [25](./25-github-actions-node24.md) | CI actions 升到 Node 24 runtime（checkout v7／setup-node v7／pnpm action-setup v6）。無 blocker。 |
+| [26](./26-restore-caret-to-document-end.md) | 重整後焦點落在文件末端（載入既有劇本時；新建仍落在第一場內外景欄）。blocked by 05。 |
+| [27](./27-keep-active-scene-centered.md) | 新增場次時把該場次留在畫面中央（typewriter scrolling）。blocked by 04，與 26 對齊。 |
+| [28](./28-soft-break-caret-at-block-end.md) | bug：`Shift+Enter` 後游標回到第一行（區塊結尾的 `\n` 不產生可見空行）。blocked by 04。 |
