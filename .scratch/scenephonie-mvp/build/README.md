@@ -58,3 +58,4 @@ blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開
 | [22](./22-nextjs-16-upgrade.md) | Next.js 15 → 16 升級。無 blocker，建議排在票券 04 之前。 |
 | [23](./23-schema-attr-romanization.md) | schema attr 鍵名羅馬化（中文 → 英文小駝峰，詞彙表不動）。blocked by 03，排在 03 合併之後。 |
 | [24](./24-next-env-dts-gitignore.md) | `next-env.d.ts` 移出版控（Next 16 dev／build 兩形態互換造成的假 diff）。無 blocker。 |
+| [25](./25-github-actions-node24.md) | CI actions 升到 Node 24 runtime（checkout v7／setup-node v7／pnpm action-setup v6）。無 blocker。 |
