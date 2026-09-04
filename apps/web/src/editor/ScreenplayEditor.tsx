@@ -27,6 +27,7 @@ const STATUS_TEXT: Record<SaveStatus, string> = {
   saved: "已儲存",
   error: "存檔失敗，會再試一次",
   conflict: "這份劇本在別的地方被改過了，請重新整理再繼續",
+  forbidden: "沒有權限存這份劇本，請重新登入",
 };
 
 /**
@@ -161,7 +162,7 @@ export function ScreenplayEditor({
   return (
     <div className="screenplay-page">
       <p
-        className={`save-status${status === "conflict" || status === "error" ? " save-status--loud" : ""}`}
+        className={`save-status${status === "idle" || status === "saving" || status === "saved" ? "" : " save-status--loud"}`}
         role="status"
         aria-live="polite"
       >

@@ -16,7 +16,7 @@ import { toPlainJson } from "./plain-json";
  *
  * 存檔函式是**注入**的，不是這裡 import 的 —— 編輯器不認識路由層（§6.3 edge boundary）。
  */
-export type SaveStatus = "idle" | "saving" | "saved" | "conflict" | "error";
+export type SaveStatus = "idle" | "saving" | "saved" | "conflict" | "forbidden" | "error";
 
 export function useAutosave({
   editor,
@@ -50,9 +50,11 @@ export function useAutosave({
             doc: toPlainJson(editor.getJSON()) as Record<string, unknown>,
             token,
           });
-          if (result.status === "conflict") {
+          // conflict 與 forbidden 都是「再存下去只會更糟」——前者會拿舊稿蓋掉新稿，
+          // 後者根本不該有人在這裡寫。兩者都停手，但要分開說：使用者的處置不同。
+          if (result.status !== "saved") {
             stoppedRef.current = true;
-            setStatus("conflict");
+            setStatus(result.status);
             return;
           }
           tokenRef.current = result.token;

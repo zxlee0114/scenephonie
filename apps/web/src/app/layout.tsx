@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import "../styles/tokens.css";
+import "../styles/app.css";
 import preload from "../../public/fonts/noto-sans-tc/preload.json";
 
 export const metadata: Metadata = {

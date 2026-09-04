@@ -1,11 +1,16 @@
-export default function HomePage() {
-  return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: "3rem", lineHeight: 1.6 }}>
-      <h1>Scenephonie</h1>
-      <p>骨架就緒。編輯器、場次 schema 與交付流程由後續票券長出。</p>
-      <p>
-        健康檢查：<a href="/api/health">/api/health</a>
-      </p>
-    </main>
-  );
+import { redirect } from "next/navigation";
+
+import { currentUserId } from "@/authorization";
+
+// route handler／server component 必須連得到 Postgres —— 不可 edge-only（§13.1）。
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/**
+ * 站台入口。登入了就去自己的專案，沒登入就去登入頁。
+ *
+ * v1 沒有行銷首頁 —— 使用者只有清單上那幾個人，他們要的是稿子不是介紹。
+ */
+export default async function HomePage() {
+  redirect((await currentUserId()) ? "/projects" : "/login");
 }

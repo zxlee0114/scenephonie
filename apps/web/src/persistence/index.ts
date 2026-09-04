@@ -7,13 +7,8 @@
  * 模組外看得到的名詞只有：載入、存檔、一個不透明的 token。**沒有備份、沒有 `doc_seq`、
  * 沒有 schema 遷移** —— 那些是這個模組怎麼守住承諾的內部手段（§6.7）。
  */
-export {
-  createScreenplay,
-  loadScreenplay,
-  loadOrCreateSoleScreenplay,
-  saveScreenplay,
-} from "./screenplay-store";
+export { createScreenplay, loadScreenplay, saveScreenplay } from "./screenplay-store";
 export type { LoadedScreenplay, SaveRequest, SaveResult } from "./screenplay-store";
-export type { SaveScreenplay } from "./save-screenplay";
+export type { SaveScreenplay, SaveScreenplayRequest, SaveOutcome } from "./save-screenplay";
 export type { SaveToken } from "./save-token";
 export type { PersistedDoc } from "./doc-schema-version";

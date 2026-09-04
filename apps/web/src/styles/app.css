@@ -1,0 +1,136 @@
+/*
+ * 編輯器以外的頁面 —— 登入頁與專案 hub（§7.10 / §7.11）。
+ *
+ * 導覽是純 routes ＋ 專案首頁 hub，所以這裡要的東西很少：兩個版面、一顆按鈕、一份清單。
+ * 只用 var(--*)（tokens.css），這個檔案不得出現任何 hex。
+ */
+
+/* ─────────────────────────────────────────── 登入 */
+
+.sign-in {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-block-size: 100dvh;
+  padding: var(--space-5);
+  background: var(--surface-page);
+  font-family: var(--font-ui);
+  text-align: center;
+}
+
+.sign-in__wordmark {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sign-in__lede {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.sign-in__google {
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--control-border);
+  border-radius: var(--space-1);
+  background: var(--surface-page);
+  color: var(--control-fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sign-in__google:hover:not(:disabled) {
+  background: var(--surface-raised);
+}
+
+.sign-in__google:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.sign-in__error {
+  margin: 0;
+  color: var(--error-fg);
+  background: var(--error-bg);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--space-1);
+}
+
+/* ─────────────────────────────────────────── 專案 hub */
+
+.project-hub {
+  min-block-size: 100dvh;
+  background: var(--surface-page);
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+}
+
+.project-hub__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  block-size: var(--bar-height);
+  padding-inline: var(--space-5);
+  border-block-end: 1px solid var(--rule);
+  font-size: var(--text-sm);
+}
+
+.project-hub__wordmark {
+  font-weight: 600;
+}
+
+.project-hub__sign-out {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.project-hub__sign-out:hover {
+  color: var(--text-primary);
+}
+
+.project-hub__title {
+  margin: var(--space-6) var(--space-5) var(--space-5);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.project-hub__section {
+  margin: 0 var(--space-5) var(--space-6);
+}
+
+.project-hub__heading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.project-hub__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-hub__list a {
+  display: block;
+  padding: var(--space-3) 0;
+  border-block-end: 1px solid var(--rule);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.project-hub__list a:hover {
+  color: var(--color-accent);
+}
+
+.project-hub__empty {
+  margin: 0;
+  color: var(--text-faint);
+}
