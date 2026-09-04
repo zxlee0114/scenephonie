@@ -57,14 +57,15 @@ afterEach(() => {
 });
 
 describe("零場次的空狀態", () => {
-  it("載入一份零場次的稿：出現一句話與可點的「＋ 新增下一場」，不是空白畫面", async () => {
+  it("載入一份零場次的稿：出現一句話與可點的「＋ 新增場次」，不是空白畫面", async () => {
     const { container } = render(<Harness content={emptyDoc()} />);
 
     await waitFor(() => expect(emptyState(container)).not.toBeNull());
-    expect(emptyState(container)!.textContent).toContain("還沒有場次");
-    expect(emptyStateButton(container)!.textContent).toContain("新增下一場");
+    expect(emptyState(container)!.textContent).toContain("這份劇本現在是張白紙。");
+    // 「新增場次」不是腳部那顆的「新增下一場」—— 沒有任何一場在，就沒有「下一場」。
+    expect(emptyStateButton(container)!.textContent).toContain("＋ 新增場次");
     // ⌘+Enter 是鍵盤使用者唯一看得見的線索 —— 空狀態在時它一直在。
-    expect(emptyState(container)!.textContent).toContain("⌘+Enter");
+    expect(emptyState(container)!.textContent).toContain("⌘ + Enter");
   });
 
   it("有場次時不出現（不佔版面）", async () => {

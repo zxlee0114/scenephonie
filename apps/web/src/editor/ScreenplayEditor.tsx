@@ -62,20 +62,25 @@ export function EmptyScreenplayState({ editor }: { editor: Editor | null }) {
       {/* 刪掉最後一場時這句話是憑空出現的 —— 比照 .save-status 出個聲，
           否則螢幕閱讀器的使用者只會遇到一片安靜。 */}
       <p className="empty-screenplay__line" role="status" aria-live="polite">
-        這份劇本還沒有場次。
+        這份劇本現在是張白紙。
       </p>
-      <button
-        type="button"
-        className="empty-screenplay__action"
-        // 焦點該留給新場次的內外景欄（§7.1 焦點串接），別先被按鈕搶走；點擊本身走 onClick，
-        // 鍵盤（Enter／Space）那條才進得來 —— 這顆是空狀態下唯一可操作的東西。
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => requestNextScene(editor, null)}
-      >
-        ＋ 新增下一場
-      </button>
-      {/* ⌘+Enter 的提示常駐：空狀態時它是鍵盤使用者唯一看得見的線索。 */}
-      <p className="empty-screenplay__hint">或按 ⌘+Enter</p>
+      {/* 出口寫成一句話，按鈕就長在句子裡。⌘+Enter 的提示常駐 —— 空狀態時它是鍵盤
+          使用者唯一看得見的線索。
+          按鈕寫「新增場次」不是腳部那顆的「新增下一場」：沒有任何一場在，就沒有「下一場」。 */}
+      <p className="empty-screenplay__how">
+        點擊{" "}
+        <button
+          type="button"
+          className="empty-screenplay__action"
+          // 焦點該留給新場次的內外景欄（§7.1 焦點串接），別先被按鈕搶走；點擊本身走 onClick，
+          // 鍵盤（Enter／Space）那條才進得來 —— 這顆是空狀態下唯一可操作的東西。
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => requestNextScene(editor, null)}
+        >
+          ＋ 新增場次
+        </button>{" "}
+        或使用快捷鍵 ⌘ + Enter 開始寫作
+      </p>
     </div>
   );
 }
