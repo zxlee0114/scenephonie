@@ -79,7 +79,7 @@ export function EmptyScreenplayState({ editor }: { editor: Editor | null }) {
         >
           ＋ 新增場次
         </button>{" "}
-        或使用快捷鍵 ⌘ + Enter 開始寫作
+        或使用快捷鍵 <span className="empty-screenplay__key">⌘ + Enter</span> 開始寫作
       </p>
     </div>
   );

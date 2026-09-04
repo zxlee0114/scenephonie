@@ -494,6 +494,12 @@
   line-height: 2.2;
 }
 
+/* 快捷鍵跟按鈕文字同色 —— 兩者是同一件事的兩條路，句子裡該讀起來一樣重
+ * （周圍的敘述文字仍是 --text-faint）。 */
+.empty-screenplay__key {
+  color: var(--control-fg);
+}
+
 /* 有外框的按鈕 —— 與腳部那顆「＋ 新增下一場」刻意不同：那顆住在場次之間，靠 hover 浮現就夠；
  * 這顆是零場次時唯一能按的東西，形狀要先講清楚它是可按的。 */
 .empty-screenplay__action {
