@@ -8,7 +8,7 @@
 
 **Blocked by:** 無（與 tracer-bullet 依賴圖無關；票券 22 已合併，可隨時開工）
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## 影響檔案
 
@@ -17,11 +17,11 @@
 
 ## 驗收
 
-- [ ] `git ls-files apps/web/next-env.d.ts` 無輸出（已不追蹤）
-- [ ] `apps/web/next-env.d.ts` 檔案仍存在於磁碟
-- [ ] 乾淨 checkout 後跑一次 `pnpm --filter web build`（或 `dev`）會重新生成該檔，且 `git status` 不顯示它
-- [ ] `pnpm typecheck` 綠燈（確認 `tsconfig` include 已涵蓋，型別檢查不因此漏 Next 的 ambient 宣告）
-- [ ] `pnpm lint` / `pnpm test` / `pnpm build` 全綠
+- [x] `git ls-files apps/web/next-env.d.ts` 無輸出（已不追蹤）
+- [x] `apps/web/next-env.d.ts` 檔案仍存在於磁碟
+- [x] 乾淨 checkout 後跑一次 `pnpm --filter web build`（或 `dev`）會重新生成該檔，且 `git status` 不顯示它
+- [x] `pnpm typecheck` 綠燈（確認 `tsconfig` include 已涵蓋，型別檢查不因此漏 Next 的 ambient 宣告）
+- [x] `pnpm lint` / `pnpm test` / `pnpm build` 全綠
 
 ## Comments
 
