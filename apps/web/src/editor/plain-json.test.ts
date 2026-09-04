@@ -9,6 +9,7 @@
 import { mintSceneId, schema } from "@scenephonie/schema";
 import { describe, expect, it } from "vitest";
 
+import { emptyScreenplay } from "./empty-screenplay";
 import { toPlainJson } from "./plain-json";
 
 function docJson() {
@@ -52,5 +53,21 @@ describe("toPlainJson", () => {
     const attrs = scene.attrs as Record<string, unknown>;
     expect(attrs.sceneId).toMatch(/^sc_/);
     expect(attrs.time).toBe("夜");
+  });
+});
+
+describe("emptyScreenplay", () => {
+  // 這份 doc 生來就要跨 RSC 邊界（伺服器建立 → client component 的 initialContent）。
+  // 少了正規化，第一次進 /editor 就會拋
+  // 「Only plain objects … can be passed to Client Components」——重整後才好，因為那次
+  // 是從 jsonb 撈回來的、已經被 JSON.parse 洗過。
+  it("回傳的是純 JSON，跨得過 server → client 邊界", () => {
+    expect(nullPrototypePaths(emptyScreenplay())).toEqual([]);
+  });
+
+  it("仍然是一份有 sceneId 的合法單場次 doc", () => {
+    const doc = emptyScreenplay();
+    const scene = (doc.content as Record<string, unknown>[])[0]!;
+    expect((scene.attrs as Record<string, unknown>).sceneId).toMatch(/^sc_/);
   });
 });
