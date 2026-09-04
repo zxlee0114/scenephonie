@@ -7,12 +7,19 @@
  *
  * 用 `pointerdown` 不用 `click`：滑鼠、觸控、筆都涵蓋，而且在 `mousedown` 之前就決定好，
  * 不會和選單項目自己的 `onMouseDown` 搶。capture 階段收，免得中途有人 `stopPropagation`。
+ *
+ * 收的是 `getEl` 而不是元素本身 —— 註冊的時候彈出層往往還沒掛上（slash 選單要等 suggestion
+ * 把 `clientRect` 交出來才畫得出來），先綁元素就等於永遠綁不到。元素在**事件當下**才問。
  */
-export function dismissOnOutsidePointer(el: HTMLElement, close: () => void): () => void {
+export function dismissOnOutsidePointer(
+  getEl: () => HTMLElement | null,
+  close: () => void,
+): () => void {
   const onPointerDown = (event: Event) => {
+    const el = getEl();
     const target = event.target;
     // 點在選單自己身上的那一下是「要選它」，關掉會讓接下來的 click 落空。
-    if (target instanceof Node && el.contains(target)) return;
+    if (el && target instanceof Node && el.contains(target)) return;
     close();
   };
   document.addEventListener("pointerdown", onPointerDown, true);

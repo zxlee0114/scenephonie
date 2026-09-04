@@ -169,10 +169,17 @@ export function SlashMenu() {
   }, [open, caret, items]);
 
   // 點選單外面就收起來 —— 和 Escape 走同一個出口（只關 UI，suggestion 之後自己 exit）。
+  //
+  // 這裡**不能**在 effect 執行的當下讀 `ref.current` 再據以決定要不要註冊：`open` 先變 true，
+  // 而選單要等 suggestion 交出 `clientRect` 才畫得出來，那一幀 ref 還是 null；deps 只有 `open`
+  // 就不會再跑第二次，監聽器於是從來沒被掛上（使用者回報 2026-09-04：點編輯器外部關不掉）。
+  // 元素改成在事件當下才問。
   useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || !open) return;
-    return dismissOnOutsidePointer(el, () => patchMenu({ open: false }));
+    if (!open) return;
+    return dismissOnOutsidePointer(
+      () => ref.current,
+      () => patchMenu({ open: false }),
+    );
   }, [open]);
 
   if (!open || !caret || items.length === 0) return null;

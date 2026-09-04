@@ -23,7 +23,7 @@ function setup() {
   `;
   const menu = document.getElementById("menu") as HTMLElement;
   const close = vi.fn();
-  stop = dismissOnOutsidePointer(menu, close);
+  stop = dismissOnOutsidePointer(() => menu, close);
   return { close };
 }
 
@@ -46,6 +46,21 @@ describe("dismissOnOutsidePointer", () => {
   it("外面的深層子節點也算外面", () => {
     const { close } = setup();
     pointerDown("deep");
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("元素在事件當下才問 —— 註冊時還沒掛上也照樣收得到", () => {
+    document.body.innerHTML = `<div id="outside">別的東西</div>`;
+    const close = vi.fn();
+    let menu: HTMLElement | null = null; // 註冊的當下彈出層還沒畫出來
+    stop = dismissOnOutsidePointer(() => menu, close);
+
+    menu = document.createElement("div"); // 之後才掛上
+    document.body.append(menu);
+    menu.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(close).not.toHaveBeenCalled();
+
+    pointerDown("outside");
     expect(close).toHaveBeenCalledTimes(1);
   });
 
