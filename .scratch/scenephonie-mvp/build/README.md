@@ -63,3 +63,6 @@ blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開
 | [27](./27-keep-active-scene-centered.md) | 新增場次時把該場次留在畫面中央（typewriter scrolling）。blocked by 04，與 26 對齊。 |
 | [28](./28-soft-break-caret-at-block-end.md) | bug：`Shift+Enter` 後游標回到第一行（區塊結尾的 `\n` 不產生可見空行）。blocked by 04。 |
 | [29](./29-slash-menu-offscreen-positioning.md) | bug：slash 選單捲動後跑到視窗外（視窗座標餵給 `position: absolute`）。blocked by 04。 |
+| [30](./30-slash-next-leaves-empty-block.md) | bug：`/next` 在原場次留下一個空區塊。blocked by 04。 |
+| [31](./31-load-focus-unfilled-last-scene.md) | 載入時末場還沒填 metadata，焦點落在該場 chip row。blocked by 26。 |
+| [32](./32-empty-document-state.md) | 零場次時的空狀態（全選刪除後不是死路；不自動補場次）。blocked by 04。 |
