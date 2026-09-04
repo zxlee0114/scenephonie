@@ -91,3 +91,28 @@ kernel 完全沒動。迴歸測試 `empty-document-state.test.tsx`（7 條）。
 再調**，屬視覺調整、不影響上述行為。
 
 **驗收通過（2026-09-04）** —— 使用者本機逐條走過，兩輪回饋均已修掉。
+
+**驗收後追加（2026-09-04）** —— 合併前 CI 紅了一次，查出來是兩個真的 bug，不是測試不穩。
+
+1. **焦點串接會被自己排的 `focus("end")` 打斷。** 載入零場次的稿時 `initialFocus: "documentEnd"`
+   走到最後一行 `editor.commands.focus("end")`，而 tiptap 的 focus 命令是排進
+   `requestAnimationFrame` 的 —— 那一幀若落在使用者按下「＋ 新增場次」之後，就把焦點從新場次的
+   內外景欄搶回內文。機器越忙越容易中，CI 上必中、本機多半贏，所以在本機看不見。分野不是「該不該
+   給焦點」而是「用哪一種 focus」：同步的 `view.focus()` 在 `onCreate` 當下就做完，沒有那個縫。
+   測試補上「焦點留得住」的斷言 —— 原本只等焦點到位就過，守不住之後被搶走。
+
+2. **零場次時打字會憑空長出一場。** 編輯器 schema 的 `sceneId` 為了滿足 Tiptap「每個 attr 都要有
+   default」補了 `default: null`，於是 `scene` 在 view 這一側是**可生成的**：空 doc 上一有輸入，
+   ProseMirror 就自己 `createAndFill` 出 `scene > action` 把字放進去 —— 繞過 command bridge
+   （§6.3），chip 全空、沒有浮現動畫、沒有焦點串接，而且注音在組字中途被結構修復打斷，未確認的
+   字就落地了。資料沒壞（`extensions/scene-ids.ts` 會立刻補鑄真的 sceneId），壞的是行為。
+
+   IME 擋不掉：`compositionstart` 與 composition 的 `beforeinput` 依規範都不可取消，只要焦點在
+   contenteditable 上就沒辦法。**決定：零場次時把 contenteditable 關掉**（`syncEditable`）——
+   也比較誠實，那個狀態確實沒有任何可以寫字的位置。使用者選的是「打字沒反應，必須先建場」，而不是
+   「打字就建一場並寫進去」（後者與『新場次的落點是內外景欄』這條既有約定衝突，且注音第一次仍會斷）。
+
+   代價：`keydown` 在 prosemirror-view 裡是 edit-only handler，tiptap 的 `Tabindex` 擴充在不可
+   編輯時又會拿掉 `tabindex` —— 編輯器的鍵盤路徑整條斷掉。所以零場次的鍵盤合約改由空狀態自己接：
+   焦點落在「＋ 新增場次」（Enter／空白即建場），⌘+Enter 建場，⌘+Z／⌘+⇧+Z 還原。這不是把 keymap
+   複製一份 —— 零場次時**只有**這兩件事做得到，這就是那個狀態的全部合約。還原成功後焦點交還編輯器。

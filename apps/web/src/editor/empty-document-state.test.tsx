@@ -146,14 +146,27 @@ describe("零場次的空狀態", () => {
     expect(emptyState(container)).toBeNull();
   });
 
-  it("載入零場次的稿時編輯器仍持有焦點（否則 ⌘+Enter 的提示是句謊話）", async () => {
+  it("零場次時編輯器不可編輯：打字進不去，也長不出繞過 command bridge 的場次", async () => {
     let editor!: Editor;
     const { container } = render(<Harness content={emptyDoc()} onEditor={(e) => (editor = e)} />);
     await waitFor(() => expect(emptyState(container)).not.toBeNull());
 
-    // ⌘+Enter 綁在編輯器上 —— 重整回來焦點就掉了的話，空狀態寫的快捷鍵按了不會有反應。
-    await waitFor(() => expect(editor.isFocused).toBe(true));
-    expect(document.activeElement).toBe(editor.view.dom);
+    // 編輯器 schema 的 `sceneId` 有 `default: null`（Tiptap 要求），於是 `scene` 在 view 這側
+    // 是可生成的：空 doc 上一有輸入，ProseMirror 就自己 createAndFill 出一場把字放進去 ——
+    // chip 全空、沒有動畫、注音組字被打斷（使用者回饋 2026-09-04）。contenteditable 關掉就沒這回事。
+    await waitFor(() => expect(editor.isEditable).toBe(false));
+    expect(editor.view.dom.getAttribute("contenteditable")).toBe("false");
+
+    // 建出一場之後要自己開回來 —— 不然使用者按了按鈕卻打不了字。
+    fireEvent.click(emptyStateButton(container)!);
+    await waitFor(() => expect(editor.isEditable).toBe(true));
+  });
+
+  it("空狀態出現時焦點落在那顆按鈕（否則鍵盤使用者連 ⌘+Z 都按不到）", async () => {
+    const { container } = render(<Harness content={emptyDoc()} />);
+
+    await waitFor(() => expect(emptyStateButton(container)).not.toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(emptyStateButton(container)));
   });
 
   it("空狀態下 ⌘+Enter 一樣建得出場次", async () => {
@@ -161,9 +174,29 @@ describe("零場次的空狀態", () => {
     const { container } = render(<Harness content={emptyDoc()} onEditor={(e) => (editor = e)} />);
     await waitFor(() => expect(emptyStateButton(container)).not.toBeNull());
 
-    // 走 tiptap 的快捷鍵派送（`Mod` 在哪個平台換成哪顆鍵由它決定，測試不必自己猜）。
-    expect(editor.commands.keyboardShortcut("Mod-Enter")).toBe(true);
+    // 零場次時 contenteditable 是關的，編輯器的鍵盤路徑不通 —— 這顆鍵由空狀態自己接
+    // （見 ScreenplayEditor 的 EmptyScreenplayPanel），所以事件打在空狀態上。
+    fireEvent.keyDown(emptyState(container)!, { key: "Enter", metaKey: true });
+
     await waitFor(() => expect(editor.state.doc.childCount).toBe(1));
+    expect(emptyState(container)).toBeNull();
+  });
+
+  it("空狀態下 ⌘+Z 就把整份稿救回來（刪光是可以反悔的）", async () => {
+    let editor!: Editor;
+    const { container } = render(
+      <Harness content={docWithOneScene()} onEditor={(e) => (editor = e)} />,
+    );
+    await waitFor(() => expect(container.querySelector(".scene")).not.toBeNull());
+
+    editor.commands.selectAll();
+    editor.commands.deleteSelection();
+    await waitFor(() => expect(emptyState(container)).not.toBeNull());
+
+    fireEvent.keyDown(emptyState(container)!, { key: "z", metaKey: true });
+
+    await waitFor(() => expect(editor.state.doc.childCount).toBe(1));
+    expect(editor.state.doc.textContent).toBe("內文");
     expect(emptyState(container)).toBeNull();
   });
 });

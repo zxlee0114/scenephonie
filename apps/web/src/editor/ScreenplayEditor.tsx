@@ -5,7 +5,7 @@
 
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import type { SaveScreenplay, SaveToken } from "@/persistence";
 
@@ -56,9 +56,49 @@ export function EmptyScreenplayState({ editor }: { editor: Editor | null }) {
 
   // editor 還沒建好（`immediatelyRender: false`）時什麼都不說 —— 那不是「零場次」。
   if (!editor || editor.state.doc.childCount > 0) return null;
+  // 內層元件只在零場次時存在 —— 「空狀態剛出現」就是它掛載的那一刻，焦點的接手時機
+  // 因此不必自己記上一次是空還是不空。
+  return <EmptyScreenplayPanel editor={editor} />;
+}
+
+/**
+ * 零場次時的鍵盤合約。
+ *
+ * 這個狀態下 contenteditable 是關的（見 `use-screenplay-editor` 的 `syncEditable`），編輯器
+ * 的鍵盤路徑整條不通 —— 所以焦點落在這顆按鈕上，能做的兩件事由這裡自己接：
+ *   - Enter／空白：按鈕原生的 click，建一場（焦點串接照舊把游標交給新場次的內外景欄）；
+ *   - ⌘+Enter：同一件事，因為畫面上這樣寫著；
+ *   - ⌘+Z／⌘+⇧+Z：把整份稿救回來 —— 刪光是可以反悔的，這是票券 32 的核心承諾。
+ *
+ * 不是把 keymap 複製一份：零場次時**只有**這兩件事做得到，這就是那個狀態的全部合約。
+ */
+function EmptyScreenplayPanel({ editor }: { editor: Editor }) {
+  const action = useRef<HTMLButtonElement>(null);
+
+  // 空狀態出現的那一刻，原本承載焦點的內容（或整個 contenteditable）已經不在了。
+  // 焦點不接手就會掉到 body，鍵盤使用者連 ⌘+Z 都按不到。
+  useEffect(() => {
+    action.current?.focus();
+  }, []);
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!(event.metaKey || event.ctrlKey)) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      requestNextScene(editor, null);
+      return;
+    }
+    if (event.key.toLowerCase() !== "z") return;
+    event.preventDefault();
+    if (event.shiftKey) editor.commands.redo();
+    else editor.commands.undo();
+    // 救回來了就把焦點還給編輯器 —— 這顆按鈕連同空狀態會在這次 render 之後消失。
+    // （還原不出東西時 doc 仍是空的，contenteditable 還關著，focus 也無處可去。）
+    if (editor.state.doc.childCount > 0) editor.view.focus();
+  };
 
   return (
-    <div className="empty-screenplay">
+    <div className="empty-screenplay" onKeyDown={onKeyDown}>
       {/* 刪掉最後一場時這句話是憑空出現的 —— 比照 .save-status 出個聲，
           否則螢幕閱讀器的使用者只會遇到一片安靜。 */}
       <p className="empty-screenplay__line" role="status" aria-live="polite">
@@ -70,10 +110,10 @@ export function EmptyScreenplayState({ editor }: { editor: Editor | null }) {
       <p className="empty-screenplay__how">
         點擊{" "}
         <button
+          ref={action}
           type="button"
           className="empty-screenplay__action"
-          // 焦點該留給新場次的內外景欄（§7.1 焦點串接），別先被按鈕搶走；點擊本身走 onClick，
-          // 鍵盤（Enter／Space）那條才進得來 —— 這顆是空狀態下唯一可操作的東西。
+          // 焦點該留給新場次的內外景欄（§7.1 焦點串接），別在點擊當下先被按鈕搶走。
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => requestNextScene(editor, null)}
         >
