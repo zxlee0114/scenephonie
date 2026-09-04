@@ -11,6 +11,8 @@ dist/
 # Next.js
 .next/
 .vercel/
+# Next 自動生成、檔頭明寫「should not be edited」；dev／build 兩形態會互相覆寫（票券 24）
+next-env.d.ts
 
 # test / build artifacts
 coverage/
