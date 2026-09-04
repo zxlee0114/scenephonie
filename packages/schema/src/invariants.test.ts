@@ -157,7 +157,10 @@ describe("不變式 F：documents.kind 固定其合法層級", () => {
 });
 
 describe("不變式 G：編輯器不為模擬輸出格式引入非必要的版面約束或視覺結構", () => {
-  it.todo("前端，可否證清單（§7.9、ADR-0010）—— 票券 04（最小編輯器）");
+  // 落點在 apps/web（isomorphic 套件不能 import 編輯器）：`apps/web/src/invariant-g.test.tsx`
+  // ——可否證清單（§7.9、ADR-0010）：無 A4／分頁線／邊框、場次號 decoration 不進 content flow
+  // 且不可 select、行長走 ic、行高無單位、楷體／明體不進、原始碼無 hex。票券 04。
+  it.todo("前端可否證清單 —— 見 apps/web/src/invariant-g.test.tsx（票券 04）");
 });
 
 describe("不變式 H：Authentication identity 不直接授予 domain authority", () => {

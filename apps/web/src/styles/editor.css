@@ -1,0 +1,446 @@
+/*
+ * 編輯器版面 —— 規格 §7.9（不變式 G）/ §7.10 / §7.11。
+ *
+ * 不變式 G（可否證）：不畫 A4 紙感／分頁線／邊框／標楷體／12 級字。結構邊界靠**位置與間距**
+ * 建立，不靠描繪。場次是有起點的內容容器但**不畫邊框**。decoration 與 canonical content 的
+ * 區分主要靠①空間位置（gutter、不進 content flow）②interaction boundary（不可編輯、不可 select）
+ * ③typography role；低對比只是輔助。
+ *
+ * 只用 var(--*)（tokens.css）。這個檔案不得出現任何 hex。
+ */
+
+/* ─────────────────────────────────────────── 頁面殼 */
+
+.editor-shell {
+  min-block-size: 100dvh;
+  background: var(--surface-page);
+}
+
+.editor-shell__bar {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  block-size: 48px;
+  padding-inline: var(--space-5);
+  border-block-end: 1px solid var(--rule);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.editor-shell__home {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.editor-shell__crumb {
+  color: var(--text-secondary);
+}
+
+.editor-shell__crumb::before {
+  content: "/";
+  margin-inline-end: var(--space-3);
+  color: var(--text-faint);
+}
+
+.sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ─────────────────────────────────────────── 內容區 */
+
+.screenplay-page {
+  /* 內容像稿子。無 A4 寬度、無紙感、無邊框 —— 只有一條由全形字數決定的閱讀行長。 */
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) 40vh;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 400;
+  /* 無單位行高：字型換手時中文字寬不跳、行高不跳（research §5）。 */
+  line-height: var(--leading-base);
+  /* 先 em、再 ic —— 靠級聯自然降級，不需要 @supports（§7.10）。 */
+  max-inline-size: 40em;
+  max-inline-size: calc(var(--measure-body-ic) * 1ic + var(--space-gutter));
+}
+
+.screenplay-page :is(.ProseMirror):focus {
+  outline: none;
+}
+
+.screenplay-page .ProseMirror {
+  /* 區塊內軟換行（`extensions/soft-break` 的 `\n` text）要真的顯示成換行 —— 沒有這條，
+   * `<p>` 會把 `\n` 收合成一個空白。ProseMirror 官方 base style 也就是這一條。 */
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.screenplay-page ::selection {
+  background: var(--selection-bg);
+}
+
+/* ─────────────────────────────────────────── 場次 */
+
+.scene {
+  position: relative;
+  /* 上下內距 —— 「新增下一場」的浮現底色與整場選取的反白原本上下切齊文字、左邊卻含著
+   * 64px 的 gutter，看起來像被削掉一半。給它上下呼吸空間：比 gutter 小一階（視覺上平衡，
+   * 不喧賓奪主），但明顯不貼著場次主體（使用者回饋 2026-09-04）。
+   * ⚠️ 場次號 decoration 是絕對定位，參考的是**padding box**，不會被這個內距推下去 ——
+   * 它的 padding-block-start 要自己把這一段補回來，兩邊共用 --scene-pad-block。 */
+  --scene-pad-block: var(--space-4);
+  /* 左側 gutter 給 decoration 住；場次本體不佔那條。 */
+  padding-inline-start: var(--space-gutter);
+  padding-block: var(--scene-pad-block);
+  /* 場次之間的邊界：間距，不是線也不是框。內距吃掉一部分節奏，margin 相應收斂
+   * （相鄰 margin 會摺疊，場次間的實際留白 ＝ margin ＋ 兩側內距）。 */
+  margin-block: var(--space-3);
+  border: 0; /* 明示：不變式 G —— 場次不畫邊框 */
+}
+
+/* 首尾旗標由 decoration 給（extensions/scene-numbers）。不能用 :first-child／:last-child ——
+ * ReactNodeViewRenderer 會替每個 node view 包一層 host <div>，`.scene` 永遠是那層的唯一子元素，
+ * 兩個偽類對每一場都成立（使用者回饋 2026-09-03：按鈕始終呈現）。 */
+.scene--first {
+  /* 第一場的上緣留白由頁面內距（.screenplay-page）＋場次上內距給，不再額外加 margin。 */
+  margin-block-start: 0;
+}
+
+/* 整場被選取（⌘+A 的第三段：NodeSelection）時的整塊反白。
+ * 不靠瀏覽器原生選取畫 —— 場次 DOM 混了 contentEditable=false 的 chip row 與腳部按鈕，
+ * 原生高亮跨過那些區域畫不出來（原型 scene-schema.tsx 註解）。 */
+.scene.is-node-selected {
+  background: var(--selection-bg);
+  border-radius: var(--space-1);
+}
+
+/* 新增下一場：新場次柔和地浮現淺底色再淡出 —— §7.10「明確 append」的即時回饋。
+ * 動作回饋（與 .is-node-selected 用同一個 --selection-bg），不是常駐邊框，不牴觸不變式 G。
+ * 使用者回饋 2026-09-03：拿掉外框線、只留底色，時長縮短。 */
+@keyframes scene-just-added {
+  from {
+    background: var(--selection-bg);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.scene--just-added {
+  border-radius: var(--space-1);
+  animation: scene-just-added 900ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene--just-added {
+    animation: none;
+  }
+}
+
+/* ── 場次號 decoration —— gutter、不進 content flow、不可 select ── */
+
+.scene__number {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 0;
+  inline-size: var(--space-gutter);
+  /* ⚠️ 專案沒有全域 box-sizing reset，預設是 content-box —— 沒有這行，padding-inline-end 會加在
+   * 64px 之外，號碼字盒右緣正好落在 .scene 內容邊（＝chip 框線）上，實際間距是 0。前兩輪把
+   * padding 從 12→24→32px 完全沒有效果就是這個原因（使用者回饋 2026-09-03，三輪）。 */
+  box-sizing: border-box;
+  /* 與 chip row 拉開明顯的間距 —— 場次號與 metadata 是並列同等的關係，不是擠在一起。
+   * 基準：號碼字盒右緣到「內外」選單**框線**的距離 ＝ 這個值（--space-gutter 同時是
+   * .scene 的左內距，兩者對齊，所以 padding-inline-end 直接就是那段間距）。 */
+  padding-inline-end: var(--space-5);
+  /* 對齊 chip row 第一個控制項的文字：越過 .scene__chips 的上內距（--space-1）＋控制項
+   * 邊框（1px）＋控制項上內距（2px）。號碼與控制項同為 1rem，不再補行盒高度差。
+   * 純視覺對齊，靠瀏覽器目視微調（使用者回饋 2026-09-03）。 */
+  padding-block-start: calc(var(--scene-pad-block, 0px) + var(--space-1) + 3px);
+  text-align: end;
+  /* typography role：介面字、低對比（第三支撐）。字級與 metadata 齊平（1rem），靠位置＋
+   * 不可選＋低對比把它跟 canonical content 分開，不再靠縮小字級。 */
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  line-height: var(--leading-sm);
+  color: var(--text-faint);
+  /* interaction boundary：不可選、不吃指標事件、不進 tab 序。 */
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 內嵌簡表（chip row）——常駐，不可被預設 UI 收合（§7.11）── */
+
+.scene__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+  padding: var(--space-1) 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+
+.scene__chip {
+  display: inline-flex;
+}
+
+.scene__chip-control,
+.scene__chip input {
+  /* chip 控制項一律 16px：作業系統把原生控制項字級往下壓，寬螢幕上 --text-sm 讀起來太小
+   * （使用者回饋 2026-09-03）；16px 同時避開 iOS 聚焦自動放大（<16px 會觸發）。 */
+  font-size: 1rem;
+  line-height: var(--leading-sm);
+  font-family: var(--font-ui);
+  color: var(--control-fg);
+  background: var(--surface-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--space-1);
+  padding: 2px var(--space-2);
+}
+
+.scene__chip-control {
+  cursor: pointer;
+  text-align: start;
+  white-space: nowrap;
+  /* 寬度固定，不隨選到的值伸縮（否則每選一次整條 chip row 就重排）。--chip-chars 由
+   * ChipSelect 依「placeholder 與所有選項裡最長的那個」的字數給，所以最長的選項也不會被
+   * 截掉。1ic ＝ 一個全形字寬；先 em 後 ic，靠級聯自然降級（同 .screenplay-page 的做法）。
+   * 這裡沒有全域 box-sizing reset，要自己宣告，padding 才算進寬度內。
+   * 使用者回饋 2026-09-03。 */
+  box-sizing: border-box;
+  inline-size: calc(var(--chip-chars, 3) * 1em + var(--space-2) * 2 + 2px);
+  inline-size: calc(var(--chip-chars, 3) * 1ic + var(--space-2) * 2 + 2px);
+}
+
+.scene__chip-control:focus-visible,
+.scene__chip input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.scene__chip input {
+  min-inline-size: 8ch;
+}
+
+.scene__chip--empty .scene__chip-control,
+.scene__chip--empty input {
+  /* 缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）—— 但不上 error 色，只是弱化。 */
+  border-style: dashed;
+  color: var(--text-faint);
+}
+
+/* ── chip 下拉：比照 slash 選單的外觀，不用原生 <select>（使用者回饋 2026-09-03）── */
+
+.chip-select {
+  position: relative;
+  display: inline-flex;
+}
+
+.chip-select__menu {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-start: 0;
+  min-inline-size: 100%;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-2);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+}
+
+.chip-select__menu li {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--space-1);
+  color: var(--text-primary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip-select__menu li.is-active {
+  background: var(--selection-bg);
+}
+
+.chip-select__menu li[aria-selected="true"] {
+  color: var(--focus-ring);
+}
+
+/* ─────────────────────────────────────────── 內容區塊 */
+/* 三種區塊型別不用顏色區分（它們是內容不是 decoration）。改以縮排、欄寬、spacing、rhythm。 */
+
+.scene__body > * {
+  margin-block: var(--space-3);
+}
+
+.block--action {
+  max-inline-size: calc(var(--measure-body-ic) * 1ic);
+}
+
+.block--dialogue {
+  /* 對白：較窄的閱讀寬度 + 縮排。這是劇本的閱讀語意，不依賴任何輸出格式。 */
+  max-inline-size: calc(var(--measure-dialogue-ic) * 1ic);
+  margin-inline-start: var(--space-6);
+  /* 對白單元（人名＋台詞）與前後動作之間留更明顯的呼吸（使用者回饋 2026-09-03）。 */
+  margin-block: var(--space-5);
+}
+
+.block--dialogue .block__speaker {
+  display: block;
+  font-family: var(--font-ui);
+  /* 人名比次級字級大一些，讀得出「誰在說」；font-ui ＋ 次級色仍讓它不與台詞爭主體
+   * （使用者回饋 2026-09-03）。 */
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  padding: 0 0 2px;
+  /* 人名與其台詞之間的間隔（使用者回饋 2026-09-03）。 */
+  margin-block-end: var(--space-2);
+}
+
+.block--dialogue .block__speaker:focus-visible {
+  outline: none;
+  border-bottom-color: var(--focus-ring);
+}
+
+.block--insert-shot {
+  max-inline-size: calc(var(--measure-body-ic) * 1ic);
+  /* 與動作的差別靠縮排、spacing 與一個結構標籤（§7.11）——不靠顏色、不靠框、不靠線。 */
+  margin-inline-start: var(--space-5);
+  margin-block: var(--space-4);
+}
+
+.block--insert-shot .block__tag {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  user-select: none;
+  margin-block-end: var(--space-1);
+}
+
+.block__content {
+  /* NodeViewContent 的落點；行內文字就住這裡。 */
+}
+
+.scene__body {
+  /* 就算場次只有一個空區塊，也留出「這裡是下筆的地方」的空間。 */
+  min-block-size: calc(1em * var(--leading-base) * 3);
+}
+
+/* ─────────────────────────────────────────── 新增下一場 */
+/* 場次之間的分隔：一條常駐的虛線；**滑鼠移開就只剩這條線**，hover 時（或最後一場，全劇末尾
+ * 沒有「下一場」可分隔）中間才浮現「＋新增下一場」。
+ * 不看 :focus-within —— 正在打字的場次一直是 focus-within，按鈕會永遠不收起。
+ * 「最後一場」用 .scene--last（decoration 給的），不是 :last-child —— 見 .scene--first 的註解。
+ * 使用者回饋 2026-09-03（三輪）。 */
+
+.scene__foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-block-start: var(--space-4);
+}
+
+/* 虛線：絕對定位、**不參與版面** —— 從頭到尾都在，長度也不變。 */
+.scene__foot::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 50%;
+  border-block-start: 1px dashed var(--rule);
+}
+
+/* 按鈕：盒子尺寸**永遠不變**，顯隱只換 opacity —— 連同背景一起淡出，虛線就從底下透出來；
+ * 淡入時不透明的背景把線的中段蓋掉，看起來就是「線上長出一顆按鈕」。
+ *
+ * ⚠️ 不可以用寬度／padding／gap 來收合：`max-inline-size: 0` ＋ `overflow: hidden` 會讓
+ * 「＋ 新增下一場」在零寬盒子裡逐字換行，盒子**變高**（overflow 只是裁掉、不縮高度）——
+ * 場次於是在 hover 進出時忽大忽小，滑鼠一到分隔線附近就展開→版面推走→脫離 hover→收起→
+ * 又回到滑鼠下，無限閃動。使用者回饋 2026-09-03（第四輪）。 */
+.scene__foot button {
+  position: relative; /* 疊在虛線上方 */
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: var(--surface-page);
+  border: 0;
+  border-radius: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.scene:hover .scene__foot button,
+.scene--last .scene__foot button {
+  opacity: 1;
+}
+
+.scene__foot button:hover {
+  color: var(--text-primary);
+}
+
+.scene__foot button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* ─────────────────────────────────────────── slash 選單 */
+
+.slash-menu {
+  position: absolute;
+  z-index: 20;
+  min-inline-size: 15rem;
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-2);
+  box-shadow: var(--shadow-popover);
+  padding: var(--space-1);
+  font-family: var(--font-ui);
+}
+
+.slash-menu button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  inline-size: 100%;
+  text-align: start;
+  background: transparent;
+  border: 0;
+  border-radius: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.slash-menu button.is-active {
+  background: var(--selection-bg);
+}
+
+.slash-menu button span {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
