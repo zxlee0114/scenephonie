@@ -469,3 +469,46 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+/* ─────────────────────────────────────────── 零場次的空狀態（票券 32） */
+/* 一場都不剩時唯一還在畫面上的東西。**不畫框**（不變式 G）—— 靠位置與間距站住，文案比照
+ * .save-status 的「不畫東西，只說話」。左緣對齊場次本體（gutter 之後），讓它站在場次會出現的
+ * 位置上，而不是另一塊獨立的區域。 */
+.empty-screenplay {
+  padding-inline-start: var(--space-gutter);
+  padding-block-start: var(--space-4);
+  font-family: var(--font-ui);
+}
+
+.empty-screenplay__line,
+.empty-screenplay__hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+}
+
+/* 按鈕的外觀比照場次腳部那顆（同一個動作、同一個形狀），差別只在**永遠看得見** ——
+ * 腳部那顆靠 hover 浮現，這裡沒有場次可以 hover。 */
+.empty-screenplay__action {
+  display: block;
+  margin-block: var(--space-3) var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: var(--surface-page);
+  border: 0;
+  border-radius: var(--space-1);
+  cursor: pointer;
+  /* 左內距不把文字推出對齊線 —— 按鈕的字要跟上下兩句話切齊同一條左緣。 */
+  margin-inline-start: calc(var(--space-3) * -1);
+}
+
+.empty-screenplay__action:hover {
+  color: var(--text-primary);
+}
+
+.empty-screenplay__action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}

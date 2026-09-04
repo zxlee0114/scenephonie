@@ -21,7 +21,9 @@ export function currentSceneId(editor: Editor): string | null {
 }
 
 export function requestNextScene(editor: Editor, afterSceneId?: string | null): boolean {
-  const after = afterSceneId ?? currentSceneId(editor);
+  // 只有「沒傳」才靠游標推算。傳進來的 `null` 是有意義的答案（「接在全劇最後一場之後」，
+  // 零場次的空狀態就是這樣叫的）—— 用 `??` 會把它跟沒傳混為一談，又掉回靠 selection 推算。
+  const after = afterSceneId === undefined ? currentSceneId(editor) : afterSceneId;
   return runKernelCommand(editor, (doc) => createNextScene(doc, { afterSceneId: after }), {
     focusNewSceneMeta: true,
   });
