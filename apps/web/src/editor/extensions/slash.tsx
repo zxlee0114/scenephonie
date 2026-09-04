@@ -17,7 +17,7 @@ import type { BlockType } from "@scenephonie/schema";
 
 import { sceneContext } from "../address";
 import { BLOCK_META, setBlockTypeAt } from "../block-types";
-import { requestNextScene } from "./next-scene";
+import { currentSceneId, requestNextScene } from "./next-scene";
 
 type SlashItem = {
   key: string;
@@ -25,6 +25,26 @@ type SlashItem = {
   hint: string;
   run: (editor: Editor, range: Range) => void;
 };
+
+/**
+ * 收掉承載 `/next` 的空區塊。
+ *
+ * 指令文字刪掉之後，那個區塊多半就沒有存在理由了 —— 使用者是為了打指令才按 Enter 開的那一行。
+ * 其他 slash 指令沒有這個問題：它們把你正站著的區塊**轉型**，那個區塊本來就該留下。
+ *
+ * 兩種情形不能收：區塊裡還有內容（「內文 /next」刪完剩「內文 」），或它是本場唯一的區塊
+ * （kernel schema 的 `scene` 是 `sceneBlock+`，場次不能沒有內容）。
+ */
+function dropEmptyCommandBlock(editor: Editor) {
+  const { state } = editor;
+  const { $from } = state.selection;
+  if ($from.parent.content.size > 0) return;
+
+  const scene = $from.node($from.depth - 1);
+  if (scene.type.name !== "scene" || scene.childCount <= 1) return;
+
+  editor.view.dispatch(state.tr.delete($from.before(), $from.after()));
+}
 
 function convertBlock(editor: Editor, range: Range, type: BlockType) {
   editor.view.dispatch(editor.state.tr.delete(range.from, range.to));
@@ -39,8 +59,12 @@ const ITEMS: SlashItem[] = [
     label: "新增下一場",
     hint: "時間或地點一變就是新的一場（⌘+Enter）",
     run: (editor, range) => {
+      // 場次先問清楚 —— 收掉空區塊之後 selection 可能已經不在這一場裡，
+      // `requestNextScene` 靠 selection 推算就會把新場次接到全劇最後面去。
+      const afterSceneId = currentSceneId(editor);
       editor.view.dispatch(editor.state.tr.delete(range.from, range.to));
-      requestNextScene(editor);
+      dropEmptyCommandBlock(editor);
+      requestNextScene(editor, afterSceneId);
     },
   },
   {

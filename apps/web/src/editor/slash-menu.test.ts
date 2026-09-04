@@ -29,7 +29,7 @@ import { baseStarterKit } from "./starter-kit";
 let editor: Editor;
 afterEach(() => editor?.destroy());
 
-function build(block: object) {
+function build(...blocks: object[]) {
   editor = new Editor({
     extensions: [
       baseStarterKit(),
@@ -47,12 +47,12 @@ function build(block: object) {
     ],
     content: {
       type: "doc",
-      content: [{ type: "scene", attrs: { sceneId: mintSceneId() }, content: [block] }],
+      content: [{ type: "scene", attrs: { sceneId: mintSceneId() }, content: blocks }],
     },
   });
-  // 游標放進那個（空的）區塊，然後打一個 `/`。
+  // 游標放進最後一個（空的）區塊，然後打一個 `/`。
   editor.view.dispatch(
-    editor.state.tr.setSelection(TextSelection.near(editor.state.doc.resolve(2))),
+    editor.state.tr.setSelection(TextSelection.atEnd(editor.state.doc)),
   );
   editor.commands.insertContent("/");
   // Suggestion 的 items／render 走 promise，onStart 落在 microtask 之後。
@@ -103,5 +103,55 @@ describe("斜線只在動作區塊是指令入口", () => {
     expect(editor.state.doc.childCount).toBe(1);
     expect(blockTypes()).toEqual(["insertShot", "insertShot"]);
     expect(editor.state.doc.child(0).child(0).textContent).toBe("/");
+  });
+});
+
+describe("`/next` 不留下承載指令的空區塊（票券 30）", () => {
+  const withText = (text: string) => ({
+    type: "action",
+    content: [{ type: "text", text }],
+  });
+
+  it("在空行打 `/next`：原場次不留空白區塊", async () => {
+    await build(withText("內文"), { type: "action" });
+
+    pressEnter();
+
+    expect(editor.state.doc.childCount).toBe(2); // 確實建了下一場
+    expect(blockTypes()).toEqual(["action"]); // 空的承載區塊被收掉了
+    expect(editor.state.doc.child(0).child(0).textContent).toBe("內文");
+  });
+
+  it("本場唯一的區塊上打 `/next`：區塊留著（schema 是 sceneBlock+）", async () => {
+    await build({ type: "action" });
+
+    pressEnter();
+
+    expect(editor.state.doc.childCount).toBe(2);
+    expect(blockTypes()).toEqual(["action"]);
+  });
+
+  // `/` 前面得是空白或區塊開頭（Suggestion 的 allowedPrefixes 預設），所以「緊接內文打 `/`」
+  // 不會彈選單。真正可達的是「內文＋空格＋`/next`」—— 刪掉指令後區塊還有內容，不能收掉。
+  it("內文後面接 `/next`：刪掉指令後區塊還有內容，留著", async () => {
+    await build(withText("內文 "));
+
+    pressEnter();
+
+    expect(editor.state.doc.childCount).toBe(2);
+    expect(blockTypes()).toEqual(["action"]);
+    expect(editor.state.doc.child(0).child(0).textContent).toBe("內文 ");
+  });
+
+  it("新的一場接在原場次之後，不是接在全劇最後", async () => {
+    // 游標在第一場（刪掉空區塊後 selection 可能離開場次 —— 那時 afterSceneId 會退化成 null，
+    // 新場次就會被接到全劇最後面去）。
+    await build(withText("內文"), { type: "action" });
+    const firstSceneId = editor.state.doc.child(0).attrs.sceneId as string;
+
+    pressEnter();
+
+    expect(editor.state.doc.child(0).attrs.sceneId).toBe(firstSceneId);
+    expect(editor.state.doc.childCount).toBe(2);
   });
 });
