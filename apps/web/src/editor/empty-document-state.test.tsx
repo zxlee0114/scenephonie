@@ -89,6 +89,22 @@ describe("零場次的空狀態", () => {
     await waitFor(() => expect(document.activeElement).toBe(firstField), { timeout: 3000 });
   });
 
+  it("建出來的場次不帶整場反白（浮現動畫淡出後不會留下底色）", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness content={emptyDoc()} onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(emptyStateButton(container)).not.toBeNull());
+
+    // 空 doc 的選取是 `AllSelection(0, 0)`；插入一場之後它會被 map 成罩住整場，
+    // 而整場選取的反白與浮現動畫共用 --selection-bg —— 動畫淡出後底色就留在畫面上，
+    // 要點進內文才消失（使用者回饋 2026-09-04）。
+    fireEvent.click(emptyStateButton(container)!);
+
+    await waitFor(() => expect(container.querySelector(".scene")).not.toBeNull());
+    expect(editor.state.selection.empty).toBe(true);
+    expect(editor.state.selection.$from.parent.type.name).toBe("action");
+    expect(container.querySelector(".scene")!.classList.contains("is-node-selected")).toBe(false);
+  });
+
   it("把最後一場刪光，空狀態就出現（跟著 doc 更新，不必重新掛載）", async () => {
     let editor!: Editor;
     const { container } = render(

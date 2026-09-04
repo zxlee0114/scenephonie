@@ -88,16 +88,30 @@ export function runKernelCommand(
     if (pos != null) tr.setSelection(TextSelection.near(tr.doc.resolve(pos)));
   }
 
+  /** 這次 command 生出來的新場次（id 差集）；沒有就是 `null`。 */
+  const added = options.focusNewSceneMeta
+    ? (topLevelSceneIds(tr.doc).find((id) => !before.has(id)) ?? null)
+    : null;
+
+  // 選取範圍不該罩著剛誕生的場次 —— 把它收成游標，放進新場次的第一個區塊。
+  //
+  // replace 之後 selection 是「舊的那個 map 過來」的：零場次時它是 `AllSelection(0, 0)`
+  // （空 doc 沒有任何文字位置可站），插入一場之後仍是 AllSelection，範圍長成整場那麼大。
+  // 整場選取的反白與新場次浮現動畫共用 `--selection-bg`：動畫淡出後底下露出反白，看起來就是
+  // 「閃一下然後底色固定」，直到使用者點進內文才消失（使用者回饋 2026-09-04，票券 32）。
+  // ⌘+A 全選整份之後按 ⌘+Enter 是同一回事。游標已經收合的情形不動它 —— 那沒有東西在畫。
+  if (added && !tr.selection.empty) {
+    const pos = blockContentPos(tr.doc, added, 0);
+    if (pos != null) tr.setSelection(TextSelection.near(tr.doc.resolve(pos)));
+  }
+
   // 新場次的落點由 node view 自己決定（打字餘裕，票券 27）—— 這裡不要先用原生 `scrollIntoView`
   // 把它推到視窗底緣，否則畫面會跳兩下。其他 command 照舊「捲進可視範圍」就好。
   view.dispatch(options.focusNewSceneMeta ? tr : tr.scrollIntoView());
 
-  if (options.focusNewSceneMeta) {
-    const added = topLevelSceneIds(view.state.doc).find((id) => !before.has(id));
-    if (added) {
-      markSceneBorn(added); // 新場次的短暫浮現回饋（SceneView 掛載時領取）
-      requestFocus({ kind: "sceneMeta", sceneId: added });
-    }
+  if (added) {
+    markSceneBorn(added); // 新場次的短暫浮現回饋（SceneView 掛載時領取）
+    requestFocus({ kind: "sceneMeta", sceneId: added });
   } else if (options.focusField) {
     requestFocus(options.focusField);
   }
