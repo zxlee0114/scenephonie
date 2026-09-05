@@ -22,7 +22,6 @@ const ALLOWED = "spike-allowed@example.test";
 const REJECTED = "spike-rejected@example.test";
 
 describe.skipIf(!hasDatabase)("Better Auth 的 id 與 allowlist（需要 Postgres）", () => {
-  const db = getDb();
   const emails = [ALLOWED, REJECTED];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- internalAdapter 的型別在 library 內部
@@ -41,7 +40,7 @@ describe.skipIf(!hasDatabase)("Better Auth 的 id 與 allowlist（需要 Postgre
 
   afterAll(async () => {
     // sessions 隨 FK cascade 一起走。
-    await db.delete(users).where(inArray(users.email, emails));
+    await getDb().delete(users).where(inArray(users.email, emails));
   });
 
   it("`users.id` 是 `usr_` + nanoid，session 的 FK 跟著它走", async () => {
@@ -53,7 +52,7 @@ describe.skipIf(!hasDatabase)("Better Auth 的 id 與 allowlist（需要 Postgre
     expect(session.userId).toBe(user.id);
 
     // 落庫的那一列才算數 —— 回傳值可能只是記憶體裡的物件。
-    const [stored] = await db
+    const [stored] = await getDb()
       .select({ id: sessions.id, userId: sessions.userId })
       .from(sessions)
       .where(inArray(sessions.userId, [user.id]));
@@ -63,7 +62,7 @@ describe.skipIf(!hasDatabase)("Better Auth 的 id 與 allowlist（需要 Postgre
   it("不在 allowlist 上的 email 連 `users` 都不會有一列", async () => {
     await expect(internalAdapter.createUser({ email: REJECTED, name: "Stranger" })).rejects.toThrow();
 
-    const rows = await db.select({ id: users.id }).from(users).where(inArray(users.email, [REJECTED]));
+    const rows = await getDb().select({ id: users.id }).from(users).where(inArray(users.email, [REJECTED]));
     expect(rows).toEqual([]);
   });
 });

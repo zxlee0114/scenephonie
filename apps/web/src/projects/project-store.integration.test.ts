@@ -17,18 +17,17 @@ import { landingProject, ownedProjects, projectContents } from "./project-store"
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 
 describe.skipIf(!hasDatabase)("登入後的落點（需要 Postgres）", () => {
-  const db = getDb();
   const createdUsers: string[] = [];
 
   const newUser = async (): Promise<string> => {
     const id = mintId(USER_ID_PREFIX);
-    await db.insert(users).values({ id, name: "測試", email: `${id}@example.test` });
+    await getDb().insert(users).values({ id, name: "測試", email: `${id}@example.test` });
     createdUsers.push(id);
     return id;
   };
 
   afterAll(async () => {
-    if (createdUsers.length > 0) await db.delete(users).where(inArray(users.id, createdUsers));
+    if (createdUsers.length > 0) await getDb().delete(users).where(inArray(users.id, createdUsers));
   });
 
   it("第一次登入拿到一個專案，連同它那一份劇本", async () => {
@@ -59,7 +58,7 @@ describe.skipIf(!hasDatabase)("登入後的落點（需要 Postgres）", () => {
     expect(a.projectId).toBe(b.projectId);
     expect(await ownedProjects(ownerId)).toHaveLength(1);
 
-    const scripts = await db
+    const scripts = await getDb()
       .select({ id: screenplays.id })
       .from(screenplays)
       .where(eq(screenplays.projectId, a.projectId));

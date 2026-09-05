@@ -22,20 +22,19 @@ import { authorizeProjectForUser, authorizeScreenplayForUser } from "./gate";
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 
 describe.skipIf(!hasDatabase)("授權 gate（需要 Postgres）", () => {
-  const db = getDb();
   const createdUsers: string[] = [];
 
   const newUser = async (): Promise<string> => {
     const id = mintId(USER_ID_PREFIX);
     // 直接寫 `users` —— gate 只認 `users.id`，它不知道也不該知道這個人是怎麼登入的。
-    await db.insert(users).values({ id, name: "測試", email: `${id}@example.test` });
+    await getDb().insert(users).values({ id, name: "測試", email: `${id}@example.test` });
     createdUsers.push(id);
     return id;
   };
 
   const newProject = async (ownerId: string): Promise<string> => {
     const id = mintId(PROJECT_ID_PREFIX);
-    await db.insert(projects).values({ id, type: SINGLE_SCREENPLAY_PROJECT, title: "測試專案", ownerId });
+    await getDb().insert(projects).values({ id, type: SINGLE_SCREENPLAY_PROJECT, title: "測試專案", ownerId });
     return id;
   };
 
@@ -49,7 +48,7 @@ describe.skipIf(!hasDatabase)("授權 gate（需要 Postgres）", () => {
 
   afterAll(async () => {
     // 專案與劇本隨 owner 的 FK cascade 一起走。
-    if (createdUsers.length > 0) await db.delete(users).where(inArray(users.id, createdUsers));
+    if (createdUsers.length > 0) await getDb().delete(users).where(inArray(users.id, createdUsers));
   });
 
   it("擁有者拿得到 handle，handle 帶著資料庫裡的 owner_id", async () => {
@@ -91,7 +90,7 @@ describe.skipIf(!hasDatabase)("授權 gate（需要 Postgres）", () => {
     const projectId = await newProject(owner);
     const screenplayId = await newScreenplay(owner, projectId);
 
-    await db.update(projects).set({ ownerId: nextOwner }).where(eq(projects.id, projectId));
+    await getDb().update(projects).set({ ownerId: nextOwner }).where(eq(projects.id, projectId));
 
     expect(await authorizeScreenplayForUser(owner, screenplayId)).toBeNull();
     expect(await authorizeScreenplayForUser(nextOwner, screenplayId)).not.toBeNull();
