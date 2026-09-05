@@ -15,6 +15,8 @@
 | 部署 | **Vercel Hobby，region `hnd1`（東京）** | 已鎖定（可反轉） | `vercel.json` (`regions: ["hnd1"]`) |
 | 資料庫託管 | **Supabase Free，東京（`ap-northeast-1`）**，僅作 PostgreSQL 託管 | 已鎖定 | `apps/web/.env.example`、`docs/adr/0012-*` |
 | 連線模型 | **`DATABASE_URL` 走 Supavisor transaction mode `:6543` ＋ `prepare: false`**；migration 走 **`DIRECT_URL`** session mode | 已鎖定 | `apps/web/src/db/client.ts`、`apps/web/drizzle.config.ts` |
+| 認證 | **Better Auth `~1.7.x`**（只收 patch）＋ Google OAuth；**DB session ＋ cookie cache**（`compact`、5 分鐘）；middleware 只做 optimistic redirect | 已鎖定（可替換的 infrastructure decision） | `apps/web/src/auth/`、`apps/web/src/proxy.ts` |
+| 授權 | **application layer 的 gate；write use case 只吃已授權的 project handle** | 已鎖定（不變式 H） | `apps/web/src/authorization/` |
 
 ### 硬邊界
 
@@ -23,6 +25,37 @@
 - 不可用 Cloudflare Workers 純執行模式（票券 05，PDF 相關）。
 - Supabase Auth／RLS／Storage／Realtime **不作為 domain/application 授權權威**（不變式 I、
   [ADR-0012](./adr/0012-infrastructure-provides-mechanism-not-authority.md)）。Supabase 在 v1 僅是 Postgres 託管。
+- **auth library 不得成為授權真理來源**（不變式 H、[ADR-0011](./adr/0011-authentication-identity-is-not-domain-authority.md)）。
+  可 grep 的守衛在 `apps/web/src/authorization/authority-boundary.test.ts`：domain 永不讀 `accounts`、
+  不得出現 `createAccessControl`／`hasPermission`／`organizationRole`／`activeOrganizationId`、
+  不得有影子表、repo 內不得有 `invitations` 表。
+
+## 認證與授權（票券 06）
+
+**schema 主權在我們。** Better Auth 的 CLI 對 Drizzle 只做 `generate`（吐 TypeScript，不碰資料庫），
+所以 `users`／`sessions`／`accounts`／`verifications` 四張表就住在 `apps/web/src/db/schema.ts`，
+migration 走我們自己的 `drizzle-kit` 鏈，**沒有第二套 migration 系統**。
+
+**升 Better Auth minor 版的流程**（`~1.7.x` 只收 patch，升 minor 是一次有 review 成本的任務）：
+
+```bash
+pnpm --filter @scenephonie/web add better-auth@~1.8.0     # 1. 升版
+npx auth@latest generate --config <暫時的 auth 設定> --output /tmp/ba-schema.ts   # 2. 重跑 generator
+diff /tmp/ba-schema.ts apps/web/src/db/schema.ts          # 3. diff
+#                                                          4. 人工併進我們的 schema（保留註解與命名）
+pnpm db:generate && pnpm db:migrate                       # 5. 正常的一次 migration
+```
+
+第 4 步是人工的，也**應該**是人工的 —— 那正是「schema 主權在我們」的代價與好處。
+
+**環境變數**（見 `apps/web/.env.example`）：`BETTER_AUTH_URL`、`BETTER_AUTH_SECRET`、
+`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`AUTH_ALLOWED_EMAILS`。
+最後一條是 allowlist —— **Google OAuth 的 registration/access policy，不是 `invitations` 表**；
+**沒設或設空＝誰都不准進**（fail closed）。
+
+**Google Cloud Console 一次性設定**：APIs & Services → Credentials → Create OAuth client ID →
+Web application，Authorized redirect URI 填 `<BETTER_AUTH_URL>/api/auth/callback/google`
+（production 與每一個要登入的 preview 網址各填一條）。
 
 ## Bundler 與 caching（Next 16，票券 22）
 
@@ -71,6 +104,8 @@
 1. Import GitHub repo。
 2. **Root Directory** 設 `apps/web`。
 3. Framework Preset：Next.js（`vercel.json` 已鎖 `framework` 與 `regions`）。
-4. Environment Variables：`DATABASE_URL`（Supavisor transaction，`:6543`）、`DIRECT_URL`（session，`:5432`）。
-   Production 與 Preview 皆需設定。
+4. Environment Variables：`DATABASE_URL`（Supavisor transaction，`:6543`）、`DIRECT_URL`（session，`:5432`）、
+   `BETTER_AUTH_URL`、`BETTER_AUTH_SECRET`、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`AUTH_ALLOWED_EMAILS`。
+   Production 與 Preview 皆需設定。⚠️ `BETTER_AUTH_URL` 必須是該環境對外的真實網址，否則
+   Google 的 redirect URI 會對不上。
 5. Git：Production Branch = `main`；Preview Deployments 對所有其他分支的 PR 自動開啟（預設行為）。

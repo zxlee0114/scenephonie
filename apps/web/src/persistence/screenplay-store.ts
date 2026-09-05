@@ -1,7 +1,8 @@
-import { desc, eq, max } from "drizzle-orm";
+import { eq, max } from "drizzle-orm";
 
 import { mintId } from "@scenephonie/schema";
 
+import type { AuthorizedProject, AuthorizedScreenplay } from "@/authorization";
 import { getDb } from "@/db/client";
 import { screenplayBackups, screenplays } from "@/db/schema";
 
@@ -16,6 +17,9 @@ import { decodeSaveToken, encodeSaveToken, type SaveToken } from "./save-token";
  * 模組外一個字都看不到（`persistence-boundary.test.ts` 是這條規則的守衛）。
  *
  * **「整份 doc 覆蓋」這個假設也只准住在這裡** —— 它是 v1 的儲存粒度選擇，不是領域事實。
+ *
+ * ⚠️ **每一支的第一個參數都是已授權的 handle，不是 `screenplayId` 字串**（不變式 H、票券 06）。
+ * 這個模組因此不必知道授權是怎麼判的，也不可能被繞過 —— 沒有 handle 就打不出這通呼叫。
  */
 
 const SCREENPLAY_ID_PREFIX = "sp_";
@@ -37,7 +41,7 @@ export type LoadedScreenplay = {
 
 /** 一次存檔請求。三個欄位永遠一起旅行 —— 它們是同一個東西。 */
 export type SaveRequest = {
-  screenplayId: string;
+  screenplay: AuthorizedScreenplay;
   doc: PersistedDoc;
   token: SaveToken;
 };
@@ -47,11 +51,19 @@ export type SaveResult =
   /** 這份劇本在別處被改過了（另一個分頁、另一台裝置、伺服器端 command）。本次寫入未生效。 */
   | { status: "conflict" };
 
-/** 建立一份新劇本。初始 doc 由呼叫端給 —— 「劇本至少有一場」是編輯器的責任，不是儲存的。 */
-export async function createScreenplay(doc: PersistedDoc): Promise<LoadedScreenplay> {
+/**
+ * 在一個已授權的專案下建立一份新劇本。
+ *
+ * 初始 doc 由呼叫端給 —— 「劇本至少有一場」是編輯器的責任，不是儲存的。
+ */
+export async function createScreenplay(
+  project: AuthorizedProject,
+  doc: PersistedDoc,
+): Promise<LoadedScreenplay> {
   const screenplayId = mintId(SCREENPLAY_ID_PREFIX);
   await getDb().insert(screenplays).values({
     id: screenplayId,
+    projectId: project.projectId,
     doc,
     docSchemaVersion: CURRENT_DOC_SCHEMA_VERSION,
   });
@@ -62,7 +74,9 @@ export async function createScreenplay(doc: PersistedDoc): Promise<LoadedScreenp
  * 載入一份劇本。舊版 doc 在**記憶體中**被帶到現行版本 —— **讀取路徑一律不寫回**：
  * PDF 匯出、場次表、分享連結都走這條，它們不該因為「讀了一下」就改資料庫（§6.7）。
  */
-export async function loadScreenplay(screenplayId: string): Promise<LoadedScreenplay | null> {
+export async function loadScreenplay(
+  screenplay: AuthorizedScreenplay,
+): Promise<LoadedScreenplay | null> {
   const [row] = await getDb()
     .select({
       id: screenplays.id,
@@ -71,7 +85,7 @@ export async function loadScreenplay(screenplayId: string): Promise<LoadedScreen
       docSeq: screenplays.docSeq,
     })
     .from(screenplays)
-    .where(eq(screenplays.id, screenplayId))
+    .where(eq(screenplays.id, screenplay.screenplayId))
     .limit(1);
 
   if (!row) return null;
@@ -96,10 +110,11 @@ export async function loadScreenplay(screenplayId: string): Promise<LoadedScreen
  * 別人剛寫進去的東西。
  */
 export async function saveScreenplay({
-  screenplayId,
+  screenplay,
   doc,
   token,
 }: SaveRequest): Promise<SaveResult> {
+  const { screenplayId } = screenplay;
   const expectedDocSeq = decodeSaveToken(token);
   if (expectedDocSeq === null) return { status: "conflict" };
 
@@ -147,26 +162,4 @@ export async function saveScreenplay({
 
     return { status: "saved", token: encodeSaveToken(nextDocSeq) };
   });
-}
-
-/**
- * 票券 06（專案 hub）之前的唯一入口：這個部署上的那一份劇本，沒有就開一份。
- *
- * ⚠️ 這是鷹架不是模型 —— 「一個部署一份劇本」在有 `projects.owner_id` 的那天就不成立。
- * 它住在 persistence 裡是為了讓建立劇本這件事也只有一個出口；票券 06 接上專案 hub 時刪掉它。
- */
-export async function loadOrCreateSoleScreenplay(
-  emptyDoc: () => PersistedDoc,
-): Promise<LoadedScreenplay> {
-  const [row] = await getDb()
-    .select({ id: screenplays.id })
-    .from(screenplays)
-    .orderBy(desc(screenplays.createdAt))
-    .limit(1);
-
-  if (row) {
-    const loaded = await loadScreenplay(row.id);
-    if (loaded) return loaded;
-  }
-  return createScreenplay(emptyDoc());
 }

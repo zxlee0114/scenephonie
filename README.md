@@ -32,6 +32,11 @@ pnpm db:migrate                          # 套用 migration（走 DIRECT_URL）
 pnpm dev                                 # http://localhost:3000
 ```
 
+登入需要 Google OAuth client 與 allowlist —— `apps/web/.env.example` 的「認證」一節列出
+五個環境變數與 Google Cloud Console 的一次性設定，細節見
+[`docs/tech-stack.md`](./docs/tech-stack.md)。⚠️ **`AUTH_ALLOWED_EMAILS` 沒設就是誰都登不進去**
+（fail closed，是刻意的）。
+
 ## 檢查（與 CI 相同）
 
 ```bash

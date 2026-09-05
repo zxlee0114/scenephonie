@@ -7,26 +7,29 @@ import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { useEffect, useReducer, useRef } from "react";
 
-import type { SaveScreenplay, SaveToken } from "@/persistence";
+import type { SaveToken } from "@/persistence";
 
 import "../styles/editor.css";
+import type { SaveScreenplay } from "./save-capability";
 import { requestNextScene } from "./extensions/next-scene";
 import { SlashMenu } from "./extensions/slash";
 import { useAutosave, type SaveStatus } from "./use-autosave";
 import { useScreenplayEditor, type InitialFocus } from "./use-screenplay-editor";
 
 /**
- * 存檔狀態的文案。
+ * 每個狀態說什麼、要不要出聲 —— **一張表**。
  *
- * 「已儲存」不常駐 —— 平時什麼都不說是對的：自動存檔是承諾不是功能。只有正在存、
- * 或出了編劇需要知道的事時才出聲。
+ * 自動存檔是承諾不是功能，所以它平時沉默；`loud` 是「這件事使用者非知道不可」。
+ * 兩件事併在一起，是因為分成「文字表 ＋ 另一處的白名單」時，加一個狀態要記得改兩個地方，
+ * 而其中一處漏改不會有人發現。
  */
-const STATUS_TEXT: Record<SaveStatus, string> = {
-  idle: "",
-  saving: "儲存中…",
-  saved: "已儲存",
-  error: "存檔失敗，會再試一次",
-  conflict: "這份劇本在別的地方被改過了，請重新整理再繼續",
+const STATUS: Record<SaveStatus, { text: string; loud: boolean }> = {
+  idle: { text: "", loud: false },
+  saving: { text: "儲存中…", loud: false },
+  saved: { text: "已儲存", loud: false },
+  error: { text: "存檔失敗，會再試一次", loud: true },
+  conflict: { text: "這份劇本在別的地方被改過了，請重新整理再繼續", loud: true },
+  forbidden: { text: "沒有權限存這份劇本，請重新登入", loud: true },
 };
 
 /**
@@ -161,11 +164,11 @@ export function ScreenplayEditor({
   return (
     <div className="screenplay-page">
       <p
-        className={`save-status${status === "conflict" || status === "error" ? " save-status--loud" : ""}`}
+        className={`save-status${STATUS[status].loud ? " save-status--loud" : ""}`}
         role="status"
         aria-live="polite"
       >
-        {STATUS_TEXT[status]}
+        {STATUS[status].text}
       </p>
       <EditorContent editor={editor} />
       <EmptyScreenplayState editor={editor} />
