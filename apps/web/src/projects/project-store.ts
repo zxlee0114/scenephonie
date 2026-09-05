@@ -27,6 +27,27 @@ export const SINGLE_SCREENPLAY_PROJECT = "單一劇本專案";
 
 const DEFAULT_PROJECT_TITLE = "未命名專案";
 
+/**
+ * 一個專案被開出來時，裡面放什麼。
+ *
+ * **這是入口點的決定，不是 domain 的分支**（票券 07）：受邀者從空白開始，訪客從範例稿開始，
+ * 而 `landingProject()` 兩邊走的是同一條路 —— 它只是把呼叫端給的開場內容放進去，不問
+ * 「你是誰」。domain 因此不知道有訪客這回事（ADR-0011 §③）。
+ *
+ * `screenplay` 是**函式**不是值：每一份開場稿都要現鑄（`sceneId` 不能兩份共用），
+ * 而一個 module-level 常數會讓所有人拿到同一組 id。
+ */
+export type ProjectOpening = {
+  title: string;
+  screenplay: () => Record<string, unknown>;
+};
+
+/** 沒特別說的話就是這個：空白的專案、一場空戲。 */
+const BLANK_OPENING: ProjectOpening = {
+  title: DEFAULT_PROJECT_TITLE,
+  screenplay: emptyScreenplay,
+};
+
 export type ProjectSummary = {
   projectId: string;
   title: string;
@@ -83,8 +104,14 @@ export async function projectContents(project: AuthorizedProject): Promise<Proje
  *
  * 建完之後**回頭走一次 gate 才拿到 handle**，而不是就地捏一個。多一次 SELECT，換到的是
  * 「handle 永遠來自資料庫裡的 `owner_id`」這件事沒有例外 —— 有例外的規則等於沒有規則。
+ *
+ * `opening` 只在**真的開一個新專案**時用得到：已經有專案的人（含第二次進來的訪客）拿回的是
+ * 他原本那一個，開場內容早就不是問題了。
  */
-export async function landingProject(ownerId: string): Promise<AuthorizedProject> {
+export async function landingProject(
+  ownerId: string,
+  opening: ProjectOpening = BLANK_OPENING,
+): Promise<AuthorizedProject> {
   const projectId = await getDb().transaction(async (tx) => {
     await tx.select({ id: users.id }).from(users).where(eq(users.id, ownerId)).for("update");
 
@@ -99,7 +126,7 @@ export async function landingProject(ownerId: string): Promise<AuthorizedProject
     const id = mintId(PROJECT_ID_PREFIX);
     await tx
       .insert(projects)
-      .values({ id, type: SINGLE_SCREENPLAY_PROJECT, title: DEFAULT_PROJECT_TITLE, ownerId });
+      .values({ id, type: SINGLE_SCREENPLAY_PROJECT, title: opening.title, ownerId });
     return id;
   });
 
@@ -109,7 +136,7 @@ export async function landingProject(ownerId: string): Promise<AuthorizedProject
   // 劇本不在上面那個交易裡：交易只負責「恰好一個專案」，而它必須短 —— 它鎖著 `users` 那一列。
   // 分兩步的代價是中間斷線會留下一個沒有劇本的專案，補法就是下一次進來時這一行。
   const { screenplayId } = await projectContents(project);
-  if (!screenplayId) await createScreenplay(project, emptyScreenplay());
+  if (!screenplayId) await createScreenplay(project, opening.screenplay());
 
   return project;
 }

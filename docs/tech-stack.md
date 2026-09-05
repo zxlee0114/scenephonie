@@ -57,6 +57,23 @@ pnpm db:generate && pnpm db:migrate                       # 5. 正常的一次 m
 Web application，Authorized redirect URI 填 `<BETTER_AUTH_URL>/api/auth/callback/google`
 （production 與每一個要登入的 preview 網址各填一條）。
 
+## 訪客體驗與排程清理（票券 07）
+
+登入頁的第二道門走 Better Auth 的 `anonymous` plugin（`/sign-in/anonymous`）：每位訪客有**自己的**
+`users` 那一列與**自己的**範例專案副本，不是共用帳號。plugin 的 `isAnonymous` 欄位用 `schema`
+選項映到我們的 `users.is_demo`（規格 §6.2 的名字）——那是 **infrastructure／lifecycle metadata，
+不進 domain model**，兩條入口之後走的是同一條 pipeline。
+
+**allowlist 只長在 Google 那道門上**（`databaseHooks.user.create.before` 依 endpoint path 判定，
+其餘來源一律查清單）。訪客不進 allowlist，但也**不因此取得任何超出正常 User authorization
+model 的東西**。
+
+**TTL 清理**：`vercel.json` 的 cron 每天 19:17 UTC（台北 03:17）打一次
+`/api/cron/guest-cleanup`，把「`is_demo` 且七天沒動過稿」的 `users` 列刪掉，其餘靠 FK cascade。
+它同時就是票券 25 §7 那支 keep-alive ping（Supabase Free 七天無活動即暫停）。
+端點認 `Authorization: Bearer $CRON_SECRET`，**沒設 secret ＝ 整支關閉**（它會刪資料，
+預設值不能是「誰都能打」）。
+
 ## Bundler 與 caching（Next 16，票券 22）
 
 - **Bundler：Turbopack。** Next 16 起是 `next dev` / `next build` 的預設。本專案沒有自訂
@@ -105,7 +122,8 @@ Web application，Authorized redirect URI 填 `<BETTER_AUTH_URL>/api/auth/callba
 2. **Root Directory** 設 `apps/web`。
 3. Framework Preset：Next.js（`vercel.json` 已鎖 `framework` 與 `regions`）。
 4. Environment Variables：`DATABASE_URL`（Supavisor transaction，`:6543`）、`DIRECT_URL`（session，`:5432`）、
-   `BETTER_AUTH_URL`、`BETTER_AUTH_SECRET`、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`AUTH_ALLOWED_EMAILS`。
+   `BETTER_AUTH_URL`、`BETTER_AUTH_SECRET`、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`AUTH_ALLOWED_EMAILS`、
+   `CRON_SECRET`（訪客 TTL 清理排程，票券 07；不設就等於關掉那支排程）。
    Production 與 Preview 皆需設定。⚠️ `BETTER_AUTH_URL` 必須是該環境對外的真實網址，否則
    Google 的 redirect URI 會對不上。
 5. Git：Production Branch = `main`；Preview Deployments 對所有其他分支的 PR 自動開啟（預設行為）。

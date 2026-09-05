@@ -51,6 +51,37 @@
   cursor: default;
 }
 
+/* 訪客入口。次一階：無邊框的文字按鈕 —— v1 的正式入口只有 Google 那一顆，
+   這一顆是給還沒有帳號的人看的（票券 07）。 */
+.sign-in__guest {
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--space-1);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+  cursor: pointer;
+}
+
+.sign-in__guest:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.sign-in__guest:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.sign-in__note {
+  max-inline-size: 26em;
+  margin: calc(var(--space-3) * -1) 0 0;
+  color: var(--text-faint);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
 .sign-in__error {
   margin: 0;
   color: var(--error-fg);

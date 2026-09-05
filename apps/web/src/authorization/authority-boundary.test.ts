@@ -91,6 +91,36 @@ describe("不變式 I —— infrastructure 提供機制，不提供授權真理
   });
 });
 
+/**
+ * ADR-0011 §③：**所有 authentication entry point 收斂進同一條 pipeline，domain 不知道誰是訪客。**
+ *
+ * 這一組是票券 07 的兩條驗收框的機械版本。它們一破，破法會是安靜的 —— 某個 handler
+ * 多一個 `if (user.isDemo)`，訪客體驗就從「同一條路」變成「另一套規則」，而那正是
+ * 「為 demo 犧牲一致性」的第一步。
+ */
+describe("訪客不是一種權限等級（ADR-0011 §③）", () => {
+  /** `is_demo` 的三個合法住所：表的定義、發身分那道門、清理任務。 */
+  const GUEST_METADATA_HOMES = [join("db", "schema.ts"), join("auth", "auth.ts"), join("guest", "")];
+
+  it("`is_demo` 是 infrastructure metadata —— 不進 domain model", () => {
+    // 規格 §6.2／票券 24 §6。它回答「這一列該不該被清掉」，永遠不回答「這個人能做什麼」。
+    expect(offencesIn(sourceFiles(), /\bisDemo\b|\bis_demo\b/, GUEST_METADATA_HOMES)).toEqual([]);
+  });
+
+  it("domain、command、授權與 persistence 都沒有訪客分支", () => {
+    // 掃的是「應該對訪客一無所知」的那幾層 —— 不是全部原始碼：登入頁當然認識那顆按鈕。
+    const shouldNotKnow = [
+      ...filesUnder(SCHEMA_SRC, /\.tsx?$/),
+      ...filesUnder(join(APPS_WEB_SRC, "authorization"), /\.tsx?$/),
+      ...filesUnder(join(APPS_WEB_SRC, "persistence"), /\.tsx?$/),
+      ...filesUnder(join(APPS_WEB_SRC, "projects"), /\.tsx?$/),
+      ...filesUnder(join(APPS_WEB_SRC, "editor"), /\.tsx?$/),
+    ];
+    const banned = /\bisDemo\b|\bis_demo\b|\bisAnonymous\b|signInAnonymous|enterAsGuest/;
+    expect(offencesIn(shouldNotKnow, banned, [])).toEqual([]);
+  });
+});
+
 describe("allowlist 是 env var，不是資料表", () => {
   it("repo 內沒有 `invitations` 表", () => {
     // 票券 24 §7：建表等於在 v1 就把 members／invitations 的形狀猜出來，而那要留給未來演進。
