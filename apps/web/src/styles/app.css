@@ -74,6 +74,8 @@
   cursor: default;
 }
 
+/* 負的上邊距把說明拉回貼著上面那顆按鈕：它是那顆按鈕的註腳，不是頁面上的第三個區塊，
+   而 .sign-in 的 flex gap 對每個子元素一視同仁。 */
 .sign-in__note {
   max-inline-size: 26em;
   margin: calc(var(--space-3) * -1) 0 0;

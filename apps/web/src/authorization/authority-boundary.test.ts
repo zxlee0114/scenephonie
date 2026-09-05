@@ -99,7 +99,12 @@ describe("不變式 I —— infrastructure 提供機制，不提供授權真理
  * 「為 demo 犧牲一致性」的第一步。
  */
 describe("訪客不是一種權限等級（ADR-0011 §③）", () => {
-  /** `is_demo` 的三個合法住所：表的定義、發身分那道門、清理任務。 */
+  /**
+   * `is_demo` 的三個合法住所：表的定義、發身分那道門、清理任務。
+   *
+   * `join("guest", "")` 產出的是帶尾斜線的 `guest/`——`offencesIn` 用 `includes()` 比對，
+   * 尾斜線讓它比的是「那個目錄」而不是任何名字裡有 guest 的檔案。
+   */
   const GUEST_METADATA_HOMES = [join("db", "schema.ts"), join("auth", "auth.ts"), join("guest", "")];
 
   it("`is_demo` 是 infrastructure metadata —— 不進 domain model", () => {

@@ -34,11 +34,11 @@ export const USER_ID_PREFIX = "usr_";
 /**
  * 訪客那道門的 endpoint path（`anonymous` plugin 的 `signInAnonymous`）。
  *
- * 下面 allowlist 的 hook 靠它認出「這次建立 user 不是 Google 註冊」。**寫成常數是因為
- * 它有兩個讀者**（hook 與 `guest/guest-entry.ts` 的註解對照），而拼錯一個字的後果是
- * 訪客入口整條壞掉、或 allowlist 靜默失效 —— 後者是安全問題，不能靠字串字面值。
+ * 下面 allowlist 的 hook 靠它認出「這次建立 user 不是 Google 註冊」。**它是一個安全判斷的
+ * 左手邊**，拼錯一個字 allowlist 就會靜默失效（所有註冊都被當成訪客放行），而拼錯的
+ * 字串字面值不會有任何人喊 —— 所以它有名字，而且名字就在這條規則旁邊。
  */
-export const GUEST_SIGN_IN_PATH = "/sign-in/anonymous";
+const GUEST_SIGN_IN_PATH = "/sign-in/anonymous";
 
 /** 訪客那一列 `users.name` 的值。使用者看不到它，`psql` 裡看得到。 */
 const GUEST_USER_NAME = "訪客";
@@ -161,15 +161,25 @@ function createAuth() {
        * （`guest/guest-entry.integration.test.ts`）—— 猜錯的話訪客會靜默地變成
        * 一個永遠不會被清理的普通 user。
        *
-       * **不設 `onLinkAccount`，也不需要**：v1 沒有「訪客升級成正式帳號」這件事，
-       * 因為正式帳號的門是 allowlist —— 一個陌生訪客即使去點 Google 登入也進不來
-       * （票券 30 §5(d) 擔心的 `projects.owner_id` 被 cascade 帶走，前提是 link 真的
-       * 會發生）。要開放升級，得先回答「誰可以成為受邀者」，那是 allowlist 的問題，
-       * 不是這個 plugin 的問題。
+       * ⚠️ **`disableDeleteAnonymousUser: true` 擋的是一條真的資料遺失路徑**（票券 30 §5(d)
+       * 的 fallback）。plugin 的 after-hook 在任何一支 `/sign-in`／`/callback` 之後，只要
+       * 這個瀏覽器還帶著訪客 session，就會 `deleteUser(訪客的 id)` —— **與有沒有設
+       * `onLinkAccount` 無關**，唯一的閘門就是這個旗標。而 `projects.owner_id` 是
+       * `ON DELETE CASCADE`，所以那一刻消失的是一份稿。
+       *
+       * 走得到這條路的**不是陌生人，是受邀者**：清單上的人先點「以訪客身分體驗」寫了東西、
+       * 再用 Google 登入，就正好踩上去（allowlist 只擋新建 user 那一支，既有受邀者連
+       * create hook 都不經過）。「陌生人進不來所以 link 不會發生」是錯的推論。
+       *
+       * 旗標打開之後的結果是**兩個身分並存**：Google 那邊是他的正式專案，訪客那一列連同
+       * 它的範例稿留著，七天後被 TTL 清掉。**v1 刻意不做「把訪客的稿搬過去」** —— 搬家要
+       * 回答「兩邊都已經有專案時要怎麼辦」，那是一個沒有人在問的問題；而「什麼都不做」
+       * 的代價是他要重貼一次自己在範例稿上寫的東西，不是稿不見了。這兩者不對稱。
        */
       anonymous({
         schema: { user: { fields: { isAnonymous: "isDemo" } } },
         generateName: () => GUEST_USER_NAME,
+        disableDeleteAnonymousUser: true,
       }),
 
       // ⚠️ 必須放在陣列**最後**，否則 Server Action 裡的 `Set-Cookie` 不會生效。

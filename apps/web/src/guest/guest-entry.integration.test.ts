@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { USER_ID_PREFIX } from "@/auth/auth";
+import { getAuth, USER_ID_PREFIX } from "@/auth/auth";
 import { getDb } from "@/db/client";
 import { projects, screenplays, users } from "@/db/schema";
 import { PROJECT_ID_PREFIX } from "@/projects/project-store";
@@ -87,6 +87,40 @@ describe.skipIf(!hasDatabase)("訪客入口（需要 Postgres）", () => {
       .where(eq(users.id, ownerId));
 
     expect(row?.isDemo).toBe(true);
+  });
+
+  it("訪客那一列不會被 plugin 自己刪掉 —— 刪掉就是連稿一起沒了", async () => {
+    // ⚠️ 這一條守的是一條真的資料遺失路徑（票券 30 §5(d)）：plugin 的 after-hook 在任何
+    // 一支 /sign-in／/callback 之後，只要瀏覽器還帶著訪客 session 就會刪掉那一列 user，
+    // 而 `projects.owner_id` 是 ON DELETE CASCADE。走得到那條路的是**受邀者**——
+    // 先體驗、再用 Google 登入。唯一的閘門是 `disableDeleteAnonymousUser`。
+    //
+    // 測試裡開不出一次真的 Google callback，所以這裡打的是**讀同一個旗標的另一支端點**：
+    // 旗標關著它會成功刪人，旗標開著它回絕。旗標一旦被拿掉，這條會紅。
+    const signedIn = await getAuth().api.signInAnonymous({
+      headers: new Headers(),
+      returnHeaders: true,
+    });
+    guestIds.push(signedIn.response.user.id);
+
+    const setCookie = signedIn.headers.get("set-cookie") ?? "";
+    const cookie = setCookie
+      .split(/,(?=[^;]+?=)/)
+      .map((one) => one.split(";")[0]?.trim())
+      .filter(Boolean)
+      .join("; ");
+
+    // 比對訊息，不只是「有丟東西出來」—— 一個壞掉的 cookie 也會丟，那會讓這條測試
+    // 在完全錯誤的理由下變綠。
+    await expect(
+      getAuth().api.deleteAnonymousUser({ headers: new Headers({ cookie }) }),
+    ).rejects.toThrow(/Deleting anonymous users is disabled/);
+
+    const [row] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, signedIn.response.user.id));
+    expect(row?.id).toBe(signedIn.response.user.id);
   });
 
   it("兩個訪客互不覆蓋 —— 各自的身分、各自的專案、各自的稿", async () => {

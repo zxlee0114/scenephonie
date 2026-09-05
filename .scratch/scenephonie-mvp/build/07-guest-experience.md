@@ -4,7 +4,7 @@
 
 **Blocked by:** 06
 
-**Status:** ready-for-acceptance
+**Status:** in-review
 
 - [x] 點「以訪客身分體驗」→ 得到自己的 user 身分與自己的 demo project 副本
 - [x] 兩個訪客 session 互不覆蓋對方的稿（非共用帳號）
@@ -48,12 +48,9 @@ Google OAuth → users.id → landingProject() → projects.owner_id → gate �
 2. **範例稿只用今天真的存在的東西。** `location`／`dialogue.character` 只填 `displayName`、
    id 留 null，與現在使用者自己打字打出來的一模一樣；憑空鑄 `lo_`／`ch_` 會是指向不存在實體的
    引用，票券 08 一來就是一批髒資料。`appearingCharacters` 同理留 null。
-3. **v1 不做「訪客升級成 Google 帳號」，所以不設 `onLinkAccount`。** 票券 30 §5(d) 擔心的
-   「`onLinkAccount` 之後 anonymous user 列被刪、`projects.owner_id` 被 cascade 帶走」，
-   前提是 link 真的會發生 —— 而**正式帳號的門是 allowlist**：一個陌生訪客即使去點 Google 登入
-   也進不來。要開放升級，得先回答「誰可以成為受邀者」，那是 allowlist 的問題，不是 plugin 的。
-   票券 30 的 spike #2（就地升級 vs fallback）因此**在 v1 沒有需要被回答的時刻**，
-   不是被跳過：allowlist 一旦鬆綁，它會是第一個要回來做的東西。
+3. **v1 不做「把訪客的稿搬到 Google 帳號」，但那條刪除路徑要主動關掉**（票券 30 §5(d)
+   的 fallback，`disableDeleteAnonymousUser: true`）。詳見下面 code review 那一則 —— 這一條
+   的初稿是錯的，而且錯得會掉資料。
 4. **「最後活動」＝ 他那份稿最後一次被存檔的時間**（`screenplays.updated_at`），沒有稿就退回
    帳號建立時間。不看 session：session 會被 cookie cache 與背景刷新推著走，於是「還活著」
    會變成「瀏覽器還開著」而不是「還有人在寫」。改稿是這個產品裡唯一算數的活動，
@@ -84,3 +81,46 @@ Google OAuth → users.id → landingProject() → projects.owner_id → gate �
 
 **測試**：無 `DATABASE_URL` → 172 passed / 27 skipped；接上本機 Postgres → 199 passed。
 `next build`、`tsc --noEmit`、`eslint` 皆綠。
+
+**2026-09-05 — code review 後的修正（同一票）。** 兩軸審查（standards／spec）各自跑完。
+
+**spec 軸抓到一個會掉資料的錯誤裁決，已修。** 初稿寫「v1 沒有訪客升級這件事，所以
+票券 30 §5(d) 的 cascade 風險不會發生，因為陌生訪客過不了 allowlist」。**漏掉的不是陌生人，
+是受邀者**：清單上的人先點「以訪客身分體驗」寫了東西、再用 Google 登入，就正好走進去。
+allowlist 只擋**新建 user** 那一支，既有受邀者連 `create` hook 都不經過。
+
+而 plugin 的 after-hook 在任何一支 `/sign-in`／`/callback` 之後，只要瀏覽器還帶著訪客 session
+就會 `deleteUser(訪客的 id)` —— **與有沒有設 `onLinkAccount` 無關**，唯一的閘門是
+`disableDeleteAnonymousUser`（`plugins/anonymous/index.mjs` 的
+`options?.disableDeleteAnonymousUser || isSameUser || newSessionIsAnonymous`）。
+`projects.owner_id` 是 `ON DELETE CASCADE`，所以那一刻消失的是一份稿。
+
+旗標打開之後是**兩個身分並存**：Google 那邊是他的正式專案，訪客那一列連同範例稿留著，
+七天後被 TTL 清掉。**刻意不做「把稿搬過去」** —— 搬家要回答「兩邊都已經有專案時怎麼辦」，
+那是一個沒有人在問的問題；而「什麼都不做」的代價是他要重貼一次自己在範例稿上寫的字，
+不是稿不見了。這兩者不對稱。
+
+守它的測試在 `guest-entry.integration.test.ts`：測試裡開不出一次真的 Google callback，
+所以打的是**讀同一個旗標的另一支端點**（`/delete-anonymous-user`），並比對錯誤訊息而不只是
+「有丟東西出來」（壞掉的 cookie 也會丟）。**旗標暫時拿掉驗證過它真的會紅。**
+
+**spec 軸另一項不成立**：「整合測試在沒有 `DATABASE_URL` 的 CI 上不會證明任何一條」——
+`.github/workflows` 的 `verify` job 起了一顆真的 `postgres:16` 並設了 `DATABASE_URL`
+（票券 05 的裁決：persistence 的行為只有在真的 Postgres 上才成立）。驗收框 1、2 在 CI 上是真的被驗的。
+
+**standards 軸六項，改了五項**（第五項 `Record<string, unknown>` 的 attr 型別維持原樣：
+有 hydrate 測試兜底，符合本 repo「用測試釘規則」的習慣）：
+
+1. **拿掉一句可驗證為假的註解。** `GUEST_SIGN_IN_PATH` 原本寫「它有兩個讀者」，實際只有一個。
+   這個 repo 的註解是承重的，假的理由比沒有註解更糟 —— 改成它真正的理由（它是一個安全判斷的
+   左手邊，拼錯就是 allowlist 靜默失效），並收回沒有消費者的 `export`。
+2. **cron secret 的比較補上裁決。** 不做 constant-time 是選擇不是疏漏：secret 是 32 bytes 隨機值，
+   而攻擊者拿到它也只能觸發一條寫死的政策（端點不收參數）。這個檔案其他每個安全決定都寫了
+   為什麼，這一條不能是唯一的空白。
+3. **沒設 `CRON_SECRET` 時 `console.warn`。** 它關掉的不只是清理，還有 keep-alive ping，
+   而那個失敗七天後會變成「資料庫被暫停、要人工復原」。排程每天打一次，所以這行每天會在
+   紀錄裡出現一次 —— 沉默才是這裡真正的風險。
+4. **`join("guest", "")` 的尾斜線**與 **`.sign-in__note` 的負上邊距**各補一句說明（同檔其餘
+   每個非顯然構造都有）。
+5. 測試裡 `sceneIdsOf`／`DAY_MS` 的小重複維持原樣：兩處形狀相同但語意不同（一個問 doc、
+   一個問資料庫），抽出來只會多一個要跨檔案追的間接層。

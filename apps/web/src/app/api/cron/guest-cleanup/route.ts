@@ -22,7 +22,19 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+
+  if (!secret) {
+    // 大聲一點：沒設 secret 的後果不只是「清理沒跑」，連 keep-alive ping 也一起沒跑，
+    // 而那個失敗會在七天後變成「資料庫被暫停、要人工從 dashboard 復原」。排程每天打一次，
+    // 所以這一行每天會在部署紀錄裡出現一次 —— 沉默才是這裡真正的風險。
+    console.warn("CRON_SECRET 未設定 —— 訪客 TTL 清理與 keep-alive ping 都不會執行");
+    return new Response(null, { status: 404 });
+  }
+
+  // ⚠️ 不做 constant-time 比較，而且這是一個裁決不是疏漏：secret 是 32 bytes 的隨機值，
+  // 靠網路上的時序差反推它需要的樣本數遠大於雜訊，而攻擊者拿到它也只能觸發一條寫死的
+  // 政策（這支端點不收任何參數）。真正的控制是那條政策本身，不是這一行比較。
+  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response(null, { status: 404 });
   }
 
