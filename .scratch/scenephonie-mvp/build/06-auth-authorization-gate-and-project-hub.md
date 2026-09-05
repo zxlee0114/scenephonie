@@ -4,7 +4,7 @@
 
 **Blocked by:** 05
 
-**Status:** in-review
+**Status:** done
 
 - [x] Google 登入後 land 在自己的專案；未登入被 optimistic redirect
 - [x] 另一個使用者對非自己的專案，route handler 的 gate 回絕（不是靠 UI 藏）
@@ -57,7 +57,7 @@ ADR-0012 §① 的清單變成測試 —— domain 不讀 `accounts`、無 `crea
 **仍待部署時處理（不屬本票）**：`screenplay_backups` 的 append-only 仍是程式碼層規則，要變成保證
 得撤掉執行期角色的 `UPDATE`／`DELETE` 權限，那是 DB 角色的事，本票處理的是 application layer 的授權。
 
-**未在真實 Google OAuth 上跑過**：需要 Google Cloud Console 的 OAuth client 與對外網址，
+**未在真實 Google OAuth 上跑過**（⚠️ 已於 2026-09-05 驗收時推翻，見最後一則）：需要 Google Cloud Console 的 OAuth client 與對外網址，
 機器上沒有憑證。整條 callback 之後的路徑（建 user → 建 session → gate → 專案 hub）由整合測試涵蓋，
 **但 provider 那一段是文件層級的信心，不是行為層級的**。第一次部署時要親手走一次。
 
@@ -84,3 +84,28 @@ ADR-0012 §① 的清單變成測試 —— domain 不讀 `accounts`、無 `crea
    併成一張表（原本是兩處對同一個型別的列舉，方向還相反）；登入頁不再把任何 `?error=`
    都說成「不在受邀清單上」；測試改用 `USER_ID_PREFIX`／`PROJECT_ID_PREFIX`／
    `SINGLE_SCREENPLAY_PROJECT` 而不是硬寫字串；詞彙表對齊（`作品` → `專案`）。
+
+**2026-09-05 — 人工驗收通過，票券關閉。** 在本機 Postgres（docker）＋ 真的 Google OAuth client
+上走完全部八條驗收框。上面那則「provider 那一段是文件層級的信心」的保留**現在可以撤銷了**：
+
+| 驗收框 | 怎麼驗的 |
+| --- | --- |
+| land 在自己的專案／未登入被 redirect | 兩個 Google 帳號各自登入，都落在自己的 `pj_`；未登入開 `/projects/*` 被送到 `/login` |
+| **gate 回絕、不是靠 UI 藏** | 以帳號 B 登入後**手動改網址**到帳號 A 的 `/projects/<pj>` → **404**。繞過了全部 UI，擋下來的是 `authorizeProject` |
+| `usr_` + nanoid | 落庫實測：`usr_bdj9Wsq_xGwxZPXbFVq3i`／`usr_RJ4MU4CpIuVYDd64Hemop` |
+| 不做 shadow table | `accounts` 兩列 `provider_id = google`，只有 auth library 在寫；`projects.owner_id` 直接指 `users.id` |
+| 其餘四條 | `authority-boundary.test.ts` ＋ 型別（handle）在編譯期守著，非人工項 |
+
+**回 404 而不是 403 是刻意的** —— 403 等於承認「這個專案存在，只是不給你」，會讓 hub 變成
+一支專案 id 的存在性探針。gate 裡「查不到」與「不是你的」回同一個 `null`。
+
+**驗收過程修掉一個真缺陷**（commit `5c2d1d1`）：`describe.skipIf` 只跳過**執行**，vitest 仍會
+執行 describe 的 callback 來列舉測試 —— 三個新的整合測試檔把 `const db = getDb()` 提到 body
+頂層，於是沒設 `DATABASE_URL` 時在收集階段就丟「DATABASE_URL 未設定」，整輪失敗。原本的
+`screenplay-store.integration.test.ts` 一直是在 hook／測試**內部**才呼叫 `getDb()`，改回那個慣例。
+教訓是驗證時只走過一種環境（我的 shell 一直有 `DATABASE_URL`），所以「184 passed」是真的，
+但只在一種環境下是真的。現在兩種都驗：無 `DATABASE_URL` → 164 passed / 20 skipped；接上
+Postgres → 184 passed。
+
+**仍然開著的一項**（不屬本票，重申）：`screenplay_backups` 的 append-only 還是程式碼層規則，
+要成為保證得撤掉執行期角色的 `UPDATE`／`DELETE` 權限 —— DB 角色的事，部署時處理。
