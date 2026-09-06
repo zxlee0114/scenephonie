@@ -36,16 +36,20 @@ const DEFAULT_PROJECT_TITLE = "未命名專案";
  *
  * `screenplay` 是**函式**不是值：每一份開場稿都要現鑄（`sceneId` 不能兩份共用），
  * 而一個 module-level 常數會讓所有人拿到同一組 id。
+ *
+ * 它吃一個 **`AuthorizedProject`** 且可以是非同步的，因為開場稿可能需要先在這個專案底下
+ * 建立東西（範例稿的人物與地點）—— 那正是「先建立實體、再寫入 doc」（不變式 ⑧）。
+ * 專案這一層不知道它建了什麼，只知道要先有專案才輪得到它。
  */
 export type ProjectOpening = {
   title: string;
-  screenplay: () => Record<string, unknown>;
+  screenplay: (project: AuthorizedProject) => Promise<Record<string, unknown>>;
 };
 
 /** 沒特別說的話就是這個：空白的專案、一場空戲。 */
 const BLANK_OPENING: ProjectOpening = {
   title: DEFAULT_PROJECT_TITLE,
-  screenplay: emptyScreenplay,
+  screenplay: async () => emptyScreenplay(),
 };
 
 export type ProjectSummary = {
@@ -136,7 +140,7 @@ export async function landingProject(
   // 劇本不在上面那個交易裡：交易只負責「恰好一個專案」，而它必須短 —— 它鎖著 `users` 那一列。
   // 分兩步的代價是中間斷線會留下一個沒有劇本的專案，補法就是下一次進來時這一行。
   const { screenplayId } = await projectContents(project);
-  if (!screenplayId) await createScreenplay(project, opening.screenplay());
+  if (!screenplayId) await createScreenplay(project, await opening.screenplay(project));
 
   return project;
 }

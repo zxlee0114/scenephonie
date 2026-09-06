@@ -169,6 +169,78 @@ export const projects = pgTable(
 );
 
 /**
+ * 人物與地點 —— **append-only 的名字目錄**（票券 08、[ADR-0005](../../../../docs/adr/0005-entities-exist-by-reference.md)）。
+ *
+ * ⚠️ **這兩張表不決定「存在」。** 一筆實體「存在」＝至少有一個引用指向它（場次 metadata、
+ * 對白人物欄、角色設定表）。沒有任何引用指向的是**孤兒** —— 不出現在自動補全、不出現在
+ * 場次表、不出現在任何地方，**v1 永不清理**，因為它不佔任何人的視野。
+ *
+ * 這條定義是有代價地換來的：doc 由編輯器管、`⌘Z` 只作用在它上面，而實體表裝的是跨場次的東西
+ * （第 12 場的「小明」和第 30 場的必須是同一筆），兩者**沒有共同的交易邊界與 undo 堆疊**。
+ * 於是 chip 化建了實體、⌘Z 之後 doc 退回去而這一列不會退 —— 改掉「存在」的定義讓這個問題
+ * **消失**，而不是要我們自製跨儲存體的交易。
+ *
+ * 因此 **append-only：沒有「刪除實體」這個動作**（`src/entities/entity-store.ts` 不提供、
+ * `entity-boundary.test.ts` 守著）。編劇能做的只有拿掉引用。合併別名也不刪舊 id ——
+ * 引用改指向新實體，舊的自動變孤兒。
+ *
+ * `name` 是**真欄位**（初值＝建立時打的字，可改），不是推導值：漸進揭露下（前 8 場「未知大樓
+ * 房間」、後 2 場才揭露「海豚公寓房間」）推導只會給出前者，但製片要知道去哪裡拍。
+ * **別名不存在實體上** —— 別名就是各引用上的「這一場顯示的名字」，存在 doc 裡。
+ *
+ * **兩者都屬於專案，不屬於劇本** —— 影集那天人物跨集要有身分連續性。
+ */
+export const characters = pgTable(
+  "characters",
+  {
+    /** `ch_` ＋ nanoid（`@scenephonie/schema` 的 `mintCharacterId()`），使用者永遠看不到。 */
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /**
+     * 人物介紹的內文（自由文字）。消費者是 PDF 的人物介紹頁（票券 21）。
+     *
+     * 性別、年齡**不做成欄位** —— 人物介紹沒有規定格式，做成欄位是憑空發明約束。
+     * 「主要人物」也不是旗標，就是有沒有被角色設定表收錄。
+     */
+    description: text("description"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  // 自動補全問的是「這個專案有哪些人物」。**刻意不是 (project_id, name) 的 unique** ——
+  // 同名不同實體是合法的（同一個房間的「二十年前」與「現在」是兩筆；人物同理），
+  // 身分判準不是名字。
+  (table) => [index("characters_project_id_idx").on(table.projectId)],
+);
+
+/**
+ * 地點。欄位比人物少一個：**沒有描述欄**。
+ *
+ * 這是人物與地點唯一的不對稱，而且是**有理由的**不對稱 —— 沒有任何比賽要求地點介紹，
+ * 沒有消費者的欄位不長出來。
+ *
+ * **內外不屬於地點**（同一個公寓有內景也有外景，那是場次的欄位）；**地點實體之間沒有包含
+ * 關係**（公寓 ⊃ 客廳這種樹不做：沒有 v1 消費者、要人另外填、而且沒有底）。
+ * 身分判準是**美術上要不要分開處理** —— 不是名字，也不是地理位置。
+ */
+export const locations = pgTable(
+  "locations",
+  {
+    /** `lo_` ＋ nanoid。 */
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("locations_project_id_idx").on(table.projectId)],
+);
+
+/**
  * 一個劇本一列。
  *
  * `doc jsonb` 而非 `text` —— 投的是除錯能力（出事時能在 `psql` 裡

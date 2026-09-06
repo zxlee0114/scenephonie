@@ -312,6 +312,93 @@
   color: var(--focus-ring);
 }
 
+/* ── 實體欄位（地點／登場人物／對白人物）—— chip ＋ 三列自動補全（§4.7）── */
+
+.entity-field {
+  position: relative;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.entity-field input {
+  /* chip 之間那格還能打字的空間；打字時自然把整條 chip row 撐開，不另外算寬度。 */
+  min-inline-size: 6ch;
+}
+
+/* 命中既有實體與新建**視覺可辨**（`📍`／`👤` vs `＋`）——地點是實體，編劇必須立刻看到
+ * 自己是接上了既有的那一筆，還是又開了一筆新的（兩套陳設 vs 一套）。 */
+.entity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px var(--space-1) 1px var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--space-3);
+  background: var(--surface-raised);
+  color: var(--control-fg);
+  white-space: nowrap;
+}
+
+.entity-chip--new {
+  border-style: dashed;
+}
+
+/* 懸空引用（實體被 ⌘Z 掉、跨劇本貼上）**不是錯誤狀態**：顯示名照印，只是少一條可聚合的
+ * 連結。所以它比照未命中的樣子弱化，不上 error 色、不加驚嘆號。 */
+.entity-chip--dangling {
+  border-style: dotted;
+  color: var(--text-faint);
+}
+
+.entity-chip__mark {
+  font-size: var(--text-sm);
+}
+
+.entity-chip__remove {
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.entity-chip__remove:hover {
+  color: var(--text-primary);
+}
+
+/* 選單外觀比照 chip 下拉與 slash 選單 —— 同一種東西看起來就該是同一種東西。 */
+.entity-field__menu {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-start: 0;
+  min-inline-size: 100%;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-2);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+}
+
+.entity-field__menu li {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--space-1);
+  color: var(--text-primary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.entity-field__menu li.is-active {
+  background: var(--selection-bg);
+}
+
 /* ─────────────────────────────────────────── 內容區塊 */
 /* 三種區塊型別不用顏色區分（它們是內容不是 decoration）。改以縮排、欄寬、spacing、rhythm。 */
 
@@ -329,6 +416,13 @@
   margin-inline-start: var(--space-6);
   /* 對白單元（人名＋台詞）與前後動作之間留更明顯的呼吸（使用者回饋 2026-09-03）。 */
   margin-block: var(--space-5);
+}
+
+/* 人物欄現在是實體欄位（chip ＋ 選單），但它在對白裡仍是「上面那一行」—— 佔滿寬度、
+ * 台詞在它下面。 */
+.block--dialogue .block__speaker-field {
+  display: flex;
+  margin-block-end: var(--space-2);
 }
 
 .block--dialogue .block__speaker {

@@ -2,7 +2,9 @@
 
 import { docFromJSON } from "@scenephonie/schema";
 
-import { authorizeScreenplay } from "@/authorization";
+import { authorizeProject, authorizeScreenplay } from "@/authorization";
+import { createCharacter, createLocation, renameCharacter, renameLocation } from "@/entities";
+import type { CreateEntityRequest, RenameEntityRequest } from "@/editor/entity-capability";
 import type { SaveOutcome, SaveScreenplayRequest } from "@/editor/save-capability";
 import { saveScreenplay } from "@/persistence";
 
@@ -35,4 +37,52 @@ export async function saveScreenplayAction(
   docFromJSON(request.doc);
 
   return saveScreenplay({ screenplay, doc: request.doc, token: request.token });
+}
+
+/**
+ * 建立一筆人物或地點。
+ *
+ * **授權主體是專案，不是劇本** —— 實體屬於專案（影集那天人物跨集有身分連續性），所以這裡
+ * 過的是 `authorizeProject`。`projectId` 從瀏覽器來，跟 `screenplayId` 一樣是任何字串。
+ *
+ * ⚠️ 這支必須在編輯器寫 doc **之前**跑完：domain command 的引用完整性檢查（不變式 ⑧）問的是
+ * 實體表，反過來的話每一次建立新人物都會被自己的不變式擋下（§6.6）。
+ */
+export async function createEntityAction(
+  request: CreateEntityRequest,
+): Promise<{ id: string; name: string } | null> {
+  const project = await authorizeProject(request.projectId);
+  if (!project) return null;
+
+  // 空名字不建實體 —— 那會是一筆永遠沒人認得出來的孤兒。
+  const name = request.name.trim();
+  if (!name) return null;
+
+  const entity =
+    request.kind === "character"
+      ? await createCharacter(project, { name })
+      : await createLocation(project, { name });
+
+  return { id: entity.id, name: entity.name };
+}
+
+/**
+ * 把實體改名。名字是真欄位（初值＝建立時打的字），所以它可以改。
+ *
+ * **改的是實體的名字，不是各引用上的顯示名** —— 別名不存在實體上，改名不代換全文
+ * （漸進揭露下那可能正是編劇要的）。
+ */
+export async function renameEntityAction(request: RenameEntityRequest): Promise<boolean> {
+  const project = await authorizeProject(request.projectId);
+  if (!project) return false;
+
+  const name = request.name.trim();
+  if (!name) return false;
+
+  const renamed =
+    request.kind === "character"
+      ? await renameCharacter(project, request.entityId, name)
+      : await renameLocation(project, request.entityId, name);
+
+  return renamed !== null;
 }

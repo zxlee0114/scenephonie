@@ -16,12 +16,15 @@ import { TextSelection } from "@tiptap/pm/state";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useRef } from "react";
 
-import type { DialogueCharacterRef } from "@scenephonie/schema";
+import { setDialogueCharacter, type DialogueCharacterRef } from "@scenephonie/schema";
 
 import { sceneContext, type BlockAddress } from "../address";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
+import { runKernelCommand } from "../command-bridge";
 import { Action, Dialogue, InsertShot } from "../schema";
-import { CjkField } from "../cjk-field";
+import { useEntityCatalog } from "../entity-catalog";
+import { EntityField, type EntityRef } from "../entity-field";
+import { entityUsage } from "../entity-usage";
 import { claimFocus, subscribeFocusRequest } from "../focus";
 
 /** 從 node view 反推它所在場次的 id 與自己在場次裡的序（給 pending-focus 比對用）。 */
@@ -67,12 +70,24 @@ function insertShotTag(): HTMLElement {
 }
 
 function DialogueView(props: NodeViewProps) {
-  const { node, editor, updateAttributes } = props;
+  const { node, editor } = props;
   const inputRef = useRef<HTMLInputElement>(null);
-  // 票券 04 尚無人物實體（票券 08）—— id 先為 null，形狀已是 kernel 的 DialogueCharacterRef。
+  const catalog = useEntityCatalog();
   const character = (node.attrs.character ?? null) as
     | (Omit<DialogueCharacterRef, "id"> & { id: string | null })
     | null;
+  /**
+   * 人物欄的**單值**引用。id 為 null 的是票券 04／07 的過渡形狀 —— 讀取照印顯示名，
+   * 但寫不回去（沒有實體可指），編劇一動這一欄就會被真的引用取代。
+   */
+  const speaker: EntityRef[] = character
+    ? [
+        {
+          id: typeof character.id === "string" ? character.id : null,
+          displayName: character.displayName,
+        },
+      ]
+    : [];
 
   // Tab 把區塊轉成對白後，這個 node view 消費掉待決焦點請求。掛載時試領一次（轉型當下這個
   // view 才剛生出來），並**訂閱**後續請求 —— 台詞裡按 ↑ 回人物欄時 view 早就掛好了，只靠掛載
@@ -124,16 +139,34 @@ function DialogueView(props: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="block block--dialogue">
-      <CjkField
-        ref={inputRef}
-        className="block__speaker"
+      {/* 對白的人物欄**必須是實體引用而非字串**（§4.7）——「哪幾場有這個人的聲音但沒入鏡」
+          只能靠這一欄回答。寫入走 domain command，引用完整性住在那裡。 */}
+      <EntityField
+        inputRef={inputRef}
+        kind="character"
         placeholder="人物"
-        value={character?.displayName ?? ""}
-        onCommit={(v) => {
-          const name = v.trim();
-          // 票券 04 尚無人物實體（票券 08）—— 先存無 id 的引用形狀，之後接上真實體。
-          updateAttributes({ character: name ? { id: null, displayName: name } : null });
+        className="block__speaker-field"
+        inputClassName="block__speaker"
+        refs={speaker}
+        options={catalog.characters}
+        usage={() => entityUsage(editor.state.doc)}
+        onCommit={(refs) => {
+          const here = locateBlock(props);
+          if (!here) return;
+          // 過渡引用（沒有 id）寫不回去 —— 它指不到任何實體。
+          const ref = refs.filter((r) => r.id !== null).at(-1) ?? null;
+          runKernelCommand(editor, (doc) =>
+            setDialogueCharacter(doc, {
+              sceneId: here.sceneId,
+              blockIndex: here.blockIndex,
+              ref: ref?.id ? { id: ref.id, displayName: ref.displayName } : null,
+              directory: catalog.directory,
+            }),
+            { keepFocus: true },
+          );
         }}
+        onCreate={(name) => catalog.create("character", name)}
+        onRenameEntity={(id, name) => catalog.rename("character", id, name)}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return;
           // 人物欄打完按 Enter：直接進台詞（不要「按了沒反應」的錯愕）——與正向 Tab 同終點。

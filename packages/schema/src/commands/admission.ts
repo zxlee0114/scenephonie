@@ -80,6 +80,31 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     rationale: "全程保住 sceneId；自己拒絕非法目標（縱深，不靠 UI 落點線）。",
   },
   {
+    name: "setSceneLocations",
+    enforces: ["⑧"],
+    addressesById: true,
+    rationale: "拒絕對不存在地點的引用（檢查對象是實體表）；以 sceneId ＋ 地點 id 定址。",
+  },
+  {
+    name: "setSceneIntExt",
+    enforces: [],
+    addressesById: true,
+    rationale:
+      "以 sceneId 定址；「地點欄能有幾個值」是內外的函式（§4.3 雜景逃生口），只在寫地點時檢查會留洞。",
+  },
+  {
+    name: "setAppearingCharacters",
+    enforces: ["⑧"],
+    addressesById: true,
+    rationale: "拒絕對不存在人物的引用；以 sceneId ＋ 人物 id 定址。判準是入鏡，不從對白推導。",
+  },
+  {
+    name: "setDialogueCharacter",
+    enforces: ["⑧"],
+    addressesById: true,
+    rationale: "拒絕對不存在人物／非本場群演的引用；以 sceneId 定址（blockIndex 是傳遞參數）。",
+  },
+  {
     name: "dedupeSceneIds",
     enforces: ["⑥"],
     addressesById: true,

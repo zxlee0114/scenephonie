@@ -18,6 +18,19 @@ export type { SetBlockTypeOptions, BlockType } from "./set-block-type";
 export { moveScene } from "./move-scene";
 export type { MoveSceneOptions, MoveTarget } from "./move-scene";
 
+export {
+  setSceneLocations,
+  setSceneIntExt,
+  setAppearingCharacters,
+  setDialogueCharacter,
+} from "./entity-refs";
+export type {
+  SetSceneLocationsOptions,
+  SetSceneIntExtOptions,
+  SetAppearingCharactersOptions,
+  SetDialogueCharacterOptions,
+} from "./entity-refs";
+
 export { dedupeSceneIds, dedupeIdsPlugin, dedupeIdsPluginKey } from "./dedupe";
 export type { DedupeResult, DedupeOptions, DedupeMeta, Remint } from "./dedupe";
 

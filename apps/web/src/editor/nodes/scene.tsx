@@ -20,10 +20,25 @@ import {
 import type { Decoration } from "@tiptap/pm/view";
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
-import { INT_EXT_VALUES, TIME_VALUES, type LocationRef } from "@scenephonie/schema";
+import {
+  INT_EXT_VALUES,
+  TIME_VALUES,
+  sceneAppearingCharacters,
+  sceneLocations,
+  setAppearingCharacters,
+  setSceneIntExt,
+  setSceneLocations,
+  type CommandResult,
+  type SceneIntExt,
+} from "@scenephonie/schema";
+
+import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { ChipSelect } from "../chip-select";
-import { CjkField } from "../cjk-field";
+import { runKernelCommand } from "../command-bridge";
+import { useEntityCatalog, type EntityCatalog } from "../entity-catalog";
+import { EntityField, type EntityKind, type EntityRef } from "../entity-field";
+import { entityUsage } from "../entity-usage";
 import { claimFocus, handOffFocus, subscribeFocusRequest } from "../focus";
 import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
 import { scrollToWritingPosition } from "../typewriter-scroll";
@@ -36,12 +51,85 @@ const swallowTab = (e: ReactKeyboardEvent) => {
   if (e.key === "Tab") e.stopPropagation();
 };
 
-// 票券 04 尚無地點實體（票券 08）—— locationId 先為 null，形狀已是 kernel 的 LocationRef。
-type SceneLocation = (Omit<LocationRef, "locationId"> & { locationId: string | null }) | null;
+/**
+ * doc 裡的引用 → 實體欄位的中性形狀。
+ *
+ * ⚠️ **id 為 null 的引用是票券 04／07 的過渡形狀**（實體還不存在時的佔位）。讀取容忍它 ——
+ * 顯示名照印，chip 照樣看得到（§6.6）；但**寫不回去**：不變式 ⑧ 的檢查對象是實體表，
+ * 一筆從來沒有 id 的引用沒有實體可指。編劇在這一欄動手時，它會被他自己打的那一筆取代。
+ */
+const toFieldRef = (id: unknown, displayName: string): EntityRef => ({
+  id: typeof id === "string" ? id : null,
+  displayName,
+});
+
+/** 真的指得到實體的那些引用 —— 只有它們進得了 command。 */
+type PlacedRef = EntityRef & { id: string };
+const placed = (refs: readonly EntityRef[]): PlacedRef[] =>
+  refs.filter((r): r is PlacedRef => r.id !== null);
+
+/**
+ * chip row 上的一格實體欄位。
+ *
+ * 地點與登場人物只差在**寫回 doc 的是哪一支 command** —— 其餘（目錄、建立、改名、
+ * keepFocus、空欄位的虛線樣式）逐字相同，所以只寫一次。
+ */
+function SceneEntityChip({
+  editor,
+  catalog,
+  kind,
+  placeholder,
+  refs,
+  usage,
+  inputRef,
+  write,
+  onTab,
+}: {
+  editor: NodeViewProps["editor"];
+  catalog: EntityCatalog;
+  kind: EntityKind;
+  placeholder: string;
+  refs: EntityRef[];
+  usage: () => ReadonlyMap<string, number>;
+  inputRef?: React.Ref<HTMLInputElement>;
+  /** 這一欄怎麼寫回 doc。吃已經濾掉過渡引用的清單，吐一支 kernel command。 */
+  write: (refs: PlacedRef[]) => (doc: PMNode) => CommandResult;
+  /** 正向 Tab 的下一站（§7.1 焦點串接）。 */
+  onTab: () => void;
+}) {
+  return (
+    <span className={`scene__chip${refs.length > 0 ? "" : " scene__chip--empty"}`}>
+      <EntityField
+        inputRef={inputRef}
+        kind={kind}
+        placeholder={placeholder}
+        refs={refs}
+        options={kind === "location" ? catalog.locations : catalog.characters}
+        usage={usage}
+        // 多值 —— 但 command 只讓雜景的地點欄真的存下多個（§4.3：metadata 一律單值）。
+        multiple
+        onCommit={(next) =>
+          runKernelCommand(editor, write(placed(next)), { keepFocus: true })
+        }
+        onCreate={(name) => catalog.create(kind, name)}
+        onRenameEntity={(id, name) => catalog.rename(kind, id, name)}
+        onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing || e.key !== "Tab" || e.shiftKey) return;
+          e.preventDefault();
+          e.stopPropagation();
+          onTab();
+        }}
+      />
+    </span>
+  );
+}
 
 function SceneView({ node, editor, updateAttributes, decorations, getPos }: NodeViewProps) {
   const firstField = useRef<HTMLButtonElement>(null);
+  /** 地點欄的正向 Tab 要落在登場人物欄 —— 拿著它的 input，不靠 class 名走訪 DOM。 */
+  const charactersField = useRef<HTMLInputElement>(null);
   const sceneId = node.attrs.sceneId as string;
+  const catalog = useEntityCatalog();
 
   // 「新增下一場」的即時回饋：這一場若剛被建立出來，短暫掛上 .scene--just-added（CSS 自己淡出）。
   // 掛載時領一次（append 情境），並訂閱 markSceneBorn（中間插入時 node view 被沿用、不重新掛載，
@@ -96,7 +184,15 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
 
   const intExt = (node.attrs.intExt as string | null) ?? "";
   const time = (node.attrs.time as string | null) ?? "";
-  const location = (node.attrs.location as SceneLocation) ?? null;
+
+  const locationRefs = sceneLocations(node.attrs.location).map((r) =>
+    toFieldRef(r.locationId, r.displayName),
+  );
+  const characterRefs = sceneAppearingCharacters(node.attrs.appearingCharacters).map((r) =>
+    toFieldRef(r.characterId, r.displayName),
+  );
+  // 「（12 場）」要走一遍整份 doc —— 傳函式而不是值，只有選單真的要畫時才算（§7.7）。
+  const usage = () => entityUsage(editor.state.doc);
 
   return (
     <NodeViewWrapper
@@ -129,7 +225,19 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
             placeholder="內外"
             value={intExt}
             options={INT_EXT_VALUES}
-            onChange={(v) => updateAttributes({ intExt: v || null })}
+            // 走 command 而不是 updateAttributes —— 「地點欄能有幾個值」是內外的函式
+            // （§4.3 雜景逃生口）。被拒絕時下拉維持原值，不在編劇背後丟掉他打的地點。
+            onChange={(v) =>
+              runKernelCommand(
+                editor,
+                (doc) =>
+                  setSceneIntExt(doc, {
+                    sceneId,
+                    intExt: (v || null) as SceneIntExt | null,
+                  }),
+                { keepFocus: true },
+              )
+            }
           />
         </span>
 
@@ -143,27 +251,47 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           />
         </span>
 
-        <span className={`scene__chip${location ? "" : " scene__chip--empty"}`}>
-          <CjkField
-            placeholder="地點"
-            value={location?.displayName ?? ""}
-            onCommit={(v) => {
-              const name = v.trim();
-              // 票券 04 尚無地點實體（票券 08）—— 先存無 id 的引用形狀。
-              updateAttributes({ location: name ? { locationId: null, displayName: name } : null });
-            }}
-            onKeyDown={(e) => {
-              if (e.nativeEvent.isComposing || e.key !== "Tab") return;
-              // 地點是 chip row 最後一格。正向 Tab：直接落進場次內文開始撰寫（不是跳到腳部按鈕，
-              // 那顆已 tabIndex=-1）。反向 Tab：交給瀏覽器原生回到時間欄；BlockCycle 的攔截由外層
-              // swallowTab 擋掉。§7.1 焦點串接。
-              if (e.shiftKey) return;
-              e.preventDefault();
-              e.stopPropagation();
-              enterBody();
-            }}
-          />
-        </span>
+        {/* 地點與登場人物是**實體引用**（§4.7）——寫入一律走 domain command，因為引用完整性
+            （不變式 ⑧）住在那裡，不住在這個欄位。command 被拒絕時 bridge 會 warn 並 no-op。 */}
+        <SceneEntityChip
+          editor={editor}
+          catalog={catalog}
+          kind="location"
+          placeholder="地點"
+          refs={locationRefs}
+          usage={usage}
+          write={(refs) => (doc) =>
+            setSceneLocations(doc, {
+              sceneId,
+              refs: refs.map((r) => ({ locationId: r.id, displayName: r.displayName })),
+              directory: catalog.directory,
+            })
+          }
+          onTab={() => charactersField.current?.focus()} // 往下一格；最後一格才進內文
+        />
+
+        {/* 登場人物。**判準是入鏡，不是有沒有台詞** —— 這一欄由編劇填，系統絕不從對白推導
+            （推導會讓製片誤排演員通告）。提示是另一件事，票券 10。 */}
+        <SceneEntityChip
+          editor={editor}
+          catalog={catalog}
+          kind="character"
+          placeholder="登場人物"
+          refs={characterRefs}
+          usage={usage}
+          inputRef={charactersField}
+          write={(refs) => (doc) =>
+            setAppearingCharacters(doc, {
+              sceneId,
+              refs: refs.map((r) => ({ characterId: r.id, displayName: r.displayName })),
+              directory: catalog.directory,
+            })
+          }
+          // chip row 最後一格。正向 Tab：直接落進場次內文開始撰寫（不是跳到腳部按鈕，那顆已
+          // tabIndex=-1）。反向 Tab：交給瀏覽器原生回到地點欄；BlockCycle 的攔截由外層
+          // swallowTab 擋掉。§7.1 焦點串接。
+          onTab={enterBody}
+        />
       </div>
 
       <NodeViewContent className="scene__body" />
@@ -198,7 +326,7 @@ export const SceneNode = Scene.extend({
     return ReactNodeViewRenderer(SceneView, {
       // SceneView 只畫 metadata（chip row）、場次號與整場選取狀態 —— 內文由 `NodeViewContent`
       // 交給 ProseMirror 直接維護，React 不必參與。所以「內文改了」（`oldNode !== newNode` 但
-      // markup 相同）**不重繪**：否則場次裡打每一個字都會整棵 SceneView（兩個 select、CjkField、
+      // markup 相同）**不重繪**：否則場次裡打每一個字都會整棵 SceneView（兩個 select、兩個實體欄、
       // 腳部按鈕）reconcile 一次，dev 疊上 StrictMode 雙跑會變成每鍵兩次無謂重繪。
       // 只有 attr（intExt／time／location／sceneId）或號碼／選取簽章變了才 `updateProps()`。§7.7。
       update: ({ oldNode, newNode, oldDecorations, newDecorations, updateProps }) => {

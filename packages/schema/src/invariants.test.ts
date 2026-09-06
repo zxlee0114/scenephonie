@@ -21,7 +21,9 @@ import {
   moveScene,
   sceneIdNodes,
   setBlockType,
+  setSceneLocations,
 } from "./commands";
+import { entityDirectory, mintLocationId, referenceLabel, sceneLocations } from "./entities";
 import { schema } from "./schema";
 import { block, makeDoc, makeScene, sceneWith } from "./testing";
 
@@ -139,9 +141,32 @@ describe("不變式 ⑦：場次身分只在五個時刻被鑄造，其餘一切
   });
 });
 
-// ── schema／資料層／application 保證的（本票券範圍外）────────────────────
+// ── 票券 08（人物與地點實體）────────────────────────────────────────────
 describe("不變式 ⑧：command 拒絕建立對不存在實體的引用；doc 必須允許懸空引用", () => {
-  it.todo("command（寫）／projection（讀）—— 票券 08（人物與地點實體）");
+  // ⚠️ 這兩條 it 必須並排讀。單獨拿走任一條，後人都會把另一條當成 bug 去「修」。
+  // 深入的行為測試在 commands/entity-refs.test.ts 與 entities.test.ts。
+  it("寫入：command 拒絕指向不存在實體的引用", () => {
+    const doc = makeDoc(makeScene());
+    const sceneId = doc.child(0).attrs.sceneId as string;
+    const directory = entityDirectory({});
+
+    const r = setSceneLocations(doc, {
+      sceneId,
+      refs: [{ locationId: mintLocationId(), displayName: "海豚公寓房間" }],
+      directory,
+    });
+
+    expect(r.ok).toBe(false);
+  });
+
+  it("讀取：doc 允許懸空引用，顯示名照樣讀得出來、印得出來", () => {
+    // 實體被 ⌘Z 掉之後 doc 裡留著的那筆引用 —— 它不是壞資料，PDF／場次表照印。
+    const orphaned = { locationId: mintLocationId(), displayName: "海豚公寓房間" };
+    const doc = makeDoc(makeScene({ location: orphaned }));
+
+    expect(sceneLocations(doc.child(0).attrs.location)).toEqual([orphaned]);
+    expect(referenceLabel(orphaned.displayName, undefined)).toBe("海豚公寓房間");
+  });
 });
 
 describe("不變式 D：交付的判準是承諾而非通道", () => {
