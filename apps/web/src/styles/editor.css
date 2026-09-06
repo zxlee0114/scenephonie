@@ -206,6 +206,9 @@
 /* ── 內嵌簡表（chip row）——常駐，不可被預設 UI 收合（§7.11）── */
 
 .scene__chips {
+  /* 四個欄位（含裝了 chip 的那些）**高度一致** —— 它們是同一排控制項，高度不齊會讀成
+   * 沒對齊的表格。chip 自己比這個矮，所以加 chip 不會把框撐高。 */
+  --field-block-size: 1.9rem;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -219,7 +222,25 @@
 }
 
 .scene__chip {
-  display: inline-flex;
+  display: flex;
+}
+
+/* chip row 的版面：**第一排是內外｜時間｜地點，登場人物自己一排**，兩個實體欄都吃滿
+ * 剩餘寬度（使用者回饋 2026-09-06）。
+ *
+ * 讓實體欄跟著內容長是錯的：地點多一個 chip 就把整條 row 推成兩排、少一個又收回來，
+ * 編劇每打一個頓號畫面就重排一次。寬度固定下來之後，變的只有框裡面。 */
+.scene__chip--location {
+  /* 吃掉第一排剩下的，但不吃到把內外／時間擠掉（`min-inline-size: 0` 讓它縮得下去）。 */
+  flex: 1 1 12ch;
+  min-inline-size: 0;
+}
+
+.scene__chip--character {
+  /* `0 100%` ＝ 一定換行、一定整排。登場人物是四欄裡唯一會裝很多值的，給它整排比讓它
+   * 擠在時間旁邊誠實。 */
+  flex: 1 0 100%;
+  min-inline-size: 0;
 }
 
 .scene__chip-control,
@@ -234,6 +255,8 @@
   border: 1px solid var(--rule);
   border-radius: var(--space-1);
   padding: 2px var(--space-2);
+  box-sizing: border-box;
+  min-block-size: var(--field-block-size);
 }
 
 .scene__chip-control {
@@ -262,8 +285,15 @@
   outline-offset: 1px;
 }
 
+.scene__chip .entity-field {
+  flex: 1;
+  align-items: center;
+}
+
 .scene__chip input {
-  min-inline-size: 8ch;
+  /* 框寬已經固定，input 就吃框裡剩下的 —— chip 變多時縮短的是它，不是整個欄位。 */
+  flex: 1 1 6ch;
+  min-inline-size: 6ch;
 }
 
 .scene__chip--empty .scene__chip-control,
@@ -347,9 +377,11 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 1px var(--space-1) 1px var(--space-2);
+  padding: 0 var(--space-1) 0 var(--space-2);
   border: 1px solid var(--rule);
   border-radius: var(--space-3);
+  /* 比 `--field-block-size` 矮一截，所以裝了 chip 的欄位與空欄位一樣高。 */
+  line-height: 1.4;
   background: var(--surface-page);
   color: var(--control-fg);
   white-space: nowrap;

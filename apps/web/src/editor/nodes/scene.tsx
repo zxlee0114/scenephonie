@@ -98,7 +98,9 @@ function SceneEntityChip({
   onTab: () => void;
 }) {
   return (
-    <span className={`scene__chip${refs.length > 0 ? "" : " scene__chip--empty"}`}>
+    <span
+      className={`scene__chip scene__chip--${kind}${refs.length > 0 ? "" : " scene__chip--empty"}`}
+    >
       <EntityField
         inputRef={inputRef}
         kind={kind}

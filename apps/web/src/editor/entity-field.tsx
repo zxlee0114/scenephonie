@@ -415,8 +415,8 @@ export function EntityField({
       <input
         ref={takeInput}
         className={inputClassName}
-        // 單值欄已經有 chip 時不必再留提示字 —— 那一格已經滿了。
-        placeholder={refs.length > 0 && !multiple ? "" : placeholder}
+        // 已經有 chip 就不必再留提示字 —— chip 自己就說明了這一欄是什麼。
+        placeholder={refs.length > 0 ? "" : placeholder}
         aria-label={placeholder}
         aria-expanded={rows.length > 0}
         aria-haspopup="listbox"
