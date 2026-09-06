@@ -223,7 +223,7 @@
 }
 
 .scene__chip-control,
-.scene__chip input {
+.scene__chip .entity-field {
   /* chip 控制項一律 16px：作業系統把原生控制項字級往下壓，寬螢幕上 --text-sm 讀起來太小
    * （使用者回饋 2026-09-03）；16px 同時避開 iOS 聚焦自動放大（<16px 會觸發）。 */
   font-size: 1rem;
@@ -256,7 +256,8 @@
  * 我們交出去的焦點就由我們自己畫，失焦即卸。 */
 .scene__chip-control:focus-visible,
 .scene__chip-control.is-focus-handed,
-.scene__chip input:focus-visible {
+/* 焦點環畫在**整個框**上（含 chip），因為框才是使用者眼中的那一格。 */
+.scene__chip .entity-field:focus-within {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
@@ -266,7 +267,7 @@
 }
 
 .scene__chip--empty .scene__chip-control,
-.scene__chip--empty input {
+.scene__chip--empty .entity-field {
   /* 缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）—— 但不上 error 色，只是弱化。 */
   border-style: dashed;
   color: var(--text-faint);
@@ -322,9 +323,22 @@
   gap: var(--space-1);
 }
 
+/* chip **住在輸入框裡**（使用者回饋 2026-09-06）——框是 `.entity-field` 這個容器，
+ * input 只是框裡那一段還能打字的空間，接在最後一個 chip 後面。原本 input 自己有邊框，
+ * chip 落在框外，看起來像兩個東西。 */
 .entity-field input {
   /* chip 之間那格還能打字的空間；打字時自然把整條 chip row 撐開，不另外算寬度。 */
   min-inline-size: 6ch;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.entity-field input:focus {
+  /* 焦點環由外框畫（`:focus-within`），這裡再畫一次就是框中框。 */
+  outline: none;
 }
 
 /* 命中既有實體與新建**視覺可辨**（`📍`／`👤` vs `＋`）——地點是實體，編劇必須立刻看到
@@ -336,9 +350,11 @@
   padding: 1px var(--space-1) 1px var(--space-2);
   border: 1px solid var(--rule);
   border-radius: var(--space-3);
-  background: var(--surface-raised);
+  background: var(--surface-page);
   color: var(--control-fg);
   white-space: nowrap;
+  /* 點它 ＝ 把它還原成可編輯的文字（見 entity-field.tsx 的 `editRef`）。 */
+  cursor: text;
 }
 
 .entity-chip--new {
@@ -423,6 +439,12 @@
 .block--dialogue .block__speaker-field {
   display: flex;
   margin-block-end: var(--space-2);
+}
+
+/* 對白的人物欄不畫框（它在版面上是「上面那一行」，不是一格控制項），但 chip 一樣住在
+ * 輸入框裡，游標接在後面。 */
+.block--dialogue .block__speaker-field .entity-field {
+  flex: 1;
 }
 
 .block--dialogue .block__speaker {

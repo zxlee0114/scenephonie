@@ -17,14 +17,17 @@
  */
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-
 import {
-  entityDirectory,
-  mintCharacterId,
-  mintLocationId,
-  type EntityDirectory,
-} from "@scenephonie/schema";
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+
+import { mintCharacterId, mintLocationId, type EntityDirectory } from "@scenephonie/schema";
 
 import type {
   CreateEntity,
@@ -47,7 +50,7 @@ export type EntityCatalog = {
 const EMPTY: EntityCatalog = {
   characters: [],
   locations: [],
-  directory: entityDirectory({}),
+  directory: { hasCharacter: () => false, hasLocation: () => false },
   create: async () => null,
   rename: () => {},
 };
@@ -75,7 +78,23 @@ export function EntityCatalogProvider({
   const [characters, setCharacters] = useState<readonly EntityOption[]>(initial?.characters ?? []);
   const [locations, setLocations] = useState<readonly EntityOption[]>(initial?.locations ?? []);
 
+  /**
+   * 存在性的**權威來源**，而且是同步的。
+   *
+   * 「先建立實體、再寫入 doc」（不變式 ⑧）在這一層有一個時間差：建立走的是 `setState`，
+   * 寫 doc 是同一個 tick 裡的同步呼叫 —— 中間隔著一次 render。只從 state 推導目錄的話，
+   * command 拿到的是**上一次 render 的那份**，於是剛建好的實體會被自己的不變式擋下
+   * （「實體 lo_… 不存在」）。ref 讓「目錄多一筆」與「建立成功」是同一刻的事。
+   *
+   * state 仍然存在，因為自動補全要重繪；它與 ref 的分工是**畫面 vs 真相**。
+   */
+  const ids = useRef<{ character: Set<string>; location: Set<string> }>({
+    character: new Set(initial?.characters?.map((c) => c.id) ?? []),
+    location: new Set(initial?.locations?.map((l) => l.id) ?? []),
+  });
+
   const put = useCallback((kind: EntityKind, entity: EntityOption) => {
+    ids.current[kind].add(entity.id);
     const add = (list: readonly EntityOption[]) =>
       list.some((e) => e.id === entity.id)
         ? list.map((e) => (e.id === entity.id ? entity : e))
@@ -83,6 +102,12 @@ export function EntityCatalogProvider({
     if (kind === "character") setCharacters(add);
     else setLocations(add);
   }, []);
+
+  /** 身分穩定 —— 它讀的是 ref，內容永遠是最新的，不必隨 state 換一個新物件。 */
+  const directory = useRef<EntityDirectory>({
+    hasCharacter: (id) => ids.current.character.has(id),
+    hasLocation: (id) => ids.current.location.has(id),
+  }).current;
 
   const create = useCallback<EntityCatalog["create"]>(
     async (kind, name) => {
@@ -113,14 +138,11 @@ export function EntityCatalogProvider({
     () => ({
       characters,
       locations,
-      directory: entityDirectory({
-        characterIds: characters.map((c) => c.id),
-        locationIds: locations.map((l) => l.id),
-      }),
+      directory,
       create,
       rename,
     }),
-    [characters, locations, create, rename],
+    [characters, locations, directory, create, rename],
   );
 
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;

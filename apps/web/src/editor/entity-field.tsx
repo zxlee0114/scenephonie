@@ -106,7 +106,23 @@ export function EntityField({
   const [dismissed, setDismissed] = useState(false);
   /** 這一輪由本欄位建出來的實體 —— 新建 chip 與命中 chip 視覺可辨（`＋` vs `📍`）。 */
   const [bornHere, setBornHere] = useState<readonly string[]>([]);
+  /**
+   * 組字中嗎 —— **ref 是真相（同步），state 是畫面（重繪）**。
+   *
+   * 只有 ref 的話會漏掉一次重繪：注音按 Enter 送出時 `text` 通常與組字期間的最後一次
+   * `onChange` 相同，React 於是 bail out，選單要等到下一次真的改到 `text`（使用者多打的
+   * 那個空白）才畫出來。**「確認輸入」的那一刻就是 `compositionend`**，它必須自己觸發一次
+   * 重繪，否則選單的時機會晚一個按鍵。
+   */
   const composing = useRef(false);
+  const [composingNow, setComposingNow] = useState(false);
+  /** 呼叫端也可能要這個 input（焦點串接），所以自己留一份再轉交出去。 */
+  const input = useRef<HTMLInputElement>(null);
+  const takeInput = (el: HTMLInputElement | null) => {
+    input.current = el;
+    if (typeof inputRef === "function") inputRef(el);
+    else if (inputRef) (inputRef as { current: HTMLInputElement | null }).current = el;
+  };
   const field = useRef<HTMLDivElement>(null);
 
   /**
@@ -163,6 +179,21 @@ export function EntityField({
     merge(resolved);
   };
 
+  /**
+   * 把一個 chip 還原成**可編輯的文字**（點它，或在空欄位上按 Backspace）。
+   *
+   * 不是「刪掉再重打」：字回到輸入框、游標接在後面，於是改一個字就會重新走一次
+   * 命中／新建／別名那三列 —— 改名這件事本來就該經過那個選單，而不是在 chip 上原地改掉
+   * （原地改分不出「這一場叫別的名字」與「這個實體改名了」，而那正是 §4.7 要編劇說清楚的事）。
+   */
+  const editRef = (ref: EntityRef) => {
+    onCommit(refs.filter((r) => r !== ref));
+    setText(ref.displayName);
+    setDismissed(false);
+    setActive(0);
+    input.current?.focus();
+  };
+
   const closeMenu = () => {
     setStage({ name: "suggest" });
     setDismissed(true);
@@ -177,7 +208,7 @@ export function EntityField({
 
   const query = text.trim();
   // 組字期間選單完全不動作（§7.6）；Esc 之後也不再自己彈回來，直到下一次打字。
-  const menuOpen = !composing.current && !dismissed && query.length > 0;
+  const menuOpen = !composingNow && !dismissed && query.length > 0;
 
   const rows: Row[] = [];
   if (menuOpen) {
@@ -311,10 +342,7 @@ export function EntityField({
     // Backspace 在空欄位上 ＝ 把最後一個 chip 還原成可編輯文字（不是直接刪掉）。
     if (event.key === "Backspace" && text === "" && refs.length > 0) {
       event.preventDefault();
-      const last = refs[refs.length - 1]!;
-      onCommit(refs.slice(0, -1));
-      setText(last.displayName);
-      setDismissed(false);
+      editRef(refs[refs.length - 1]!);
       return;
     }
 
@@ -352,6 +380,12 @@ export function EntityField({
               ].join(" ")}
               // 懸空引用（實體被 ⌘Z 掉）不跳警告、不少印 —— 只是少一條可聚合的連結。
               title={entity && entity.name !== ref.displayName ? entity.name : undefined}
+              // 點 chip ＝ 改它。`mousedown` 而非 `click`：`click` 要等 `mouseup`，中間
+              // 輸入框已經先 blur 過一輪，打到一半的字會被 blur 的定案吃掉。
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editRef(ref);
+              }}
             >
               {entity || born ? (
                 <span className="entity-chip__mark" aria-hidden="true">
@@ -366,7 +400,9 @@ export function EntityField({
                 aria-label={`移除${ref.displayName}`}
                 onMouseDown={(e) => {
                   e.preventDefault();
+                  e.stopPropagation(); // × 是刪除，不是編輯 —— 別讓它冒泡成點了 chip
                   onCommit(refs.filter((r) => r !== ref));
+                  input.current?.focus();
                 }}
               >
                 ×
@@ -377,7 +413,7 @@ export function EntityField({
       </span>
 
       <input
-        ref={inputRef}
+        ref={takeInput}
         className={inputClassName}
         // 單值欄已經有 chip 時不必再留提示字 —— 那一格已經滿了。
         placeholder={refs.length > 0 && !multiple ? "" : placeholder}
@@ -388,9 +424,11 @@ export function EntityField({
         value={text}
         onCompositionStart={() => {
           composing.current = true;
+          setComposingNow(true);
         }}
         onCompositionEnd={(event) => {
           composing.current = false;
+          setComposingNow(false);
           // 組字結束才輪到我們：這一刻起選單與分隔符才開始作用。
           onChange(event.currentTarget.value);
         }}

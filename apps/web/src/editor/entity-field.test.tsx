@@ -195,6 +195,55 @@ describe("注音組字期間，選單與分隔符完全不動作（§7.6）", ()
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["海豚公寓房間"]));
   });
+
+  it("確認輸入的那一刻選單就出現 —— 不必再多打一個字", () => {
+    const { container } = render(<Host />);
+    const input = container.querySelector("input")!;
+
+    // 注音：組字中 → 按 Enter 送出。**送出前後的字串一模一樣**（沒有多打任何東西），
+    // 這正是原本漏掉一次重繪的情境：`text` 沒變，React bail out，選單要等下一個按鍵。
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "海豚" } });
+    fireEvent.compositionEnd(input, { target: { value: "海豚" } });
+
+    expect(rows(container)).toEqual([
+      "📍 海豚公寓房間",
+      "＋ 建立新實體「海豚」",
+      "🔗 作為既有實體的另一個名字…",
+    ]);
+  });
+});
+
+describe("chip 住在輸入框裡", () => {
+  it("點 chip 把它還原成可編輯的文字，游標接在後面", async () => {
+    const { container } = render(<Host initial={[{ id: "lo_1", displayName: "海豚公寓房間" }]} />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.mouseDown(chips(container)[0]!);
+
+    await waitFor(() => expect(chips(container)).toHaveLength(0));
+    expect(input.value).toBe("海豚公寓房間");
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("× 是刪除，不是編輯 —— 字不會回到輸入框", async () => {
+    const { container } = render(<Host initial={[{ id: "lo_1", displayName: "海豚公寓房間" }]} />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.mouseDown(container.querySelector(".entity-chip__remove")!);
+
+    await waitFor(() => expect(chips(container)).toHaveLength(0));
+    expect(input.value).toBe("");
+  });
+
+  it("新的輸入接在前一個 chip 後面（同一個輸入框）", async () => {
+    const { container } = render(<Host initial={[{ id: "lo_1", displayName: "海豚公寓房間" }]} />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.change(input, { target: { value: "派出所、" } });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["海豚公寓房間", "派出所"]));
+  });
 });
 
 describe("自動補全三列", () => {
