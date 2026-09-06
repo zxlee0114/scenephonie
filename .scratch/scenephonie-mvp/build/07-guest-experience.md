@@ -4,7 +4,7 @@
 
 **Blocked by:** 06
 
-**Status:** in-review
+**Status:** done
 
 - [x] 點「以訪客身分體驗」→ 得到自己的 user 身分與自己的 demo project 副本
 - [x] 兩個訪客 session 互不覆蓋對方的稿（非共用帳號）
@@ -124,3 +124,26 @@ allowlist 只擋**新建 user** 那一支，既有受邀者連 `create` hook 都
    每個非顯然構造都有）。
 5. 測試裡 `sceneIdsOf`／`DAY_MS` 的小重複維持原樣：兩處形狀相同但語意不同（一個問 doc、
    一個問資料庫），抽出來只會多一個要跨檔案追的間接層。
+
+**2026-09-06 — 人工驗收通過，Status 改 done。** 上面「待人工驗收」那四條都真的走過一次：
+訪客入口、兩個視窗互不覆蓋、訪客改網址到別人的 `pj_` 回 404、受邀者先體驗再用 Google 登入
+稿還在（`disableDeleteAnonymousUser` 那條路徑的實跑版）。測試 200 passed／36 檔。
+
+驗收過程翻出兩件**與這一票的程式碼無關、但屬於「第一次真的部署」**的事，記在這裡是因為
+它們兩件都以「500 但看不出原因」的樣子出現，下次再遇到不必重查：
+
+1. **線上那顆 Supabase 從來沒跑過 migration。** Google 登入回 500，日誌是
+   `relation "verifications" does not exist`（42P01）—— Better Auth 第一步要寫一列 OAuth state。
+   修法是從自己的機器對 production 的 `DIRECT_URL`（session pooler，port 5432）跑一次
+   `pnpm db:migrate`。**部署不會自動跑 migration，這是刻意的**：schema 變更不該由一次
+   `git push` 觸發。這一跑也把 `0004`（`users.is_demo`）先套上了 —— 加一個有預設值的欄位，
+   `main` 當時的程式碼不會用到也不會壞。
+2. **Vercel 上的環境變數要自己補齊七個**（`DATABASE_URL`／`BETTER_AUTH_URL`／
+   `BETTER_AUTH_SECRET`／`GOOGLE_CLIENT_ID`／`GOOGLE_CLIENT_SECRET`／`AUTH_ALLOWED_EMAILS`／
+   `CRON_SECRET`）。缺 `BETTER_AUTH_URL` 的症狀是整頁載不出來；缺 `GOOGLE_*` 則是頁面正常、
+   一按按鈕才炸。`DIRECT_URL` 執行期用不到。`CRON_SECRET` **只設在 Vercel（Production）**，
+   本機不設 —— 本機那支端點就該是關著的。
+
+順帶記一個**這一票沒有修、但驗收時看見**的缺口：`google-sign-in.tsx` 的按鈕在點下去後設了
+`pending` 卻**沒有失敗時的回復路徑**，所以「後端回 500」與「正在跳轉」在畫面上一模一樣
+（就是上面那兩件事查起來慢的原因）。它是票券 06 的程式碼，不在這一票的範圍裡。
