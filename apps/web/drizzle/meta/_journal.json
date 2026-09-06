@@ -29,6 +29,13 @@
       "when": 1788535612020,
       "tag": "0003_romantic_mole_man",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788581390157,
+      "tag": "0004_guest_is_demo",
+      "breakpoints": true
     }
   ]
 }

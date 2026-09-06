@@ -47,6 +47,22 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
+
+  /**
+   * **infrastructure／lifecycle metadata，不是 domain model 的一部分**（§6.2、票券 24 §6）。
+   *
+   * 它回答的是「這一列該不該被 TTL 清掉」，**不是**「這個人能做什麼」——
+   * 授權從頭到尾只看 `projects.owner_id`，訪客與受邀者走的是同一條路（ADR-0011 §③）。
+   * 所以這個欄位只有兩個消費者：`auth/auth.ts`（訪客入口把它設成 true）與
+   * `guest/guest-ttl.ts`（清理任務），`src/authorization/authority-boundary.test.ts` 守著
+   * 它不外流到 domain、授權或 persistence。
+   *
+   * ⚠️ 欄名是 `is_demo`（規格 §6.2 的名字），TS 這一側叫 `isDemo`；Better Auth 的
+   * `anonymous` plugin 自己那個欄位叫 `isAnonymous`，在 `auth/auth.ts` 用 plugin 的
+   * `schema` 選項映到這裡 —— **同一件事只有一個名字**，翻譯發生在邊界上。
+   */
+  isDemo: boolean("is_demo").default(false).notNull(),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

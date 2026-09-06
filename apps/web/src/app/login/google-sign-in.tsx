@@ -8,7 +8,7 @@ import { authClient } from "@/auth/auth-client";
  * v1 唯一的登入方式（票券 24 §5）：Google OAuth。
  *
  * 沒有密碼欄、沒有 magic link、**也沒有公開測試帳密** —— 那會把剛否決的密碼從後門放回來。
- * 「以訪客身分體驗」是票券 07 的事，會長在這顆按鈕旁邊，走的是同一條 pipeline。
+ * 「以訪客身分體驗」（`./guest-sign-in`）就長在這顆按鈕旁邊，走的是同一條 pipeline。
  */
 export function GoogleSignIn() {
   const [pending, setPending] = useState(false);

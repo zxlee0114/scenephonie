@@ -2,6 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "regions": ["hnd1"],
+  "crons": [
+    {
+      "path": "/api/cron/guest-cleanup",
+      "schedule": "17 19 * * *"
+    }
+  ],
   "git": {
     "deploymentEnabled": {
       "main": true
