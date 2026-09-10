@@ -12,15 +12,33 @@
 import type { BlockAddress } from "./address";
 
 export type PendingFocus =
+  /** 場次 chip row 的**第一格**（內外景）—— 建完場次、載入劇本時的落點。 */
   | { readonly kind: "sceneMeta"; readonly sceneId: string }
+  /**
+   * 場次 chip row 的**最後一格**（群演欄）—— 從內文按 ↑ 回 metadata 的落點（票券 34）。
+   *
+   * 落在最後一格是因為它就是 Tab 順序的反向：往上退一步，就退回 Tab 進來之前的那一格。
+   * 不是「上次離開時停在哪一格」—— 那是同一顆鍵依看不見的狀態做不同的事（§7.3 已否決過）。
+   */
+  | { readonly kind: "sceneChipsEnd"; readonly sceneId: string }
   | ({ readonly kind: "speaker" } & BlockAddress);
 
 let pending: PendingFocus | null = null;
 const listeners = new Set<() => void>();
 
-export function requestFocus(next: PendingFocus): void {
+/**
+ * 發出請求，並回報**有沒有人領走**。
+ *
+ * 回傳值是給方向鍵用的（票券 34）：文件側攔下一顆鍵之前得先知道那條路真的走得通。沒有人
+ * 領走（該場的 node view 還沒掛上）卻照樣 `preventDefault`，使用者看到的是「按了沒反應」。
+ *
+ * 同步就問得出來，是因為 `listeners` 是同步跑的，而 node view 的 `tryClaim` 也同步呼叫
+ * `claimFocus` —— 這一行跑完，`pending` 還在就代表沒人要。
+ */
+export function requestFocus(next: PendingFocus): boolean {
   pending = next;
   listeners.forEach((notify) => notify());
+  return pending === null;
 }
 
 /** node view 掛載時（及被通知時）呼叫。輪到自己就回 `true` 並清掉請求。 */

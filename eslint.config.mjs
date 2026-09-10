@@ -13,6 +13,9 @@ export default tseslint.config(
       "**/next-env.d.ts",
       // wayfinder 研究產物，不是專案原始碼
       ".scratch/**",
+      // 平行開票用的 git worktree —— 各自是同一個 repo 的另一份簽出，會在自己那裡被 lint。
+      // 從這裡看過去它們只是別人的 .scratch 產物（`.scratch/**` 只擋得住根目錄那一層）。
+      ".claude/**",
     ],
   },
   js.configs.recommended,

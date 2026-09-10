@@ -176,6 +176,38 @@ describe("人物欄與台詞之間的上下導航", () => {
     });
   });
 
+  // ← 那一半早就有了（台詞第一個字之前 ← 回人物欄，見下一條）。→ 是它的反向 ——
+  // 缺了就是「過得去回不來」（§7.3 的環不變式）。使用者回饋 2026-09-10 第三輪。
+  it("人物欄按 →（游標貼著字尾）：進台詞的**開頭**", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(container.querySelector(".block__speaker")).not.toBeNull());
+
+    const speaker = container.querySelector<HTMLInputElement>(".block__speaker")!;
+    speaker.focus();
+    fireEvent.keyDown(speaker, { key: "ArrowRight" });
+
+    await waitFor(() => {
+      const { $from, empty } = editor.state.selection;
+      expect(empty).toBe(true);
+      expect($from.parent.type.name).toBe("dialogue");
+      expect($from.parentOffset).toBe(0); // 開頭，不是末端（那是 ↓）
+    });
+  });
+
+  it("人物欄裡還有字要讀時，→ 屬於那串字", async () => {
+    const { container } = render(<Harness onEditor={() => {}} />);
+    await waitFor(() => expect(container.querySelector(".block__speaker")).not.toBeNull());
+
+    const speaker = container.querySelector<HTMLInputElement>(".block__speaker")!;
+    speaker.focus();
+    fireEvent.change(speaker, { target: { value: "小明" } });
+    speaker.setSelectionRange(1, 1); // 兩個字中間
+
+    expect(fireEvent.keyDown(speaker, { key: "ArrowRight" })).toBe(true); // 沒被攔
+    expect(document.activeElement).toBe(speaker);
+  });
+
   it("台詞第一行按 ↑：焦點回到人物欄（補填人名）", async () => {
     let editor!: Editor;
     const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
@@ -190,6 +222,10 @@ describe("人物欄與台詞之間的上下導航", () => {
 
     // 真的派一顆 keydown（走瀏覽器同一條路徑）——`commands.keyboardShortcut` 會包
     // captureTransaction，與這裡「不改 doc、只搬焦點」的行為對不上。
+    // DOM 焦點也要先給編輯器：`vertical-nav` 靠 `activeElement` 分辨這顆鍵是文件的還是
+    // node view 某個欄位的（那些欄位就在 `view.dom` 裡，方向鍵照樣冒泡過來）。掛載後的
+    // 初始焦點在 chip row 上，不補這一步等於在模擬別的情境。
+    editor.view.dom.focus();
     editor.view.dom.dispatchEvent(
       new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true }),
     );

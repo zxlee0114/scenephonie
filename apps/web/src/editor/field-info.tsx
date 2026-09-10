@@ -79,6 +79,11 @@ export const FIELD_INFO: Record<FieldInfoKey, FieldInfoText> = {
           寫在這個位置。
         </p>
         <p>選了雜景，這一場的地點欄才可以填多個，也可以留空。</p>
+        <p>
+          鍵盤上按一顆字母就直接選好，不必開選單 —— 用的是場次標題行本來的英文寫法：
+          <b>i</b>（INT.）內景、<b>e</b>（EXT.）外景、<b>m</b>（MONTAGE）雜景。
+          內外景也是 <b>i</b>（INT./EXT.）—— 同一顆鍵命中兩個，再按一次就換到下一個。
+        </p>
       </>
     ),
   },
@@ -91,6 +96,11 @@ export const FIELD_INFO: Record<FieldInfoKey, FieldInfoText> = {
         <p>
           業界順場表上這一欄叫「光」—— 它要回答的是這一場<b>怎麼打光</b>，不是故事發生在幾點。
           下午三點與上午十點的戲都是「日」。
+        </p>
+        <p>
+          鍵盤上按一顆字母就直接選好，不必開選單 —— 用的是場次標題行本來的英文寫法：
+          <b>d</b>（DAY）日、<b>n</b>（NIGHT）夜。晨（DAWN）與昏（DUSK）也是 <b>d</b> ——
+          三個都撞在同一顆鍵上，再按一次就換到下一個。
         </p>
       </>
     ),
