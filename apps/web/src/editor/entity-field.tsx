@@ -32,6 +32,7 @@ import {
 
 import { isExtraId, parseExtra, splitNamesLive } from "@scenephonie/schema";
 
+import { useChipCaret } from "./chip-caret";
 import { EXTRA_MARK, HIT_MARK, NEW_MARK } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
 
@@ -105,7 +106,8 @@ type Props = {
    * 讓純鍵盤使用者知道那個 `tabIndex={-1}` 的 icon 有一條鍵盤路。
    */
   describedBy?: string;
-  onKeyDown?: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
+  /** 這一格自己用不到的鍵（chip row 的格線導航）。焦點在 chip 上時 target 是那個 chip。 */
+  onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
   inputRef?: React.Ref<HTMLInputElement>;
 };
 
@@ -274,6 +276,18 @@ export function EntityField({
     selectNext.current = selectAll;
     input.current?.focus();
   };
+
+  /** chip 之間的方向鍵（票券 34 第三輪）—— 規則與版面說明見 `./chip-caret`。 */
+  const chipCaret = useChipCaret({
+    count: refs.length,
+    input,
+    text,
+    exit: (event) => onKeyDown?.(event),
+    edit: (i, selectAll) => {
+      const ref = refs[i];
+      if (ref) editRef(ref, selectAll);
+    },
+  });
 
   const closeMenu = () => {
     setStage({ name: "suggest" });
@@ -537,6 +551,9 @@ export function EntityField({
       return;
     }
 
+    // ← 從字首退進 chip（空欄位才算）—— 沒退成才輪到 chip row 的格線導航。
+    if (chipCaret.inputKeyDown(event)) return;
+
     onKeyDown?.(event);
   };
 
@@ -561,7 +578,7 @@ export function EntityField({
   return (
     <div className={`entity-field${className ? ` ${className}` : ""}`} ref={field}>
       <span className="entity-field__chips">
-        {refs.map((ref) => {
+        {refs.map((ref, i) => {
           const entity =
             options.find((o) => o.id === ref.id) ?? sceneExtras.find((e) => e.id === ref.id) ?? null;
           const born = ref.id != null && bornHere.includes(ref.id);
@@ -571,6 +588,7 @@ export function EntityField({
           return (
             <span
               key={`${ref.id}:${ref.displayName}`}
+              {...chipCaret.chipProps(i)}
               className={[
                 "entity-chip",
                 extra

@@ -313,6 +313,37 @@ describe("跨場次：chip row 第一排 ↔ 上一場內文末端", () => {
     },
   );
 
+  // 使用者驗收回饋 2026-09-10（第三輪）：「上一場末端往下，會直接到這場的內容區塊而非
+  // metadata 區塊」。`view.endOfTextblock()` 讀的是 `getClientRects()` 的實際版面，落在區塊
+  // 末端時它並不是每次都答得出 `true`。端點這件事不必問版面 —— `parentOffset` 就是答案，
+  // 所以 `vertical-nav` 兩條判準取聯集。這裡把版面查詢整個關掉，逼出那條不看版面的路。
+  it.each(["ArrowDown", "ArrowRight"])(
+    "版面查詢答不出來時，%s 一樣回得到下一場的 chip row（游標貼著區塊字尾就夠了）",
+    async (key) => {
+      const { container, editor } = await mount(
+        docJSON(scene([action("第一場")]), scene([action("第二場")])),
+      );
+      editor().view.endOfTextblock = () => false;
+
+      caretAtSceneEnd(editor(), 0);
+      pressInBody(editor(), key);
+
+      await waitFor(() =>
+        expect(document.activeElement).toBe(cell(sceneAt(container, 1), "內外")),
+      );
+    },
+  );
+
+  it("第一區塊的第一行 ↑ 同理 —— 貼著字首就算，不必問版面", async () => {
+    const { container, editor } = await mount(docJSON(scene([action("門開了")])));
+    editor().view.endOfTextblock = () => false;
+
+    caretInFirstBlock(editor());
+    pressInBody(editor(), "ArrowUp");
+
+    await waitFor(() => expect(document.activeElement).toBe(extrasInput(container)));
+  });
+
   it("第一場的 chip row 往上沒有去處 —— 那顆鍵原封還給瀏覽器", async () => {
     const { container } = await mount(docJSON(scene([action("第一場")])));
 

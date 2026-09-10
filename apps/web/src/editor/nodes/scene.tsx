@@ -96,6 +96,10 @@ type ChipNav = {
  * `←→` 要游標**貼著字首／字尾**才跳格，否則照常在字裡走 —— 這一格裡還有字要讀時，方向鍵
  * 屬於那串字。下拉那兩格是 `<button>`、沒有游標，所以直接跳（`../chip-select` 的 `nav`）。
  *
+ * ⚠️ **這支是「離開這一格」的最後一關，不是第一關**：地點／登場人物／群演那三格裡面還有
+ * chip 可以走（`../chip-caret`，票券 34 第三輪）—— 走到那一格的最前面，才由它把鍵轉交過來。
+ * 轉交過來時 `currentTarget` 是那個 chip 而不是 `<input>`，chip 沒有游標，一律算貼著端點。
+ *
  * 正向 `Tab` 與 `→` 同一個終點，差別只在 Tab 不看游標在哪 —— 它本來就是「離開這一格」。
  * 反向 Tab 留給瀏覽器原生（回上一格）。
  *
@@ -105,7 +109,7 @@ type ChipNav = {
  * 每一顆都要 `stopPropagation`：事件從 input 冒泡到 `.ProseMirror` 會被 keymap 當成文件裡的
  * 一次游標移動再處理一次。
  */
-const chipNavHandler = (to: ChipNav) => (e: ReactKeyboardEvent<HTMLInputElement>) => {
+const chipNavHandler = (to: ChipNav) => (e: ReactKeyboardEvent<HTMLElement>) => {
   if (e.nativeEvent.isComposing) return;
 
   const fire = (go: () => boolean) => {
@@ -116,20 +120,27 @@ const chipNavHandler = (to: ChipNav) => (e: ReactKeyboardEvent<HTMLInputElement>
 
   if (e.key === "Tab" && !e.shiftKey && to.right) return fire(to.right);
 
-  const { selectionStart: start, selectionEnd: end, value } = e.currentTarget;
+  // 這一顆鍵也可能是從欄位**裡面的 chip** 轉交過來的（`../chip-caret`：第一個 chip 再往左就
+  // 出這一格）。chip 沒有游標，所以它一律算「貼著端點」—— 同下拉那兩格的 `<button>`。
+  const el = e.currentTarget;
+  const caret =
+    el instanceof HTMLInputElement
+      ? { start: el.selectionStart, end: el.selectionEnd, length: el.value.length }
+      : null;
   // 有反白就不是「貼著端點」——那一刻的 ←→ 是收起反白，屬於這串字。
-  const collapsed = start !== null && start === end;
+  const atStart = caret === null || (caret.start === caret.end && caret.start === 0);
+  const atEnd = caret === null || (caret.start === caret.end && caret.start === caret.length);
   const go =
     e.key === "ArrowUp"
       ? to.up
       : e.key === "ArrowDown"
         ? to.down
         : e.key === "ArrowLeft"
-          ? collapsed && start === 0
+          ? atStart
             ? to.left
             : undefined
           : e.key === "ArrowRight"
-            ? collapsed && start === value.length
+            ? atEnd
               ? to.right
               : undefined
             : undefined;

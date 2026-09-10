@@ -26,9 +26,19 @@ export type PendingFocus =
 let pending: PendingFocus | null = null;
 const listeners = new Set<() => void>();
 
-export function requestFocus(next: PendingFocus): void {
+/**
+ * 發出請求，並回報**有沒有人領走**。
+ *
+ * 回傳值是給方向鍵用的（票券 34）：文件側攔下一顆鍵之前得先知道那條路真的走得通。沒有人
+ * 領走（該場的 node view 還沒掛上）卻照樣 `preventDefault`，使用者看到的是「按了沒反應」。
+ *
+ * 同步就問得出來，是因為 `listeners` 是同步跑的，而 node view 的 `tryClaim` 也同步呼叫
+ * `claimFocus` —— 這一行跑完，`pending` 還在就代表沒人要。
+ */
+export function requestFocus(next: PendingFocus): boolean {
   pending = next;
   listeners.forEach((notify) => notify());
+  return pending === null;
 }
 
 /** node view 掛載時（及被通知時）呼叫。輪到自己就回 `true` 並清掉請求。 */

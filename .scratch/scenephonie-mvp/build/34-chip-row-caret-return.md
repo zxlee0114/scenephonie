@@ -57,6 +57,33 @@ chip row 的版面（`editor.css` 那條 `flex: 1 0 100%`，使用者回饋 2026
 - 場次**第一個區塊**的第一行 ↑ ／ 第一個字之前 ← → 本場 chip row 的最後一格（群演）
 - 場次**最後一個區塊**的最後一行 ↓ ／ 最後一個字之後 → → **下一場** chip row 的第一格（內外）
 
+### 一格裡面還有 chip 要走（2026-09-10 第三輪回饋）
+
+地點／登場人物／群演三格各自可以裝下好幾筆。上表那個「←→ 走到隔壁那一格」是**這一格走完
+之後**的事 —— 欄位裡面還有 chip 可以走：
+
+```
+[👤 小明] [👤 小華] [👤 阿姨] |輸入框
+    ↑ ←—— ↑ ←——— ↑ ←———————— ←
+    └ 再往左才離開這一格（換上表接手）
+```
+
+| 鍵 | 在輸入框 | 在一個 chip 上 |
+|---|---|---|
+| ← | 空欄位時退進**最後一個** chip | 前一個 chip；第一個再 ← 就出這一格 |
+| → | （不變）貼著字尾就跳格 | 下一個 chip；最後一個 → 回輸入框的**字首** |
+| ⌘← | 空欄位時到**第一個** chip | 第一個 chip |
+| ⌘→ | （原生）字尾 | 輸入框字尾 |
+| ↑↓ | （不變）格線導航 | 格線導航（原封轉交） |
+| Enter／Backspace | （不變） | 把那一筆拿下來重編輯（同滑鼠點它） |
+
+chip 都是 `tabIndex={-1}`：走得進去，但 **Tab 序一個字都沒改**（§7.3 的環）。
+
+**輸入框裡還有沒定案的字時，← 不退進 chip**（⌘← 同）—— 離開輸入框會 blur，而 blur 會把那個字
+定案成一個新的 chip，那一刻整排的序就變了，剛算好的「最後一個」指向別人。有字時 ← 照舊是
+「貼著字首就跳去隔壁那一格」，字定案之後才輪到 chip 那條路。與 Backspace 的「空欄位才把最後
+一筆拿下來」是同一條線。
+
 三條例外，各有理由：
 
 - **下拉那兩格的 ↓ 歸選單**（使用者裁決，見下）。要往下走先 → 到地點格。
@@ -137,6 +164,10 @@ chip row 的版面（`editor.css` 那條 `flex: 1 0 100%`，使用者回饋 2026
 - [x] 自動補全與下拉選單開著時，上下鍵是選選項，不會離開欄位
 - [x] 非第一場的場次，ArrowUp 進的是本場 chip row 而不是上一場內文
 - [x] Tab／Shift+Tab 的環行為不回歸（`editor-behaviour` 與 `dialogue-tab` 既有測試全綠）
+- [x] 上一場內文末端 ArrowDown／ArrowRight → **下一場的 chip row 第一格**，不是它的內文
+- [x] 地點／登場人物／群演有兩筆以上時，←→ 在 chip 之間走，走到最前面才跳欄
+- [x] ⌘←／⌘→ 到這一格的最前／最後
+- [x] chip 不進 Tab 序（`tabIndex={-1}`）
 - [x] `pnpm lint` / `typecheck` / `test` / `build` 全綠
 
 ## Comments
@@ -209,5 +240,39 @@ chip row 的版面（`editor.css` 那條 `flex: 1 0 100%`，使用者回饋 2026
 那道守衛也讓兩個既有測試需要補一行 `editor.view.dom.focus()`（`dialogue-tab.test.tsx`
 與本票的 `pressInBody`）—— 掛載後的初始焦點在 chip row 上，不補就等於在模擬別的情境。
 
-測試從 13 條長到 48 條（`chip-row-caret-return.test.tsx` 34 條 ＋ `chip-select.test.tsx` 14 條），
+測試從 13 條長到 63 條（`chip-row-caret-return.test.tsx` 37 條 ＋ `chip-select.test.tsx` 14 條 ＋ `chip-entity-caret.test.tsx` 12 條），
 其中格線導航那張表逐格釘住，跨場次那兩條正反向各一組。
+
+### 驗收後再修（2026-09-10，第三輪）
+
+使用者原話：
+
+> 上一場末端往下，會直接到這場的內容區塊而非 metadata 區塊
+>
+> 當地點、登場人物、群演有兩個或以上的實體時，左右鍵希望能在實體間導航，到最前面時才跳欄，
+> cmd + 左右鍵 能夠跳轉到欄位最前方或最後方
+
+**① 往下回不到 metadata。** `vertical-nav` 判斷「游標是不是已經在最後一行」只問了
+`view.endOfTextblock("down")` —— 那支讀的是 `getClientRects()` 的實際版面，落在區塊末端時
+它並不是每次都答得出 `true`（軟換行的 `\n`、空區塊的 placeholder `<br>`、行高剛好對齊時的
+邊界比較都會讓它翻臉），而 jsdom 裡所有 rect 都是 0，所以第二輪的測試全綠也照樣漏掉。
+
+修法是**再加一條不看版面的判準**：游標貼著區塊的字首／字尾時，它必然就在第一／最後一行 ——
+`parentOffset` 就是答案。兩條取聯集，只會讓判準更寬，不可能誤判成越界。新測試把
+`view.endOfTextblock` 整支換成 `() => false`，逼出那條不看版面的路。
+
+順帶把 `requestFocus` 改成**回報有沒有人領走**（`focus.ts`）。文件側攔下一顆鍵之前得先知道
+那條路真的走得通 —— 沒人領走卻照樣 `preventDefault`，使用者看到的是「按了沒反應」。這與
+第二輪那條「沒有去處就把鍵原封還回去」是同一條線。
+
+**② 欄位裡的 chip 走不進去。** 新模組 `editor/chip-caret.ts`（一個 hook，實體欄與群演欄共用）
+——規則見上面「一格裡面還有 chip 要走」。三處接線：
+
+| 檔案 | 改動 |
+|---|---|
+| `editor/chip-caret.ts` | 新檔：chip 之間的方向鍵、⌘ 跳端點、轉交給格線 |
+| `editor/entity-field.tsx`／`extras-field.tsx` | chip 掛上 `chipProps(i)`；輸入框的 ← 先問過它 |
+| `editor/nodes/scene.tsx` | `chipNavHandler` 收得下**非 input** 的 target（chip 沒有游標，一律算貼著端點） |
+
+`onKeyDown` 的型別從 `HTMLInputElement` 放寬成 `HTMLElement`：轉交過來的那顆鍵，
+`currentTarget` 是那個 chip。

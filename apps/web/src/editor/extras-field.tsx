@@ -31,6 +31,7 @@ import {
 
 import { formatExtra, mintExtraId, parseExtra, splitNamesLive, type ExtraRef } from "@scenephonie/schema";
 
+import { useChipCaret } from "./chip-caret";
 import { EXTRA_MARK } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
 
@@ -48,7 +49,8 @@ type Props = {
   placeholder?: string;
   describedBy?: string;
   inputRef?: React.Ref<HTMLInputElement>;
-  onKeyDown?: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
+  /** 這一格自己用不到的鍵（chip row 的格線導航）。焦點在 chip 上時 target 是那個 chip。 */
+  onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
 };
 
 type Row = { key: string; label: string; run: () => void };
@@ -172,6 +174,18 @@ export function ExtrasField({
 
   const activeRow = rows[Math.min(active, rows.length - 1)];
 
+  /** chip 之間的方向鍵（票券 34 第三輪）—— 規則與版面說明見 `./chip-caret`。 */
+  const chipCaret = useChipCaret({
+    count: extras.length,
+    input,
+    text,
+    exit: (event) => onKeyDown?.(event),
+    edit: (i, selectAll) => {
+      const extra = extras[i];
+      if (extra) editExtra(extra, selectAll);
+    },
+  });
+
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing || composing.current) return; // 組字中每一顆鍵都還給 IME
 
@@ -215,6 +229,9 @@ export function ExtrasField({
       return;
     }
 
+    // ← 從字首退進 chip（空欄位才算）—— 沒退成才輪到 chip row 的格線導航。
+    if (chipCaret.inputKeyDown(event)) return;
+
     onKeyDown?.(event);
   };
 
@@ -232,9 +249,10 @@ export function ExtrasField({
   return (
     <div className="entity-field extras-field">
       <span className="entity-field__chips">
-        {extras.map((extra) => (
+        {extras.map((extra, i) => (
           <span
             key={extra.extraId}
+            {...chipCaret.chipProps(i)}
             className="entity-chip entity-chip--extra"
             // 點它 ＝ 改它（描述與人數一起回到輸入框）。`mousedown` 而非 `click`：見 entity-field.tsx。
             onMouseDown={(e) => {

@@ -80,15 +80,14 @@ export const VerticalNav = Extension.create({
       // 那裡再按一次 ↑ 才輪到 chip row（見 `nodes/blocks` 的 `focusPreviousBlockEnd`）。
       if ($from.parent.type.name === "dialogue") {
         // 這個對白的 node view 已經掛著了 —— 它訂閱了 focus 請求，收到就把 DOM 焦點移進人物欄。
-        requestFocus({ kind: "speaker", sceneId: ctx.sceneId, blockIndex: ctx.blockIndex });
-        return true;
+        // 回傳「有沒有人領走」：沒人領走就不該攔這顆鍵（見 `../focus` 的 `requestFocus`）。
+        return requestFocus({ kind: "speaker", sceneId: ctx.sceneId, blockIndex: ctx.blockIndex });
       }
 
       // 場次開頭再往上就是本場的 metadata。**不是上一場的內文** —— chip row 在畫面上就
       // 夾在兩者之間，跳過它等於「看得到卻到不了」（票券 34）。
       if (ctx.blockIndex === 0) {
-        requestFocus({ kind: "sceneChipsEnd", sceneId: ctx.sceneId });
-        return true;
+        return requestFocus({ kind: "sceneChipsEnd", sceneId: ctx.sceneId });
       }
 
       return false;
@@ -99,20 +98,35 @@ export const VerticalNav = Extension.create({
       if (!inLastBlock($from, ctx)) return false;
       const next = nextScene($from, ctx);
       if (!next) return false;
-      requestFocus({ kind: "sceneMeta", sceneId: next.attrs.sceneId as string });
-      return true;
+      return requestFocus({ kind: "sceneMeta", sceneId: next.attrs.sceneId as string });
     };
+
+    /**
+     * 游標已經在這個區塊的**第一／最後一行**了嗎 —— 只有那時 ↑↓ 才是越界，否則是一般的行間移動。
+     *
+     * 版面查詢交給 `view.endOfTextblock()`（ProseMirror 自己算的，含軟換行與視覺折行），但**再
+     * 加一條不看版面的判準**：游標貼著區塊的字首／字尾時，它必然就在第一／最後一行。
+     *
+     * ⚠️ 那條看似多餘的判準是使用者驗收回饋 2026-09-10（第三輪）修掉的 bug：「上一場末端往下，
+     * 會直接到這場的內容區塊而非 metadata 區塊」。`endOfTextblock` 讀的是 `getClientRects()`
+     * 的實際版面，落在區塊末端時它並不是每次都答得出 `true`（軟換行 `\n`、空區塊的
+     * placeholder `<br>`、行高剛好對齊時的邊界比較都會讓它翻臉）—— 而端點這件事**不需要問
+     * 版面**：`parentOffset` 就是答案，而且它只會讓判準更寬，不可能誤判成越界。
+     */
+    const atEdge = (dir: "up" | "down", $from: ResolvedPos): boolean =>
+      this.editor.view.endOfTextblock(dir) ||
+      (dir === "up" ? $from.parentOffset === 0 : $from.parentOffset === $from.parent.content.size);
 
     return {
       ArrowUp: () => {
         const at = caret();
-        if (!at || !this.editor.view.endOfTextblock("up")) return false;
+        if (!at || !atEdge("up", at.$from)) return false;
         return goUp(at.$from, at.ctx);
       },
 
       ArrowDown: () => {
         const at = caret();
-        if (!at || !this.editor.view.endOfTextblock("down")) return false;
+        if (!at || !atEdge("down", at.$from)) return false;
         return goDown(at.$from, at.ctx);
       },
 
