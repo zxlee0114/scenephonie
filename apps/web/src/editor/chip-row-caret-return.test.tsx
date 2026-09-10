@@ -197,6 +197,104 @@ describe("chip row 內部：方向鍵走到隔壁那一格", () => {
   });
 });
 
+// 使用者回饋 2026-09-10 第三輪：「metadata 感覺在 chip 確認後，按 Enter 也可以切換成下一個
+// 欄位」、「要選定一組直觀的快捷鍵，讓使用者可以直接跳從 metadata 的任意位置，直接跳到內容
+// 區塊上」。Enter ＝ 這一格好了去下一格（與 Tab 同終點，只是不看游標在哪）；
+// ⌘↑／⌘↓ ＝ 一路走到底，直接離開整排。
+describe("Enter 換下一格，⌘↑↓ 直接離開整排", () => {
+  it.each([
+    ["內外", "時間"],
+    ["時間", "地點"],
+    ["地點", "登場人物"],
+    ["登場人物", "群演"],
+  ])("%s 按 Enter → %s", async (from, to) => {
+    const { container } = await mount(docJSON(scene([action("門開了")])));
+
+    const start = cell(container, from);
+    start.focus();
+    fireEvent.keyDown(start, { key: "Enter" });
+
+    await waitFor(() => expect(document.activeElement).toBe(cell(container, to)));
+    expect(container.querySelector(".chip-select__menu")).toBeNull(); // Enter 不再開選單
+  });
+
+  it("下拉那兩格的選單改由 Space／↓ 開 —— Enter 讓給「下一格」", async () => {
+    const { container } = await mount(docJSON(scene([action("門開了")])));
+
+    const trigger = cell(container, "內外");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: " " });
+    expect(container.querySelector(".chip-select__menu")).not.toBeNull();
+  });
+
+  it("群演欄按 Enter → 進本場內文（這一排到此為止）", async () => {
+    const { container, editor } = await mount(docJSON(scene([action("門開了")])));
+    editor().commands.setTextSelection(1);
+
+    const input = extrasInput(container);
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(caretInBodyOf(editor(), "門開了")).toBe(true));
+  });
+
+  it("還有字沒定案時，第一次 Enter 是把字切成 chip；再一次才換格", async () => {
+    const { container } = await mount(docJSON(scene([action("門開了")])));
+
+    const input = extrasInput(container);
+    input.focus();
+    fireEvent.change(input, { target: { value: "咖啡廳客人 x8" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(container.querySelector(".scene__chip--extras .entity-chip")).not.toBeNull(),
+    );
+    expect(document.activeElement).toBe(input); // 還在這一格
+  });
+
+  it.each(["內外", "時間", "地點", "登場人物", "群演"])(
+    "%s 按 ⌘↓ → 直接進本場內文",
+    async (label) => {
+      const { container, editor } = await mount(docJSON(scene([action("門開了")])));
+      editor().commands.setTextSelection(1);
+
+      const start = cell(container, label);
+      start.focus();
+      fireEvent.keyDown(start, { key: "ArrowDown", metaKey: true });
+
+      await waitFor(() => expect(caretInBodyOf(editor(), "門開了")).toBe(true));
+    },
+  );
+
+  it.each(["內外", "時間", "地點", "登場人物", "群演"])(
+    "%s 按 ⌘↑ → 直接回上一場內文末端",
+    async (label) => {
+      const { container, editor } = await mount(
+        docJSON(scene([action("第一場")]), scene([action("第二場")])),
+      );
+
+      const start = cell(sceneAt(container, 1), label);
+      start.focus();
+      fireEvent.keyDown(start, { key: "ArrowUp", metaKey: true });
+
+      await waitFor(() => {
+        const { $from } = editor().state.selection;
+        expect($from.parent.textContent).toBe("第一場");
+        expect($from.parentOffset).toBe(3);
+      });
+    },
+  );
+
+  it("第一場沒有上一場：⌘↑ 原封還給瀏覽器", async () => {
+    const { container } = await mount(docJSON(scene([action("門開了")])));
+
+    const start = cell(container, "地點");
+    start.focus();
+    expect(fireEvent.keyDown(start, { key: "ArrowUp", metaKey: true })).toBe(true);
+    expect(document.activeElement).toBe(start);
+  });
+});
+
 describe("chip row ↔ 本場內文", () => {
   it("群演欄按 ↓／→ → 游標進本場第一個區塊", async () => {
     for (const key of ["ArrowDown", "ArrowRight"]) {

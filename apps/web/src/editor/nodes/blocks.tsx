@@ -31,6 +31,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { sceneContext, type BlockAddress } from "../address";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
+import { fieldEdge } from "../chip-nav";
 import { runKernelCommand } from "../command-bridge";
 import { forwardHistoryKey } from "../history-keys";
 import { Action, Dialogue, InsertShot } from "../schema";
@@ -329,6 +330,16 @@ function DialogueView(props: NodeViewProps) {
           if (e.key === "ArrowUp") {
             e.stopPropagation();
             if (focusPreviousBlockEnd()) e.preventDefault();
+            return;
+          }
+          // → 是水平的同一條路：游標貼著人物欄的字尾時，右邊那個東西就是台詞的**開頭**
+          // （使用者回饋 2026-09-10 第三輪）。反向那一半早就有了 —— 台詞第一個字之前按 ←
+          // 回人物欄（`extensions/vertical-nav`），少了這一顆就是「過得去回不來」（§7.3）。
+          // 欄位裡還有 chip 可以走時這顆鍵到不了這裡（`chip-caret` 先接走）。
+          if (e.key === "ArrowRight" && fieldEdge(e.currentTarget).atEnd) {
+            e.preventDefault();
+            e.stopPropagation();
+            enterDialogueBody("start");
             return;
           }
           // 欄位裡的 Tab（兩個方向都要）不能冒泡到 BlockCycle 把這個區塊轉掉（§7.1）。
