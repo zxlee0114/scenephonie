@@ -67,3 +67,5 @@ blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開
 | [31](./31-load-focus-unfilled-last-scene.md) | 載入時末場還沒填 metadata，焦點落在該場 chip row。blocked by 26。 |
 | [32](./32-empty-document-state.md) | 零場次時的空狀態（全選刪除後不是死路；不自動補場次）。blocked by 04。 |
 | [33](./33-entity-field-ui-polish.md) | 實體欄位與欄位說明的視覺／互動打磨（浮層翻邊、觸控上的快捷鍵揭露、預覽的份量）。blocked by 08。 |
+| [34](./34-chip-row-caret-return.md) | chip row 與內文之間的鍵盤往返（方向鍵）—— 進了內文就回不到 metadata；Shift+Tab 回頭會順手把區塊轉成對白。blocked by 04，排在 09 之後。 |
+| [35](./35-promote-extra-to-character.md) | 從群演裡升格一個人物（特約）—— 對白人物欄多一條「從這批人裡拉一個出來」的路，群演人數同時減一。blocked by 09、10。 |

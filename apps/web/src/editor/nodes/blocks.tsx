@@ -18,9 +18,14 @@ import { useEffect, useRef } from "react";
 
 import {
   dialogueCharacters,
+  mintExtraId,
+  parseExtra,
   sceneAppearingCharacters,
+  sceneExtras,
+  addSceneExtras,
   setAppearingCharacters,
   setDialogueCharacters,
+  type ExtraRef,
 } from "@scenephonie/schema";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
@@ -30,7 +35,7 @@ import { runKernelCommand } from "../command-bridge";
 import { forwardHistoryKey } from "../history-keys";
 import { Action, Dialogue, InsertShot } from "../schema";
 import { useEntityCatalog } from "../entity-catalog";
-import { EntityField, type EntityRef } from "../entity-field";
+import { EntityField, type EntityOption, type EntityRef } from "../entity-field";
 import { entityUsage } from "../entity-usage";
 import { claimFocus, subscribeFocusRequest } from "../focus";
 
@@ -80,6 +85,14 @@ function DialogueView(props: NodeViewProps) {
   const { node, editor } = props;
   const inputRef = useRef<HTMLInputElement>(null);
   const catalog = useEntityCatalog();
+  /**
+   * 在這一欄剛新建、**還沒寫進 doc** 的群演。
+   *
+   * 群演的家就是這份 doc，所以「先建立實體、再寫入 doc」在這裡收斂成**一次寫入**：
+   * 這一筆群演與指向它的引用是同一個 transaction（見 `onCommit`）。分成兩次的話 ⌘Z 要按
+   * 兩次才回得到原狀，而編劇眼中那只是一個動作。
+   */
+  const pendingExtras = useRef<ExtraRef[]>([]);
   /**
    * 人物欄的引用。**多值** —— 多個具名角色可以同時說一句台詞（齊聲）。
    *
@@ -171,6 +184,27 @@ function DialogueView(props: NodeViewProps) {
     );
   };
 
+  /** 這一場**當下**的群演（對白人物欄的另一種合法目標，§5.1）。 */
+  const extrasHere = (): ExtraRef[] => {
+    const here = locateBlock(props);
+    const scene = here && sceneNow(here.sceneId);
+    return sceneExtras(scene?.attrs.extras);
+  };
+
+  /**
+   * 在人物欄直接新建一筆群演（`眾人 x20`）—— 先記在手上，寫 doc 是 `onCommit` 那一次。
+   *
+   * 分界規則由**編劇**宣告，不由系統推導：一個人說話落人物、一群人齊聲說落群演（§4.7）。
+   * 這一列與「建立新實體」並排出現，兩條路都在他眼前。
+   */
+  const createExtra = (text: string): EntityOption | null => {
+    const parsed = parseExtra(text);
+    if (!parsed) return null;
+    const extra: ExtraRef = { extraId: mintExtraId(), ...parsed };
+    pendingExtras.current = [...pendingExtras.current, extra];
+    return { id: extra.extraId, name: extra.description };
+  };
+
   /**
    * 把游標從人物欄送進台詞（getPos → 對白節點之前；+1 進內容）。
    * `"end"` ＝ 文字末端：從人物欄按 ↓ 回台詞是「回去接著寫」，不是回頭改開頭。
@@ -209,6 +243,9 @@ function DialogueView(props: NodeViewProps) {
         refs={speaker}
         options={catalog.characters}
         usage={() => entityUsage(editor.state.doc)}
+        // 合法目標是「人物」或「**本場次的**群演」（§5.1）—— id 只在該場次內有意義。
+        sceneExtras={extrasHere().map((e) => ({ id: e.extraId, name: e.description }))}
+        onCreateExtra={createExtra}
         // 齊聲：多個具名角色說同一句。頓號分隔，同地點欄與登場人物欄那一套規則。
         multiple
         onCommit={(refs) => {
@@ -216,15 +253,33 @@ function DialogueView(props: NodeViewProps) {
           if (!here) return;
           // 過渡引用（沒有 id）寫不回去 —— 它指不到任何實體。
           const placed = refs.filter((r): r is EntityRef & { id: string } => r.id !== null);
-          runKernelCommand(editor, (doc) =>
-            setDialogueCharacters(doc, {
-              sceneId: here.sceneId,
-              blockIndex: here.blockIndex,
-              refs: placed.map((r) => ({ id: r.id, displayName: r.displayName })),
-              directory: catalog.directory,
-            }),
+          // 剛在這一欄新建、而且真的被留在欄位裡的那幾筆群演（打了又刪掉的不寫進去）。
+          const born = pendingExtras.current.filter((e) => placed.some((r) => r.id === e.extraId));
+          const speakers = placed.map((r) => ({ id: r.id, displayName: r.displayName }));
+
+          const wrote = runKernelCommand(
+            editor,
+            (doc) => {
+              const write = (d: PMNode) =>
+                setDialogueCharacters(d, {
+                  sceneId: here.sceneId,
+                  blockIndex: here.blockIndex,
+                  refs: speakers,
+                  directory: catalog.directory,
+                });
+              if (born.length === 0) return write(doc);
+              // **一筆群演與指向它的引用是同一個 transaction**：群演的存在性問的是這一場的
+              // attr，所以順序仍然是「先寫群演、再寫引用」—— 只是兩支 command 串在一起，
+              // 中間那個 doc 不落地（⌘Z 一次回到原狀）。合併既有那幾筆由 kernel 做
+              // （`addSceneExtras`），這裡不去讀 doc：畫面讀到的可能是上一次重繪的那一份。
+              const withExtras = addSceneExtras(doc, { sceneId: here.sceneId, extras: born });
+              return withExtras.ok ? write(withExtras.value as unknown as PMNode) : withExtras;
+            },
             { keepFocus: true },
           );
+          // 寫失敗就把手上那幾筆**留著** —— 清掉的話那一筆群演沒進 doc、引用卻還在欄位裡，
+          // 下一次寫入會被不變式擋下，編劇的說話者就這樣沒了。
+          if (wrote) pendingExtras.current = [];
         }}
         onCreate={async (name) => {
           const created = await catalog.create("character", name);

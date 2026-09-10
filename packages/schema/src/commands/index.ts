@@ -31,6 +31,9 @@ export type {
   SetDialogueCharactersOptions,
 } from "./entity-refs";
 
+export { setSceneExtras, addSceneExtras } from "./extras";
+export type { SetSceneExtrasOptions, AddSceneExtrasOptions } from "./extras";
+
 export { dedupeSceneIds, dedupeIdsPlugin, dedupeIdsPluginKey } from "./dedupe";
 export type { DedupeResult, DedupeOptions, DedupeMeta, Remint } from "./dedupe";
 
