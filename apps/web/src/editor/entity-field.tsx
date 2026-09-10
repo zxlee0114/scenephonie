@@ -239,6 +239,23 @@ export function EntityField({
   /** 同名的**存在**實體。孤兒不算命中 —— 它不存在，所以那個名字仍然是「建立新實體」。 */
   const byName = (name: string) => existing().find((o) => o.name === name) ?? null;
 
+  /**
+   * 手上正在編輯的那一筆，**如果這個名字就是它**（票券 38）。
+   *
+   * `editRef` 為了把 chip 變回文字會先把引用從 doc 上拿掉，只被引用一次的實體於是暫時掉出
+   * `existing()` —— 但**它不是孤兒，只是暫時被拿在手上**。ADR-0005 要擋的是 ⌘Z 留在目錄裡
+   * 的殘骸，不是一個進行到一半的編輯動作。
+   *
+   * ⚠️ 只認**手上那一筆**，不放寬 `existing()`：孤兒仍然不進自動補全。
+   */
+  const heldMatch = (name: string): EntityOption | null => {
+    const held = editing.current;
+    if (held?.id == null || isExtraId(held.id)) return null;
+    const entity = options.find((o) => o.id === held.id);
+    if (!entity) return null;
+    return name === held.displayName || name === entity.name ? entity : null;
+  };
+
   /** 把幾筆引用併進現有的（單值欄就是取代成最後一筆）。 */
   const merge = (added: EntityRef[]) => {
     if (added.length === 0) return;
@@ -377,7 +394,8 @@ export function EntityField({
     const counts = usage?.();
     const known = existing();
     const hits = known.filter((o) => o.name.includes(query) && o.name !== query).slice(0, 5);
-    const exact = known.find((o) => o.name === query) ?? null;
+    // 手上那一筆也算命中 —— 少了它，把自己拿回來改會看到「建立新實體『它自己』」（票券 38）。
+    const exact = known.find((o) => o.name === query) ?? heldMatch(query);
 
     if (stage.name === "suggest") {
       for (const option of [...(exact ? [exact] : []), ...hits]) {

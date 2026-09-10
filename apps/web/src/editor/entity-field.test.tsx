@@ -551,3 +551,92 @@ describe("把 chip 拿回來重新編輯", () => {
     await waitFor(() => expect(onCreate).toHaveBeenCalledWith("派出所後門", "typed"));
   });
 });
+
+describe("編輯中的那一筆不是孤兒（票券 38）", () => {
+  // 拿下來的那一刻它的引用就從 doc 上消失了 —— 只被引用一次的話 usage 掉到 0。
+  // 那不是孤兒，是**暫時被拿在手上**：ADR-0005 要擋的是 ⌘Z 留下的殘骸，不是進行到一半的編輯。
+  const lonely = () =>
+    render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map()}
+      />,
+    );
+
+  it("拿回來改 → 沒有「建立新實體」那一列，第一列印著它自己", () => {
+    const { container } = lonely();
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
+
+    expect(rows(container)[0]).toBe("📍 派出所");
+    expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
+  });
+
+  it("一個字都不改直接定案 → 還是同一筆實體，不多建", async () => {
+    const onCreate = vi.fn(async (name: string) => ({ id: `lo_new_${name}`, name }));
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map()}
+        onCreate={onCreate}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["派出所"]));
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("改成沒人用過的名字 → 「建立新實體」回來了（那才真的是新的一位）", () => {
+    const { container } = lonely();
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "派出所後門" } });
+
+    expect(rows(container)[0]).toBe("＋ 建立新實體「派出所後門」");
+  });
+
+  it("改成另一位既有存在實體的名字 → 命中那一列在、建立新的不在", () => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map([[dolphinApartment.id, 2]])}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "海豚公寓房間" } });
+
+    expect(rows(container)[0]).toBe("📍 海豚公寓房間（2 場）");
+    expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
+  });
+
+  it("被引用兩次以上的那一筆行為不變 —— 它本來就沒離開 existing()", () => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map([[policeStation.id, 1]])}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+
+    expect(rows(container)[0]).toBe("📍 派出所（1 場）");
+    expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
+  });
+
+  it("孤兒仍然不進自動補全 —— 手上沒握著它就還是不存在", () => {
+    const { container } = render(
+      <Host initial={[]} usage={() => new Map([[dolphinApartment.id, 2]])} />,
+    );
+
+    fireEvent.change(container.querySelector("input")!, { target: { value: "派出所" } });
+
+    expect(rows(container)[0]).toBe("＋ 建立新實體「派出所」");
+  });
+});
