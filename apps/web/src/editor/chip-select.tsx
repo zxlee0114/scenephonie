@@ -2,8 +2,20 @@
  * chip row 的下拉選單 —— 比照 `/` 斜線選單的外觀（使用者回饋 2026-09-03），不用原生
  * `<select>`：原生控制項的字級被作業系統壓縮、外觀無法對齊 §7.11 的 chip 視覺。
  *
- * 值域是固定封閉列舉（時間／內外），沒有自由輸入、沒有 IME 疑慮。空字串 ＝「未選」，
- * 顯示 placeholder；選單第一列是「回到未選」。
+ * 值域是固定封閉列舉（時間／內外），沒有自由輸入、沒有 IME 疑慮。空字串 ＝「未選」。
+ *
+ * **未選時觸發鈕顯示欄位名（「內外」「時間」），選單第一列則寫「待定」**（使用者提問
+ * 2026-09-10 第五輪）。兩邊刻意不同一個字：
+ *
+ * - 觸發鈕那一格是 chip row 上**唯一**寫著這一欄叫什麼的地方（沒有另外的 label）。把它改成
+ *   「待定」會變成「待定｜待定｜地點」——缺漏是看出來了，但認不出哪一格是哪一格。
+ *   「還沒填」已經有自己的訊號：虛線框 ＋ 弱化色（`.scene__chip--empty`）。
+ * - 選單裡就沒有這個顧慮了，那一列是一個**可選的狀態**，就該用狀態的名字。叫「內外」會讓它
+ *   看起來像一個值 —— 而「內外」正好不是這一欄的合法值（合法的是內景／外景／內外景／雜景），
+ *   讀起來就是歧義。
+ *
+ * **「待定」那一列不會拿掉。** 空 metadata 是合法且有意義的狀態（§5.3：空 → 自動草稿 →
+ * 匯出前被攔），§9 也要求缺漏不可被預設 UI 隱藏 —— 選了之後沒有路走回空白，那是單向門。
  *
  * 純鍵盤可用：關閉時 Enter／Space 開啟；開啟時 ↑↓ 移動、Enter／Space 選、Esc 關、
  * Tab 關閉且**不** `preventDefault`（讓焦點自然往下一個 chip —— §7.1 焦點串接）。外層
@@ -54,6 +66,9 @@ import { HELP_KEY_HINT } from "./field-info";
  * ⚠️ 出路裡**沒有「幫你把多餘的地點刪掉」**：那是編劇打進去的字，系統不在他背後刪
  * （同 kernel `setSceneIntExt` 的裁決）。能給的是把他送到該動手的那一格去。
  */
+/** 選單裡「還沒填」那一列的字。**不是** placeholder —— 兩邊為什麼不同一個字，見檔頭。 */
+const UNSET_LABEL = "待定";
+
 export type ChipConfirm = {
   readonly note: string;
   readonly rows: readonly { readonly key: string; readonly label: string; readonly run: () => void }[];
@@ -98,7 +113,7 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
   const [pending, setPending] = useState<ChipConfirm | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // 全部可選列：第 0 列是「回到未選」（空字串），其後是各列舉值。
+  // 全部可選列：第 0 列是「待定」（空字串 ＝ 還沒填），其後是各列舉值。
   const rows = ["", ...options];
 
   // 控制項寬度**固定**，不隨選到什麼而伸縮（否則整條 chip row 每選一次就重排）。基準是
@@ -329,7 +344,7 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
                 commit(row);
               }}
             >
-              {row || placeholder}
+              {row || UNSET_LABEL}
               {/* 只印那一顆鍵（`內景(i)`）。術語本身太長，會把這一列撐得比 chip 寬一大截
                   —— 它屬於 ⓘ 的說明框，不屬於選單（使用者回饋 2026-09-10，第四輪之二）。 */}
               {terms?.[row] && <span className="chip-select__key">({terms[row]![0]!.toLowerCase()})</span>}

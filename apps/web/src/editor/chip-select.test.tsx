@@ -263,10 +263,23 @@ describe("ChipSelect", () => {
     const btn = container.querySelector("button")!;
     fireEvent.click(btn); // 開
     const clearRow = container.querySelector<HTMLLIElement>(".chip-select__menu li")!;
-    // 第 0 列是「回到未選」（顯示 placeholder），其後才是值。
-    expect(clearRow.textContent).toBe("時間");
+    // 第 0 列是「還沒填」那個狀態，其後才是值。
+    expect(clearRow.textContent).toBe("待定");
     fireEvent.mouseDown(clearRow);
-    expect(btn.textContent).toBe("時間"); // 清空 → 顯示 placeholder
+    expect(btn.textContent).toBe("時間"); // 清空 → 觸發鈕退回欄位名
+  });
+
+  // 兩邊刻意不同一個字（使用者提問 2026-09-10 第五輪）：觸發鈕是 chip row 上唯一寫著
+  // 這一欄叫什麼的地方；選單裡那一列則是一個可選的狀態，該用狀態的名字。
+  it("觸發鈕寫欄位名、選單第一列寫「待定」——「還沒填」不靠同一個字說兩次", () => {
+    const { container } = render(<Host />);
+    const btn = container.querySelector("button")!;
+    expect(btn.textContent).toBe("時間");
+
+    fireEvent.click(btn);
+    const rows = [...container.querySelectorAll(".chip-select__menu li")].map((li) => li.textContent);
+    expect(rows[0]).toBe("待定");
+    expect(rows).not.toContain("時間"); // 欄位名不該出現在值的清單裡
   });
 });
 

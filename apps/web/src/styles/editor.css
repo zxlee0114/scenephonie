@@ -927,3 +927,150 @@
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
+
+/* ── 快捷鍵總覽（票券 34）—— ⌘/ 或左上角那顆鈕 ────────────────────────── */
+
+.shortcut-overview__trigger {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: var(--space-5);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  block-size: var(--bar-height);
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.shortcut-overview__trigger:hover {
+  color: var(--text-secondary);
+}
+
+.shortcut-overview__trigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}
+
+.shortcut-overview__trigger-key {
+  font-family: var(--font-ui);
+  letter-spacing: 0.02em;
+}
+
+.shortcut-overview__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  /* 稿子還看得見 —— 這是一張參考表，不是一個要你放下手邊工作的對話框。 */
+  background: color-mix(in srgb, var(--surface-page) 72%, transparent);
+}
+
+.shortcut-overview {
+  inline-size: min(64rem, 100%);
+  max-block-size: 100%;
+  overflow-y: auto;
+  padding: var(--space-5);
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-3);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+}
+
+.shortcut-overview:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}
+
+.shortcut-overview__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
+}
+
+.shortcut-overview__title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.shortcut-overview__close {
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.shortcut-overview__close:hover {
+  color: var(--text-primary);
+}
+
+/* 兩欄，窄畫面自然掉成一欄 —— 六組表格排成一長條要捲很久。 */
+.shortcut-overview__groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.shortcut-overview__group-title {
+  margin: 0 0 var(--space-2);
+  padding-block-end: var(--space-1);
+  border-block-end: 1px solid var(--rule);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.shortcut-overview__rows {
+  margin: 0;
+}
+
+.shortcut-overview__rows > div {
+  display: grid;
+  /* 鍵欄固定寬 —— 說明對齊了才掃得快。 */
+  grid-template-columns: 9rem 1fr;
+  gap: var(--space-3);
+  padding-block: var(--space-1);
+  align-items: baseline;
+}
+
+.shortcut-overview__rows dt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.shortcut-overview__rows dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.shortcut-overview__when {
+  color: var(--text-faint);
+}
+
+.shortcut-overview kbd {
+  display: inline-block;
+  min-inline-size: 1.6em;
+  padding: 1px var(--space-1);
+  border: 1px solid var(--rule);
+  border-radius: var(--space-1);
+  background: var(--surface-raised);
+  color: var(--control-fg);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  text-align: center;
+}
