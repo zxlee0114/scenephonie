@@ -248,9 +248,11 @@ export function EntityField({
    *
    * ⚠️ 只認**手上那一筆**，不放寬 `existing()`：孤兒仍然不進自動補全。
    */
-  const heldMatch = (name: string): EntityOption | null => {
+  const editingMatch = (name: string): EntityOption | null => {
     const held = editing.current;
-    if (held?.id == null || isExtraId(held.id)) return null;
+    if (held?.id == null) return null;
+    // 群演不在目錄裡，所以這一查也順手把它們排除掉 —— 它們的存在性不走 `usage`，
+    // 從來就不會掉進「暫時是孤兒」這個坑（`resolve` 有自己那條 `isExtraId` 分支）。
     const entity = options.find((o) => o.id === held.id);
     if (!entity) return null;
     return name === held.displayName || name === entity.name ? entity : null;
@@ -287,12 +289,9 @@ export function EntityField({
     // 齊聲說的分界是編劇的宣告，不該由改名這個動作替他翻面。
     if (isExtraId(held?.id)) return { id: held!.id, displayName: name };
     // 一般實體：名字沒改就是原封放回，用回它自己的 id（見 `editing`）。
-    if (held?.id != null) {
-      const entity = options.find((o) => o.id === held.id);
-      if (name === held.displayName || name === entity?.name) {
-        return { id: held.id, displayName: name };
-      }
-    }
+    // 判準與選單那一列共用 `editingMatch` —— 兩邊對「沒改」的定義分家的話，選單會說一件事、
+    // 按下去做另一件事，正好是票券 38 修掉的那種不一致。
+    if (held?.id != null && editingMatch(name)) return { id: held.id, displayName: name };
 
     const hit = byName(name);
     if (hit) return { id: hit.id, displayName: name };
@@ -395,7 +394,7 @@ export function EntityField({
     const known = existing();
     const hits = known.filter((o) => o.name.includes(query) && o.name !== query).slice(0, 5);
     // 手上那一筆也算命中 —— 少了它，把自己拿回來改會看到「建立新實體『它自己』」（票券 38）。
-    const exact = known.find((o) => o.name === query) ?? heldMatch(query);
+    const exact = known.find((o) => o.name === query) ?? editingMatch(query);
 
     if (stage.name === "suggest") {
       for (const option of [...(exact ? [exact] : []), ...hits]) {
@@ -404,7 +403,10 @@ export function EntityField({
           key: `hit:${option.id}`,
           label: `${HIT_MARK[kind]} ${option.name}${count ? `（${count} 場）` : ""}`,
           run: () => {
-            merge([{ id: option.id, displayName: option.name }]);
+            // 命中列的顯示名就是實體名 —— 但**手上那一筆**用回框裡的字：它的顯示名可能是
+            // 這一場的別名（ADR-0005：別名住在引用上），拿目錄名蓋回去等於靜悄悄改掉它。
+            // 目錄命中的那一列兩者本來就相同，這一條只在「拿回來改」那條路上有差別。
+            merge([{ id: option.id, displayName: option === exact ? query : option.name }]);
             reset();
           },
         });

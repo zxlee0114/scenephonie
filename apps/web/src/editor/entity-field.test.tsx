@@ -587,6 +587,8 @@ describe("編輯中的那一筆不是孤兒（票券 38）", () => {
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["派出所"]));
     expect(onCreate).not.toHaveBeenCalled();
+    // 同名的新實體 chip 文字會長得一模一樣 —— 看的是它仍然是**命中**那一種。
+    expect(chips(container)[0]!.className).toContain("--hit");
   });
 
   it("改成沒人用過的名字 → 「建立新實體」回來了（那才真的是新的一位）", () => {
@@ -638,5 +640,55 @@ describe("編輯中的那一筆不是孤兒（票券 38）", () => {
     fireEvent.change(container.querySelector("input")!, { target: { value: "派出所" } });
 
     expect(rows(container)[0]).toBe("＋ 建立新實體「派出所」");
+  });
+});
+
+describe("編輯中的那一筆：別名與人物欄（票券 38 code review）", () => {
+  it("拿回來原封放回 → 顯示名仍是這一場的別名，不會被目錄名蓋掉", async () => {
+    // 別名住在引用上（ADR-0005）。第一列印的是**實體**（📍 海豚公寓房間），按下去指的
+    // 也是它 —— 但這一場叫什麼，是編劇寫在這一場的字，不該被那一列順手改掉。
+    const commits: EntityRef[][] = [];
+    const { container } = render(
+      <EntityField
+        kind="location"
+        placeholder="地點"
+        refs={[{ id: dolphinApartment.id, displayName: "未知大樓房間" }]}
+        options={[dolphinApartment]}
+        usage={() => new Map()}
+        multiple
+        onCommit={(next) => commits.push(next)}
+        onCreate={async () => null}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    expect(rows(container)[0]).toBe("📍 海豚公寓房間");
+
+    fireEvent.keyDown(input, { key: "Enter" }); // 第一列就是預設那一列
+    await waitFor(() => expect(commits.at(-1)).toHaveLength(1));
+    expect(commits.at(-1)![0]).toEqual({
+      id: dolphinApartment.id,
+      displayName: "未知大樓房間",
+    });
+  });
+
+  it("人物欄走同一段程式碼 —— 拿回來改一樣不冒那一列", () => {
+    const { container } = render(
+      <EntityField
+        kind="character"
+        placeholder="人物"
+        refs={[{ id: "ch_1", displayName: "服務生小李" }]}
+        options={[{ id: "ch_1", name: "服務生小李" }]}
+        usage={() => new Map()}
+        onCommit={() => {}}
+        onCreate={async () => null}
+      />,
+    );
+
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
+
+    expect(rows(container)[0]).toBe("👤 服務生小李");
+    expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
   });
 });
