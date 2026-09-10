@@ -519,6 +519,45 @@
   font-size: 1rem;
 }
 
+/* 待確認的第二個值（使用者裁決 2026-09-10）：面板**取代**自動補全，因為這一刻要問的不是
+ * 「哪一筆實體」，而是「這一場是什麼形狀」。字本身留在輸入框裡反白著，一個 Backspace 就沒了。 */
+.entity-field__confirm {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-start: 0;
+  inline-size: max(100%, 28ch);
+  padding: var(--space-2);
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-2);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+}
+
+.entity-field__note {
+  margin: 0 0 var(--space-1);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  white-space: normal;
+}
+
+/* 已經有外框了，列表自己不再是一個面板。 */
+.entity-field__menu--nested {
+  position: static;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.entity-field__menu--nested li {
+  white-space: normal;
+}
+
 .entity-field__menu li {
   padding: var(--space-1) var(--space-3);
   border-radius: var(--space-1);

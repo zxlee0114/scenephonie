@@ -18,7 +18,13 @@ import {
   type NodeViewProps,
 } from "@tiptap/react";
 import type { Decoration } from "@tiptap/pm/view";
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 
 import {
   INT_EXT_VALUES,
@@ -84,6 +90,7 @@ function SceneEntityChip({
   refs,
   usage,
   multiple,
+  confirmReplace,
   inputRef,
   write,
   onTab,
@@ -96,6 +103,8 @@ function SceneEntityChip({
   usage: () => ReadonlyMap<string, number>;
   /** 這一欄現在收不收得下第二個值。登場人物永遠可以；地點只有雜景可以（§4.3）。 */
   multiple: boolean;
+  /** 收不下時，第二個值要不要先問過編劇（見 `EntityField`）。 */
+  confirmReplace?: ComponentProps<typeof EntityField>["confirmReplace"];
   inputRef?: React.Ref<HTMLInputElement>;
   /** 這一欄怎麼寫回 doc。吃已經濾掉過渡引用的清單，吐一支 kernel command。 */
   write: (refs: PlacedRef[]) => (doc: PMNode) => CommandResult;
@@ -117,6 +126,7 @@ function SceneEntityChip({
           options={kind === "location" ? catalog.locations : catalog.characters}
           usage={usage}
           multiple={multiple}
+          confirmReplace={confirmReplace}
           onCommit={(next) =>
             runKernelCommand(editor, write(placed(next)), { keepFocus: true })
           }
@@ -280,6 +290,20 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           // 而是名字裡的普通字元 —— 跟對白人物欄同一條規則。這樣編劇打的字不會被 command
           // 事後拒絕：欄位一開始就沒有收下第二個值。為什麼只有雜景例外，說明在 ⓘ 裡。
           multiple={intExt === MONTAGE}
+          // 收不下的時候**不覆蓋**：第二個地點多半不是要換掉第一個，而是這一場真的橫跨兩地
+          // —— 那是場次形狀的問題，不該由一次靜悄悄的覆蓋替編劇決定（使用者裁決 2026-09-10）。
+          // 升級成雜景走 command 而不是 updateAttributes：「地點欄能有幾個值」是內外的函式。
+          confirmReplace={{
+            escalate: {
+              label: "🎬 兩個都留 —— 把這一場改成雜景",
+              run: () =>
+                runKernelCommand(
+                  editor,
+                  (doc) => setSceneIntExt(doc, { sceneId, intExt: MONTAGE }),
+                  { keepFocus: true },
+                ),
+            },
+          }}
           write={(refs) => (doc) =>
             setSceneLocations(doc, {
               sceneId,

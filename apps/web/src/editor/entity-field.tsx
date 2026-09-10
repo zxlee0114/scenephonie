@@ -61,6 +61,17 @@ type Props = {
   usage?: () => ReadonlyMap<string, number>;
   /** 多值欄（地點／登場人物）；對白人物欄是單值。 */
   multiple?: boolean;
+  /**
+   * 單值欄已經有一筆時，第二筆**先問過編劇**，不直接覆蓋。
+   *
+   * 不是所有單值欄都要問：對白人物欄換一個人講話是常態，問他等於每次改口都要按兩次。
+   * 地點欄不一樣 —— 打第二個地點的編劇多半不是要換掉第一個，而是這一場真的橫跨兩地，
+   * 那是一個**場次形狀**的問題（§4.3），不該由一次靜悄悄的覆蓋替他決定。
+   */
+  confirmReplace?: {
+    /** 「兩個都留」那條路（地點欄 ＝ 把這一場改成雜景）。沒給就只有取代與放棄。 */
+    escalate?: { label: string; run: () => boolean };
+  };
   /** 引用有變動時回報**整份**引用清單（上層跑 domain command 寫回 doc）。 */
   onCommit: (refs: EntityRef[]) => void;
   /** 建立一筆新實體。**必須在 `onCommit` 之前完成** —— 先建立實體、再寫入 doc。 */
@@ -97,6 +108,7 @@ export function EntityField({
   options,
   usage,
   multiple = false,
+  confirmReplace,
   onCommit,
   onCreate,
   onRenameEntity,
@@ -112,6 +124,13 @@ export function EntityField({
   const [dismissed, setDismissed] = useState(false);
   /** 這一輪由本欄位建出來的實體 —— 新建 chip 與命中 chip 視覺可辨（`＋` vs `📍`）。 */
   const [bornHere, setBornHere] = useState<readonly string[]>([]);
+  /**
+   * 打好了、但**還沒變成實體**的第二個名字（見 `confirmReplace`）。
+   *
+   * 它停在輸入框裡並且**整串反白** —— 編劇一個 Backspace 就能把它清掉，或從面板挑一條路。
+   * 這一刻沒有任何實體被建立、也沒有任何引用被動到：待確認就是字面意思。
+   */
+  const [pending, setPending] = useState<string | null>(null);
   /**
    * 組字中嗎 —— **ref 是真相（同步），state 是畫面（重繪）**。
    *
@@ -213,11 +232,36 @@ export function EntityField({
   };
 
   const query = text.trim();
+  /** 這一筆會覆蓋掉已經在的那一筆嗎 —— 是的話就先問過（見 `confirmReplace`）。 */
+  const needsConfirm = !multiple && !!confirmReplace && refs.length > 0;
   // 組字期間選單完全不動作（§7.6）；Esc 之後也不再自己彈回來，直到下一次打字。
   const menuOpen = !composingNow && !dismissed && query.length > 0;
 
   const rows: Row[] = [];
-  if (menuOpen) {
+  if (pending && !dismissed && !composingNow) {
+    // 待確認時面板**取代**自動補全 —— 這一刻要問的不是「哪一筆實體」，而是「這一場是什麼形狀」。
+    const held = refs[0]?.displayName ?? "";
+    rows.push({
+      key: "replace",
+      label: `⇄ 改成「${pending}」 —— 原本的「${held}」會被拿掉`,
+      run: () => void replacePending(),
+    });
+    if (confirmReplace?.escalate) {
+      rows.push({
+        key: "escalate",
+        label: confirmReplace.escalate.label,
+        run: () => void escalatePending(),
+      });
+    }
+    rows.push({
+      key: "discard",
+      label: `✕ 放棄「${pending}」`,
+      run: () => {
+        setPending(null);
+        reset();
+      },
+    });
+  } else if (menuOpen) {
     // **孤兒不出現在自動補全**（ADR-0005）—— 「存在＝被引用」不是一句口號，選單是它唯一
     // 看得見的地方。目錄是 append-only 的，裡面一定會累積 ⌘Z 留下的孤兒；「v1 永不清理」
     // 指的是**不刪資料列**，不是「照樣顯示」。
@@ -299,8 +343,37 @@ export function EntityField({
   /** 把還沒 chip 化的字定案（Enter、離開欄位、選單的「建立新實體」都走這裡）。 */
   const commitText = async () => {
     if (!query) return;
+    // 第二個值先問過 —— **不 resolve、不建實體**，只把字留在框裡反白起來。
+    if (needsConfirm) {
+      setPending(query);
+      setDismissed(false);
+      setActive(0);
+      input.current?.select();
+      return;
+    }
     const ref = await resolve(query);
     if (ref) merge([ref]);
+    reset();
+  };
+
+  /** 取代原本那一筆（編劇明確說了「就是要換掉」）。 */
+  const replacePending = async () => {
+    const name = pending!;
+    setPending(null);
+    const ref = await resolve(name);
+    if (ref) onCommit([ref]);
+    reset();
+  };
+
+  /** 兩個都留 —— 先把場次升級（地點欄 ＝ 改成雜景），成功了才寫第二筆。 */
+  const escalatePending = async () => {
+    const name = pending!;
+    if (!confirmReplace?.escalate?.run()) return; // 升級被拒就什麼都不動，字留在框裡
+    setPending(null);
+    const ref = await resolve(name);
+    // ⚠️ 不走 `merge`：`multiple` 是上一次 render 的 prop，此刻還是 false（升級才剛發生，
+    // 中間沒有重繪），交給它會走單值分支把第一筆蓋掉 —— 正好是這整段要防的事。
+    if (ref) onCommit([...refs, ref]);
     reset();
   };
 
@@ -359,6 +432,8 @@ export function EntityField({
     setText(value);
     setDismissed(false);
     setActive(0);
+    // 又動了那串字 ＝ 他正在改它，不是在回答面板的問題。
+    if (pending !== null) setPending(null);
     if (composing.current) return; // 組字中不切 chip
     // 多值輸入規則的適用範圍就是 §4.7 標題那一行：**地點欄與登場人物欄**。對白人物欄是單值，
     // 標點在那裡就是名字裡的普通字元 —— 在那裡切開會建出第二筆實體卻只留下最後一筆，
@@ -445,12 +520,43 @@ export function EntityField({
         onBlur={() => {
           // 離開欄位時把還沒 chip 化的字定案（與 CjkField 的 blur 回寫同一個理由：
           // 打完就走是常態，不該把字吃掉）。
-          if (!composing.current) void commitText();
+          // 待確認的字**不在 blur 時定案** —— 它正等著編劇回答，離開欄位不是答案。
+          if (!composing.current && !needsConfirm) void commitText();
           setStage({ name: "suggest" });
         }}
       />
 
-      {rows.length > 0 && (
+      {rows.length > 0 && pending && (
+        <div className="entity-field__confirm">
+          <p className="entity-field__note">
+            這一場已經有{placeholder}「{refs[0]?.displayName}」。一個場次一個{placeholder} ——
+            要留哪一個？
+          </p>
+          <ul
+            className="entity-field__menu entity-field__menu--nested"
+            role="listbox"
+            aria-label={`${placeholder}要留哪一個`}
+          >
+            {rows.map((row, i) => (
+              <li
+                key={row.key}
+                role="option"
+                aria-selected={i === active}
+                className={i === active ? "is-active" : ""}
+                onMouseEnter={() => setActive(i)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  row.run();
+                }}
+              >
+                {row.label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {rows.length > 0 && !pending && (
         <ul className="entity-field__menu" role="listbox" aria-label={`${placeholder}建議`}>
           {rows.map((row, i) => (
             <li

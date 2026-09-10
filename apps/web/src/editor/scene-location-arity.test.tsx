@@ -105,3 +105,74 @@ describe("地點欄能收幾個值", () => {
     );
   });
 });
+
+
+/**
+ * 第二個地點**不覆蓋第一個**（使用者裁決 2026-09-10）。
+ *
+ * 舊行為是靜悄悄的覆蓋：單值欄的 `merge` 只留最後一筆。但打第二個地點的編劇多半不是要換掉
+ * 第一個，而是這一場真的橫跨兩地 —— 那是場次形狀的問題，不該由一次覆蓋替他決定。
+ */
+describe("非雜景場次的第二個地點", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  /** 先填好第一個地點，回傳地點欄的 input。 */
+  async function withFirstLocation(container: HTMLElement) {
+    const input = await typeInto(container, ".scene__chip--location", "派出所");
+    await waitFor(() => expect(locationChips(container)).toEqual(["派出所"]));
+    return input;
+  }
+
+  /** 打第二個地點並按 Enter，等面板出現。 */
+  async function offerSecond(container: HTMLElement, input: HTMLInputElement) {
+    fireEvent.change(input, { target: { value: "警局" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(container.querySelector(".entity-field__confirm")).not.toBeNull());
+  }
+
+  it("按 Enter 不建實體、不覆蓋 —— 字留在框裡反白，面板問要留哪一個", async () => {
+    const { container } = render(<Harness intExt="內景" />);
+    const input = await withFirstLocation(container);
+    await offerSecond(container, input);
+
+    // 第一個地點原封不動，第二個還只是框裡的字。
+    expect(locationChips(container)).toEqual(["派出所"]);
+    expect(input.value).toBe("警局");
+    // 整串反白 —— 一個 Backspace 就清得掉。
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, "警局".length]);
+  });
+
+  it("挑「改成…」才真的取代", async () => {
+    const { container } = render(<Harness intExt="內景" />);
+    const input = await withFirstLocation(container);
+    await offerSecond(container, input);
+
+    fireEvent.keyDown(input, { key: "Enter" }); // 面板第一列 ＝ 改成「警局」
+    await waitFor(() => expect(locationChips(container)).toEqual(["警局"]));
+  });
+
+  it("挑「兩個都留」把這一場改成雜景，兩個地點都在", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness intExt="內景" onEditor={(e) => (editor = e)} />);
+    const input = await withFirstLocation(container);
+    await offerSecond(container, input);
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" }); // 第二列 ＝ 兩個都留
+
+    await waitFor(() => expect(locationChips(container)).toEqual(["派出所", "警局"]));
+    expect(editor.state.doc.firstChild?.attrs.intExt).toBe("雜景");
+  });
+
+  it("再打一個字就不是在回答面板了 —— 面板收起來", async () => {
+    const { container } = render(<Harness intExt="內景" />);
+    const input = await withFirstLocation(container);
+    await offerSecond(container, input);
+
+    fireEvent.change(input, { target: { value: "警局大" } });
+    await waitFor(() => expect(container.querySelector(".entity-field__confirm")).toBeNull());
+    expect(locationChips(container)).toEqual(["派出所"]);
+  });
+});
