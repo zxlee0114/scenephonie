@@ -5,9 +5,15 @@
  * 值域是固定封閉列舉（時間／內外），沒有自由輸入、沒有 IME 疑慮。空字串 ＝「未選」，
  * 顯示 placeholder；選單第一列是「回到未選」。
  *
- * 純鍵盤可用：關閉時 ↑↓ 或 Enter／Space 開啟；開啟時 ↑↓ 移動、Enter／Space 選、Esc 關、
+ * 純鍵盤可用：關閉時 Enter／Space 開啟；開啟時 ↑↓ 移動、Enter／Space 選、Esc 關、
  * Tab 關閉且**不** `preventDefault`（讓焦點自然往下一個 chip —— §7.1 焦點串接）。外層
  * `.scene__chips` 的 `swallowTab` 仍負責擋 Tab 冒泡到 BlockCycle。
+ *
+ * ⚠️ **關閉時的 ↓ 不是「開啟選單」而是「離開這一格進內文」**（`onExitDown`，票券 34）——
+ * 這一點刻意偏離原生 combobox 慣例。理由是整條 chip row 只能有一套方向鍵語意：其餘三格是
+ * 輸入框，它們的 ↑↓ 在選單關著時就是離開欄位，這一格若拿方向鍵開選單，同一排上同一顆鍵
+ * 會依落在哪一格做不同的事。開啟的鍵盤入口沒有少（Enter／Space），逃生鍵則整排都在。
+ * 另外三格（輸入框）那一半是 `nodes/scene` 的 `chipExitHandler` —— **要改這條語意，兩處都得改。**
  */
 "use client";
 
@@ -33,10 +39,12 @@ type Props = {
   className?: string;
   /** 欄位說明的 id（`FieldInfo` 給的）。有它就一併宣告 ⌥/ —— 見 `field-info.tsx` 檔頭。 */
   describedBy?: string;
+  /** 選單關著時按 ↓ ＝ 離開 chip row 進場次內文（票券 34）。沒給就讓瀏覽器處理那顆鍵。 */
+  onExitDown?: () => void;
 };
 
 export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSelect(
-  { value, options, placeholder, onChange, className, describedBy },
+  { value, options, placeholder, onChange, className, describedBy, onExitDown },
   ref,
 ) {
   const [open, setOpen] = useState(false);
@@ -77,9 +85,17 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
       return; // 不 preventDefault —— 焦點自然往下一個 chip
     }
     if (!open) {
-      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         openMenu();
+        return;
+      }
+      // 關著時的 ↓ 是逃生鍵：直接進場次內文，不必 Tab 走完剩下的格子（見檔頭）。
+      // ↑ 沒有去處 —— chip row 已經是場次的最上面一排，那顆鍵還給瀏覽器。
+      if (e.key === "ArrowDown" && onExitDown) {
+        e.preventDefault();
+        e.stopPropagation(); // 別讓它冒泡到 .ProseMirror 被 keymap 再當成一次游標移動
+        onExitDown();
       }
       return;
     }

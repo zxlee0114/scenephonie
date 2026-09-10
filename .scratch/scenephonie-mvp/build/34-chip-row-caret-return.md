@@ -6,7 +6,7 @@
 **Blocked by:** 04（`extensions/block-cycle.ts`、chip row 的 focus 串接都在該票交付）。
 落點那一格是群演欄，由 09 交付 —— 排在 09 之後。
 
-**Status:** open
+**Status:** in-review
 
 ## 症狀（使用者回饋 2026-09-10，票券 09 驗收期間順帶發現）
 
@@ -38,13 +38,28 @@
   讓 Shift+Tab 在某個位置離開環，環就不對稱了。方向鍵是空間移動，沒有環的包袱，
   而且那正是使用者的第一直覺。
 
-### 待決
+### 待決 —— 開工時定案（2026-09-10）
 
-- ArrowUp 的落點是「最後一格」（＝ Tab 順序的反向）還是「上次離開時那一格」？
-  後者是「依看不見的狀態做不同的事」，傾向前者。
-- chip row 的輸入框裡有自動補全選單開著時，ArrowUp／ArrowDown 是選單的（選項上下移動）——
-  只有選單關著才是離開欄位。這一條沒有商量餘地，寫測試釘住。
-- 場次**不是**第一場時，ArrowUp 走到場次開頭該進本場 chip row（不是上一場的內文）。
+- **ArrowUp 的落點是「最後一格」**（＝ Tab 順序的反向）。往上退一步就退回「Tab 進內文之前
+  的那一格」；「上次離開時那一格」是依看不見的狀態做不同的事，§7.3 否決過。
+- **選單開著時方向鍵是選單的。** 這一條在 `EntityField`／`ExtrasField` 裡本來就成立：
+  `handleKeyDown` 先吃掉 ↑↓（`rows.length > 0`），只有選單關著才把事件轉交給呼叫端。
+  已寫測試釘住。
+- **非第一場的 ArrowUp 進本場 chip row。** 由 `ctx.blockIndex === 0` 判定，與場次是第幾場無關。
+- **第一個區塊是對白時，往上是兩步**（新增的一條，實作時才浮出來）：台詞 ↑ → 本區塊的人物欄
+  → 再 ↑ → chip row。人物欄在畫面上就夾在台詞與 chip row 之間，一步跳過它會讓 2026-09-04
+  那條「台詞第一行 ↑ 回人物欄補填」失效。順帶把人物欄的 ↑ 修對：本場第一個區塊時它原本會
+  跨到**上一場**的內文，跳過本場的 metadata。
+
+### 開工時多出來的一條：內外／時間兩格（ChipSelect）的方向鍵（使用者裁決 2026-09-10）
+
+原本這兩格在**選單關閉**時 ↑↓ 是「打開選單」（原生 combobox 慣例）。與驗收第 2 條直接對撞，
+而且「不必 Tab 走完剩下的格子」最需要的正是排在最前面的這兩格。
+
+**定案：整條 chip row 一套方向鍵語意** —— 選單關著時 ↓ ＝ 離開這一格進內文，↑ 不做事；
+開選單改由 Enter／Space／點擊負責（鍵盤入口一個都沒少）。理由與否決「依已填未填決定要不要停」
+同一條：同一排上同一顆鍵不該依落在哪一格做不同的事。代價是 `chip-select.test.tsx` 裡
+「關閉時 ↑↓ 開選單」那一條測試改寫。
 
 ## 已否決：把登場人物／群演欄移出 Tab 循環
 
@@ -61,12 +76,12 @@
 
 ## 驗收
 
-- [ ] 內文第一個區塊按 ArrowUp → 焦點落在本場群演欄，**內容一個字都沒變**
-- [ ] chip row 任一格按 ArrowDown → 游標回內文第一個區塊
-- [ ] 自動補全選單開著時，上下鍵是選選項，不會離開欄位
-- [ ] 非第一場的場次，ArrowUp 進的是本場 chip row 而不是上一場內文
-- [ ] Tab／Shift+Tab 的環行為不回歸（`editor-behaviour` 與 `dialogue-tab` 既有測試全綠）
-- [ ] `pnpm lint` / `typecheck` / `test` / `build` 全綠
+- [x] 內文第一個區塊按 ArrowUp → 焦點落在本場群演欄，**內容一個字都沒變**
+- [x] chip row 任一格按 ArrowDown → 游標回內文第一個區塊
+- [x] 自動補全選單開著時，上下鍵是選選項，不會離開欄位
+- [x] 非第一場的場次，ArrowUp 進的是本場 chip row 而不是上一場內文
+- [x] Tab／Shift+Tab 的環行為不回歸（`editor-behaviour` 與 `dialogue-tab` 既有測試全綠）
+- [x] `pnpm lint` / `typecheck` / `test` / `build` 全綠
 
 ## Comments
 
@@ -78,3 +93,33 @@
 **刻意不併入票券 33**（實體欄位 UI 打磨）—— 使用者的話：「我想確切知道畫面上有哪些東西後
 再確認 UI 的形狀」。33 是等畫面長齊了再一次收的視覺票；這一張是**行為**，而且有一半是修
 既有手勢的副作用，兩者的成熟時機不同。
+
+**實作（2026-09-10）** —— 三處加起來就是那條雙向路：
+
+| 方向 | 住在哪裡 |
+|---|---|
+| 內文 → chip row | `extensions/vertical-nav.ts`：第一行的 ↑ 且 `blockIndex === 0` → `requestFocus({ kind: "sceneChipsEnd" })` |
+| 人物欄 → chip row | `nodes/blocks.tsx` 的 `focusPreviousBlockEnd`：本場第一個區塊時不往回找上一場，改進本場 chip row |
+| chip row → 內文 | `nodes/scene.tsx` 的 `chipExitKeys`（三格輸入框）與 `ChipSelect` 的 `onExitDown`（兩格下拉） |
+
+落點認領在 `nodes/scene.tsx` 的焦點串接 effect，走 `handOffFocus` —— 程式主動交出去的焦點
+要看得見（§7.1）。**doc 內容全程沒有被碰過**，沒有跑任何 kernel command：↑ 那一半純粹搬 DOM
+焦點，↓ 那一半只送一個 selection transaction（`enterBody`）。
+
+`Tab`／`Shift+Tab` 的環一個字都沒改（§7.3）。`block-cycle.ts` 沒有進 diff。
+
+順手收掉兩件擦邊的事：
+- `scene-chips-focus.test.tsx` 的 Tab 鏈測試停在「地點欄」——票券 08／09 之後那一格的 Tab
+  其實只走到登場人物欄，原本的斷言因此變成恆真（游標本來就在 action 開頭）。補成完整的
+  地點 → 登場人物 → 群演 → 內文。
+- `eslint.config.mjs` 忽略 `.claude/**`：平行開票的 git worktree 各自是同一個 repo 的另一份
+  簽出，從根目錄看過去它們的 `.scratch` 產物會被重複 lint（`.scratch/**` 只擋得住根那一層）。
+
+新測試 `apps/web/src/editor/chip-row-caret-return.test.tsx`（13 條）涵蓋全部四條行為驗收，
+五格逐一釘住（含兩格下拉），另加一條「Esc 關掉選單後按 ↓，打到一半的字仍照 blur 定案」——
+那條不在原票裡，但離開欄位不吃字是 §7.6 一路下來的同一條線。
+
+**兩軸審查後的調整**：`chipExitKeys` → `chipExitHandler`（它回傳的是一個 handler）；下拉那一半
+與輸入框那一半在各自檔頭互相指路（同一條語意住在兩處，改要一起改）。刻意不動的兩條：
+`ChipSelect.onExitDown` 保持選用（它是獨立元件，不是只給 chip row 用的），群演欄
+`{ onTab: enterBody, onExitDown: enterBody }` 兩顆鍵同終點是實話，不值得為它多開一個形狀。

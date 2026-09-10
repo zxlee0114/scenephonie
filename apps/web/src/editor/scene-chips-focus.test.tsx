@@ -3,8 +3,10 @@
  * 票券 04 驗收 #1、#3 —— chip row 的焦點行為。
  *
  * #1：進入編輯器時，焦點落在第一場的「內外景」欄（不必先用滑鼠點 chip row）。
- * #3：內外景 → 時間 → 地點 →（正向 Tab）游標落進本場第一個區塊開始撰寫；腳部「＋新增下一場」
- *     `tabIndex=-1`，不進 tab 序（它是滑鼠入口，另有快捷鍵與 `/next`）。
+ * #3：內外景 → 時間 → 地點 → 登場人物 → 群演 →（正向 Tab）游標落進本場第一個區塊開始撰寫；
+ *     腳部「＋新增下一場」`tabIndex=-1`，不進 tab 序（它是滑鼠入口，另有快捷鍵與 `/next`）。
+ *     後兩格由票券 08／09 加進這條鏈；反向的那條路（方向鍵）是票券 34，釘在
+ *     `chip-row-caret-return.test.tsx`。
  *
  * jsdom 下 `editor.chain().focus()` 不會搬動 DOM 焦點，所以 #3 正向那條查 ProseMirror 的
  * selection（游標真的進了 `action` 內文），而非 `document.activeElement`。
@@ -63,14 +65,25 @@ describe("chip row 的 Tab 終點是場次內文", () => {
     document.body.innerHTML = "";
   });
 
-  it("地點欄正向 Tab → 游標進入本場第一個區塊內文，不落在腳部按鈕", async () => {
+  it("地點 → 登場人物 → 群演 → 游標進入本場第一個區塊內文，不落在腳部按鈕", async () => {
     let editor!: Editor;
     const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
     await waitFor(() => expect(container.querySelector(".scene__chips input")).not.toBeNull());
 
-    const location = container.querySelector<HTMLInputElement>(".scene__chips input")!;
+    const cell = (selector: string) => container.querySelector<HTMLInputElement>(selector)!;
+    // 游標先擺到內文末端 —— 才看得出最後那一顆 Tab 真的把它搬回了開頭。
+    editor.commands.setTextSelection(editor.state.doc.content.size - 2);
+
+    const location = cell(".scene__chip--location input");
     location.focus();
     fireEvent.keyDown(location, { key: "Tab" });
+    await waitFor(() => expect(document.activeElement).toBe(cell(".scene__chip--character input")));
+
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
+    await waitFor(() => expect(document.activeElement).toBe(cell(".scene__chip--extras input")));
+
+    // 群演是最後一格 —— 這一顆 Tab 才進內文。
+    fireEvent.keyDown(document.activeElement!, { key: "Tab" });
 
     const { $from, empty } = editor.state.selection;
     expect(empty).toBe(true);

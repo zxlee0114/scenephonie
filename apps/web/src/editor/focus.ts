@@ -12,7 +12,15 @@
 import type { BlockAddress } from "./address";
 
 export type PendingFocus =
+  /** 場次 chip row 的**第一格**（內外景）—— 建完場次、載入劇本時的落點。 */
   | { readonly kind: "sceneMeta"; readonly sceneId: string }
+  /**
+   * 場次 chip row 的**最後一格**（群演欄）—— 從內文按 ↑ 回 metadata 的落點（票券 34）。
+   *
+   * 落在最後一格是因為它就是 Tab 順序的反向：往上退一步，就退回 Tab 進來之前的那一格。
+   * 不是「上次離開時停在哪一格」—— 那是同一顆鍵依看不見的狀態做不同的事（§7.3 已否決過）。
+   */
+  | { readonly kind: "sceneChipsEnd"; readonly sceneId: string }
   | ({ readonly kind: "speaker" } & BlockAddress);
 
 let pending: PendingFocus | null = null;

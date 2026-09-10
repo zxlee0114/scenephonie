@@ -34,17 +34,60 @@ describe("ChipSelect", () => {
     expect(container.querySelector(".chip-select__menu")).toBeNull();
   });
 
-  it("鍵盤：ArrowDown 開啟 → ArrowDown 移動 → Enter 選取", () => {
+  it("鍵盤：Enter 開啟 → ArrowDown 移動 → Enter 選取", () => {
     const { container } = render(<Host />);
     const btn = container.querySelector("button")!;
     btn.focus();
 
-    fireEvent.keyDown(btn, { key: "ArrowDown" }); // 開，active=第 0 列（回到未選）
+    fireEvent.keyDown(btn, { key: "Enter" }); // 開，active=第 0 列（回到未選）
     expect(container.querySelector(".chip-select__menu")).not.toBeNull();
     fireEvent.keyDown(btn, { key: "ArrowDown" }); // active → "日"
     fireEvent.keyDown(btn, { key: "Enter" });
 
     expect(btn.textContent).toBe("日");
+    expect(container.querySelector(".chip-select__menu")).toBeNull();
+  });
+
+  // 票券 34 —— 整條 chip row 一套方向鍵語意：關著時 ↓ 是「離開這一格」而不是「開選單」。
+  // 開啟的鍵盤入口沒有少（Enter／Space），逃生鍵則整排都在（見 chip-select.tsx 檔頭）。
+  it("選單關著時 ↓ ＝ 離開這一格（onExitDown），不開選單", () => {
+    let left = 0;
+    const { container } = render(
+      <ChipSelect
+        placeholder="時間"
+        value=""
+        options={["日", "夜"]}
+        onChange={() => {}}
+        onExitDown={() => (left += 1)}
+      />,
+    );
+    const btn = container.querySelector("button")!;
+    btn.focus();
+
+    const cancelled = !fireEvent.keyDown(btn, { key: "ArrowDown" });
+    expect(left).toBe(1);
+    expect(cancelled).toBe(true); // preventDefault ——不讓它再變成一次文件裡的游標移動
+    expect(container.querySelector(".chip-select__menu")).toBeNull();
+  });
+
+  it("選單關著時 ↑ 不做任何事（chip row 上面沒有東西可去）", () => {
+    const { container } = render(<Host />);
+    const btn = container.querySelector("button")!;
+    btn.focus();
+
+    // 這一格的承諾是「不攔這顆鍵」，不只是「沒開選單」—— 原封還給瀏覽器。
+    const notCancelled = fireEvent.keyDown(btn, { key: "ArrowUp" });
+    expect(notCancelled).toBe(true);
+    expect(container.querySelector(".chip-select__menu")).toBeNull();
+  });
+
+  it("沒給 onExitDown 時，關著的 ↓ 原封還給瀏覽器", () => {
+    const { container } = render(<Host />);
+    const btn = container.querySelector("button")!;
+    btn.focus();
+
+    const notCancelled = fireEvent.keyDown(btn, { key: "ArrowDown" });
+    expect(notCancelled).toBe(true);
     expect(container.querySelector(".chip-select__menu")).toBeNull();
   });
 
@@ -63,7 +106,7 @@ describe("ChipSelect", () => {
     const { container } = render(<Host />);
     const btn = container.querySelector("button")!;
     btn.focus();
-    fireEvent.keyDown(btn, { key: "ArrowDown" }); // 開
+    fireEvent.keyDown(btn, { key: "Enter" }); // 開
     // fireEvent.keyDown 回傳 false 代表事件被 preventDefault。Tab 不該被攔。
     const notCancelled = fireEvent.keyDown(btn, { key: "Tab" });
     expect(notCancelled).toBe(true);

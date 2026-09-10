@@ -37,7 +37,7 @@ import { Action, Dialogue, InsertShot } from "../schema";
 import { useEntityCatalog } from "../entity-catalog";
 import { EntityField, type EntityOption, type EntityRef } from "../entity-field";
 import { entityUsage } from "../entity-usage";
-import { claimFocus, subscribeFocusRequest } from "../focus";
+import { claimFocus, requestFocus, subscribeFocusRequest } from "../focus";
 
 /** 從 node view 反推它所在場次的 id 與自己在場次裡的序（給 pending-focus 比對用）。 */
 function locateBlock(props: NodeViewProps): BlockAddress | null {
@@ -220,8 +220,17 @@ function DialogueView(props: NodeViewProps) {
    * 人物欄按 ↑：跳到**上一個**可放游標的區塊的文字末端（使用者回饋 2026-09-04）。
    * 用 `TextSelection.near(…, -1)` 往回找，所以同場次的前一個區塊、或前一場的最後一個區塊
    * 都自然涵蓋。前面什麼都沒有（全劇第一個區塊）時回 `false`，把這顆鍵還給瀏覽器。
+   *
+   * 例外是**本場第一個區塊**：再往上是本場的 chip row，不是上一場的內文（票券 34）。
+   * 少了這一條，第一個區塊是對白的場次會從人物欄直接跨出去，把自己的 metadata 跳過。
    */
   const focusPreviousBlockEnd = (): boolean => {
+    const here = locateBlock(props);
+    if (here?.blockIndex === 0) {
+      requestFocus({ kind: "sceneChipsEnd", sceneId: here.sceneId });
+      return true;
+    }
+
     const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
     if (pos == null) return false;
     const before = TextSelection.near(editor.state.doc.resolve(pos), -1);
