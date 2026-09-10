@@ -47,6 +47,17 @@ export {
 } from "./entities";
 export type { EntityDirectory } from "./entities";
 
+// 群演（場次限定實體，票券 09）：id 鑄造、讀取正規化、「描述 x 人數」的解析與場次表那一格
+// 的文字。`extrasLabel` 的第一個呼叫端會是票券 15（場次表第一層），與 `referenceLabel` 一起。
+export {
+  EXTRA_ID_PREFIX,
+  mintExtraId,
+  isExtraId,
+  sceneExtras,
+  parseExtra,
+  formatExtra,
+} from "./extras";
+
 // 多值欄位的輸入規則（地點欄與登場人物欄共用同一份；貼上走同一條路）。
 export { splitNamesLive } from "./names";
 

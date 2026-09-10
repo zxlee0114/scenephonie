@@ -30,8 +30,9 @@ import {
   type ReactNode,
 } from "react";
 
-import { splitNamesLive } from "@scenephonie/schema";
+import { isExtraId, parseExtra, splitNamesLive } from "@scenephonie/schema";
 
+import { EXTRA_MARK, HIT_MARK, NEW_MARK } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
 
 export type EntityOption = { id: string; name: string };
@@ -45,10 +46,6 @@ export type EntityOption = { id: string; name: string };
 export type EntityRef = { id: string | null; displayName: string };
 
 export type EntityKind = "location" | "character";
-
-/** 命中既有實體的記號。地點與人物各自一個，讓兩種欄位一眼可辨。 */
-const HIT_MARK: Record<EntityKind, string> = { location: "📍", character: "👤" };
-const NEW_MARK = "＋";
 
 type Props = {
   kind: EntityKind;
@@ -77,6 +74,24 @@ type Props = {
     /** 「兩個都留」那條路（地點欄 ＝ 把這一場改成雜景）。沒給就只有取代與放棄。 */
     escalate?: { label: string; run: () => boolean };
   };
+  /**
+   * 本場次的群演，作為**這一欄的另一種合法目標**（§4.7、§5.1）。只有對白的人物欄給。
+   *
+   * 分界規則是：**一個人說話 → 人物**（即使名字只是「路人甲」），**一群人齊聲說 → 群演**。
+   * 判準跟著通告走 —— 路人甲有一句台詞就要單獨找一個演員；那 20 個人齊聲喊一聲，就是那批
+   * 背景演員一起喊。系統分不出來，所以兩種目標並列在選單裡，由編劇挑。
+   *
+   * 形狀是 `{ id: extraId, name: 描述 }`。它們**不經過 `usage`** —— 群演的存在性不是
+   * 「被幾場引用」，而是它就寫在這一場的 `extras` attr 裡。
+   */
+  sceneExtras?: readonly EntityOption[];
+  /**
+   * 在這一欄**直接新建一筆群演**（`眾人 x20` → 一筆本場的群演 ＋ 一個指向它的引用）。
+   *
+   * 存在的理由是心流：齊聲那一句寫到一半跳去簡表填群演欄，回來時思緒就斷了（§4.7）。
+   * 同步回傳（不像 `onCreate` 要落地到伺服器）—— 群演的家就是這份 doc。
+   */
+  onCreateExtra?: (text: string) => EntityOption | null;
   /** 引用有變動時回報**整份**引用清單（上層跑 domain command 寫回 doc）。 */
   onCommit: (refs: EntityRef[]) => void;
   /** 建立一筆新實體。**必須在 `onCommit` 之前完成** —— 先建立實體、再寫入 doc。 */
@@ -112,6 +127,8 @@ export function EntityField({
   refs,
   options,
   usage,
+  sceneExtras = [],
+  onCreateExtra,
   multiple = false,
   confirmReplace,
   onCommit,
@@ -206,8 +223,13 @@ export function EntityField({
    * 覆蓋掉第一筆（`refs` 是 prop，中途還沒重繪過）。
    */
   const resolve = async (name: string): Promise<EntityRef | null> => {
-    // 剛從這一欄拿下來的那一筆：名字沒改就是原封放回，用回它自己的 id（見 `editing`）。
     const held = editing.current;
+    // 剛拿下來的那一筆是**群演**：改字改的是「這一場顯示的名字」，不是換一個目標。
+    // （CONTEXT.md：群演欄寫「咖啡廳客人 x8」，對白顯示「眾人」—— 兩者本來就可以不同。）
+    // 少了這一條，改一個字就會把 `ex_` 引用悄悄換成一筆新建的**人物**，而一人說話與一群
+    // 齊聲說的分界是編劇的宣告，不該由改名這個動作替他翻面。
+    if (isExtraId(held?.id)) return { id: held!.id, displayName: name };
+    // 一般實體：名字沒改就是原封放回，用回它自己的 id（見 `editing`）。
     if (held?.id != null) {
       const entity = options.find((o) => o.id === held.id);
       if (name === held.displayName || name === entity?.name) {
@@ -317,6 +339,18 @@ export function EntityField({
           },
         });
       }
+      // 本場次的群演也是這一欄的合法目標（§5.1）——「一群人齊聲說」那一半。它們不經過
+      // `existing()`：群演的存在性不是「被幾場引用」，而是它就寫在這一場的 attr 裡。
+      for (const extra of sceneExtras.filter((e) => e.name.includes(query))) {
+        rows.push({
+          key: `extra:${extra.id}`,
+          label: `${EXTRA_MARK} ${extra.name}`,
+          run: () => {
+            merge([{ id: extra.id, displayName: extra.name }]);
+            reset();
+          },
+        });
+      }
       if (!exact) {
         rows.push({
           key: "create",
@@ -325,6 +359,17 @@ export function EntityField({
             void commitText();
           },
         });
+      }
+      // 直接在這裡新建一筆群演 —— 齊聲那一句寫到一半不必跳去簡表（§4.7 的心流理由）。
+      if (onCreateExtra) {
+        const parsed = parseExtra(query);
+        if (parsed) {
+          rows.push({
+            key: "create-extra",
+            label: `${EXTRA_MARK} 新增群演「${parsed.description}」${parsed.count} 人`,
+            run: () => createExtra(),
+          });
+        }
       }
       // 第三列永遠在 —— 它不是建議，是一個入口。（一個存在的實體都沒有時就沒得指了。）
       if (known.length > 0) {
@@ -405,6 +450,21 @@ export function EntityField({
     }
     const ref = await resolve(query);
     if (ref) merge([ref]);
+    reset();
+  };
+
+  /**
+   * 在這一欄直接新建一筆**群演**（`眾人 x20`）。
+   *
+   * 與建立人物是兩條路而不是一個猜測：系統分不出「一個人說話」與「一群人齊聲說」，那是
+   * 編劇按下哪一列的宣告（同子場次的種類）。人數走與群演欄相同的 `描述 x 人數` 解析。
+   */
+  const createExtra = () => {
+    const parsed = parseExtra(query);
+    if (!parsed || !onCreateExtra) return;
+    const created = onCreateExtra(query);
+    if (!created) return;
+    merge([{ id: created.id, displayName: created.name }]);
     reset();
   };
 
@@ -502,14 +562,24 @@ export function EntityField({
     <div className={`entity-field${className ? ` ${className}` : ""}`} ref={field}>
       <span className="entity-field__chips">
         {refs.map((ref) => {
-          const entity = options.find((o) => o.id === ref.id) ?? null;
+          const entity =
+            options.find((o) => o.id === ref.id) ?? sceneExtras.find((e) => e.id === ref.id) ?? null;
           const born = ref.id != null && bornHere.includes(ref.id);
+          // 群演的 chip 用自己的記號 —— 讀 chip 的人要看得出這一筆沒有跨場次身分。
+          const extra = isExtraId(ref.id);
+          const mark = extra ? EXTRA_MARK : born ? NEW_MARK : HIT_MARK[kind];
           return (
             <span
               key={`${ref.id}:${ref.displayName}`}
               className={[
                 "entity-chip",
-                born ? "entity-chip--new" : entity ? "entity-chip--hit" : "entity-chip--dangling",
+                extra
+                  ? "entity-chip--extra"
+                  : born
+                    ? "entity-chip--new"
+                    : entity
+                      ? "entity-chip--hit"
+                      : "entity-chip--dangling",
               ].join(" ")}
               // 懸空引用（實體被 ⌘Z 掉）不跳警告、不少印 —— 只是少一條可聚合的連結。
               title={entity && entity.name !== ref.displayName ? entity.name : undefined}
@@ -522,7 +592,7 @@ export function EntityField({
             >
               {entity || born ? (
                 <span className="entity-chip__mark" aria-hidden="true">
-                  {born ? NEW_MARK : HIT_MARK[kind]}
+                  {mark}
                 </span>
               ) : null}
               {ref.displayName}

@@ -31,11 +31,14 @@ import {
   MONTAGE,
   TIME_VALUES,
   sceneAppearingCharacters,
+  sceneExtras,
   sceneLocations,
   setAppearingCharacters,
+  setSceneExtras,
   setSceneIntExt,
   setSceneLocations,
   type CommandResult,
+  type ExtraRef,
   type SceneIntExt,
 } from "@scenephonie/schema";
 
@@ -46,6 +49,8 @@ import { runKernelCommand } from "../command-bridge";
 import { forwardHistoryKey } from "../history-keys";
 import { useEntityCatalog, type EntityCatalog } from "../entity-catalog";
 import { EntityField, type EntityKind, type EntityRef } from "../entity-field";
+import { extraDescriptions } from "../extras-catalog";
+import { ExtrasField } from "../extras-field";
 import { FieldInfo } from "../field-info";
 import { entityUsage } from "../entity-usage";
 import { claimFocus, handOffFocus, subscribeFocusRequest } from "../focus";
@@ -149,6 +154,8 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   const firstField = useRef<HTMLButtonElement>(null);
   /** 地點欄的正向 Tab 要落在登場人物欄 —— 拿著它的 input，不靠 class 名走訪 DOM。 */
   const charactersField = useRef<HTMLInputElement>(null);
+  /** 登場人物欄的正向 Tab 落在群演欄 —— chip row 的最後一格才進內文。 */
+  const extrasField = useRef<HTMLInputElement>(null);
   const sceneId = node.attrs.sceneId as string;
   const catalog = useEntityCatalog();
 
@@ -212,6 +219,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   const characterRefs = sceneAppearingCharacters(node.attrs.appearingCharacters).map((r) =>
     toFieldRef(r.characterId, r.displayName),
   );
+  const extras = sceneExtras(node.attrs.extras);
   // 「（12 場）」要走一遍整份 doc —— 傳函式而不是值，只有選單真的要畫時才算（§7.7）。
   const usage = () => entityUsage(editor.state.doc);
 
@@ -341,11 +349,40 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
               directory: catalog.directory,
             })
           }
-          // chip row 最後一格。正向 Tab：直接落進場次內文開始撰寫（不是跳到腳部按鈕，那顆已
-          // tabIndex=-1）。反向 Tab：交給瀏覽器原生回到地點欄；BlockCycle 的攔截由外層
-          // swallowTab 擋掉。§7.1 焦點串接。
-          onTab={enterBody}
+          onTab={() => extrasField.current?.focus()}
         />
+
+        {/* 群演。**場次限定實體** —— 沒有實體表、沒有目錄，`extraId` 只在這一場內有意義，
+            所以它不走 `EntityField`（見 extras-field.tsx 檔頭那張對照表）。描述可以跨場次
+            補字串，但那**只是字**，不建立「這是同一批人」的連結。 */}
+        <FieldInfo
+          info="extras"
+          className={`scene__chip scene__chip--extras${extras.length > 0 ? "" : " scene__chip--empty"}`}
+        >
+          {(describedBy) => (
+            <ExtrasField
+              inputRef={extrasField}
+              describedBy={describedBy}
+              extras={extras}
+              // 別場用過的描述。走一遍整份 doc，所以傳函式（同 usage）。
+              suggestions={() => extraDescriptions(editor.state.doc)}
+              onCommit={(next: ExtraRef[]) =>
+                runKernelCommand(editor, (doc) => setSceneExtras(doc, { sceneId, extras: next }), {
+                  keepFocus: true,
+                })
+              }
+              // chip row 最後一格。正向 Tab：直接落進場次內文開始撰寫（不是跳到腳部按鈕，那顆已
+              // tabIndex=-1）。反向 Tab：交給瀏覽器原生回到登場人物欄；BlockCycle 的攔截由外層
+              // swallowTab 擋掉。§7.1 焦點串接。
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing || e.key !== "Tab" || e.shiftKey) return;
+                e.preventDefault();
+                e.stopPropagation();
+                enterBody();
+              }}
+            />
+          )}
+        </FieldInfo>
       </div>
 
       <NodeViewContent className="scene__body" />

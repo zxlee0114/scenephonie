@@ -1,6 +1,7 @@
 import { EditorState } from "prosemirror-state";
 import { describe, expect, it } from "vitest";
 
+import { mintExtraId } from "../extras";
 import { isSceneId } from "../ids";
 import { schema } from "../schema";
 import { makeDoc, makeScene } from "../testing";
@@ -121,5 +122,26 @@ describe("dedupeIdsPlugin（appendTransaction，Node 裡跑 EditorState、不需
     const noop = state.tr.setNodeMarkup(0, undefined, { ...a.attrs, time: "日" });
     const { transactions } = state.applyTransaction(noop);
     expect(transactions.length).toBe(1);
+  });
+});
+
+describe("群演不去重（§6.5 的適用範圍只有 sceneId）", () => {
+  it("複製一場 → 換的是 sceneId，群演原封跟著複製過去", () => {
+    const guests = mintExtraId();
+    const extras = [{ extraId: guests, description: "咖啡廳客人", count: 8 }];
+    const original = makeScene({ extras });
+    const dupId = original.attrs.sceneId as string;
+    const copy = schema.node(
+      "scene",
+      { sceneId: dupId, extras },
+      schema.node("action", null, [schema.text("副本")]),
+    );
+
+    const r = dedupeSceneIds(makeDoc(original, copy));
+
+    // id 只在該場次內有意義 —— 兩份相同的 extraId 不構成碰撞，跟著複製才是對的。
+    expect(r.doc.child(0).attrs.extras).toEqual(extras);
+    expect(r.doc.child(1).attrs.extras).toEqual(extras);
+    expect(idsOf(r.doc)[1]).not.toBe(dupId);
   });
 });

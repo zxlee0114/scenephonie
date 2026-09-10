@@ -105,6 +105,20 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     rationale: "拒絕對不存在人物／非本場群演的引用；以 sceneId 定址（blockIndex 是傳遞參數）。",
   },
   {
+    name: "setSceneExtras",
+    enforces: [],
+    addressesById: true,
+    rationale:
+      "以 sceneId 定址；群演是場次限定實體（沒有實體表可問存在性），值的形狀由它自己把關。",
+  },
+  {
+    name: "addSceneExtras",
+    enforces: [],
+    addressesById: true,
+    rationale:
+      "以 sceneId 定址；把「讀現況再併上」留在 kernel，呼叫端才不會拿上一次重繪的那份 doc 去合併。",
+  },
+  {
     name: "dedupeSceneIds",
     enforces: ["⑥"],
     addressesById: true,
