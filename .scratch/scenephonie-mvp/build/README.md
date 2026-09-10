@@ -66,3 +66,4 @@ blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開
 | [30](./30-slash-next-leaves-empty-block.md) | bug：`/next` 在原場次留下一個空區塊。blocked by 04。 |
 | [31](./31-load-focus-unfilled-last-scene.md) | 載入時末場還沒填 metadata，焦點落在該場 chip row。blocked by 26。 |
 | [32](./32-empty-document-state.md) | 零場次時的空狀態（全選刪除後不是死路；不自動補場次）。blocked by 04。 |
+| [33](./33-entity-field-ui-polish.md) | 實體欄位與欄位說明的視覺／互動打磨（浮層翻邊、觸控上的快捷鍵揭露、預覽的份量）。blocked by 08。 |
