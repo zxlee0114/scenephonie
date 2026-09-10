@@ -137,10 +137,26 @@ export async function landingProject(
   const project = await authorizeProjectForUser(ownerId, projectId);
   if (!project) throw new Error("剛建立的專案卻過不了 gate —— 這代表寫入沒有落地");
 
-  // 劇本不在上面那個交易裡：交易只負責「恰好一個專案」，而它必須短 —— 它鎖著 `users` 那一列。
-  // 分兩步的代價是中間斷線會留下一個沒有劇本的專案，補法就是下一次進來時這一行。
-  const { screenplayId } = await projectContents(project);
-  if (!screenplayId) await createScreenplay(project, await opening.screenplay(project));
+  // 劇本進不去上面那個交易：`screenplays` 的 FK 指著 `projects`，專案得先 commit 才輪得到它。
+  // 分兩步的代價是中間斷線會留下一個沒有劇本的專案，補法就是下一次進來時這一段。
+  //
+  // ⚠️ **但這一段跟上面一樣要序列化。** 兩個分頁同時第一次登入時，上面的鎖只保證兩邊拿到
+  // 同一個專案 —— 接著兩邊都會看到它還沒有劇本，於是各建一份（CI 2026-09-10 抓到的真 flake：
+  // 「expected 1 but got 2」）。序列化點取同一列（`users`），鎖內重查一次才建：晚到的那個
+  // 這時已經看得到第一份。開場內容也在鎖內鑄 —— 它會先建立實體（不變式 ⑧），鑄兩次就留下
+  // 兩組沒人引用的實體。這比第一段交易長，但它擋住的只有同一個人自己的並行登入。
+  await getDb().transaction(async (tx) => {
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, ownerId)).for("update");
+
+    const [script] = await tx
+      .select({ id: screenplays.id })
+      .from(screenplays)
+      .where(eq(screenplays.projectId, project.projectId))
+      .limit(1);
+    if (script) return;
+
+    await createScreenplay(project, await opening.screenplay(project));
+  });
 
   return project;
 }
