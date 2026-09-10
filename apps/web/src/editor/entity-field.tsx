@@ -11,7 +11,9 @@
  * （`🔗`）。**打字當下不問任何問題** —— 系統不可能懷疑「海豚公寓房間」就是「未知大樓房間」，
  * 積極合併相似名會把兩套陳設併成一套。第三列是留給編劇**主動說出口**的地方，他寫的當下就知道。
  *
- * **③ 注音組字期間選單完全不動作**（§7.6）：組字中不切 chip、不開選單、不回寫外部狀態。
+ * **③ 注音組字期間選單完全不動作**（§7.6）：組字中不切 chip、不接手任何一顆鍵、不回寫外部
+ * 狀態。**看得見不等於動得了** —— 組字中會浮出一份唯讀的預覽（命中哪幾筆），但它接不到鍵盤
+ * 也接不到滑鼠；要選什麼，等 `compositionend` 之後才算數。
  * 這是票券 03 那個 bug 家族的同一條防線 —— 注音的空白鍵是選字鍵、Enter 是送出鍵，把任何
  * 語意綁在那兩顆鍵上都會在組字期間被 IME 吃掉。
  *
@@ -29,6 +31,8 @@ import {
 } from "react";
 
 import { splitNamesLive } from "@scenephonie/schema";
+
+import { HELP_KEY_HINT } from "./field-info";
 
 export type EntityOption = { id: string; name: string };
 /**
@@ -82,7 +86,7 @@ type Props = {
   className?: string;
   inputClassName?: string;
   /**
-   * 欄位說明的 id（`FieldInfo` 給的）。有它就代表這一格掛了說明 —— 於是也宣告 F1，
+   * 欄位說明的 id（`FieldInfo` 給的）。有它就代表這一格掛了說明 —— 於是也宣告 ⌥/，
    * 讓純鍵盤使用者知道那個 `tabIndex={-1}` 的 icon 有一條鍵盤路。
    */
   describedBy?: string;
@@ -369,6 +373,23 @@ export function EntityField({
     }
   }
 
+  /**
+   * 組字中的**預覽**（使用者裁決 2026-09-10）。
+   *
+   * 選單照樣邊打邊出現，但**完全不接手鍵盤與滑鼠** —— §7.6 那條線一步都沒退：注音的空白是
+   * 選字鍵、Enter 是送出鍵，這一刻它們全部屬於 IME。這裡只回答一個問題：「我正在打的這幾個
+   * 字，本子裡已經有嗎」，讓編劇在**送出之前**就看得出來會命中還是會新建（搜尋框那樣）。
+   * 真正做決定的那一刻仍然是 `compositionend`，不是現在。
+   *
+   * 只列命中，不列「建立新實體」與別名入口 —— 那兩列是動作，而這一刻不該有任何動作可按。
+   */
+  const preview =
+    composingNow && query.length > 0 && !pending
+      ? existing()
+          .filter((o) => o.name.includes(query))
+          .slice(0, 5)
+      : [];
+
   const activeRow = rows[Math.min(active, rows.length - 1)];
 
   /** 把還沒 chip 化的字定案（Enter、離開欄位、選單的「建立新實體」都走這裡）。 */
@@ -531,7 +552,7 @@ export function EntityField({
         placeholder={refs.length > 0 ? "" : placeholder}
         aria-label={placeholder}
         aria-describedby={describedBy}
-        aria-keyshortcuts={describedBy ? "F1" : undefined}
+        aria-keyshortcuts={describedBy ? HELP_KEY_HINT : undefined}
         aria-expanded={rows.length > 0}
         aria-haspopup="listbox"
         role="combobox"
@@ -556,6 +577,18 @@ export function EntityField({
           setStage({ name: "suggest" });
         }}
       />
+
+      {preview.length > 0 && (
+        // aria-hidden ＋ CSS 的 pointer-events: none —— 它是一瞥，不是一個選單：不進無障礙
+        // 樹（輸入框的 aria-expanded 這一刻仍然是 false，那是實話），也接不到滑鼠。
+        <ul className="entity-field__menu entity-field__menu--preview" aria-hidden="true">
+          {preview.map((option) => (
+            <li key={option.id}>
+              {HIT_MARK[kind]} {option.name}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {rows.length > 0 && pending && (
         <div className="entity-field__confirm">

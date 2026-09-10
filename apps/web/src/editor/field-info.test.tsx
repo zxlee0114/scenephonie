@@ -10,11 +10,11 @@
 import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { FIELD_INFO, FieldInfo } from "./field-info";
+import { FIELD_INFO, FieldInfo, HELP_KEY_HINT } from "./field-info";
 
 function Host({ info }: { info: "location" | "intExt" }) {
   return <FieldInfo info={info}>{(describedBy) => (
-    <input aria-label="欄位" aria-describedby={describedBy} aria-keyshortcuts="F1" />
+    <input aria-label="欄位" aria-describedby={describedBy} aria-keyshortcuts={HELP_KEY_HINT} />
   )}</FieldInfo>;
 }
 
@@ -31,16 +31,16 @@ describe("欄位說明", () => {
     expect(document.getElementById(describedBy)?.textContent).toBe(FIELD_INFO.location.summary);
   });
 
-  it("icon 不進 tab 序 —— 但純鍵盤那條路是欄位上的 F1", () => {
+  it("icon 不進 tab 序 —— 但純鍵盤那條路是欄位上的 ⌥/", () => {
     const { container } = render(<Host info="location" />);
     const input = container.querySelector("input")!;
     const button = container.querySelector("button")!;
 
     expect(button.tabIndex).toBe(-1);
-    expect(input.getAttribute("aria-keyshortcuts")).toBe("F1");
+    expect(input.getAttribute("aria-keyshortcuts")).toBe("Alt+/");
 
     expect(panelOf(container)).toBeNull();
-    fireEvent.keyDown(input, { key: "F1" });
+    fireEvent.keyDown(input, { key: "÷", code: "Slash", altKey: true });
     expect(panelOf(container)).not.toBeNull();
   });
 
@@ -49,7 +49,7 @@ describe("欄位說明", () => {
     const input = container.querySelector("input")!;
     input.focus();
 
-    fireEvent.keyDown(input, { key: "F1" });
+    fireEvent.keyDown(input, { key: "÷", code: "Slash", altKey: true });
     const panel = panelOf(container)!;
     expect(document.activeElement).toBe(panel);
 
@@ -60,7 +60,7 @@ describe("欄位說明", () => {
 
   it("地點的說明給的是兩條出路，不是一條", () => {
     const { container } = render(<Host info="location" />);
-    fireEvent.keyDown(container.querySelector("input")!, { key: "F1" });
+    fireEvent.keyDown(container.querySelector("input")!, { key: "÷", code: "Slash", altKey: true });
 
     const text = panelOf(container)!.textContent ?? "";
     // 雜景接的是快速跳接的散文，接續子場次接的是連續動作 —— 只給一條，編劇會把走廊戲寫成雜景。
@@ -68,9 +68,22 @@ describe("欄位說明", () => {
     expect(text).toContain("接續子場次");
   });
 
+  it("F1 不再是那顆鍵 —— macOS 的 F1 預設是螢幕亮度，那條路等於不存在", () => {
+    const { container } = render(<Host info="location" />);
+    fireEvent.keyDown(container.querySelector("input")!, { key: "F1" });
+    expect(panelOf(container)).toBeNull();
+  });
+
+  it("懸停提示把快捷鍵印在 icon 旁邊 —— 但不進無障礙樹（欄位已經宣告過了）", () => {
+    const { container } = render(<Host info="location" />);
+    const hint = container.querySelector(".field-info__hint")!;
+    expect(hint.textContent).toBe("⌥/");
+    expect(hint.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("內外的說明講的是雜景為什麼長在這一欄", () => {
     const { container } = render(<Host info="intExt" />);
-    fireEvent.keyDown(container.querySelector("input")!, { key: "F1" });
+    fireEvent.keyDown(container.querySelector("input")!, { key: "÷", code: "Slash", altKey: true });
 
     expect(panelOf(container)!.textContent).toContain("台灣業界既有的寫法");
   });

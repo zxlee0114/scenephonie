@@ -17,7 +17,10 @@
  * |---|---|
  * | 滑鼠 | 點 icon |
  * | 螢幕閱讀器 | 欄位的 `aria-describedby` 指向 `summary` —— 一聚焦就聽見，不必開彈窗 |
- * | 純鍵盤 | 欄位上按 **F1**（`aria-keyshortcuts` 宣告出來） |
+ * | 純鍵盤 | 欄位上按 **⌥/**（`aria-keyshortcuts` 宣告出來，懸停 icon 時也印在旁邊） |
+ *
+ * 快捷鍵原本是 F1（那是它在桌面軟體裡的老位置），改成 ⌥/ 是因為 macOS 的 F1 預設是螢幕
+ * 亮度鍵 —— 要按 `fn+F1` 才傳得到網頁，等於這條路對多數人不存在（使用者裁決 2026-09-10）。
  *
  * 彈窗關閉時焦點回到**欄位**而不是 icon —— 回到一個 Tab 走不到的地方等於把焦點丟掉。
  */
@@ -31,6 +34,24 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
+
+/**
+ * 這一下是不是「開說明」——**⌥/**。
+ *
+ * ⚠️ macOS 上 `⌥/` 送出來的 `key` 是 `÷`（Option 會改寫字元），所以不能只比對 `"/"`。
+ * `code` 是實體鍵位（`Slash`），跨鍵盤配置都對得上，那才是主要判準；`key` 的兩種寫法留著
+ * 當備援，給 `code` 不可靠的環境（部分測試工具、虛擬鍵盤）。
+ */
+export function isHelpKey(e: {
+  altKey: boolean;
+  key: string;
+  code?: string;
+}): boolean {
+  return e.altKey && (e.code === "Slash" || e.key === "/" || e.key === "÷");
+}
+
+/** 給 `aria-keyshortcuts` 用的宣告字串（欄位那一側掛的就是它）。 */
+export const HELP_KEY_HINT = "Alt+/";
 
 export type FieldInfoKey = "intExt" | "time" | "location" | "character";
 
@@ -170,9 +191,9 @@ export function FieldInfo({
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
   }, [open]);
 
-  // F1 在這一格裡的任何地方都算（欄位聚焦時按下的鍵會冒泡到這裡）。
+  // ⌥/ 在這一格裡的任何地方都算（欄位聚焦時按下的鍵會冒泡到這裡）。
   const onKeyDown = (e: ReactKeyboardEvent) => {
-    if (e.key !== "F1") return;
+    if (!isHelpKey(e)) return;
     e.preventDefault();
     e.stopPropagation();
     if (open) closePanel();
@@ -192,7 +213,7 @@ export function FieldInfo({
         type="button"
         className="field-info__button"
         // 每一場都要 Tab 走一遍 metadata，四個 icon 會讓那條路加倍長。移出 tab 序的代價由
-        // aria-describedby（螢幕閱讀器）與 F1（純鍵盤）補回來 —— 見檔頭那張表。
+        // aria-describedby（螢幕閱讀器）與 ⌥/（純鍵盤）補回來 —— 見檔頭那張表。
         tabIndex={-1}
         aria-label={`關於${text.title}`}
         aria-expanded={open}
@@ -205,6 +226,14 @@ export function FieldInfo({
       >
         ⓘ
       </button>
+
+      {/* 懸停時才出現的快捷鍵提示。icon 走不到 tab 序，這是它唯一自己說得出「還有鍵盤這條路」
+          的地方 —— 而且看得到 icon 的人正好就是還沒發現快捷鍵的人。 */}
+      {!open && (
+        <span className="field-info__hint" aria-hidden="true">
+          ⌥/
+        </span>
+      )}
 
       {open && (
         <div

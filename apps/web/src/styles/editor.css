@@ -329,6 +329,37 @@
   color: var(--text-secondary);
 }
 
+/* 懸停時才出現的快捷鍵提示 —— icon 走不到 tab 序，這是它唯一自己說得出「還有鍵盤這條路」
+ * 的地方（使用者裁決 2026-09-10）。絕對定位：它不能把 chip row 的版面推開。 */
+.field-info__hint {
+  position: absolute;
+  inset-block-start: calc(100% + 2px);
+  inset-inline-start: 0;
+  z-index: 25;
+  padding: 2px var(--space-1);
+  border-radius: var(--space-1);
+  background: var(--surface-raised, var(--surface-page));
+  border: 1px solid var(--rule-strong);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.field-info__button:hover ~ .field-info__hint {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field-info__hint {
+    transition: none;
+  }
+}
+
 .field-info__panel {
   position: absolute;
   inset-block-start: calc(100% + var(--space-1));
@@ -517,6 +548,18 @@
   box-shadow: var(--shadow-popover);
   font-family: var(--font-ui);
   font-size: 1rem;
+}
+
+/* 組字中的預覽（使用者裁決 2026-09-10）：看得見，但按不到 —— 這一刻每一顆鍵都屬於 IME。
+ * 淡一階，讓它讀起來是「一瞥」而不是「一個等你選的選單」。 */
+.entity-field__menu--preview {
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.entity-field__menu--preview li {
+  cursor: default;
+  color: var(--text-secondary);
 }
 
 /* 待確認的第二個值（使用者裁決 2026-09-10）：面板**取代**自動補全，因為這一刻要問的不是

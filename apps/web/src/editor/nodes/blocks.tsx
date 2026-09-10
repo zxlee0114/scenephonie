@@ -27,6 +27,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import { sceneContext, type BlockAddress } from "../address";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { runKernelCommand } from "../command-bridge";
+import { forwardHistoryKey } from "../history-keys";
 import { Action, Dialogue, InsertShot } from "../schema";
 import { useEntityCatalog } from "../entity-catalog";
 import { EntityField, type EntityRef } from "../entity-field";
@@ -233,6 +234,8 @@ function DialogueView(props: NodeViewProps) {
         onRenameEntity={(id, name) => catalog.rename("character", id, name)}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return;
+          // ⌘Z 在這個 input 裡到不了 ProseMirror（Tiptap 的 stopEvent）—— 見 `history-keys.ts`。
+          if (forwardHistoryKey(editor, e)) return;
           // 人物欄打完按 Enter：直接進台詞（不要「按了沒反應」的錯愕）——與正向 Tab 同終點。
           // 移動焦點會 blur 這個 input，CjkField 的 onBlur 負責回寫人物名（使用者回饋 2026-09-03）。
           if (e.key === "Enter" && !e.shiftKey) {

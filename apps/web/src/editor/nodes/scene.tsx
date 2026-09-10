@@ -43,6 +43,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { ChipSelect } from "../chip-select";
 import { runKernelCommand } from "../command-bridge";
+import { forwardHistoryKey } from "../history-keys";
 import { useEntityCatalog, type EntityCatalog } from "../entity-catalog";
 import { EntityField, type EntityKind, type EntityRef } from "../entity-field";
 import { FieldInfo } from "../field-info";
@@ -237,7 +238,15 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
 
       {/* 內嵌簡表 —— 常駐。缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）。
           下拉比照 slash 選單外觀（ChipSelect），不用原生 <select>。 */}
-      <div className="scene__chips" contentEditable={false} onKeyDown={swallowTab}>
+      <div
+        className="scene__chips"
+        contentEditable={false}
+        // 焦點在這一排的任何控制項裡時，⌘Z 到不了 ProseMirror —— 見 `history-keys.ts`。
+        onKeyDown={(e) => {
+          if (forwardHistoryKey(editor, e)) return;
+          swallowTab(e);
+        }}
+      >
         <FieldInfo info="intExt" className={`scene__chip${intExt ? "" : " scene__chip--empty"}`}>
           {(describedBy) => (
           <ChipSelect

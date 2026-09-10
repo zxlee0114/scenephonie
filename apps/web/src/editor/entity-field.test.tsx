@@ -56,8 +56,14 @@ function Host({
 const chips = (root: HTMLElement) => [...root.querySelectorAll(".entity-chip")];
 const chipTexts = (root: HTMLElement) =>
   chips(root).map((c) => c.textContent?.replace(/[×＋📍👤]/gu, "") ?? "");
+/** 可以操作的那份選單（預覽不算 —— 它按不到，見下面那個 describe）。 */
 const rows = (root: HTMLElement) =>
-  [...root.querySelectorAll(".entity-field__menu li")].map((li) => li.textContent ?? "");
+  [...root.querySelectorAll(".entity-field__menu:not(.entity-field__menu--preview) li")].map(
+    (li) => li.textContent ?? "",
+  );
+/** 組字中浮出來的唯讀預覽。 */
+const previewRows = (root: HTMLElement) =>
+  [...root.querySelectorAll(".entity-field__menu--preview li")].map((li) => li.textContent ?? "");
 
 afterEach(() => {
   document.body.innerHTML = "";
@@ -215,6 +221,57 @@ describe("注音組字期間，選單與分隔符完全不動作（§7.6）", ()
       "＋ 建立新實體「海豚」",
       "🔗 作為既有實體的另一個名字…",
     ]);
+  });
+});
+
+describe("組字中的預覽：看得見，但按不到（使用者裁決 2026-09-10）", () => {
+  it("邊組字邊給命中 —— 不必等送出就知道本子裡已經有這個地點", () => {
+    const { container } = render(<Host />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "海豚" } });
+
+    expect(previewRows(container)).toEqual(["📍 海豚公寓房間"]);
+    // 但**可以操作的那份**仍然是空的：這一刻每一顆鍵都屬於 IME。
+    expect(rows(container)).toEqual([]);
+  });
+
+  it("預覽不接手鍵盤：組字中的 Enter 仍然是 IME 的送出鍵，不會選走任何一列", () => {
+    const { container } = render(<Host />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "海豚" } });
+    // React 的 isComposing 由 nativeEvent 帶 —— 這裡明講，因為它就是這條測試的主詞。
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+
+    expect(chips(container)).toHaveLength(0);
+  });
+
+  it("預覽不進無障礙樹 —— 輸入框這一刻沒有展開任何選單，那是實話", () => {
+    const { container } = render(<Host />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "海豚" } });
+
+    expect(container.querySelector(".entity-field__menu--preview")?.getAttribute("aria-hidden")).toBe(
+      "true",
+    );
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("組字結束就換成真的選單（多一列「建立新實體」與別名入口）", () => {
+    const { container } = render(<Host />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "海豚" } });
+    fireEvent.compositionEnd(input, { target: { value: "海豚" } });
+
+    expect(previewRows(container)).toEqual([]);
+    expect(rows(container)).toHaveLength(3);
   });
 });
 
