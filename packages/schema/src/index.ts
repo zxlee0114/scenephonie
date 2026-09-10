@@ -15,6 +15,7 @@ export {
   nullableSceneAttrNames,
   TIME_VALUES,
   INT_EXT_VALUES,
+  MONTAGE,
   VOICE_VALUES,
 } from "./schema";
 export type {

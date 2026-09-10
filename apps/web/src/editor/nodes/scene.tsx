@@ -22,6 +22,7 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent }
 
 import {
   INT_EXT_VALUES,
+  MONTAGE,
   TIME_VALUES,
   sceneAppearingCharacters,
   sceneLocations,
@@ -38,6 +39,7 @@ import { ChipSelect } from "../chip-select";
 import { runKernelCommand } from "../command-bridge";
 import { useEntityCatalog, type EntityCatalog } from "../entity-catalog";
 import { EntityField, type EntityKind, type EntityRef } from "../entity-field";
+import { FieldInfo } from "../field-info";
 import { entityUsage } from "../entity-usage";
 import { claimFocus, handOffFocus, subscribeFocusRequest } from "../focus";
 import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
@@ -81,6 +83,7 @@ function SceneEntityChip({
   placeholder,
   refs,
   usage,
+  multiple,
   inputRef,
   write,
   onTab,
@@ -91,6 +94,8 @@ function SceneEntityChip({
   placeholder: string;
   refs: EntityRef[];
   usage: () => ReadonlyMap<string, number>;
+  /** 這一欄現在收不收得下第二個值。登場人物永遠可以；地點只有雜景可以（§4.3）。 */
+  multiple: boolean;
   inputRef?: React.Ref<HTMLInputElement>;
   /** 這一欄怎麼寫回 doc。吃已經濾掉過渡引用的清單，吐一支 kernel command。 */
   write: (refs: PlacedRef[]) => (doc: PMNode) => CommandResult;
@@ -98,31 +103,34 @@ function SceneEntityChip({
   onTab: () => void;
 }) {
   return (
-    <span
+    <FieldInfo
+      info={kind}
       className={`scene__chip scene__chip--${kind}${refs.length > 0 ? "" : " scene__chip--empty"}`}
     >
-      <EntityField
-        inputRef={inputRef}
-        kind={kind}
-        placeholder={placeholder}
-        refs={refs}
-        options={kind === "location" ? catalog.locations : catalog.characters}
-        usage={usage}
-        // 多值 —— 但 command 只讓雜景的地點欄真的存下多個（§4.3：metadata 一律單值）。
-        multiple
-        onCommit={(next) =>
-          runKernelCommand(editor, write(placed(next)), { keepFocus: true })
-        }
-        onCreate={(name) => catalog.create(kind, name)}
-        onRenameEntity={(id, name) => catalog.rename(kind, id, name)}
-        onKeyDown={(e) => {
-          if (e.nativeEvent.isComposing || e.key !== "Tab" || e.shiftKey) return;
-          e.preventDefault();
-          e.stopPropagation();
-          onTab();
-        }}
-      />
-    </span>
+      {(describedBy) => (
+        <EntityField
+          inputRef={inputRef}
+          kind={kind}
+          placeholder={placeholder}
+          describedBy={describedBy}
+          refs={refs}
+          options={kind === "location" ? catalog.locations : catalog.characters}
+          usage={usage}
+          multiple={multiple}
+          onCommit={(next) =>
+            runKernelCommand(editor, write(placed(next)), { keepFocus: true })
+          }
+          onCreate={(name) => catalog.create(kind, name)}
+          onRenameEntity={(id, name) => catalog.rename(kind, id, name)}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing || e.key !== "Tab" || e.shiftKey) return;
+            e.preventDefault();
+            e.stopPropagation();
+            onTab();
+          }}
+        />
+      )}
+    </FieldInfo>
   );
 }
 
@@ -220,11 +228,13 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
       {/* 內嵌簡表 —— 常駐。缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）。
           下拉比照 slash 選單外觀（ChipSelect），不用原生 <select>。 */}
       <div className="scene__chips" contentEditable={false} onKeyDown={swallowTab}>
-        <span className={`scene__chip${intExt ? "" : " scene__chip--empty"}`}>
+        <FieldInfo info="intExt" className={`scene__chip${intExt ? "" : " scene__chip--empty"}`}>
+          {(describedBy) => (
           <ChipSelect
             ref={firstField}
             className="scene__chip-control"
             placeholder="內外"
+            describedBy={describedBy}
             value={intExt}
             options={INT_EXT_VALUES}
             // 走 command 而不是 updateAttributes —— 「地點欄能有幾個值」是內外的函式
@@ -241,17 +251,21 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
               )
             }
           />
-        </span>
+          )}
+        </FieldInfo>
 
-        <span className={`scene__chip${time ? "" : " scene__chip--empty"}`}>
-          <ChipSelect
-            className="scene__chip-control"
-            placeholder="時間"
-            value={time}
-            options={TIME_VALUES}
-            onChange={(v) => updateAttributes({ time: v || null })}
-          />
-        </span>
+        <FieldInfo info="time" className={`scene__chip${time ? "" : " scene__chip--empty"}`}>
+          {(describedBy) => (
+            <ChipSelect
+              className="scene__chip-control"
+              placeholder="時間"
+              describedBy={describedBy}
+              value={time}
+              options={TIME_VALUES}
+              onChange={(v) => updateAttributes({ time: v || null })}
+            />
+          )}
+        </FieldInfo>
 
         {/* 地點與登場人物是**實體引用**（§4.7）——寫入一律走 domain command，因為引用完整性
             （不變式 ⑧）住在那裡，不住在這個欄位。command 被拒絕時 bridge 會 warn 並 no-op。 */}
@@ -262,6 +276,10 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           placeholder="地點"
           refs={locationRefs}
           usage={usage}
+          // **多值是雜景的性質，不是地點欄的性質**（§4.3）。非雜景場次的頓號因此不是分隔符，
+          // 而是名字裡的普通字元 —— 跟對白人物欄同一條規則。這樣編劇打的字不會被 command
+          // 事後拒絕：欄位一開始就沒有收下第二個值。為什麼只有雜景例外，說明在 ⓘ 裡。
+          multiple={intExt === MONTAGE}
           write={(refs) => (doc) =>
             setSceneLocations(doc, {
               sceneId,
@@ -281,6 +299,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           placeholder="登場人物"
           refs={characterRefs}
           usage={usage}
+          multiple
           inputRef={charactersField}
           write={(refs) => (doc) =>
             setAppearingCharacters(doc, {

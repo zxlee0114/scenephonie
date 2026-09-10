@@ -24,6 +24,7 @@ import type {
   LocationRef,
   SceneIntExt,
 } from "../schema";
+import { MONTAGE } from "../schema";
 import { type CommandResult, ok, reject } from "./result";
 import { docFrom, replaceChild, topLevelArray } from "./tree";
 
@@ -95,7 +96,7 @@ export function setSceneLocations(
   const dup = firstDuplicate(refs.map((r) => r.locationId));
   if (dup) return reject(`地點「${dup}」在同一場出現兩次`);
 
-  if (refs.length > 1 && hit.scene.attrs.intExt !== "雜景") {
+  if (refs.length > 1 && hit.scene.attrs.intExt !== MONTAGE) {
     return reject("只有雜景的地點欄可以多值（§4.3：metadata 一律單值，雜景是唯一的逃生口）");
   }
 
@@ -132,7 +133,7 @@ export function setSceneIntExt(
   if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
 
   const locations = sceneLocations(hit.scene.attrs.location);
-  if (intExt !== "雜景" && locations.length > 1) {
+  if (intExt !== MONTAGE && locations.length > 1) {
     return reject(
       `這一場有 ${locations.length} 個地點，只有雜景的地點欄可以多值 —— 先拿掉多餘的地點`,
     );

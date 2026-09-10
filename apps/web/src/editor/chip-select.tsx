@@ -29,10 +29,12 @@ type Props = {
   placeholder: string;
   onChange: (value: string) => void;
   className?: string;
+  /** 欄位說明的 id（`FieldInfo` 給的）。有它就一併宣告 F1 —— 見 `field-info.tsx` 檔頭。 */
+  describedBy?: string;
 };
 
 export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSelect(
-  { value, options, placeholder, onChange, className },
+  { value, options, placeholder, onChange, className, describedBy },
   ref,
 ) {
   const [open, setOpen] = useState(false);
@@ -103,6 +105,8 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={placeholder}
+        aria-describedby={describedBy}
+        aria-keyshortcuts={describedBy ? "F1" : undefined}
         style={{ "--chip-chars": widthInChars } as CSSProperties}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={onKeyDown}

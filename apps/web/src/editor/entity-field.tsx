@@ -69,6 +69,11 @@ type Props = {
   onRenameEntity?: (id: string, name: string) => void;
   className?: string;
   inputClassName?: string;
+  /**
+   * 欄位說明的 id（`FieldInfo` 給的）。有它就代表這一格掛了說明 —— 於是也宣告 F1，
+   * 讓純鍵盤使用者知道那個 `tabIndex={-1}` 的 icon 有一條鍵盤路。
+   */
+  describedBy?: string;
   onKeyDown?: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
   inputRef?: React.Ref<HTMLInputElement>;
 };
@@ -97,6 +102,7 @@ export function EntityField({
   onRenameEntity,
   className,
   inputClassName,
+  describedBy,
   onKeyDown,
   inputRef,
 }: Props) {
@@ -418,6 +424,8 @@ export function EntityField({
         // 已經有 chip 就不必再留提示字 —— chip 自己就說明了這一欄是什麼。
         placeholder={refs.length > 0 ? "" : placeholder}
         aria-label={placeholder}
+        aria-describedby={describedBy}
+        aria-keyshortcuts={describedBy ? "F1" : undefined}
         aria-expanded={rows.length > 0}
         aria-haspopup="listbox"
         role="combobox"
