@@ -176,3 +176,106 @@ describe("非雜景場次的第二個地點", () => {
     expect(locationChips(container)).toEqual(["派出所"]);
   });
 });
+
+// 使用者回饋 2026-09-10（第五輪）：「在多個地點的情況要更換雜景，是沒有提示的狀況下不給換，
+// 我希望這種情形一樣跳出資訊框，來告知編劇情況」。
+//
+// kernel 一直都擋著（`setSceneIntExt`：離開雜景時多出來的地點沒地方去），但拒絕當下畫面上
+// 只是「下拉沒有變」—— 沒有比「按了沒反應」更糟的回答。
+describe("離開雜景時，多出來的地點要有人說一聲", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  /** 雜景場次 ＋ 兩個地點，就是那個擋著的狀態。 */
+  async function twoLocations() {
+    let editor!: Editor;
+    const { container } = render(<Harness intExt="雜景" onEditor={(e) => (editor = e)} />);
+    await typeInto(container, ".scene__chip--location", "派出所、警局", 1);
+    await waitFor(() => expect(locationChips(container)).toEqual(["派出所", "警局"]));
+    return { container, editor: () => editor };
+  }
+
+  const intExtChip = (container: HTMLElement) =>
+    container.querySelector<HTMLButtonElement>('.scene__chips [aria-label="內外"]')!;
+
+  it("挑「內景」→ 浮出說明面板，doc 一個字都沒改", async () => {
+    const { container, editor } = await twoLocations();
+
+    const chip = intExtChip(container);
+    chip.focus();
+    fireEvent.keyDown(chip, { key: "i" }); // 速記鍵：內景
+
+    const note = await waitFor(() => {
+      const el = container.querySelector(".chip-select__note");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(note.textContent).toContain("2 個地點");
+    expect(note.textContent).toContain("派出所、警局");
+    expect(editor().state.doc.child(0).attrs.intExt).toBe("雜景"); // 沒有偷偷寫進去
+    expect(locationChips(container)).toEqual(["派出所", "警局"]); // 也沒有偷偷刪地點
+  });
+
+  it("面板不提供「幫你刪掉多餘的地點」—— 只有「去地點欄」與「維持雜景」", async () => {
+    const { container } = await twoLocations();
+
+    const chip = intExtChip(container);
+    chip.focus();
+    fireEvent.keyDown(chip, { key: "i" });
+
+    const rows = await waitFor(() => {
+      const found = [...container.querySelectorAll(".chip-select__rows li")];
+      expect(found).toHaveLength(2);
+      return found;
+    });
+    expect(rows.map((r) => r.textContent)).toEqual(["→ 先去地點欄拿掉多餘的", "✕ 維持雜景"]);
+  });
+
+  it("挑「先去地點欄」→ 焦點落在地點欄，面板收起來", async () => {
+    const { container } = await twoLocations();
+
+    const chip = intExtChip(container);
+    chip.focus();
+    fireEvent.keyDown(chip, { key: "i" });
+    await waitFor(() => expect(container.querySelector(".chip-select__note")).not.toBeNull());
+
+    fireEvent.keyDown(chip, { key: "Enter" }); // 第 0 列
+    const locationInput = container.querySelector<HTMLInputElement>(
+      ".scene__chip--location input",
+    )!;
+    await waitFor(() => expect(document.activeElement).toBe(locationInput));
+    expect(container.querySelector(".chip-select__note")).toBeNull();
+  });
+
+  it("Esc 收起面板，內外維持雜景", async () => {
+    const { container, editor } = await twoLocations();
+
+    const chip = intExtChip(container);
+    chip.focus();
+    fireEvent.keyDown(chip, { key: "i" });
+    await waitFor(() => expect(container.querySelector(".chip-select__note")).not.toBeNull());
+
+    fireEvent.keyDown(chip, { key: "Escape" });
+    await waitFor(() => expect(container.querySelector(".chip-select__note")).toBeNull());
+    expect(editor().state.doc.child(0).attrs.intExt).toBe("雜景");
+  });
+
+  it("地點減回一個之後就換得動了（面板不再出現）", async () => {
+    const { container, editor } = await twoLocations();
+
+    // 從地點欄把第二個 chip 移掉。
+    const remove = [...container.querySelectorAll<HTMLButtonElement>(
+      ".scene__chip--location .entity-chip__remove",
+    )];
+    fireEvent.mouseDown(remove[1]!);
+    await waitFor(() => expect(locationChips(container)).toEqual(["派出所"]));
+
+    const chip = intExtChip(container);
+    chip.focus();
+    fireEvent.keyDown(chip, { key: "i" });
+
+    await waitFor(() => expect(editor().state.doc.child(0).attrs.intExt).toBe("內景"));
+    expect(container.querySelector(".chip-select__note")).toBeNull();
+  });
+});

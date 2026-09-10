@@ -444,6 +444,29 @@
   font-size: 1rem;
 }
 
+/* 「這個值現在寫不進去」的說明面板（票券 34 第五輪）。比選單寬、可以換行 ——
+ * 它要說一句完整的話，不是列一排選項。 */
+.chip-select__confirm {
+  inline-size: max-content;
+  max-inline-size: 22rem;
+}
+
+.chip-select__note {
+  margin: 0 0 var(--space-1);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  white-space: normal;
+}
+
+.chip-select__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip-select__rows li,
 .chip-select__menu li {
   padding: var(--space-1) var(--space-3);
   border-radius: var(--space-1);
@@ -460,6 +483,11 @@
   font-size: var(--text-sm);
 }
 
+.chip-select__rows li {
+  white-space: normal;
+}
+
+.chip-select__rows li.is-active,
 .chip-select__menu li.is-active {
   background: var(--selection-bg);
 }

@@ -23,6 +23,10 @@
  * ⚠️ 因為同一個理由，速記鍵**只認拉丁鍵**：焦點在 `<button>` 上時注音不會啟動組字，到手上
  * 的是 `s` 那顆實體鍵而不是 `ㄋ`。要接 `ㄋ→內` 就得寫死大千鍵盤的位置，換一套輸入法就全錯。
  *
+ * **寫不進去的值要說出理由**（`confirm`，使用者回饋 2026-09-10 第五輪）：有些值當下被 kernel
+ * 的不變式擋著（雜景改回內景，但這一場有兩個地點）。以前那一刻畫面上只是「下拉沒有變」——
+ * 沒有比「按了沒反應」更糟的回答。現在選單換成一個說明面板，把情況講給編劇聽並給他出路。
+ *
  * **Enter ＝ 這一格好了，去下一格**（使用者回饋 2026-09-10 第三輪），與輸入框那三格同一顆鍵
  * —— 所以**開選單只剩 Space 與 ↓**。`⌘↑`／`⌘↓` 是離開整排的出口（見 `./chip-nav`）。
  *
@@ -43,6 +47,17 @@ import {
 
 import type { ChipNav } from "./chip-nav";
 import { HELP_KEY_HINT } from "./field-info";
+
+/**
+ * 「這個值現在寫不進去」的說明面板 —— 一句話講清楚情況，加上幾條出路。
+ *
+ * ⚠️ 出路裡**沒有「幫你把多餘的地點刪掉」**：那是編劇打進去的字，系統不在他背後刪
+ * （同 kernel `setSceneIntExt` 的裁決）。能給的是把他送到該動手的那一格去。
+ */
+export type ChipConfirm = {
+  readonly note: string;
+  readonly rows: readonly { readonly key: string; readonly label: string; readonly run: () => void }[];
+};
 
 type Props = {
   /** 目前值；空字串 ＝ 未選。 */
@@ -66,14 +81,21 @@ type Props = {
    * 沒給就沒有速記鍵 —— 那幾顆鍵原封還給瀏覽器。
    */
   terms?: Readonly<Record<string, string>>;
+  /**
+   * 這個值現在寫得進去嗎 —— 回一份面板就代表寫不進去，ChipSelect 把選單換成它、不呼叫
+   * `onChange`。回 `null`（或沒給）就照常寫入。
+   */
+  confirm?: (next: string) => ChipConfirm | null;
 };
 
 export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSelect(
-  { value, options, placeholder, onChange, className, describedBy, nav, terms },
+  { value, options, placeholder, onChange, className, describedBy, nav, terms, confirm },
   ref,
 ) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  /** 正在說明「這個值寫不進去」的那一刻。面板**取代**選單 —— 這時要回答的不是「哪一個值」。 */
+  const [pending, setPending] = useState<ChipConfirm | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // 全部可選列：第 0 列是「回到未選」（空字串），其後是各列舉值。
@@ -88,7 +110,7 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (ev: PointerEvent) => {
-      if (!rootRef.current?.contains(ev.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(ev.target as Node)) dismiss();
     };
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
@@ -134,15 +156,51 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
     setOpen(true);
   };
 
-  const commit = (v: string) => {
-    onChange(v);
+  const dismiss = () => {
+    setPending(null);
     setOpen(false);
+  };
+
+  const commit = (v: string) => {
+    // 選了原本就是的那個值不必問 —— 什麼都沒有要改。
+    const blocked = v === value ? null : (confirm?.(v) ?? null);
+    if (blocked) {
+      setPending(blocked);
+      setActive(0);
+      setOpen(true); // 速記鍵是在選單關著時按的，面板照樣要浮出來
+      return;
+    }
+    onChange(v);
+    dismiss();
   };
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (e.key === "Tab") {
-      setOpen(false);
+      dismiss();
       return; // 不 preventDefault —— 焦點自然往下一個 chip
+    }
+
+    // 面板浮著的時候，所有的鍵都歸它 —— 這一刻要回答的是「怎麼辦」，不是「選哪一個值」。
+    if (pending) {
+      const rowCount = pending.rows.length;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        dismiss();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActive((i) => (i + 1) % rowCount);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActive((i) => (i - 1 + rowCount) % rowCount);
+      } else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        e.stopPropagation();
+        const row = pending.rows[Math.min(active, rowCount - 1)];
+        dismiss();
+        row?.run();
+      }
+      return;
     }
     // 回傳 false ＝ 這個方向這一刻沒有去處（第一場沒有上一場），那顆鍵原封還給瀏覽器。
     const fire = (go: () => boolean) => {
@@ -234,7 +292,30 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
       >
         {value || placeholder}
       </button>
-      {open && (
+      {open && pending && (
+        <div className="chip-select__menu chip-select__confirm">
+          <p className="chip-select__note">{pending.note}</p>
+          <ul className="chip-select__rows" role="listbox" aria-label={`${placeholder}怎麼辦`}>
+            {pending.rows.map((row, i) => (
+              <li
+                key={row.key}
+                role="option"
+                aria-selected={i === active}
+                className={i === active ? "is-active" : ""}
+                onMouseEnter={() => setActive(i)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  dismiss();
+                  row.run();
+                }}
+              >
+                {row.label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {open && !pending && (
         <ul className="chip-select__menu" role="listbox" aria-label={placeholder}>
           {rows.map((row, i) => (
             <li

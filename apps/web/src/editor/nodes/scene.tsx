@@ -325,6 +325,30 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
             value={intExt}
             options={INT_EXT_VALUES}
             terms={INT_EXT_TERMS}
+            // 離開雜景時，多出來的地點沒地方去（§4.3：metadata 一律單值，雜景是唯一的
+            // 逃生口）。kernel 會拒絕這次寫入 —— 但拒絕當下畫面上只是「下拉沒有變」，
+            // 那是「按了沒反應」（使用者回饋 2026-09-10 第五輪）。把情況說出來，並且
+            // 把他送到該動手的那一格去。**不提供「幫你刪掉多餘的地點」** —— 那是他打
+            // 進去的字，系統不在他背後刪（同 kernel `setSceneIntExt` 的裁決）。
+            confirm={(next) =>
+              next !== MONTAGE && locationRefs.length > 1
+                ? {
+                    note:
+                      `這一場有 ${locationRefs.length} 個地點（${locationRefs
+                        .map((r) => r.displayName)
+                        .join("、")}）。只有雜景的地點欄放得下多個地點 ——` +
+                      `要改成${next || "未選"}，得先把多餘的地點拿掉。`,
+                    rows: [
+                      {
+                        key: "goto",
+                        label: "→ 先去地點欄拿掉多餘的",
+                        run: () => locationField.current?.focus(),
+                      },
+                      { key: "keep", label: "✕ 維持雜景", run: () => {} },
+                    ],
+                  }
+                : null
+            }
             // 這一排的左上角：↑ 與 ← 都出界，去上一場。↓ 歸選單（見 chip-select 檔頭）。
             nav={{
               ...exits,
