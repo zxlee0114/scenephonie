@@ -190,6 +190,10 @@ describe("人物欄與台詞之間的上下導航", () => {
 
     // 真的派一顆 keydown（走瀏覽器同一條路徑）——`commands.keyboardShortcut` 會包
     // captureTransaction，與這裡「不改 doc、只搬焦點」的行為對不上。
+    // DOM 焦點也要先給編輯器：`vertical-nav` 靠 `activeElement` 分辨這顆鍵是文件的還是
+    // node view 某個欄位的（那些欄位就在 `view.dom` 裡，方向鍵照樣冒泡過來）。掛載後的
+    // 初始焦點在 chip row 上，不補這一步等於在模擬別的情境。
+    editor.view.dom.focus();
     editor.view.dom.dispatchEvent(
       new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true }),
     );

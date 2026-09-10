@@ -17,6 +17,7 @@ import {
   ReactNodeViewRenderer,
   type NodeViewProps,
 } from "@tiptap/react";
+import { TextSelection } from "@tiptap/pm/state";
 import type { Decoration } from "@tiptap/pm/view";
 import {
   useEffect,
@@ -66,37 +67,74 @@ const swallowTab = (e: ReactKeyboardEvent) => {
 };
 
 /**
- * chip row 上一格**輸入框**的離開鍵 —— 正向 Tab 去下一站，↓ 直接進場次內文（票券 34）。
+ * chip row 一格的四個鄰居。沒填的方向就原封還給瀏覽器。
  *
- * ↓ 是那條逃生鍵：Tab 要一格一格走完才進得了內文，而編劇多半只填了前兩格就想開始寫。
- * 反向 Tab 留給瀏覽器原生（回上一格）；↑ 也留著 —— 這一排上面沒有東西可去。
+ * 回傳 `false` ＝「這個方向這一刻沒有去處」（第一場沒有上一場可去），那顆鍵一樣原封還回去
+ * —— 攔了卻什麼都不做，使用者看到的是「按了沒反應」，比讓瀏覽器捲一下畫面更糟。
+ */
+type ChipNav = {
+  readonly left?: () => boolean;
+  readonly right?: () => boolean;
+  readonly up?: () => boolean;
+  readonly down?: () => boolean;
+};
+
+/**
+ * chip row 上一格**輸入框**的方向鍵 —— **這一排在畫面上是二維的，方向鍵就照著版面走**
+ * （票券 34 修訂，使用者驗收回饋 2026-09-10）。
  *
- * **選單開著時這支根本收不到方向鍵** —— `EntityField`／`ExtrasField` 自己先吃掉了（那一刻
+ * ```
+ * 第 1 排  [內外] [時間] [地點——————————]
+ * 第 2 排  [登場人物——————————————————]
+ * 第 3 排  [群演————————————————————]
+ * ```
+ *
+ * 這張版面是 `editor.css` 那條 `flex: 1 0 100%` 排出來的（使用者回饋 2026-09-06）。原本這幾顆
+ * 鍵設計成「離開鍵」（↓ 一律進內文、↑ 完全不接），結果是格子之間根本沒有路：群演往上到不了
+ * 登場人物、地點往左過不去。方向鍵在這一排的意思就是**移到隔壁那一格**，走到邊界才越界。
+ *
+ * `←→` 要游標**貼著字首／字尾**才跳格，否則照常在字裡走 —— 這一格裡還有字要讀時，方向鍵
+ * 屬於那串字。下拉那兩格是 `<button>`、沒有游標，所以直接跳（`../chip-select` 的 `nav`）。
+ *
+ * 正向 `Tab` 與 `→` 同一個終點，差別只在 Tab 不看游標在哪 —— 它本來就是「離開這一格」。
+ * 反向 Tab 留給瀏覽器原生（回上一格）。
+ *
+ * **選單開著時這支根本收不到 ↑↓** —— `EntityField`／`ExtrasField` 自己先吃掉了（那一刻
  * ↑↓ 是選項移動），只有選單關著才會轉交過來。那條規則寫在它們的 `handleKeyDown` 裡。
  *
- * 兩顆鍵都要 `stopPropagation`：事件從 input 冒泡到 `.ProseMirror` 會被 keymap 當成文件裡的
+ * 每一顆都要 `stopPropagation`：事件從 input 冒泡到 `.ProseMirror` 會被 keymap 當成文件裡的
  * 一次游標移動再處理一次。
- *
- * ⚠️ 同一條「↓ ＝ 離開這一格」的語意，前兩格（下拉）那一半住在 `../chip-select` 的
- * `onExitDown` —— 一邊是 `<input>`、一邊是 `<button>`，前置條件不同（選單狀態、IME）所以
- * 沒有合成一份。**要改這條語意，兩處都得改。**
  */
-const chipExitHandler =
-  ({ onTab, onExitDown }: { onTab: () => void; onExitDown: () => void }) =>
-  (e: ReactKeyboardEvent) => {
-    if (e.nativeEvent.isComposing) return;
-    if (e.key === "Tab" && !e.shiftKey) {
-      e.preventDefault();
-      e.stopPropagation();
-      onTab();
-      return;
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      e.stopPropagation();
-      onExitDown();
-    }
+const chipNavHandler = (to: ChipNav) => (e: ReactKeyboardEvent<HTMLInputElement>) => {
+  if (e.nativeEvent.isComposing) return;
+
+  const fire = (go: () => boolean) => {
+    if (go() === false) return;
+    e.preventDefault();
+    e.stopPropagation();
   };
+
+  if (e.key === "Tab" && !e.shiftKey && to.right) return fire(to.right);
+
+  const { selectionStart: start, selectionEnd: end, value } = e.currentTarget;
+  // 有反白就不是「貼著端點」——那一刻的 ←→ 是收起反白，屬於這串字。
+  const collapsed = start !== null && start === end;
+  const go =
+    e.key === "ArrowUp"
+      ? to.up
+      : e.key === "ArrowDown"
+        ? to.down
+        : e.key === "ArrowLeft"
+          ? collapsed && start === 0
+            ? to.left
+            : undefined
+          : e.key === "ArrowRight"
+            ? collapsed && start === value.length
+              ? to.right
+              : undefined
+            : undefined;
+  if (go) fire(go);
+};
 
 /**
  * doc 裡的引用 → 實體欄位的中性形狀。
@@ -132,8 +170,7 @@ function SceneEntityChip({
   confirmReplace,
   inputRef,
   write,
-  onTab,
-  onExitDown,
+  nav,
 }: {
   editor: NodeViewProps["editor"];
   catalog: EntityCatalog;
@@ -148,10 +185,8 @@ function SceneEntityChip({
   inputRef?: React.Ref<HTMLInputElement>;
   /** 這一欄怎麼寫回 doc。吃已經濾掉過渡引用的清單，吐一支 kernel command。 */
   write: (refs: PlacedRef[]) => (doc: PMNode) => CommandResult;
-  /** 正向 Tab 的下一站（§7.1 焦點串接）。 */
-  onTab: () => void;
-  /** ↓ ＝ 離開 chip row 進場次內文（票券 34）。 */
-  onExitDown: () => void;
+  /** 這一格在 chip row 版面上的四個鄰居（§7.1 焦點串接、票券 34）。 */
+  nav: ChipNav;
 }) {
   return (
     <FieldInfo
@@ -174,7 +209,7 @@ function SceneEntityChip({
           }
           onCreate={(name) => catalog.create(kind, name)}
           onRenameEntity={(id, name) => catalog.rename(kind, id, name)}
-          onKeyDown={chipExitHandler({ onTab, onExitDown })}
+          onKeyDown={chipNavHandler(nav)}
         />
       )}
     </FieldInfo>
@@ -182,10 +217,12 @@ function SceneEntityChip({
 }
 
 function SceneView({ node, editor, updateAttributes, decorations, getPos }: NodeViewProps) {
+  // chip row 五格各留一支 ref —— 方向鍵要在它們之間走（票券 34），靠 ref 而不是 class 名
+  // 走訪 DOM：同一份 markup 在每一場都畫一次，class 選出來的是全部場次的那一格。
   const firstField = useRef<HTMLButtonElement>(null);
-  /** 地點欄的正向 Tab 要落在登場人物欄 —— 拿著它的 input，不靠 class 名走訪 DOM。 */
+  const timeField = useRef<HTMLButtonElement>(null);
+  const locationField = useRef<HTMLInputElement>(null);
   const charactersField = useRef<HTMLInputElement>(null);
-  /** 登場人物欄的正向 Tab 落在群演欄 —— chip row 的最後一格才進內文。 */
   const extrasField = useRef<HTMLInputElement>(null);
   const sceneId = node.attrs.sceneId as string;
   const catalog = useEntityCatalog();
@@ -216,7 +253,25 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   /** 把游標送進本場第一個區塊的內文開頭（getPos → 場次前；+1 進場次、+1 進首區塊）。 */
   const enterBody = () => {
     const pos = typeof getPos === "function" ? getPos() : undefined;
-    if (pos != null) editor.chain().focus().setTextSelection(pos + 2).run();
+    if (pos == null) return false;
+    editor.chain().focus().setTextSelection(pos + 2).run();
+    return true;
+  };
+
+  /**
+   * chip row 第一排再往上／往左 —— 去**上一場內文的末端**（票券 34 修訂）。
+   *
+   * 這一排上面確實還有東西：上一場。反向那一半（上一場內文末端按 ↓／→ 回到這裡）在
+   * `../extensions/vertical-nav` —— 兩邊要一起看，不然就是「過得去回不來」。
+   * 本場就是第一場時什麼都不做：那顆鍵原封還給瀏覽器。
+   */
+  const enterPreviousSceneEnd = () => {
+    const pos = typeof getPos === "function" ? getPos() : undefined;
+    if (pos == null || pos === 0) return false;
+    // pos 是本場節點**之前**的位置，pos - 1 落在上一場裡；往回找最近的 textblock 就是它的末端。
+    const target = TextSelection.near(editor.state.doc.resolve(pos - 1), -1);
+    editor.chain().focus().setTextSelection(target.from).run();
+    return true;
   };
 
   // 焦點串接（§7.7）是一次性的：建場 → requestFocus → 新 node view 消費掉。掛載時試領一次
@@ -301,7 +356,12 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
             describedBy={describedBy}
             value={intExt}
             options={INT_EXT_VALUES}
-            onExitDown={enterBody}
+            // 這一排的左上角：↑ 與 ← 都出界，去上一場。↓ 歸選單（見 chip-select 檔頭）。
+            nav={{
+              left: enterPreviousSceneEnd,
+              up: enterPreviousSceneEnd,
+              right: () => timeField.current?.focus() ?? true,
+            }}
             // 走 command 而不是 updateAttributes —— 「地點欄能有幾個值」是內外的函式
             // （§4.3 雜景逃生口）。被拒絕時下拉維持原值，不在編劇背後丟掉他打的地點。
             onChange={(v) =>
@@ -322,12 +382,17 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
         <FieldInfo info="time" className={`scene__chip${time ? "" : " scene__chip--empty"}`}>
           {(describedBy) => (
             <ChipSelect
+              ref={timeField}
               className="scene__chip-control"
               placeholder="時間"
               describedBy={describedBy}
               value={time}
               options={TIME_VALUES}
-              onExitDown={enterBody}
+              nav={{
+                left: () => firstField.current?.focus() ?? true,
+                right: () => locationField.current?.focus() ?? true,
+                up: enterPreviousSceneEnd,
+              }}
               onChange={(v) => updateAttributes({ time: v || null })}
             />
           )}
@@ -367,8 +432,14 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
               directory: catalog.directory,
             })
           }
-          onTab={() => charactersField.current?.focus()} // 往下一格；最後一格才進內文
-          onExitDown={enterBody}
+          inputRef={locationField}
+          // 第一排最右邊：↓ 落到正下方那一排（登場人物），→ 也是它 —— 第一排到此為止。
+          nav={{
+            left: () => timeField.current?.focus() ?? true,
+            right: () => charactersField.current?.focus() ?? true,
+            up: enterPreviousSceneEnd,
+            down: () => charactersField.current?.focus() ?? true,
+          }}
         />
 
         {/* 登場人物。**判準是入鏡，不是有沒有台詞** —— 這一欄由編劇填，系統絕不從對白推導
@@ -389,8 +460,12 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
               directory: catalog.directory,
             })
           }
-          onTab={() => extrasField.current?.focus()}
-          onExitDown={enterBody}
+          nav={{
+            left: () => locationField.current?.focus() ?? true,
+            right: () => extrasField.current?.focus() ?? true,
+            up: () => locationField.current?.focus() ?? true,
+            down: () => extrasField.current?.focus() ?? true,
+          }}
         />
 
         {/* 群演。**場次限定實體** —— 沒有實體表、沒有目錄，`extraId` 只在這一場內有意義，
@@ -412,10 +487,15 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
                   keepFocus: true,
                 })
               }
-              // chip row 最後一格。正向 Tab 與 ↓ 都落進場次內文開始撰寫（不是跳到腳部按鈕，
-              // 那顆已 tabIndex=-1）—— 也是內文按 ↑ 回來時的落點。反向 Tab：交給瀏覽器原生回到
+              // chip row 最後一格。往下／往右就出界進場次內文開始撰寫（不是跳到腳部按鈕，
+              // 那顆已 tabIndex=-1）—— 也是內文按 ↑／← 回來時的落點。反向 Tab：交給瀏覽器原生回到
               // 登場人物欄；BlockCycle 的攔截由外層 swallowTab 擋掉。§7.1 焦點串接、票券 34。
-              onKeyDown={chipExitHandler({ onTab: enterBody, onExitDown: enterBody })}
+              onKeyDown={chipNavHandler({
+                left: () => charactersField.current?.focus() ?? true,
+                right: enterBody,
+                up: () => charactersField.current?.focus() ?? true,
+                down: enterBody,
+              })}
             />
           )}
         </FieldInfo>

@@ -9,11 +9,14 @@
  * Tab 關閉且**不** `preventDefault`（讓焦點自然往下一個 chip —— §7.1 焦點串接）。外層
  * `.scene__chips` 的 `swallowTab` 仍負責擋 Tab 冒泡到 BlockCycle。
  *
- * ⚠️ **關閉時的 ↓ 不是「開啟選單」而是「離開這一格進內文」**（`onExitDown`，票券 34）——
- * 這一點刻意偏離原生 combobox 慣例。理由是整條 chip row 只能有一套方向鍵語意：其餘三格是
- * 輸入框，它們的 ↑↓ 在選單關著時就是離開欄位，這一格若拿方向鍵開選單，同一排上同一顆鍵
- * 會依落在哪一格做不同的事。開啟的鍵盤入口沒有少（Enter／Space），逃生鍵則整排都在。
- * 另外三格（輸入框）那一半是 `nodes/scene` 的 `chipExitHandler` —— **要改這條語意，兩處都得改。**
+ * ⚠️ **關閉時的 ↑←→ 是 chip row 的格線導航**（`nav`，票券 34 修訂）—— chip row 在畫面上是
+ * 二維的（見 editor.css：內外｜時間｜地點 一排，登場人物、群演各自一排），方向鍵就照著版面
+ * 走到隔壁那一格。這一格是 `<button>`、沒有游標，所以 ←→ 直接跳；輸入框那三格要游標貼著
+ * 字首／字尾才跳（`nodes/scene` 的 `chipNavHandler`）—— **要改這套語意，兩處都得改。**
+ *
+ * **↓ 是唯一的例外：它留給選單**（使用者裁決 2026-09-10）。選單本來就往下展，那顆鍵歸它比
+ * 歸導航直覺；要往下走就先 → 到地點格再 ↓。反過來 ↑ 不開選單 —— 第一排需要一顆「回上一場」
+ * 的鍵，而「↑ 開一個往下展的選單」本來就是原生慣例的怪癖，捨掉不心疼。
  */
 "use client";
 
@@ -39,12 +42,15 @@ type Props = {
   className?: string;
   /** 欄位說明的 id（`FieldInfo` 給的）。有它就一併宣告 ⌥/ —— 見 `field-info.tsx` 檔頭。 */
   describedBy?: string;
-  /** 選單關著時按 ↓ ＝ 離開 chip row 進場次內文（票券 34）。沒給就讓瀏覽器處理那顆鍵。 */
-  onExitDown?: () => void;
+  /**
+   * 選單關著時的格線導航（票券 34）—— 隔壁那一格在哪，由 chip row 決定，這裡只負責按鍵。
+   * 沒給的方向就原封還給瀏覽器。**沒有 `down`**：那顆鍵歸選單（見檔頭）。
+   */
+  nav?: { left?: () => boolean; right?: () => boolean; up?: () => boolean };
 };
 
 export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSelect(
-  { value, options, placeholder, onChange, className, describedBy, onExitDown },
+  { value, options, placeholder, onChange, className, describedBy, nav },
   ref,
 ) {
   const [open, setOpen] = useState(false);
@@ -85,17 +91,24 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
       return; // 不 preventDefault —— 焦點自然往下一個 chip
     }
     if (!open) {
-      if (e.key === "Enter" || e.key === " ") {
+      // ↓ 也在這裡 —— 它是開選單的鍵，不是導航的鍵（見檔頭）。
+      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
         e.preventDefault();
         openMenu();
         return;
       }
-      // 關著時的 ↓ 是逃生鍵：直接進場次內文，不必 Tab 走完剩下的格子（見檔頭）。
-      // ↑ 沒有去處 —— chip row 已經是場次的最上面一排，那顆鍵還給瀏覽器。
-      if (e.key === "ArrowDown" && onExitDown) {
+      const go =
+        e.key === "ArrowUp"
+          ? nav?.up
+          : e.key === "ArrowLeft"
+            ? nav?.left
+            : e.key === "ArrowRight"
+              ? nav?.right
+              : undefined;
+      // 回傳 false ＝ 這個方向這一刻沒有去處（第一場沒有上一場），那顆鍵原封還給瀏覽器。
+      if (go && go() !== false) {
         e.preventDefault();
         e.stopPropagation(); // 別讓它冒泡到 .ProseMirror 被 keymap 再當成一次游標移動
-        onExitDown();
       }
       return;
     }
