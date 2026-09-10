@@ -1,7 +1,35 @@
 import { getAuth } from "@/auth/auth";
+import type { AuthorizedProject } from "@/authorization";
+import { createCharacter, createLocation } from "@/entities";
 import { landingProject } from "@/projects/project-store";
 
-import { DEMO_PROJECT_TITLE, demoScreenplay } from "./demo-screenplay";
+import {
+  DEMO_CHARACTER_NAMES,
+  DEMO_LOCATION_NAMES,
+  DEMO_PROJECT_TITLE,
+  demoScreenplay,
+  type DemoEntityIds,
+} from "./demo-screenplay";
+
+/**
+ * 範例稿的人物與地點 —— **每個訪客一份自己的**，跟 `sceneId` 同一個理由：共用的東西會互相
+ * 覆蓋，而實體是可以改名的（訪客把「河堤」改成別的名字，不該動到其他訪客的稿）。
+ *
+ * 這是「**先建立實體、再寫入 doc**」（不變式 ⑧）的第一個真實呼叫端：先落地，才拿 id 組稿。
+ */
+async function seedDemoEntities(project: AuthorizedProject): Promise<DemoEntityIds> {
+  const locations = await Promise.all(
+    DEMO_LOCATION_NAMES.map(async (name) => [name, (await createLocation(project, { name })).id]),
+  );
+  const characters = await Promise.all(
+    DEMO_CHARACTER_NAMES.map(async (name) => [name, (await createCharacter(project, { name })).id]),
+  );
+
+  return {
+    locations: Object.fromEntries(locations),
+    characters: Object.fromEntries(characters),
+  };
+}
 
 /**
  * 訪客入口 —— **第二道門，不是第二套規則**（票券 24 §6、ADR-0011 §③）。
@@ -39,7 +67,7 @@ export async function enterAsGuest(requestHeaders: Headers): Promise<string> {
   // 與 Google 那條路呼叫的是同一支函式、同一個 gate、同一份冪等保證。
   const project = await landingProject(user.id, {
     title: DEMO_PROJECT_TITLE,
-    screenplay: demoScreenplay,
+    screenplay: async (created) => demoScreenplay(await seedDemoEntities(created)),
   });
 
   return project.projectId;

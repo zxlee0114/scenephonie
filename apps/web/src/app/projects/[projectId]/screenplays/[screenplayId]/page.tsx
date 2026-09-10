@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { authorizeScreenplay } from "@/authorization";
+import { authorizeProjectForUser, authorizeScreenplay } from "@/authorization";
 import { ScreenplayEditor } from "@/editor/ScreenplayEditor";
+import { projectEntities } from "@/entities";
 import { loadScreenplay } from "@/persistence";
 
-import { saveScreenplayAction } from "./actions";
+import { createEntityAction, renameEntityAction, saveScreenplayAction } from "./actions";
 
 // route handler／server component 必須連得到 Postgres —— 不可 edge-only（§13.1）。
 export const runtime = "nodejs";
@@ -35,6 +36,12 @@ export default async function EditorPage({
   const screenplay = await loadScreenplay(authorized);
   if (!screenplay) notFound();
 
+  // 實體屬於專案，所以目錄要一個 **project** handle —— 這裡回頭走一次 gate 而不是就地捏一個
+  // （handle 永遠來自資料庫裡的 `owner_id`，有例外的規則等於沒有規則）。
+  const project = await authorizeProjectForUser(authorized.ownerId, authorized.projectId);
+  if (!project) notFound();
+  const entities = await projectEntities(project);
+
   return (
     <main className="editor-shell">
       <header className="editor-shell__bar">
@@ -49,6 +56,13 @@ export default async function EditorPage({
         screenplayId={screenplay.screenplayId}
         initialToken={screenplay.token}
         save={saveScreenplayAction}
+        projectId={authorized.projectId}
+        entities={{
+          characters: entities.characters.map(({ id, name }) => ({ id, name })),
+          locations: entities.locations,
+        }}
+        createEntity={createEntityAction}
+        renameEntity={renameEntityAction}
       />
     </main>
   );

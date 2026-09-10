@@ -15,6 +15,7 @@ export {
   nullableSceneAttrNames,
   TIME_VALUES,
   INT_EXT_VALUES,
+  MONTAGE,
   VOICE_VALUES,
 } from "./schema";
 export type {
@@ -28,6 +29,26 @@ export type {
 } from "./schema";
 
 export { hasEmptySceneMeta } from "./scene-meta";
+
+// 實體（人物／地點）：id 鑄造、command 問存在性用的目錄，與讀取路徑的正規化（票券 08）。
+//
+// ⚠️ 只出去有呼叫端的東西。`referenceLabel`（場次表那一格的文字）、`isCharacterId`／
+// `isLocationId`、`splitNames`／`hasSeparator` 都還沒有消費者，留在模組裡 —— 它們的第一個
+// 呼叫端會是票券 15／18，那天再開一行。沒有讀者的公開介面與沒有讀者的欄位是同一種債。
+export {
+  CHARACTER_ID_PREFIX,
+  LOCATION_ID_PREFIX,
+  mintCharacterId,
+  mintLocationId,
+  entityDirectory,
+  sceneLocations,
+  sceneAppearingCharacters,
+  dialogueCharacters,
+} from "./entities";
+export type { EntityDirectory } from "./entities";
+
+// 多值欄位的輸入規則（地點欄與登場人物欄共用同一份；貼上走同一條路）。
+export { splitNamesLive } from "./names";
 
 export { projectScenes, docFromJSON } from "./project-scenes";
 export type { SceneNumber } from "./project-scenes";

@@ -10,6 +10,12 @@ import { useEffect, useReducer, useRef } from "react";
 import type { SaveToken } from "@/persistence";
 
 import "../styles/editor.css";
+import { EntityCatalogProvider } from "./entity-catalog";
+import type {
+  CreateEntity,
+  EntityCatalogSnapshot,
+  RenameEntity,
+} from "./entity-capability";
 import type { SaveScreenplay } from "./save-capability";
 import { requestNextScene } from "./extensions/next-scene";
 import { SlashMenu } from "./extensions/slash";
@@ -151,28 +157,46 @@ export function ScreenplayEditor({
   screenplayId,
   initialToken,
   save,
+  projectId,
+  entities,
+  createEntity,
+  renameEntity,
 }: {
   initialContent?: object;
   initialFocus?: InitialFocus;
   screenplayId?: string;
   initialToken?: SaveToken;
   save?: SaveScreenplay;
+  /** 實體屬於專案（不屬於劇本）—— 目錄與建立／改名都以它為授權主體。 */
+  projectId?: string;
+  entities?: EntityCatalogSnapshot;
+  createEntity?: CreateEntity;
+  renameEntity?: RenameEntity;
 }) {
   const editor = useScreenplayEditor(initialContent, initialFocus);
   const status = useAutosave({ editor, screenplayId, initialToken, save });
 
   return (
-    <div className="screenplay-page">
-      <p
-        className={`save-status${STATUS[status].loud ? " save-status--loud" : ""}`}
-        role="status"
-        aria-live="polite"
-      >
-        {STATUS[status].text}
-      </p>
-      <EditorContent editor={editor} />
-      <EmptyScreenplayState editor={editor} />
-      <SlashMenu />
-    </div>
+    // 目錄在 EditorContent 之上 —— 三個實體欄位都是 node view，由這棵樹以 portal 渲染，
+    // context 是唯一到得了它們的路。
+    <EntityCatalogProvider
+      initial={entities}
+      projectId={projectId}
+      createEntity={createEntity}
+      renameEntity={renameEntity}
+    >
+      <div className="screenplay-page">
+        <p
+          className={`save-status${STATUS[status].loud ? " save-status--loud" : ""}`}
+          role="status"
+          aria-live="polite"
+        >
+          {STATUS[status].text}
+        </p>
+        <EditorContent editor={editor} />
+        <EmptyScreenplayState editor={editor} />
+        <SlashMenu />
+      </div>
+    </EntityCatalogProvider>
   );
 }

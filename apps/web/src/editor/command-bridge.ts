@@ -29,6 +29,14 @@ export interface RunOptions {
   readonly focusField?: PendingFocus;
   /** true ＝ 把 focus 請求指向「新出現的那個場次」的 chip row（用 id 差集找出新場次）。 */
   readonly focusNewSceneMeta?: boolean;
+  /**
+   * true ＝ 這次寫入來自 chip row 上的控制項（實體欄位、內外景下拉），**焦點留在原地**。
+   *
+   * 沒有這個旗標的話，`view.focus()` 會在編劇打字打到一半把焦點搶進內文 —— 實體欄位是
+   * 邊打邊 chip 化的，每一個頓號都會觸發一次寫入。同理不 `scrollIntoView`：游標沒有移動，
+   * 捲動只會讓畫面莫名其妙跳一下。
+   */
+  readonly keepFocus?: boolean;
 }
 
 /** doc 頂層場次的 sceneId（依文件順序）。 */
@@ -107,7 +115,7 @@ export function runKernelCommand(
 
   // 新場次的落點由 node view 自己決定（打字餘裕，票券 27）—— 這裡不要先用原生 `scrollIntoView`
   // 把它推到視窗底緣，否則畫面會跳兩下。其他 command 照舊「捲進可視範圍」就好。
-  view.dispatch(options.focusNewSceneMeta ? tr : tr.scrollIntoView());
+  view.dispatch(options.focusNewSceneMeta || options.keepFocus ? tr : tr.scrollIntoView());
 
   if (added) {
     markSceneBorn(added); // 新場次的短暫浮現回饋（SceneView 掛載時領取）
@@ -116,6 +124,6 @@ export function runKernelCommand(
     requestFocus(options.focusField);
   }
 
-  view.focus();
+  if (!options.keepFocus) view.focus();
   return true;
 }

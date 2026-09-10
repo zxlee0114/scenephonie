@@ -16,12 +16,22 @@ import { TextSelection } from "@tiptap/pm/state";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useRef } from "react";
 
-import type { DialogueCharacterRef } from "@scenephonie/schema";
+import {
+  dialogueCharacters,
+  sceneAppearingCharacters,
+  setAppearingCharacters,
+  setDialogueCharacters,
+} from "@scenephonie/schema";
+import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { sceneContext, type BlockAddress } from "../address";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
+import { runKernelCommand } from "../command-bridge";
+import { forwardHistoryKey } from "../history-keys";
 import { Action, Dialogue, InsertShot } from "../schema";
-import { CjkField } from "../cjk-field";
+import { useEntityCatalog } from "../entity-catalog";
+import { EntityField, type EntityRef } from "../entity-field";
+import { entityUsage } from "../entity-usage";
 import { claimFocus, subscribeFocusRequest } from "../focus";
 
 /** 從 node view 反推它所在場次的 id 與自己在場次裡的序（給 pending-focus 比對用）。 */
@@ -67,12 +77,19 @@ function insertShotTag(): HTMLElement {
 }
 
 function DialogueView(props: NodeViewProps) {
-  const { node, editor, updateAttributes } = props;
+  const { node, editor } = props;
   const inputRef = useRef<HTMLInputElement>(null);
-  // 票券 04 尚無人物實體（票券 08）—— id 先為 null，形狀已是 kernel 的 DialogueCharacterRef。
-  const character = (node.attrs.character ?? null) as
-    | (Omit<DialogueCharacterRef, "id"> & { id: string | null })
-    | null;
+  const catalog = useEntityCatalog();
+  /**
+   * 人物欄的引用。**多值** —— 多個具名角色可以同時說一句台詞（齊聲）。
+   *
+   * id 為 null 的是票券 04／07 的過渡形狀 —— 讀取照印顯示名，但寫不回去（沒有實體可指），
+   * 編劇一動這一欄就會被真的引用取代。
+   */
+  const speaker: EntityRef[] = dialogueCharacters(node.attrs.character).map((r) => ({
+    id: typeof (r as { id?: unknown }).id === "string" ? r.id : null,
+    displayName: r.displayName,
+  }));
 
   // Tab 把區塊轉成對白後，這個 node view 消費掉待決焦點請求。掛載時試領一次（轉型當下這個
   // view 才剛生出來），並**訂閱**後續請求 —— 台詞裡按 ↑ 回人物欄時 view 早就掛好了，只靠掛載
@@ -96,6 +113,63 @@ function DialogueView(props: NodeViewProps) {
     // deps 空陣列：`props.getPos`／`props.editor` 由 node view 持有、身分穩定，claim 每次呼叫
     // 都重新定位，不吃過期的座標。
   }, []);
+
+  /** 這一場**當下**在 doc 裡的節點（不是這次 render 拿到的那一份）。 */
+  const sceneNow = (sceneId: string): PMNode | null => {
+    let found: PMNode | null = null;
+    editor.state.doc.forEach((n) => {
+      if (!found && n.type.name === "scene" && n.attrs.sceneId === sceneId) found = n;
+    });
+    return found;
+  };
+
+  /**
+   * 這個對白區塊**當下**在 doc 裡的樣子。
+   *
+   * ⚠️ 不要用 render 拿到的 `node` 去判斷「這個區塊空不空」：人物欄一寫進 doc，chip 就出現，
+   * 但這個 node view 的 props 要到下一次重繪才換新。編劇看到 chip 之後**立刻**按 Enter 時，
+   * closure 裡的 `node` 仍然是 `character: null` 的那一份 —— 於是「人名與台詞都空著」成立，
+   * 剛填好的人物連同整個對白被當成空區塊取消掉（使用者回報 2026-09-10）。
+   * 同一個家族的問題本輪出現第三次：**ref／doc 是真相（同步），props／state 是畫面（重繪）**。
+   */
+  const blockNow = (here: { sceneId: string; blockIndex: number }): PMNode | null => {
+    const scene = sceneNow(here.sceneId);
+    if (!scene || here.blockIndex >= scene.childCount) return null;
+    return scene.child(here.blockIndex);
+  };
+
+  /**
+   * 在這一欄**新建**的人物，順手掛進本場的登場人物欄。
+   *
+   * ⚠️ **這是暫時的**（使用者裁決 2026-09-10）。§4.7 的規則是「登場人物的判準是入鏡，系統
+   * 絕不從對白推導」—— 推導會讓製片誤排通告。之所以現在推導得起來，是因為 V.O./O.S. 還沒
+   * 實作（票券 10），**每一句對白都是一般發聲**，於是「有台詞」與「入鏡」暫時同一件事。
+   * 發聲方式一落地，這裡就要換回 §4.7 那個可忽略的提示選單。
+   *
+   * 只在**新建**時掛，不在選既有人物時掛：編劇如果刻意把某個人從登場人物欄拿掉（他有聲音
+   * 但沒入鏡），我們不該再把他塞回去。
+   */
+  const addToAppearing = (characterId: string, displayName: string) => {
+    const here = locateBlock(props);
+    if (!here) return;
+    const scene = sceneNow(here.sceneId);
+    if (!scene) return;
+    const current = sceneAppearingCharacters(scene.attrs.appearingCharacters);
+    if (current.some((r) => r.characterId === characterId)) return;
+    runKernelCommand(
+      editor,
+      (doc) =>
+        setAppearingCharacters(doc, {
+          sceneId: here.sceneId,
+          refs: [
+            ...current.map((r) => ({ characterId: r.characterId, displayName: r.displayName })),
+            { characterId, displayName },
+          ],
+          directory: catalog.directory,
+        }),
+      { keepFocus: true },
+    );
+  };
 
   /**
    * 把游標從人物欄送進台詞（getPos → 對白節點之前；+1 進內容）。
@@ -124,18 +198,44 @@ function DialogueView(props: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="block block--dialogue">
-      <CjkField
-        ref={inputRef}
-        className="block__speaker"
+      {/* 對白的人物欄**必須是實體引用而非字串**（§4.7）——「哪幾場有這個人的聲音但沒入鏡」
+          只能靠這一欄回答。寫入走 domain command，引用完整性住在那裡。 */}
+      <EntityField
+        inputRef={inputRef}
+        kind="character"
         placeholder="人物"
-        value={character?.displayName ?? ""}
-        onCommit={(v) => {
-          const name = v.trim();
-          // 票券 04 尚無人物實體（票券 08）—— 先存無 id 的引用形狀，之後接上真實體。
-          updateAttributes({ character: name ? { id: null, displayName: name } : null });
+        className="block__speaker-field"
+        inputClassName="block__speaker"
+        refs={speaker}
+        options={catalog.characters}
+        usage={() => entityUsage(editor.state.doc)}
+        // 齊聲：多個具名角色說同一句。頓號分隔，同地點欄與登場人物欄那一套規則。
+        multiple
+        onCommit={(refs) => {
+          const here = locateBlock(props);
+          if (!here) return;
+          // 過渡引用（沒有 id）寫不回去 —— 它指不到任何實體。
+          const placed = refs.filter((r): r is EntityRef & { id: string } => r.id !== null);
+          runKernelCommand(editor, (doc) =>
+            setDialogueCharacters(doc, {
+              sceneId: here.sceneId,
+              blockIndex: here.blockIndex,
+              refs: placed.map((r) => ({ id: r.id, displayName: r.displayName })),
+              directory: catalog.directory,
+            }),
+            { keepFocus: true },
+          );
         }}
+        onCreate={async (name) => {
+          const created = await catalog.create("character", name);
+          if (created) addToAppearing(created.id, created.name);
+          return created;
+        }}
+        onRenameEntity={(id, name) => catalog.rename("character", id, name)}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return;
+          // ⌘Z 在這個 input 裡到不了 ProseMirror（Tiptap 的 stopEvent）—— 見 `history-keys.ts`。
+          if (forwardHistoryKey(editor, e)) return;
           // 人物欄打完按 Enter：直接進台詞（不要「按了沒反應」的錯愕）——與正向 Tab 同終點。
           // 移動焦點會 blur 這個 input，CjkField 的 onBlur 負責回寫人物名（使用者回饋 2026-09-03）。
           if (e.key === "Enter" && !e.shiftKey) {
@@ -144,7 +244,8 @@ function DialogueView(props: NodeViewProps) {
             // 人名與台詞都還空著 → Enter ＝ 取消這個對白，變回描述。與內文裡按 Enter
             // （`extensions/continue-block`）同一條退路（使用者回饋 2026-09-03，第四輪）。
             const here = locateBlock(props);
-            if (here && isBlankBlock(node)) {
+            const now = here && blockNow(here);
+            if (here && now && isBlankBlock(now)) {
               setBlockTypeAt(editor, here, "action");
               return;
             }

@@ -35,6 +35,12 @@ export type SceneTime = (typeof TIME_VALUES)[number];
 export const INT_EXT_VALUES = ["內景", "外景", "內外景", "雜景"] as const;
 export type SceneIntExt = (typeof INT_EXT_VALUES)[number];
 
+/**
+ * 逃生口本身。**「這一場的地點欄能有幾個值」是內外的函式**，而問這個問題的地方不只一個
+ * （command 要拒絕、UI 要決定頓號算不算分隔符），所以判準只留一個定義點。
+ */
+export const MONTAGE: SceneIntExt = "雜景";
+
 /** `voiceStyle`（發聲方式）的三個值。**不允許 null**，`default: '一般'`（§5.3）。輸出渲染為 `小明（V.O.）`。 */
 export const VOICE_VALUES = ["一般", "V.O.", "O.S."] as const;
 export type VoiceStyle = (typeof VOICE_VALUES)[number];
