@@ -38,6 +38,13 @@ import { HELP_KEY_HINT } from "./field-info";
 
 export type EntityOption = { id: string; name: string };
 /**
+ * 本場一批群演在這一欄的樣子：`{ id: extraId, name: 描述, count: 人數 }`。
+ *
+ * 人數在這裡是**措辭的一部分**，不是裝飾：升格那一列要在按下去之前就說出「群演剩 1 人」，
+ * 而剩下 0 人時那一筆會整批消失（票券 35），措辭也得跟著換。
+ */
+export type SceneExtraOption = EntityOption & { count: number };
+/**
  * 一個引用：實體 id ＋ **這一場顯示的名字**（別名不存在實體上，就是這個欄位）。
  *
  * `id` 為 `null` ＝ **從來沒有 id 的過渡引用**（票券 04／07 的佔位形狀）。讀取容忍它、
@@ -47,6 +54,17 @@ export type EntityOption = { id: string; name: string };
 export type EntityRef = { id: string | null; displayName: string };
 
 export type EntityKind = "location" | "character";
+
+/**
+ * 一筆實體是**從哪一條路**生出來的。
+ *
+ * 存在的理由只有一個，而且是暫時的：票券 08 留了個暫時措施「在對白人物欄新建的人物順手掛進
+ * 登場人物欄」，而**升格出來的那一位不套用**（票券 35 裁決 —— 推導不自動把有台詞的人加進
+ * 登場人物欄）。呼叫端分不出兩條路的話，就只能一律套用或一律不套用。
+ *
+ * ⚠️ 票券 10 把那個暫時措施換成提示選單的那一天，這個型別就沒有讀者了，跟著拆掉。
+ */
+export type EntityBirth = "typed" | "promote";
 
 type Props = {
   kind: EntityKind;
@@ -85,7 +103,7 @@ type Props = {
    * 形狀是 `{ id: extraId, name: 描述 }`。它們**不經過 `usage`** —— 群演的存在性不是
    * 「被幾場引用」，而是它就寫在這一場的 `extras` attr 裡。
    */
-  sceneExtras?: readonly EntityOption[];
+  sceneExtras?: readonly SceneExtraOption[];
   /**
    * 在這一欄**直接新建一筆群演**（`眾人 x20` → 一筆本場的群演 ＋ 一個指向它的引用）。
    *
@@ -93,10 +111,19 @@ type Props = {
    * 同步回傳（不像 `onCreate` 要落地到伺服器）—— 群演的家就是這份 doc。
    */
   onCreateExtra?: (text: string) => EntityOption | null;
+  /**
+   * 從本場某一批群演裡**拉一個人出來**（升格 ＝ 特約，票券 35）。只有對白的人物欄給。
+   *
+   * 這一欄只負責人物那一半 —— 走的是與其他三列同一條 `resolve`（命中既有就是那一位，沒命中
+   * 就建一筆新的），**系統不替人物取名**。群演減一那一半由呼叫端接手，兩半要落在同一個
+   * transaction（⌘Z 一次回到升格前），所以這支在 `onCommit` **之前**同步呼叫，讓呼叫端把它
+   * 記在手上 —— 與 `onCreateExtra` 同一個形狀。
+   */
+  onPromoteFromExtra?: (extraId: string, characterId: string) => void;
   /** 引用有變動時回報**整份**引用清單（上層跑 domain command 寫回 doc）。 */
   onCommit: (refs: EntityRef[]) => void;
   /** 建立一筆新實體。**必須在 `onCommit` 之前完成** —— 先建立實體、再寫入 doc。 */
-  onCreate: (name: string) => Promise<EntityOption | null>;
+  onCreate: (name: string, via: EntityBirth) => Promise<EntityOption | null>;
   /** 把實體本身改名（第三列第二步的「同時把實體改名」）。沒給就不出現那個選項。 */
   onRenameEntity?: (id: string, name: string) => void;
   className?: string;
@@ -131,6 +158,7 @@ export function EntityField({
   usage,
   sceneExtras = [],
   onCreateExtra,
+  onPromoteFromExtra,
   multiple = false,
   confirmReplace,
   onCommit,
@@ -155,6 +183,13 @@ export function EntityField({
    * 這一刻沒有任何實體被建立、也沒有任何引用被動到：待確認就是字面意思。
    */
   const [pending, setPending] = useState<string | null>(null);
+  /**
+   * 剛在這一欄升格過一個人 → 欄位下方那一行命名提示（票券 35）。
+   *
+   * **這一欄失焦就收**：他移開就是決定了。所以不需要一顆 ✕，也就不必存任何「他關掉過」的
+   * 狀態 —— 那正是 §7.3 否決過的那種看不見的狀態。它是建議不是規則，不擋任何寫入。
+   */
+  const [showNamingHint, setShowNamingHint] = useState(false);
   /**
    * 組字中嗎 —— **ref 是真相（同步），state 是畫面（重繪）**。
    *
@@ -224,7 +259,10 @@ export function EntityField({
    * ⚠️ 這支只解析、**不寫回**：一次貼上多個名字時要等全部解析完才寫一次，否則第二筆會
    * 覆蓋掉第一筆（`refs` 是 prop，中途還沒重繪過）。
    */
-  const resolve = async (name: string): Promise<EntityRef | null> => {
+  const resolve = async (
+    name: string,
+    via: EntityBirth = "typed",
+  ): Promise<EntityRef | null> => {
     const held = editing.current;
     // 剛拿下來的那一筆是**群演**：改字改的是「這一場顯示的名字」，不是換一個目標。
     // （CONTEXT.md：群演欄寫「咖啡廳客人 x8」，對白顯示「眾人」—— 兩者本來就可以不同。）
@@ -242,7 +280,7 @@ export function EntityField({
     const hit = byName(name);
     if (hit) return { id: hit.id, displayName: name };
 
-    const created = await onCreate(name);
+    const created = await onCreate(name, via);
     if (!created) return null; // 建立失敗就什麼都不寫 —— 沒有實體就不該有引用（不變式 ⑧）
     setBornHere((ids) => [...ids, created.id]);
     return { id: created.id, displayName: name };
@@ -365,6 +403,32 @@ export function EntityField({
           },
         });
       }
+      // 升格（特約，票券 35）—— 齊聲與升格是「那批人」的兩種讀法，所以緊接在齊聲那列後面；
+      // `＋ 建立新實體` 是「剛好同名的另一個人」，那是別的東西，留在底下。
+      if (onPromoteFromExtra) {
+        // 命中的是同一個 query，所以在迴圈外問一次就好。
+        const hit = byName(query);
+        const scenesUsing = hit ? counts?.get(hit.id) : undefined;
+        // 命中既有存在人物時講明白它會指向誰 —— 系統不替人物取名，也就不靠取名擋住「兩位
+        // 特約被靜靜併成同一個人」；擋它的是編劇按下去之前讀到的這一行字（票券 35）。
+        const who = hit
+          ? `${hit.name}${scenesUsing ? `（${scenesUsing} 場）` : ""}`
+          : `新的人物「${query}」`;
+        for (const extra of sceneExtras) {
+          // 命中條件比齊聲那列**多認一條：query 以描述開頭**。少了它，打「服務生小李」的編劇
+          // 看不到這一列，於是選「建立新實體」—— 拿到人物、群演還是 x2。代價不是名字難看，
+          // 是**人數少算一個群演**（票券 35 的起點就是這個坑）。
+          if (!extra.name.includes(query) && !query.startsWith(extra.name)) continue;
+          // 人數變化寫在**按下去之前**：升格會動到編劇沒有打過字的地方（群演那一欄），那句話
+          // 該在他做決定的當下就在眼前，而不是事後去簡表才發現（ADR-0006 那條方法論）。
+          const left = extra.count > 1 ? `群演剩 ${extra.count - 1} 人` : "這批群演就此用完";
+          rows.push({
+            key: `promote:${extra.id}`,
+            label: `${HIT_MARK[kind]} 從「${extra.name} x${extra.count}」裡升格一個人 —— ${who}（${left}）`,
+            run: () => void promote(extra),
+          });
+        }
+      }
       if (!exact) {
         rows.push({
           key: "create",
@@ -479,6 +543,28 @@ export function EntityField({
     const created = onCreateExtra(query);
     if (!created) return;
     merge([{ id: created.id, displayName: created.name }]);
+    reset();
+  };
+
+  /**
+   * 從那批群演裡拉一個人出來 —— **升格 ＝ `resolve(打的字)` ＋ 那批人減一**（票券 35）。
+   *
+   * 人物那一半一個字都不新增：命中既有存在人物就是那一位，沒命中就建一筆新的，與這一欄其他
+   * 三列同一條路。**系統不替人物取名** —— CONTEXT.md 裡的「路人甲」是編劇的手寫慣例。
+   *
+   * 兩半要落在同一個 transaction，所以先同步告訴呼叫端「這次還要拉走一個」，再 `merge` 觸發
+   * `onCommit`（⌘Z 一次回到升格前）。順序反過來的話，那一次寫入不會帶到減一。
+   */
+  const promote = async (extra: SceneExtraOption) => {
+    if (!onPromoteFromExtra) return;
+    // 升格是一個**新的宣告**，不是把剛拿下來那一筆原封放回去 —— 手上若正握著一筆群演引用，
+    // `resolve` 會用回那個 `ex_` id，於是「升格」產出的會是一筆群演，正好相反。
+    editing.current = null;
+    const ref = await resolve(query, "promote");
+    if (!ref?.id) return;
+    onPromoteFromExtra(extra.id, ref.id);
+    merge([ref]);
+    setShowNamingHint(true);
     reset();
   };
 
@@ -663,6 +749,7 @@ export function EntityField({
           // 待確認的字**不在 blur 時定案** —— 它正等著編劇回答，離開欄位不是答案。
           if (!composing.current && !needsConfirm) void commitText();
           setStage({ name: "suggest" });
+          setShowNamingHint(false); // 他移開就是決定了（見 `showNamingHint`）
         }}
       />
 
@@ -706,6 +793,14 @@ export function EntityField({
             ))}
           </ul>
         </div>
+      )}
+
+      {showNamingHint && (
+        // 建議不是規則 —— 不擋寫入、沒有 ✕、失焦就收。`role="note"` 讓螢幕閱讀器讀得出它是
+        // 一句附註而不是一個錯誤。
+        <p className="entity-field__note entity-field__note--naming" role="note">
+          人物名稱是劇組用來識別演員的 —— 給他一個有辨識度的名字。點 chip 可以改。
+        </p>
       )}
 
       {rows.length > 0 && !pending && (
