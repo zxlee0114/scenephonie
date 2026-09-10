@@ -184,12 +184,12 @@ export function setAppearingCharacters(
   );
 }
 
-export interface SetDialogueCharacterOptions {
+export interface SetDialogueCharactersOptions {
   readonly sceneId: string;
   /** 場次內第幾個 `sceneBlock`（0-based）。傳遞參數，不被儲存（同 `setBlockType`）。 */
   readonly blockIndex: number;
-  /** 說話的人；`null` ＝ 清掉（尚未指定說話者）。 */
-  readonly ref: DialogueCharacterRef | null;
+  /** 說話的人；空陣列 ＝ 清掉（尚未指定說話者）。 */
+  readonly refs: readonly DialogueCharacterRef[];
   readonly directory: EntityDirectory;
 }
 
@@ -199,12 +199,15 @@ export interface SetDialogueCharacterOptions {
  *
  * 合法目標是**人物**或**本場次的群演**（§5.1）。群演是場次限定實體、id 只在該場次內有意義，
  * 所以它的存在性問的是這一場的 `extras`，不是專案的實體表 —— 同一條不變式，兩個目錄。
+ *
+ * **多值**：多個具名角色可以同時說一句台詞（齊聲）。attr 的形狀因此與地點欄同一套
+ * （單值 ｜ 陣列 ｜ null），舊稿的單值物件照樣讀得出來。
  */
-export function setDialogueCharacter(
+export function setDialogueCharacters(
   doc: ProseMirrorNode,
-  options: SetDialogueCharacterOptions,
+  options: SetDialogueCharactersOptions,
 ): CommandResult {
-  const { sceneId, blockIndex, ref, directory } = options;
+  const { sceneId, blockIndex, refs, directory } = options;
 
   const hit = findScene(doc, sceneId);
   if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
@@ -218,16 +221,16 @@ export function setDialogueCharacter(
     return reject(`第 ${blockIndex} 個區塊是「${block.type.name}」，只有對白有人物欄`);
   }
 
-  if (ref) {
-    const extras = (scene.attrs.extras ?? []) as ExtraRef[];
+  const extras = (scene.attrs.extras ?? []) as ExtraRef[];
+  for (const ref of refs) {
     const isExtraHere = extras.some((e) => e.extraId === ref.id);
     if (!directory.hasCharacter(ref.id) && !isExtraHere) return missing("對白人物", ref.id);
   }
+  const dup = firstDuplicate(refs.map((r) => r.id));
+  if (dup) return reject(`對白人物「${dup}」在同一句出現兩次`);
 
-  const nextBlock = block.type.create(
-    { ...block.attrs, character: ref && { ...ref } },
-    block.content,
-    block.marks,
-  );
+  const character =
+    refs.length === 0 ? null : refs.length === 1 ? { ...refs[0]! } : refs.map((r) => ({ ...r }));
+  const nextBlock = block.type.create({ ...block.attrs, character }, block.content, block.marks);
   return rebuild(hit, replaceChild(scene, blockIndex, nextBlock), "寫入對白人物");
 }

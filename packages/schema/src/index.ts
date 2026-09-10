@@ -43,6 +43,7 @@ export {
   entityDirectory,
   sceneLocations,
   sceneAppearingCharacters,
+  dialogueCharacters,
 } from "./entities";
 export type { EntityDirectory } from "./entities";
 

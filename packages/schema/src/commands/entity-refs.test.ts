@@ -4,7 +4,7 @@ import { entityDirectory, mintCharacterId, mintLocationId, sceneLocations } from
 import { block, makeDoc, makeScene, sceneWith } from "../testing";
 import {
   setAppearingCharacters,
-  setDialogueCharacter,
+  setDialogueCharacters,
   setSceneIntExt,
   setSceneLocations,
 } from "./entity-refs";
@@ -187,14 +187,14 @@ describe("setAppearingCharacters", () => {
   });
 });
 
-describe("setDialogueCharacter", () => {
+describe("setDialogueCharacters", () => {
   it("命中人物 → 寫進對白的人物欄", () => {
     const doc = makeDoc(sceneWith([block.dialogue("我回來了")]));
     const next = unwrap(
-      setDialogueCharacter(doc, {
+      setDialogueCharacters(doc, {
         sceneId: sceneIdOf(doc),
         blockIndex: 0,
-        ref: { id: xiaoming, displayName: "男子" },
+        refs: [{ id: xiaoming, displayName: "男子" }],
         directory,
       }),
     );
@@ -210,10 +210,10 @@ describe("setDialogueCharacter", () => {
     );
 
     const next = unwrap(
-      setDialogueCharacter(doc, {
+      setDialogueCharacters(doc, {
         sceneId: sceneIdOf(doc),
         blockIndex: 0,
-        ref: { id: "ex_1", displayName: "客人" },
+        refs: [{ id: "ex_1", displayName: "客人" }],
         directory,
       }),
     );
@@ -228,31 +228,65 @@ describe("setDialogueCharacter", () => {
       }),
     );
 
-    const result = setDialogueCharacter(doc, {
+    const result = setDialogueCharacters(doc, {
       sceneId: sceneIdOf(doc),
       blockIndex: 0,
-      ref: { id: "ex_1", displayName: "客人" },
+      refs: [{ id: "ex_1", displayName: "客人" }],
       directory,
     });
     expect(result.ok).toBe(false);
   });
 
-  it("null ＝ 清掉說話者", () => {
+  it("空陣列 ＝ 清掉說話者", () => {
     const doc = makeDoc(
       sceneWith([block.dialogue("我回來了", { character: { id: xiaoming, displayName: "小明" } })]),
     );
     const next = unwrap(
-      setDialogueCharacter(doc, { sceneId: sceneIdOf(doc), blockIndex: 0, ref: null, directory }),
+      setDialogueCharacters(doc, { sceneId: sceneIdOf(doc), blockIndex: 0, refs: [], directory }),
     );
     expect(next.child(0).child(0).attrs.character).toBeNull();
   });
 
   it("只有對白有人物欄", () => {
     const doc = makeDoc(sceneWith([block.action("走進房間")]));
-    const result = setDialogueCharacter(doc, {
+    const result = setDialogueCharacters(doc, {
       sceneId: sceneIdOf(doc),
       blockIndex: 0,
-      ref: { id: xiaoming, displayName: "小明" },
+      refs: [{ id: xiaoming, displayName: "小明" }],
+      directory,
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("多個具名角色同時說一句 —— attr 變成陣列", () => {
+    const doc = makeDoc(sceneWith([block.dialogue("生日快樂！")]));
+    const next = unwrap(
+      setDialogueCharacters(doc, {
+        sceneId: sceneIdOf(doc),
+        blockIndex: 0,
+        refs: [
+          { id: xiaoming, displayName: "小明" },
+          { id: xiaohua, displayName: "小華" },
+        ],
+        directory,
+      }),
+    );
+
+    expect(next.child(0).child(0).attrs.character).toEqual([
+      { id: xiaoming, displayName: "小明" },
+      { id: xiaohua, displayName: "小華" },
+    ]);
+  });
+
+  it("同一句裡同一個人不能出現兩次", () => {
+    const doc = makeDoc(sceneWith([block.dialogue("欸")]));
+    const result = setDialogueCharacters(doc, {
+      sceneId: sceneIdOf(doc),
+      blockIndex: 0,
+      refs: [
+        { id: xiaoming, displayName: "小明" },
+        { id: xiaoming, displayName: "男子" },
+      ],
       directory,
     });
     expect(result.ok).toBe(false);

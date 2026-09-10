@@ -99,7 +99,7 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     rationale: "拒絕對不存在人物的引用；以 sceneId ＋ 人物 id 定址。判準是入鏡，不從對白推導。",
   },
   {
-    name: "setDialogueCharacter",
+    name: "setDialogueCharacters",
     enforces: ["⑧"],
     addressesById: true,
     rationale: "拒絕對不存在人物／非本場群演的引用；以 sceneId 定址（blockIndex 是傳遞參數）。",

@@ -22,7 +22,7 @@
  * （投獎者最糟的失敗模式）；讓 command 放行以求彈性會讓 doc 累積髒引用。
  */
 import { mintId } from "./ids";
-import type { CharacterRef, LocationRef } from "./schema";
+import type { CharacterRef, DialogueCharacterRef, LocationRef } from "./schema";
 
 /** 人物 id 的前綴。使用者永遠看不到（同 `sc_`）。 */
 export const CHARACTER_ID_PREFIX = "ch_";
@@ -97,6 +97,17 @@ export function sceneLocations(value: unknown): LocationRef[] {
 export function sceneAppearingCharacters(value: unknown): CharacterRef[] {
   const raw = Array.isArray(value) ? value : value == null ? [] : [value];
   return raw.filter(isRef) as CharacterRef[];
+}
+
+/**
+ * 對白 `character` attr 的讀取正規化。
+ *
+ * 形狀與場次的地點欄同一套：**單值 ｜ 陣列 ｜ null**。多值是因為**多個具名角色可以同時說
+ * 一句台詞**（齊聲），不是因為這一欄鬆散 —— 舊稿裡的單值物件照樣讀得出來，不必遷移。
+ */
+export function dialogueCharacters(value: unknown): DialogueCharacterRef[] {
+  const raw = Array.isArray(value) ? value : value == null ? [] : [value];
+  return raw.filter(isRef) as DialogueCharacterRef[];
 }
 
 /**

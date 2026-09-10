@@ -596,30 +596,39 @@
   margin-block-end: var(--space-2);
 }
 
-/* 對白的人物欄不畫框（它在版面上是「上面那一行」，不是一格控制項），但 chip 一樣住在
- * 輸入框裡，游標接在後面。 */
+/* 對白的人物欄不畫框（它在版面上是「上面那一行」，不是一格控制項），只留一條底線 ——
+ * 而**底線畫在容器上、不畫在 input 上**（使用者回饋 2026-09-10）：chip 要住在那條線上方的
+ * 同一格裡，接在後面才是還能打字的空間。同地點欄的做法。 */
 .block--dialogue .block__speaker-field .entity-field {
   flex: 1;
-}
-
-.block--dialogue .block__speaker {
-  display: block;
+  align-items: center;
   font-family: var(--font-ui);
   /* 人名比次級字級大一些，讀得出「誰在說」；font-ui ＋ 次級色仍讓它不與台詞爭主體
    * （使用者回饋 2026-09-03）。 */
   font-size: var(--text-base);
   color: var(--text-secondary);
-  background: transparent;
-  border: 0;
   border-bottom: 1px solid var(--rule);
   padding: 0 0 2px;
   /* 人名與其台詞之間的間隔（使用者回饋 2026-09-03）。 */
   margin-block-end: var(--space-2);
 }
 
+.block--dialogue .block__speaker-field .entity-field:focus-within {
+  border-bottom-color: var(--focus-ring);
+}
+
+.block--dialogue .block__speaker {
+  /* input 只是那一格裡還能打字的一段 —— 外觀全部由容器負責。 */
+  flex: 1 1 6ch;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
 .block--dialogue .block__speaker:focus-visible {
   outline: none;
-  border-bottom-color: var(--focus-ring);
 }
 
 .block--insert-shot {

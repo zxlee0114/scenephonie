@@ -16,7 +16,13 @@ import { TextSelection } from "@tiptap/pm/state";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useRef } from "react";
 
-import { setDialogueCharacter, type DialogueCharacterRef } from "@scenephonie/schema";
+import {
+  dialogueCharacters,
+  sceneAppearingCharacters,
+  setAppearingCharacters,
+  setDialogueCharacters,
+} from "@scenephonie/schema";
+import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { sceneContext, type BlockAddress } from "../address";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
@@ -73,21 +79,16 @@ function DialogueView(props: NodeViewProps) {
   const { node, editor } = props;
   const inputRef = useRef<HTMLInputElement>(null);
   const catalog = useEntityCatalog();
-  const character = (node.attrs.character ?? null) as
-    | (Omit<DialogueCharacterRef, "id"> & { id: string | null })
-    | null;
   /**
-   * 人物欄的**單值**引用。id 為 null 的是票券 04／07 的過渡形狀 —— 讀取照印顯示名，
-   * 但寫不回去（沒有實體可指），編劇一動這一欄就會被真的引用取代。
+   * 人物欄的引用。**多值** —— 多個具名角色可以同時說一句台詞（齊聲）。
+   *
+   * id 為 null 的是票券 04／07 的過渡形狀 —— 讀取照印顯示名，但寫不回去（沒有實體可指），
+   * 編劇一動這一欄就會被真的引用取代。
    */
-  const speaker: EntityRef[] = character
-    ? [
-        {
-          id: typeof character.id === "string" ? character.id : null,
-          displayName: character.displayName,
-        },
-      ]
-    : [];
+  const speaker: EntityRef[] = dialogueCharacters(node.attrs.character).map((r) => ({
+    id: typeof (r as { id?: unknown }).id === "string" ? r.id : null,
+    displayName: r.displayName,
+  }));
 
   // Tab 把區塊轉成對白後，這個 node view 消費掉待決焦點請求。掛載時試領一次（轉型當下這個
   // view 才剛生出來），並**訂閱**後續請求 —— 台詞裡按 ↑ 回人物欄時 view 早就掛好了，只靠掛載
@@ -111,6 +112,42 @@ function DialogueView(props: NodeViewProps) {
     // deps 空陣列：`props.getPos`／`props.editor` 由 node view 持有、身分穩定，claim 每次呼叫
     // 都重新定位，不吃過期的座標。
   }, []);
+
+  /**
+   * 在這一欄**新建**的人物，順手掛進本場的登場人物欄。
+   *
+   * ⚠️ **這是暫時的**（使用者裁決 2026-09-10）。§4.7 的規則是「登場人物的判準是入鏡，系統
+   * 絕不從對白推導」—— 推導會讓製片誤排通告。之所以現在推導得起來，是因為 V.O./O.S. 還沒
+   * 實作（票券 10），**每一句對白都是一般發聲**，於是「有台詞」與「入鏡」暫時同一件事。
+   * 發聲方式一落地，這裡就要換回 §4.7 那個可忽略的提示選單。
+   *
+   * 只在**新建**時掛，不在選既有人物時掛：編劇如果刻意把某個人從登場人物欄拿掉（他有聲音
+   * 但沒入鏡），我們不該再把他塞回去。
+   */
+  const addToAppearing = (characterId: string, displayName: string) => {
+    const here = locateBlock(props);
+    if (!here) return;
+    let scene: PMNode | null = null;
+    editor.state.doc.forEach((n) => {
+      if (!scene && n.type.name === "scene" && n.attrs.sceneId === here.sceneId) scene = n;
+    });
+    if (!scene) return;
+    const current = sceneAppearingCharacters((scene as PMNode).attrs.appearingCharacters);
+    if (current.some((r) => r.characterId === characterId)) return;
+    runKernelCommand(
+      editor,
+      (doc) =>
+        setAppearingCharacters(doc, {
+          sceneId: here.sceneId,
+          refs: [
+            ...current.map((r) => ({ characterId: r.characterId, displayName: r.displayName })),
+            { characterId, displayName },
+          ],
+          directory: catalog.directory,
+        }),
+      { keepFocus: true },
+    );
+  };
 
   /**
    * 把游標從人物欄送進台詞（getPos → 對白節點之前；+1 進內容）。
@@ -150,22 +187,28 @@ function DialogueView(props: NodeViewProps) {
         refs={speaker}
         options={catalog.characters}
         usage={() => entityUsage(editor.state.doc)}
+        // 齊聲：多個具名角色說同一句。頓號分隔，同地點欄與登場人物欄那一套規則。
+        multiple
         onCommit={(refs) => {
           const here = locateBlock(props);
           if (!here) return;
           // 過渡引用（沒有 id）寫不回去 —— 它指不到任何實體。
-          const ref = refs.filter((r) => r.id !== null).at(-1) ?? null;
+          const placed = refs.filter((r): r is EntityRef & { id: string } => r.id !== null);
           runKernelCommand(editor, (doc) =>
-            setDialogueCharacter(doc, {
+            setDialogueCharacters(doc, {
               sceneId: here.sceneId,
               blockIndex: here.blockIndex,
-              ref: ref?.id ? { id: ref.id, displayName: ref.displayName } : null,
+              refs: placed.map((r) => ({ id: r.id, displayName: r.displayName })),
               directory: catalog.directory,
             }),
             { keepFocus: true },
           );
         }}
-        onCreate={(name) => catalog.create("character", name)}
+        onCreate={async (name) => {
+          const created = await catalog.create("character", name);
+          if (created) addToAppearing(created.id, created.name);
+          return created;
+        }}
         onRenameEntity={(id, name) => catalog.rename("character", id, name)}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return;

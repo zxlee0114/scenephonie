@@ -22,13 +22,13 @@ export {
   setSceneLocations,
   setSceneIntExt,
   setAppearingCharacters,
-  setDialogueCharacter,
+  setDialogueCharacters,
 } from "./entity-refs";
 export type {
   SetSceneLocationsOptions,
   SetSceneIntExtOptions,
   SetAppearingCharactersOptions,
-  SetDialogueCharacterOptions,
+  SetDialogueCharactersOptions,
 } from "./entity-refs";
 
 export { dedupeSceneIds, dedupeIdsPlugin, dedupeIdsPluginKey } from "./dedupe";
