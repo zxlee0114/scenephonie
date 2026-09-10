@@ -14,6 +14,15 @@
  * 走到隔壁那一格。這一格是 `<button>`、沒有游標，所以 ←→ 直接跳；輸入框那三格要游標貼著
  * 字首／字尾才跳（`nodes/scene` 的 `chipNavHandler`）—— **要改這套語意，兩處都得改。**
  *
+ * **速記鍵一步到位**（使用者回饋 2026-09-10 第四輪）：關著時按 `i` 直接就是「內景」、`d` 是
+ * 「日」—— 用的是這兩個列舉本來就有的劇本術語（`INT.`／`DAY`），不是另外發明的鍵。同一顆鍵
+ * 命中好幾個就再按一次循環（`d` → 日 → 晨 → 昏，DAY／DAWN／DUSK）。術語印在選單列上，
+ * 不必靠記。**刻意不做輸入框**：值域是封閉列舉，一個輸入框要多回答「打了『傍晚』怎麼辦」，
+ * 而且會把注音組字（§7.6）請進兩個本來免疫的欄位 —— `<button>` 收不到 `compositionstart`。
+ *
+ * ⚠️ 因為同一個理由，速記鍵**只認拉丁鍵**：焦點在 `<button>` 上時注音不會啟動組字，到手上
+ * 的是 `s` 那顆實體鍵而不是 `ㄋ`。要接 `ㄋ→內` 就得寫死大千鍵盤的位置，換一套輸入法就全錯。
+ *
  * **Enter ＝ 這一格好了，去下一格**（使用者回饋 2026-09-10 第三輪），與輸入框那三格同一顆鍵
  * —— 所以**開選單只剩 Space 與 ↓**。`⌘↑`／`⌘↓` 是離開整排的出口（見 `./chip-nav`）。
  *
@@ -51,10 +60,16 @@ type Props = {
    * 沒給的方向就原封還給瀏覽器。**`down` 不會被用到**：那顆鍵歸選單（見檔頭）。
    */
   nav?: ChipNav;
+  /**
+   * 每個值的**劇本術語**（`內景` → `INT.`）。速記鍵就是它的首字母，選單上也印它。
+   *
+   * 沒給就沒有速記鍵 —— 那幾顆鍵原封還給瀏覽器。
+   */
+  terms?: Readonly<Record<string, string>>;
 };
 
 export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSelect(
-  { value, options, placeholder, onChange, className, describedBy, nav },
+  { value, options, placeholder, onChange, className, describedBy, nav, terms },
   ref,
 ) {
   const [open, setOpen] = useState(false);
@@ -78,6 +93,41 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
   }, [open]);
+
+  /**
+   * 速記鍵打到一半的那幾個字母。`at` 是上一次按鍵的時間 —— 隔太久就重新開始一串，
+   * 否則「先按 d 選日、過了五分鐘再按 d」會被當成「dd」而跳去晨。
+   */
+  const typed = useRef({ buffer: "", at: 0 });
+  const TYPEAHEAD_GAP_MS = 800;
+
+  /** 術語以這一串開頭的那幾個值。 */
+  const matches = (prefix: string) =>
+    options.filter((o) => terms?.[o]?.toLowerCase().startsWith(prefix));
+
+  /**
+   * 一顆字母鍵指向哪一個值 —— 沒有就是 `null`（那顆鍵不歸我們）。
+   *
+   * 同一顆鍵連按 ＝ 在命中的那幾個之間循環（`d` → 日 → 晨 → 昏）；換一顆字母則是把它接在
+   * 後面當更長的前綴（`du` → 昏），接不下去就從新的那一顆重新開始。
+   */
+  const typeAhead = (ch: string): string | null => {
+    if (!terms) return null;
+    const now = Date.now();
+    const fresh = now - typed.current.at > TYPEAHEAD_GAP_MS;
+    let buffer = fresh ? ch : typed.current.buffer + ch;
+    // 整串都是同一顆鍵（`d`、`dd`）＝ 循環，前綴仍然只有那一顆；不是的話整串就是前綴。
+    const repeated = (b: string) => /^(.)\1*$/.test(b);
+    let hits = matches(repeated(buffer) ? ch : buffer);
+    if (hits.length === 0 && buffer.length > 1) {
+      buffer = ch;
+      hits = matches(buffer);
+    }
+    typed.current = { buffer, at: now };
+    if (hits.length === 0) return null;
+    const repeat = repeated(buffer) ? buffer.length : 1;
+    return hits[(repeat - 1) % hits.length] ?? null;
+  };
 
   const openMenu = () => {
     setActive(Math.max(0, rows.indexOf(value)));
@@ -121,6 +171,16 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
         openMenu();
         return;
       }
+      // 速記鍵 —— 一步到位，不必先開選單（方向鍵的 `key` 都不只一個字，撞不到）。
+      if (e.key.length === 1 && !e.altKey) {
+        const hit = typeAhead(e.key.toLowerCase());
+        if (hit) {
+          e.preventDefault();
+          e.stopPropagation();
+          commit(hit);
+          return;
+        }
+      }
       const go =
         e.key === "ArrowUp"
           ? nav?.up
@@ -131,6 +191,16 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
               : undefined;
       if (go) fire(go);
       return;
+    }
+    // 選單開著時速記鍵只**移動高亮**，定案仍然是 Enter —— 選單既然攤開了，讓他看清楚再按。
+    if (e.key.length === 1 && e.key !== " " && !e.altKey && !e.metaKey && !e.ctrlKey) {
+      const hit = typeAhead(e.key.toLowerCase());
+      if (hit) {
+        e.preventDefault();
+        e.stopPropagation();
+        setActive(rows.indexOf(hit));
+        return;
+      }
     }
     if (e.key === "Escape") {
       e.preventDefault();
@@ -179,6 +249,8 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
               }}
             >
               {row || placeholder}
+              {/* 劇本術語 ＝ 速記鍵的來源。印出來，使用者就不必記哪一顆對哪一個。 */}
+              {terms?.[row] && <span className="chip-select__term">{terms[row]}</span>}
             </li>
           ))}
         </ul>

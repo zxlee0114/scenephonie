@@ -218,6 +218,32 @@ describe("Enter 換下一格，⌘↑↓ 直接離開整排", () => {
     expect(container.querySelector(".chip-select__menu")).toBeNull(); // Enter 不再開選單
   });
 
+  it.each([
+    ["內外", "i", "內景"],
+    ["內外", "e", "外景"],
+    ["內外", "m", "雜景"],
+    ["時間", "d", "日"],
+    ["時間", "n", "夜"],
+  ])("%s 按 %s → 直接就是「%s」（劇本術語的首字母）", async (label, key, want) => {
+    const { container } = await mount(docJSON(scene([action("門開了")])));
+
+    const trigger = cell(container, label);
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key });
+
+    await waitFor(() => expect(trigger.textContent).toContain(want));
+    expect(container.querySelector(".chip-select__menu")).toBeNull(); // 不必先開選單
+  });
+
+  it("速記鍵真的寫回 doc（不是只有畫面上換字）", async () => {
+    const { container, editor } = await mount(docJSON(scene([action("門開了")])));
+
+    cell(container, "內外").focus();
+    fireEvent.keyDown(cell(container, "內外"), { key: "m" });
+
+    await waitFor(() => expect(editor().state.doc.child(0).attrs.intExt).toBe("雜景"));
+  });
+
   it("下拉那兩格的選單改由 Space／↓ 開 —— Enter 讓給「下一格」", async () => {
     const { container } = await mount(docJSON(scene([action("門開了")])));
 

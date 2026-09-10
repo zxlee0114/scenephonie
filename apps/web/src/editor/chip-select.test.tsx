@@ -130,6 +130,109 @@ describe("ChipSelect", () => {
     });
   });
 
+  // 使用者回饋 2026-09-10（第四輪）：「可以快速拿到要的選項…畢竟要選的值在選單底端，
+  // 還是要往下按幾次」。速記鍵用的是列舉本來就有的劇本術語，不是另外發明的鍵。
+  describe("速記鍵：一顆字母直接拿到那個值", () => {
+    const TERMS = { 日: "DAY", 夜: "NIGHT", 晨: "DAWN", 昏: "DUSK" } as const;
+    const termHost = (onChange: (v: string) => void = () => {}) =>
+      render(
+        <ChipSelect
+          placeholder="時間"
+          value=""
+          options={["日", "夜", "晨", "昏"]}
+          terms={TERMS}
+          onChange={onChange}
+        />,
+      );
+
+    it("選單關著時按 n → 直接就是「夜」，選單沒有打開過", () => {
+      const picked: string[] = [];
+      const { container } = termHost((v) => picked.push(v));
+      const btn = container.querySelector("button")!;
+      btn.focus();
+
+      const cancelled = !fireEvent.keyDown(btn, { key: "n" });
+      expect(picked).toEqual(["夜"]);
+      expect(cancelled).toBe(true);
+      expect(container.querySelector(".chip-select__menu")).toBeNull();
+    });
+
+    it("撞在一起的那幾個（DAY／DAWN／DUSK）靠重複按同一顆鍵循環", () => {
+      const picked: string[] = [];
+      const { container } = termHost((v) => picked.push(v));
+      const btn = container.querySelector("button")!;
+      btn.focus();
+
+      fireEvent.keyDown(btn, { key: "d" });
+      fireEvent.keyDown(btn, { key: "d" });
+      fireEvent.keyDown(btn, { key: "d" });
+      fireEvent.keyDown(btn, { key: "d" }); // 繞回去
+      expect(picked).toEqual(["日", "晨", "昏", "日"]);
+    });
+
+    it("換一顆字母 ＝ 更長的前綴（du → 昏）", () => {
+      const picked: string[] = [];
+      const { container } = termHost((v) => picked.push(v));
+      const btn = container.querySelector("button")!;
+      btn.focus();
+
+      fireEvent.keyDown(btn, { key: "d" });
+      fireEvent.keyDown(btn, { key: "u" });
+      expect(picked).toEqual(["日", "昏"]);
+    });
+
+    it("接不下去的字母就從它自己重新開始（dn → 夜）", () => {
+      const picked: string[] = [];
+      const { container } = termHost((v) => picked.push(v));
+      const btn = container.querySelector("button")!;
+      btn.focus();
+
+      fireEvent.keyDown(btn, { key: "d" });
+      fireEvent.keyDown(btn, { key: "n" });
+      expect(picked).toEqual(["日", "夜"]);
+    });
+
+    it("沒有命中的字母原封還給瀏覽器", () => {
+      const picked: string[] = [];
+      const { container } = termHost((v) => picked.push(v));
+      const btn = container.querySelector("button")!;
+      btn.focus();
+
+      expect(fireEvent.keyDown(btn, { key: "z" })).toBe(true);
+      expect(picked).toEqual([]);
+    });
+
+    it("選單開著時速記鍵只移動高亮，定案仍然是 Enter", () => {
+      const picked: string[] = [];
+      const { container } = termHost((v) => picked.push(v));
+      const btn = container.querySelector("button")!;
+      btn.focus();
+
+      fireEvent.keyDown(btn, { key: "ArrowDown" }); // 開選單
+      fireEvent.keyDown(btn, { key: "n" });
+      expect(picked).toEqual([]); // 還沒定案
+      const active = container.querySelector(".chip-select__menu li.is-active")!;
+      expect(active.textContent).toContain("夜");
+
+      fireEvent.keyDown(btn, { key: "Enter" });
+      expect(picked).toEqual(["夜"]);
+    });
+
+    it("術語印在選單列上 —— 速記鍵不必靠記", () => {
+      const { container } = termHost();
+      fireEvent.click(container.querySelector("button")!);
+      const terms = [...container.querySelectorAll(".chip-select__term")].map((e) => e.textContent);
+      expect(terms).toEqual(["DAY", "NIGHT", "DAWN", "DUSK"]);
+    });
+
+    it("沒給 terms 就沒有速記鍵（字母原封還給瀏覽器）", () => {
+      const { container } = render(<Host />);
+      const btn = container.querySelector("button")!;
+      btn.focus();
+      expect(fireEvent.keyDown(btn, { key: "d" })).toBe(true);
+    });
+  });
+
   it("Esc 關閉選單且不改值", () => {
     const { container } = render(<Host initial="夜" />);
     const btn = container.querySelector("button")!;

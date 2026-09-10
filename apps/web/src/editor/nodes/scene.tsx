@@ -62,6 +62,30 @@ import { requestNextScene } from "../extensions/next-scene";
 import { sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
 import { Scene } from "../schema";
 
+/**
+ * 兩個封閉列舉的**劇本術語** —— 也是速記鍵的來源（使用者回饋 2026-09-10 第四輪）。
+ *
+ * 不是為了速記鍵發明的縮寫：`INT.`／`EXT.`／`DAY`／`NIGHT` 就是場次標題行本來的寫法，
+ * 所以「按 i 就是內景」對寫過劇本的人不必學。撞在一起的那幾個（DAY／DAWN／DUSK 都是 D）
+ * 靠重複按同一顆鍵循環，見 `../chip-select` 的 `typeAhead`。
+ *
+ * 住在這裡而不是 kernel：它是**這一格的操作提示**，不是 canonical doc 的一部分。
+ * 匯出格式要用到同一批術語時再往下搬（那時它才變成資料）。
+ */
+const INT_EXT_TERMS: Readonly<Record<string, string>> = {
+  內景: "INT.",
+  外景: "EXT.",
+  內外景: "INT./EXT.",
+  雜景: "MONTAGE",
+};
+
+const TIME_TERMS: Readonly<Record<string, string>> = {
+  日: "DAY",
+  夜: "NIGHT",
+  晨: "DAWN",
+  昏: "DUSK",
+};
+
 /** 欄位裡的 Tab 不能冒泡到 BlockCycle —— 否則會把游標所在區塊轉成別的型別，欄位當場消失。 */
 const swallowTab = (e: ReactKeyboardEvent) => {
   if (e.key === "Tab") e.stopPropagation();
@@ -300,6 +324,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
             describedBy={describedBy}
             value={intExt}
             options={INT_EXT_VALUES}
+            terms={INT_EXT_TERMS}
             // 這一排的左上角：↑ 與 ← 都出界，去上一場。↓ 歸選單（見 chip-select 檔頭）。
             nav={{
               ...exits,
@@ -333,6 +358,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
               describedBy={describedBy}
               value={time}
               options={TIME_VALUES}
+              terms={TIME_TERMS}
               nav={{
                 ...exits,
                 left: () => firstField.current?.focus() ?? true,

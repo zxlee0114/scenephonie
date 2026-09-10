@@ -452,6 +452,15 @@
   cursor: pointer;
 }
 
+/* 劇本術語（`INT.`／`DAY`）—— 也就是速記鍵的來源。靠右、弱化：它是提示不是內容。 */
+.chip-select__term {
+  margin-inline-start: var(--space-3);
+  float: inline-end;
+  color: var(--text-faint);
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+}
+
 .chip-select__menu li.is-active {
   background: var(--selection-bg);
 }
