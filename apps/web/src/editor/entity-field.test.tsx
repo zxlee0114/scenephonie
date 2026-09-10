@@ -18,12 +18,15 @@ function Host({
   onCreate,
   onRenameEntity,
   multiple = true,
+  usage,
 }: {
   initial?: EntityRef[];
   options?: EntityOption[];
   onCreate?: (name: string) => Promise<EntityOption | null>;
   onRenameEntity?: (id: string, name: string) => void;
   multiple?: boolean;
+  /** 給要模擬「孤兒不算存在」的測試用；不給就是整份目錄都算存在（見 EntityField）。 */
+  usage?: () => ReadonlyMap<string, number>;
 }) {
   const [refs, setRefs] = useState<EntityRef[]>(initial);
   const [catalog, setCatalog] = useState<EntityOption[]>(options);
@@ -33,6 +36,7 @@ function Host({
       placeholder="地點"
       refs={refs}
       options={catalog}
+      usage={usage}
       multiple={multiple}
       onCommit={setRefs}
       onCreate={
@@ -421,5 +425,71 @@ describe("第三列：作為既有實體的另一個名字（兩步）", () => {
     fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[0]!);
 
     expect(rows(container)).toEqual(["只當這一場的名字（海豚公寓房間）"]);
+  });
+});
+
+
+describe("把 chip 拿回來重新編輯", () => {
+  it("Backspace 拿下來的那一筆整串反白 —— 再按一次就一起刪掉", () => {
+    const { container } = render(
+      <Host initial={[{ id: policeStation.id, displayName: "派出所" }]} />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+
+    expect(input.value).toBe("派出所");
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, "派出所".length]);
+    expect(chips(container)).toHaveLength(0);
+  });
+
+  it("滑鼠點 chip 進來不反白 —— 那是要改字，游標留在字尾", () => {
+    const { container } = render(
+      <Host initial={[{ id: policeStation.id, displayName: "派出所" }]} />,
+    );
+
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+
+    const input = container.querySelector("input")!;
+    expect(input.value).toBe("派出所");
+    expect(input.selectionStart).toBe(input.selectionEnd);
+  });
+
+  it("原封放回不會憑空多建一筆實體（使用者回報：多一筆 POST）", async () => {
+    // 拿下來的那一刻它就沒有引用了 —— 而孤兒不算存在（ADR-0005）。`usage` 回空 Map 就是
+    // 那個狀態：沒有這條路的話，`resolve` 會把原樣放回的名字當成新東西再建一筆。
+    const onCreate = vi.fn(async (name: string) => ({ id: `lo_new_${name}`, name }));
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map()}
+        onCreate={onCreate}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" }); // 拿下來
+    fireEvent.blur(input); // 什麼都不動就走
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["派出所"]));
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("改了名字才是新東西 —— 那時才建", async () => {
+    const onCreate = vi.fn(async (name: string) => ({ id: `lo_new_${name}`, name }));
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map()}
+        onCreate={onCreate}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "派出所後門" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith("派出所後門"));
   });
 });

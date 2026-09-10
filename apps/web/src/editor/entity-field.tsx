@@ -21,6 +21,7 @@
 "use client";
 
 import {
+  useEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -141,6 +142,16 @@ export function EntityField({
    */
   const composing = useRef(false);
   const [composingNow, setComposingNow] = useState(false);
+  /**
+   * 正在被重新編輯的那一筆引用（點 chip、或空欄位上按 Backspace 拿下來的那一筆）。
+   *
+   * 它已經從 doc 拿掉了，所以如果沒有別場引用它，此刻它**暫時是孤兒** —— 而孤兒不算存在
+   * （ADR-0005），`resolve` 於是會把原樣放回的名字當成新東西再建一筆。那是憑空多一筆實體，
+   * 舊的那筆變成真的孤兒。拿下來的東西放回去就該是原來那一個。
+   */
+  const editing = useRef<EntityRef | null>(null);
+  /** 下一次重繪之後把輸入框整串反白（值要先進 DOM 才選得到）。 */
+  const selectNext = useRef(false);
   /** 呼叫端也可能要這個 input（焦點串接），所以自己留一份再轉交出去。 */
   const input = useRef<HTMLInputElement>(null);
   const takeInput = (el: HTMLInputElement | null) => {
@@ -149,6 +160,12 @@ export function EntityField({
     else if (inputRef) (inputRef as { current: HTMLInputElement | null }).current = el;
   };
   const field = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!selectNext.current) return;
+    selectNext.current = false;
+    input.current?.select();
+  });
 
   /**
    * 目前**存在**的實體 —— 目錄減掉孤兒（存在＝被引用，ADR-0005）。
@@ -185,6 +202,15 @@ export function EntityField({
    * 覆蓋掉第一筆（`refs` 是 prop，中途還沒重繪過）。
    */
   const resolve = async (name: string): Promise<EntityRef | null> => {
+    // 剛從這一欄拿下來的那一筆：名字沒改就是原封放回，用回它自己的 id（見 `editing`）。
+    const held = editing.current;
+    if (held?.id != null) {
+      const entity = options.find((o) => o.id === held.id);
+      if (name === held.displayName || name === entity?.name) {
+        return { id: held.id, displayName: name };
+      }
+    }
+
     const hit = byName(name);
     if (hit) return { id: hit.id, displayName: name };
 
@@ -211,11 +237,15 @@ export function EntityField({
    * 命中／新建／別名那三列 —— 改名這件事本來就該經過那個選單，而不是在 chip 上原地改掉
    * （原地改分不出「這一場叫別的名字」與「這個實體改名了」，而那正是 §4.7 要編劇說清楚的事）。
    */
-  const editRef = (ref: EntityRef) => {
+  const editRef = (ref: EntityRef, selectAll = false) => {
+    editing.current = ref;
     onCommit(refs.filter((r) => r !== ref));
     setText(ref.displayName);
     setDismissed(false);
     setActive(0);
+    // Backspace 拿下來的那一筆**整串反白**：再按一次就一起刪掉（使用者裁決 2026-09-10）。
+    // 滑鼠點 chip 進來的不反白 —— 那是「我要改這個名字」，游標該留在字尾。
+    selectNext.current = selectAll;
     input.current?.focus();
   };
 
@@ -225,6 +255,7 @@ export function EntityField({
   };
 
   const reset = () => {
+    editing.current = null;
     setText("");
     setStage({ name: "suggest" });
     setActive(0);
@@ -348,7 +379,7 @@ export function EntityField({
       setPending(query);
       setDismissed(false);
       setActive(0);
-      input.current?.select();
+      selectNext.current = true;
       return;
     }
     const ref = await resolve(query);
@@ -421,7 +452,7 @@ export function EntityField({
     // Backspace 在空欄位上 ＝ 把最後一個 chip 還原成可編輯文字（不是直接刪掉）。
     if (event.key === "Backspace" && text === "" && refs.length > 0) {
       event.preventDefault();
-      editRef(refs[refs.length - 1]!);
+      editRef(refs[refs.length - 1]!, true);
       return;
     }
 
