@@ -8,7 +8,7 @@ import { mintExtraId, sceneExtras } from "../extras";
 import { entityDirectory, mintCharacterId } from "../entities";
 import { block, makeDoc, makeScene, sceneWith } from "../testing";
 import { setDialogueCharacters } from "./entity-refs";
-import { addSceneExtras, setSceneExtras } from "./extras";
+import { addSceneExtras, setSceneExtras, takeOneFromExtra } from "./extras";
 
 const guests = mintExtraId();
 const waiters = mintExtraId();
@@ -113,6 +113,64 @@ describe("addSceneExtras", () => {
       }).ok,
     ).toBe(false);
     expect(addSceneExtras(doc, { sceneId: "sc_不存在", extras: [] }).ok).toBe(false);
+  });
+});
+
+describe("takeOneFromExtra —— 升格的群演那一半（票券 35）", () => {
+  it("那批人少一個", () => {
+    const doc = makeDoc(
+      makeScene({
+        extras: [
+          { extraId: guests, description: "咖啡廳客人", count: 8 },
+          { extraId: waiters, description: "服務生", count: 2 },
+        ],
+      }),
+    );
+    const next = unwrap(takeOneFromExtra(doc, { sceneId: sceneIdOf(doc), extraId: waiters }));
+
+    expect(sceneExtras(next.child(0).attrs.extras)).toEqual([
+      { extraId: guests, description: "咖啡廳客人", count: 8 },
+      { extraId: waiters, description: "服務生", count: 1 },
+    ]);
+  });
+
+  it("最後一個被拉走 → **整筆消失**，不是留 0 人", () => {
+    const doc = makeDoc(
+      makeScene({
+        extras: [
+          { extraId: guests, description: "咖啡廳客人", count: 8 },
+          { extraId: waiters, description: "服務生", count: 1 },
+        ],
+      }),
+    );
+    const next = unwrap(takeOneFromExtra(doc, { sceneId: sceneIdOf(doc), extraId: waiters }));
+
+    // `x0` 不算人數（票券 09 已裁決）—— 0 個群演等於沒有這一筆。
+    expect(sceneExtras(next.child(0).attrs.extras)).toEqual([
+      { extraId: guests, description: "咖啡廳客人", count: 8 },
+    ]);
+  });
+
+  it("別場的群演拉不走 —— 群演是場次限定實體", () => {
+    const here = sceneWith([block.dialogue("歡迎光臨")], {
+      extras: [{ extraId: guests, description: "咖啡廳客人", count: 8 }],
+    });
+    const elsewhere = sceneWith([block.dialogue("喔——")], {
+      extras: [{ extraId: waiters, description: "服務生", count: 2 }],
+    });
+    const doc = makeDoc(here, elsewhere);
+
+    const result = takeOneFromExtra(doc, { sceneId: here.attrs.sceneId as string, extraId: waiters });
+
+    expect(result.ok).toBe(false);
+    expect(sceneExtras(doc.child(1).attrs.extras)).toHaveLength(1); // 別場那一筆一個字都沒動
+  });
+
+  it("找不到場次、找不到那筆群演都拒絕", () => {
+    const doc = makeDoc(makeScene({ extras: [{ extraId: guests, description: "客人", count: 8 }] }));
+
+    expect(takeOneFromExtra(doc, { sceneId: "sc_不存在", extraId: guests }).ok).toBe(false);
+    expect(takeOneFromExtra(doc, { sceneId: sceneIdOf(doc), extraId: waiters }).ok).toBe(false);
   });
 });
 

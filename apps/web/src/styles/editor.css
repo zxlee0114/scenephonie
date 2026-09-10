@@ -641,6 +641,15 @@
   white-space: normal;
 }
 
+/*
+ * 升格之後那一行命名提示（票券 35）。它是**建議不是規則** —— 不擋寫入、沒有 ✕、這一欄失焦
+ * 就收，所以視覺上也不該長得像警告：不上底色、不用強調色，就是欄位底下一句次要的字。
+ */
+.entity-field__note--naming {
+  margin-block: var(--space-1) 0;
+  padding-inline: 0;
+}
+
 /* 已經有外框了，列表自己不再是一個面板。 */
 .entity-field__menu--nested {
   position: static;

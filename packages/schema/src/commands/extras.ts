@@ -87,11 +87,58 @@ export function addSceneExtras(
   options: AddSceneExtrasOptions,
 ): CommandResult {
   const { sceneId, extras } = options;
-  let scene: ProseMirrorNode | null = null;
-  doc.forEach((node) => {
-    if (!scene && node.type.name === "scene" && node.attrs.sceneId === sceneId) scene = node;
-  });
+  const scene = findScene(doc, sceneId);
   if (!scene) return reject(`找不到 sceneId「${sceneId}」`);
-  const current = sceneExtras((scene as ProseMirrorNode).attrs.extras);
+  const current = sceneExtras(scene.attrs.extras);
   return setSceneExtras(doc, { sceneId, extras: [...current, ...extras] });
+}
+
+/**
+ * 頂層那一場。**不用 `topLevelArray`**：要讀的只是一個 attr，把整份 doc 攤成陣列是多的。
+ * 「讀現況再改」的那幾支 command 共用它（見 `addSceneExtras` 檔頭那條理由）。
+ */
+function findScene(doc: ProseMirrorNode, sceneId: string): ProseMirrorNode | null {
+  let found: ProseMirrorNode | null = null;
+  doc.forEach((node) => {
+    if (!found && node.type.name === "scene" && node.attrs.sceneId === sceneId) found = node;
+  });
+  return found;
+}
+
+export interface TakeOneFromExtraOptions {
+  readonly sceneId: string;
+  /** 要少一個人的那批群演。**必須是這一場的** —— 群演是場次限定實體。 */
+  readonly extraId: string;
+}
+
+/**
+ * 從那批人裡**拉走一個** —— 升格（票券 35）的群演那一半。
+ *
+ * 另一半（那個人物落地、對白的引用指向他）住在畫面那一側，因為它要經過實體目錄；兩半在
+ * 呼叫端串成**同一個 transaction**，⌘Z 一次回到升格前。
+ *
+ * **減到 0 就整筆移除**，不留 `x0`：0 個背景演員等於沒有這一筆（票券 09 已裁決，同 `parseExtra`
+ * 拒收 `x0` 的那條理由）。留著的話場次表會印出「服務生 x0」，副導看到一個不存在的需求。
+ *
+ * ⚠️ 找不到那筆群演就**拒絕**，不當作沒事發生。呼叫端要的是「那批人少一個」，少掉的那一個
+ * 已經在同一個 transaction 裡變成人物了 —— 靜靜跳過等於憑空多一個演員。別場的 `extraId`
+ * 走的也是這條路（`id` 只在該場次內有意義），那條沒有商量餘地。
+ */
+export function takeOneFromExtra(
+  doc: ProseMirrorNode,
+  options: TakeOneFromExtraOptions,
+): CommandResult {
+  const { sceneId, extraId } = options;
+  const scene = findScene(doc, sceneId);
+  if (!scene) return reject(`找不到 sceneId「${sceneId}」`);
+
+  const current = sceneExtras(scene.attrs.extras);
+  if (!current.some((e) => e.extraId === extraId)) {
+    return reject(`場次「${sceneId}」沒有群演「${extraId}」—— 群演是場次限定實體`);
+  }
+
+  const next = current.flatMap((e) =>
+    e.extraId === extraId ? (e.count > 1 ? [{ ...e, count: e.count - 1 }] : []) : [e],
+  );
+  return setSceneExtras(doc, { sceneId, extras: next });
 }

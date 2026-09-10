@@ -119,6 +119,12 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
       "以 sceneId 定址；把「讀現況再併上」留在 kernel，呼叫端才不會拿上一次重繪的那份 doc 去合併。",
   },
   {
+    name: "takeOneFromExtra",
+    enforces: [],
+    addressesById: true,
+    rationale: "以 sceneId ＋ extraId 定址；拒絕別場的 extraId，減到 0 就整筆移除（群演是場次限定實體）。",
+  },
+  {
     name: "dedupeSceneIds",
     enforces: ["⑥"],
     addressesById: true,

@@ -25,6 +25,7 @@ import {
   addSceneExtras,
   setAppearingCharacters,
   setDialogueCharacters,
+  takeOneFromExtra,
   type ExtraRef,
 } from "@scenephonie/schema";
 import type { Node as PMNode } from "@tiptap/pm/model";
@@ -94,6 +95,18 @@ function DialogueView(props: NodeViewProps) {
    * 兩次才回得到原狀，而編劇眼中那只是一個動作。
    */
   const pendingExtras = useRef<ExtraRef[]>([]);
+  /**
+   * 這一輪升格要從哪幾批群演各拉走一個（票券 35）—— 與 `pendingExtras` 同一個理由：那個人物
+   * 落地與「那批人少一個」必須是**同一個 transaction**，⌘Z 一次回到升格前。
+   *
+   * 記 `characterId` 是為了**一位說話者只扣一次**：兩批同名群演（`服務生 x2、服務生 x3`）會給
+   * 出兩列升格，而兩列都解析到同一位既有人物時，那仍然只是一個人 —— 扣兩批人是憑空少兩個
+   * 群演。它同時也是「那個人真的被寫進去了」的檢查（寫入被拒時手上這幾筆要留著）。
+   *
+   * ⚠️ **拿掉那個 chip 不會把人加回群演欄**，這是刻意的：那是一次新的編輯，不是 ⌘Z。反過來
+   * 做等於系統在編劇背後改他的群演欄 —— 與票券 09「拿掉一筆群演不回頭改對白」同一條線。
+   */
+  const pendingPromotions = useRef<{ extraId: string; characterId: string }[]>([]);
   /**
    * 人物欄的引用。**多值** —— 多個具名角色可以同時說一句台詞（齊聲）。
    *
@@ -254,8 +267,18 @@ function DialogueView(props: NodeViewProps) {
         options={catalog.characters}
         usage={() => entityUsage(editor.state.doc)}
         // 合法目標是「人物」或「**本場次的**群演」（§5.1）—— id 只在該場次內有意義。
-        sceneExtras={extrasHere().map((e) => ({ id: e.extraId, name: e.description }))}
+        sceneExtras={extrasHere().map((e) => ({
+          id: e.extraId,
+          name: e.description,
+          count: e.count,
+        }))}
         onCreateExtra={createExtra}
+        // 升格（特約）—— 先記在手上，減一與人物引用是 `onCommit` 那一次寫入（票券 35）。
+        onPromoteFromExtra={(extraId, characterId) => {
+          // 同一位說話者只留最後一次 —— 見 `pendingPromotions`。
+          const kept = pendingPromotions.current.filter((p) => p.characterId !== characterId);
+          pendingPromotions.current = [...kept, { extraId, characterId }];
+        }}
         // 齊聲：多個具名角色說同一句。頓號分隔，同地點欄與登場人物欄那一套規則。
         multiple
         onCommit={(refs) => {
@@ -265,35 +288,56 @@ function DialogueView(props: NodeViewProps) {
           const placed = refs.filter((r): r is EntityRef & { id: string } => r.id !== null);
           // 剛在這一欄新建、而且真的被留在欄位裡的那幾筆群演（打了又刪掉的不寫進去）。
           const born = pendingExtras.current.filter((e) => placed.some((r) => r.id === e.extraId));
+          // 升格出來的人真的被留在欄位裡才拉走那一個（打了又刪掉的不算）。
+          const taken = pendingPromotions.current.filter((p) =>
+            placed.some((r) => r.id === p.characterId),
+          );
           const speakers = placed.map((r) => ({ id: r.id, displayName: r.displayName }));
 
           const wrote = runKernelCommand(
             editor,
             (doc) => {
-              const write = (d: PMNode) =>
-                setDialogueCharacters(d, {
-                  sceneId: here.sceneId,
-                  blockIndex: here.blockIndex,
-                  refs: speakers,
-                  directory: catalog.directory,
-                });
-              if (born.length === 0) return write(doc);
-              // **一筆群演與指向它的引用是同一個 transaction**：群演的存在性問的是這一場的
-              // attr，所以順序仍然是「先寫群演、再寫引用」—— 只是兩支 command 串在一起，
-              // 中間那個 doc 不落地（⌘Z 一次回到原狀）。合併既有那幾筆由 kernel 做
-              // （`addSceneExtras`），這裡不去讀 doc：畫面讀到的可能是上一次重繪的那一份。
-              const withExtras = addSceneExtras(doc, { sceneId: here.sceneId, extras: born });
-              return withExtras.ok ? write(withExtras.value as unknown as PMNode) : withExtras;
+              // **群演的變動與指向它的引用是同一個 transaction**：群演的存在性問的是這一場的
+              // attr，所以順序是「先動群演、再寫引用」—— 三支 command 串成一次寫入，中間那些
+              // doc 不落地（⌘Z 一次回到原狀）。讀現況再改都在 kernel 做（`addSceneExtras`／
+              // `takeOneFromExtra`），這裡不去讀 doc：畫面讀到的可能是上一次重繪的那一份。
+              let current = doc;
+              // ① 升格：那批人各少一個（減到 0 就整筆消失）。
+              for (const { extraId } of taken) {
+                const step = takeOneFromExtra(current, { sceneId: here.sceneId, extraId });
+                // 拉不走就整次放棄 —— 硬寫下去會讓一個人物憑空出現而群演一個都沒少。
+                if (!step.ok) return step;
+                current = step.value as unknown as PMNode;
+              }
+              // ② 在這一欄新建的群演。
+              if (born.length > 0) {
+                const step = addSceneExtras(current, { sceneId: here.sceneId, extras: born });
+                if (!step.ok) return step;
+                current = step.value as unknown as PMNode;
+              }
+              // ③ 這一句台詞的說話者。
+              return setDialogueCharacters(current, {
+                sceneId: here.sceneId,
+                blockIndex: here.blockIndex,
+                refs: speakers,
+                directory: catalog.directory,
+              });
             },
             { keepFocus: true },
           );
           // 寫失敗就把手上那幾筆**留著** —— 清掉的話那一筆群演沒進 doc、引用卻還在欄位裡，
           // 下一次寫入會被不變式擋下，編劇的說話者就這樣沒了。
-          if (wrote) pendingExtras.current = [];
+          if (wrote) {
+            pendingExtras.current = [];
+            pendingPromotions.current = [];
+          }
         }}
-        onCreate={async (name) => {
+        onCreate={async (name, via) => {
           const created = await catalog.create("character", name);
-          if (created) addToAppearing(created.id, created.name);
+          // 票券 08 的暫時措施只套用在「打字新建」那條路。**升格出來的那一位不掛**（票券 35）：
+          // 他確實入鏡，但系統不自己加 —— 那是票券 10 那個可忽略的提示選單要做的事。
+          // ⚠️ 票券 10 落地之前，同一欄的兩條路刻意不一致；那天兩條一起改。
+          if (created && via === "typed") addToAppearing(created.id, created.name);
           return created;
         }}
         onRenameEntity={(id, name) => catalog.rename("character", id, name)}
