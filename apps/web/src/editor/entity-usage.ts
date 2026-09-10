@@ -9,7 +9,7 @@
  */
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { sceneAppearingCharacters, sceneLocations } from "@scenephonie/schema";
+import { dialogueCharacters, sceneAppearingCharacters, sceneLocations } from "@scenephonie/schema";
 
 /** 每筆實體 id → 引用到它的場次數。 */
 export function entityUsage(doc: PMNode): Map<string, number> {
@@ -32,8 +32,8 @@ export function entityUsage(doc: PMNode): Map<string, number> {
     }
     node.descendants((child) => {
       if (child.type.name !== "dialogue") return;
-      const speaker = child.attrs.character as { id?: unknown } | null;
-      if (speaker) note(speaker.id, sceneId);
+      // 齊聲的每一個人都算一次引用 —— 走正規化，因為 attr 是「單值 ｜ 陣列 ｜ null」。
+      for (const speaker of dialogueCharacters(child.attrs.character)) note(speaker.id, sceneId);
     });
   });
 

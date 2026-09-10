@@ -113,6 +113,30 @@ function DialogueView(props: NodeViewProps) {
     // 都重新定位，不吃過期的座標。
   }, []);
 
+  /** 這一場**當下**在 doc 裡的節點（不是這次 render 拿到的那一份）。 */
+  const sceneNow = (sceneId: string): PMNode | null => {
+    let found: PMNode | null = null;
+    editor.state.doc.forEach((n) => {
+      if (!found && n.type.name === "scene" && n.attrs.sceneId === sceneId) found = n;
+    });
+    return found;
+  };
+
+  /**
+   * 這個對白區塊**當下**在 doc 裡的樣子。
+   *
+   * ⚠️ 不要用 render 拿到的 `node` 去判斷「這個區塊空不空」：人物欄一寫進 doc，chip 就出現，
+   * 但這個 node view 的 props 要到下一次重繪才換新。編劇看到 chip 之後**立刻**按 Enter 時，
+   * closure 裡的 `node` 仍然是 `character: null` 的那一份 —— 於是「人名與台詞都空著」成立，
+   * 剛填好的人物連同整個對白被當成空區塊取消掉（使用者回報 2026-09-10）。
+   * 同一個家族的問題本輪出現第三次：**ref／doc 是真相（同步），props／state 是畫面（重繪）**。
+   */
+  const blockNow = (here: { sceneId: string; blockIndex: number }): PMNode | null => {
+    const scene = sceneNow(here.sceneId);
+    if (!scene || here.blockIndex >= scene.childCount) return null;
+    return scene.child(here.blockIndex);
+  };
+
   /**
    * 在這一欄**新建**的人物，順手掛進本場的登場人物欄。
    *
@@ -127,12 +151,9 @@ function DialogueView(props: NodeViewProps) {
   const addToAppearing = (characterId: string, displayName: string) => {
     const here = locateBlock(props);
     if (!here) return;
-    let scene: PMNode | null = null;
-    editor.state.doc.forEach((n) => {
-      if (!scene && n.type.name === "scene" && n.attrs.sceneId === here.sceneId) scene = n;
-    });
+    const scene = sceneNow(here.sceneId);
     if (!scene) return;
-    const current = sceneAppearingCharacters((scene as PMNode).attrs.appearingCharacters);
+    const current = sceneAppearingCharacters(scene.attrs.appearingCharacters);
     if (current.some((r) => r.characterId === characterId)) return;
     runKernelCommand(
       editor,
@@ -220,7 +241,8 @@ function DialogueView(props: NodeViewProps) {
             // 人名與台詞都還空著 → Enter ＝ 取消這個對白，變回描述。與內文裡按 Enter
             // （`extensions/continue-block`）同一條退路（使用者回饋 2026-09-03，第四輪）。
             const here = locateBlock(props);
-            if (here && isBlankBlock(node)) {
+            const now = here && blockNow(here);
+            if (here && now && isBlankBlock(now)) {
               setBlockTypeAt(editor, here, "action");
               return;
             }

@@ -16,21 +16,22 @@ import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { isBlankBlock } from "./block-types";
 import { EntityCatalogProvider } from "./entity-catalog";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
-function docWithDialogue() {
+function docWithDialogue(line: string) {
   return kernelSchema
     .node("doc", null, [
       kernelSchema.node("scene", { sceneId: mintSceneId() }, [
-        kernelSchema.node("dialogue", null, [kernelSchema.text("生日快樂")]),
+        kernelSchema.node("dialogue", null, line ? [kernelSchema.text(line)] : []),
       ]),
     ])
     .toJSON() as object;
 }
 
-function Harness({ onEditor }: { onEditor?: (e: Editor) => void }) {
-  const editor = useScreenplayEditor(docWithDialogue());
+function Harness({ onEditor, line = "生日快樂" }: { onEditor?: (e: Editor) => void; line?: string }) {
+  const editor = useScreenplayEditor(docWithDialogue(line));
   useEffect(() => {
     if (editor) onEditor?.(editor);
   }, [editor, onEditor]);
@@ -100,5 +101,43 @@ describe("對白的人物欄", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() => expect(appearing(container)).toEqual(["小明", "小華"]));
+  });
+
+  it("填好人物、台詞還空著時按 Enter —— 對白不該被當成空區塊取消掉", async () => {
+    // `isBlankBlock` 一度直接讀 `character.displayName`：attr 變成陣列之後那是 undefined，
+    // 於是「人物名也空」成立，剛填好的人物連同整個對白一起被退回動作（使用者回報 2026-09-10）。
+    let editor!: Editor;
+    const { container } = render(<Harness line="" onEditor={(e) => (editor = e)} />);
+    const input = await speakerInput(container);
+
+    fireEvent.change(input, { target: { value: "小明" } });
+    fireEvent.keyDown(input, { key: "Enter" }); // 定案人物
+    await waitFor(() => expect(speakers(container)).toEqual(["小明"]));
+
+    fireEvent.keyDown(input, { key: "Enter" }); // 再一次 —— 這一下該是「進台詞」
+
+    await waitFor(() => expect(speakers(container)).toEqual(["小明"]));
+    expect(editor.state.doc.firstChild!.child(0).type.name).toBe("dialogue");
+  });
+});
+
+describe("isBlankBlock 與人物欄的形狀", () => {
+  const dialogueWith = (character: unknown, line: string) =>
+    kernelSchema.node("dialogue", { character }, line ? [kernelSchema.text(line)] : []);
+
+  it("台詞空、人物也空 ＝ 空區塊（Enter 可以取消型別）", () => {
+    expect(isBlankBlock(dialogueWith(null, ""))).toBe(true);
+  });
+
+  it("單值人物：不算空", () => {
+    expect(isBlankBlock(dialogueWith({ id: "ch_1", displayName: "小明" }, ""))).toBe(false);
+  });
+
+  it("齊聲（陣列）：一樣不算空 —— 直接讀 character.displayName 會讀成 undefined", () => {
+    const both = [
+      { id: "ch_1", displayName: "小明" },
+      { id: "ch_2", displayName: "小華" },
+    ];
+    expect(isBlankBlock(dialogueWith(both, ""))).toBe(false);
   });
 });

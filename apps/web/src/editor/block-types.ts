@@ -5,7 +5,7 @@
 import type { Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { setBlockType, type BlockType } from "@scenephonie/schema";
+import { dialogueCharacters, setBlockType, type BlockType } from "@scenephonie/schema";
 
 import type { BlockAddress } from "./address";
 import { runKernelCommand } from "./command-bridge";
@@ -22,12 +22,15 @@ export const BLOCK_META: Record<BlockType, { readonly label: string; readonly hi
 /**
  * 這個區塊「什麼都還沒寫」—— 內文 trim 後是空的，對白還要連人物名也空。
  * 空區塊上的手勢可以自由換型別／取消型別，不會吃掉任何已寫下的東西。
+ *
+ * ⚠️ 人物欄的 attr 是**單值 ｜ 陣列 ｜ null**（齊聲），所以這裡一定要走正規化。直接讀
+ * `character.displayName` 的話，多值的那一句會被判成「人物名也空」—— 剛填好人物、台詞還
+ * 沒寫時按一次 Enter，整個對白（連同人物）就被當成空區塊取消掉了。
  */
 export function isBlankBlock(node: PMNode): boolean {
   if (node.textContent.trim() !== "") return false;
   if (node.type.name !== "dialogue") return true;
-  const character = node.attrs.character as { displayName?: string } | null;
-  return (character?.displayName ?? "").trim() === "";
+  return dialogueCharacters(node.attrs.character).every((r) => r.displayName.trim() === "");
 }
 
 /**
