@@ -218,11 +218,14 @@ describe("ChipSelect", () => {
       expect(picked).toEqual(["夜"]);
     });
 
-    it("術語印在選單列上 —— 速記鍵不必靠記", () => {
+    // 選單只比 chip 寬一點點，印整串術語會把它撐歪（使用者回饋 2026-09-10 第四輪之二）。
+    // 那一顆鍵就夠了；術語的說明在 ⓘ 的框裡（見 `field-info.tsx`）。
+    it("選單列上印的是那一顆鍵，不是整串術語", () => {
       const { container } = termHost();
       fireEvent.click(container.querySelector("button")!);
-      const terms = [...container.querySelectorAll(".chip-select__term")].map((e) => e.textContent);
-      expect(terms).toEqual(["DAY", "NIGHT", "DAWN", "DUSK"]);
+      const keys = [...container.querySelectorAll(".chip-select__key")].map((e) => e.textContent);
+      expect(keys).toEqual(["(d)", "(n)", "(d)", "(d)"]);
+      expect(container.querySelector(".chip-select__menu")!.textContent).not.toContain("DAY");
     });
 
     it("沒給 terms 就沒有速記鍵（字母原封還給瀏覽器）", () => {

@@ -452,13 +452,12 @@
   cursor: pointer;
 }
 
-/* 劇本術語（`INT.`／`DAY`）—— 也就是速記鍵的來源。靠右、弱化：它是提示不是內容。 */
-.chip-select__term {
-  margin-inline-start: var(--space-3);
-  float: inline-end;
+/* 速記鍵（`內景(i)`）—— 弱化、接在標籤後面。**不浮動、不撐寬**：選單只比 chip 寬一點點，
+ * 一個 float 或一段長術語就會把它推歪（使用者回饋 2026-09-10，第四輪之二）。 */
+.chip-select__key {
+  margin-inline-start: 2px;
   color: var(--text-faint);
   font-size: var(--text-sm);
-  letter-spacing: 0.04em;
 }
 
 .chip-select__menu li.is-active {
