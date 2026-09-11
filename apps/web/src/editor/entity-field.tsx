@@ -392,9 +392,12 @@ export function EntityField({
     // 指的是**不刪資料列**，不是「照樣顯示」。
     const counts = usage?.();
     const known = existing();
-    const hits = known.filter((o) => o.name.includes(query) && o.name !== query).slice(0, 5);
     // 手上那一筆也算命中 —— 少了它，把自己拿回來改會看到「建立新實體『它自己』」（票券 38）。
     const exact = known.find((o) => o.name === query) ?? editingMatch(query);
+    // ⚠️ 排掉的是 `exact` **那一筆**，不是「名字剛好等於 query 的」。兩者多數時候同一件事，
+    // 但手上那一筆的顯示名可能不等於它在目錄裡的名字（別名，或實體改名後舊引用還留著舊字）
+    // —— 那時同一筆實體會從 `exact` 與 `hits` 各進榜一次，選單印出兩列一模一樣的名字。
+    const hits = known.filter((o) => o !== exact && o.name.includes(query)).slice(0, 5);
 
     if (stage.name === "suggest") {
       for (const option of [...(exact ? [exact] : []), ...hits]) {

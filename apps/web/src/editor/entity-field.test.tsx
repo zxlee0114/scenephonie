@@ -692,3 +692,28 @@ describe("編輯中的那一筆：別名與人物欄（票券 38 code review）"
     expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
   });
 });
+
+describe("別名 ＋ 實體改名之後，命中列不重覆（票券 38 人工驗收）", () => {
+  it("舊顯示名是實體新名的前綴時，第一列只印一次", () => {
+    // 編劇跑出來的路：A 場地點 `test` 建了實體 → B 場打 `test1` 走別名那一列，
+    // 並且「同時把實體改名」→ 目錄裡那筆現在叫 `test1`，A 場的引用顯示名還是 `test`。
+    // 回 A 場把 chip 拿回來改時，同一筆實體會從兩條路各進榜一次：
+    // `exact`（手上那一筆，票券 38）與 `hits`（名字**包含** `test` 且不等於 `test`）。
+    const { container } = render(
+      <EntityField
+        kind="location"
+        placeholder="地點"
+        refs={[{ id: "lo_1", displayName: "test" }]}
+        options={[{ id: "lo_1", name: "test1" }]}
+        usage={() => new Map([["lo_1", 1]])}
+        multiple
+        onCommit={() => {}}
+        onCreate={async () => null}
+      />,
+    );
+
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
+
+    expect(rows(container).filter((r) => r.startsWith("📍 test1"))).toHaveLength(1);
+  });
+});
