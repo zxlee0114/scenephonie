@@ -25,7 +25,16 @@
  * 那批、另外造一筆的，走 `addAnother` 那一列 —— 那是人物欄 `＋ 建立新實體` 在這一側的對應
  * 物。兩列都不寫場數：群演只影響這一場，這正是它與票券 39 那三列（實體有別場，按下去可能
  * 動到別場）的差別。選單頂端那一行唯讀抬頭（`heldNote`）與實體欄逐字同一套，只是這裡多說
- * 一個字：這一格能改的是**名稱與人數**兩件事（票券 40 第二輪）。
+ * 一件事：框裡只有名稱，**人數保留**（票券 47）。
+ *
+ * ── 拿起來改的時候，框裡只有名稱（票券 47）───────────────────────────
+ * 人數不在那串字裡，所以改名字**根本弄不掉人數** —— 最常見的那件事因此是零成本的。
+ * 連帶地這個框**不認** `路人 x8` 的尾綴：那幾個字就是名字的一部分。一旦它也認尾綴，此刻
+ * 就有三個東西要調和（人數的現值、框裡打的尾綴、選單裡挑的值），而三者衝突時誰贏沒有一個
+ * 編劇猜得到的答案。
+ *
+ * ⚠️ **新增那一側照舊認尾綴**（`readText` 的另一半）：那個框從零開始，整串都還沒定案。
+ * 同一個輸入框在兩種狀態下讀法不同是可以的，因為狀態本身看得見（chip 外殼在不在）。
  */
 "use client";
 
@@ -118,13 +127,26 @@ export function ExtrasField({
     setDismissed(false);
   };
 
-  /** 一段字 → 一筆群演。重新編輯中的那一筆沿用原 id，其餘鑄新的。 */
+  /**
+   * 框裡那串字 → 一筆群演的**內容**（沒有 id）。兩種讀法，由「手上握著沒有」分野。
+   *
+   * 握著一批時框裡只有**名稱**，人數沿用那一批的現值（票券 47）—— 所以改名字弄不掉人數，
+   * 而 `路人 x8` 的尾綴只是名字的幾個字。沒握著時整串都還沒定案，尾綴照舊認（`parseExtra`）。
+   */
+  const readText = (segment: string): Omit<ExtraRef, "extraId"> | null => {
+    const held = editing.current;
+    if (!held) return parseExtra(segment);
+    const description = segment.trim();
+    return description ? { description, count: held.count, countValue: held.countValue } : null;
+  };
+
+  /** 一段字 → 一筆群演。重新編輯中的那一筆沿用原 id 與人數，其餘鑄新的。 */
   const toExtra = (segment: string): ExtraRef | null => {
-    const parsed = parseExtra(segment);
-    if (!parsed) return null;
+    const content = readText(segment);
+    if (!content) return null;
     const held = editing.current;
     editing.current = null;
-    return { extraId: held?.extraId ?? mintExtraId(), ...parsed };
+    return { extraId: held?.extraId ?? mintExtraId(), ...content };
   };
 
   const add = (segments: string[]) => {
@@ -143,7 +165,8 @@ export function ExtrasField({
   };
 
   /**
-   * 把一筆 chip 還原成可編輯的文字（點它，或空欄位上 Backspace）—— 連人數一起。
+   * 把一筆 chip 還原成可編輯的文字（點它、空欄位上 Backspace、焦點在它身上按 Enter）——
+   * 框裡**只有名稱**，人數不在那串字裡（票券 47，見檔頭）。
    *
    * **一律整串反白**：可以直接覆寫，也還是能按 → 收起來接著改。滑鼠進來與 Backspace 進來
    * 原本是兩種樣子，統一成這一種（使用者裁決 2026-09-11，同實體欄位的 `editRef`）。
@@ -155,7 +178,7 @@ export function ExtrasField({
     caret.current = extras.indexOf(extra);
     editing.current = extra;
     onCommit(extras.filter((e) => e !== extra));
-    setText(formatExtra(extra));
+    setText(extra.description);
     setActive(0);
     setDismissed(false);
     selectNext.current = true;
@@ -171,16 +194,9 @@ export function ExtrasField({
 
   const commitText = () => {
     if (!text.trim()) return;
-    // 解析不出一筆群演（例：只打了 `x8`）時**把手上那一筆放回原位** —— 重新編輯是把 chip
-    // 拿下來改，改到一半打成沒有描述的字不該讓它消失。沒有手上那一筆就什麼都不做。
-    const parsed = parseExtra(text);
-    if (!parsed) {
-      const held = editing.current;
-      if (held) {
-        const at = caret.current ?? extras.length;
-        caret.current = at + 1;
-        onCommit([...extras.slice(0, at), held, ...extras.slice(at)]);
-      }
+    // 讀不出一筆群演（例：只打了 `x8`）就什麼都不做。這**只發生在沒握著的那一側** ——
+    // 握著時框裡的每一串非空白字都是合法名稱（票券 47），所以手上那一批掉不了。
+    if (!readText(text)) {
       reset();
       return;
     }
@@ -191,16 +207,19 @@ export function ExtrasField({
   /**
    * **另外開一批**（票券 40）—— 手上那一筆放回原位，框裡的字另外鑄一個 id。
    *
-   * 沒有這一條路，拿起 `路人 x3` 改到一半發現其實是另一批人（`保全 x1`）的編劇只能先放手、
+   * 沒有這一條路，拿起 `路人` 改到一半發現其實是另一批人（`保全`）的編劇只能先放手、
    * 再打一次：`toExtra` 一律沿用握著那一筆的 id（見檔頭），改就是就地改。這一列是人物欄
    * `＋ 建立新實體` 在群演這一側的對應物 —— 留著原本那筆，另外造一筆。
+   *
+   * 新的那一批**沿用手上這一批的人數**：框裡只有名稱（票券 47），這一刻畫面上唯一的人數
+   * 就是它。要改人數走人數那條路，不是靠這裡猜。
    */
   const addAnother = () => {
     const held = editing.current;
-    const parsed = parseExtra(text);
-    if (!held || !parsed) return;
+    const content = readText(text);
+    if (!held || !content) return;
     const at = Math.min(caret.current ?? extras.length, extras.length);
-    const minted: ExtraRef = { extraId: mintExtraId(), ...parsed };
+    const minted: ExtraRef = { extraId: mintExtraId(), ...content };
     // 放回去的那一筆站回它原本那一格，新的一批緊接在後 —— 游標停在兩顆之後（同 `add`）。
     caret.current = at + 2;
     onCommit([...extras.slice(0, at), held, minted, ...extras.slice(at)]);
@@ -208,7 +227,7 @@ export function ExtrasField({
   };
 
   const query = text.trim();
-  const parsed = parseExtra(text);
+  const parsed = readText(text);
   const menuOpen = !composingNow && !dismissed && query.length > 0;
 
   /** 命中的別場描述 —— 拿**描述那一段**去比對，人數不參與（`咖啡廳客 x8` 也要命中）。 */
@@ -230,8 +249,8 @@ export function ExtrasField({
      * 所以它是**就地改**。這一列不寫場數：群演本來就只影響這一場，那正是它與票券 39 那列
      * （實體有別場，所以要先說會不會動到別場）的差別。
      *
-     * 描述與人數是同一列裡的兩件事（`路人（3）` → `路人（8）` 只改了後者），所以兩邊都印
-     * 整串 `描述（人數）` —— 改了哪一半都讀得出來，不必猜。
+     * 兩邊都印整串 `描述（人數）`（票券 40 那三列一個字都不用改）—— 名稱改了、人數沒動時
+     * 它自己就說對了：`路人（8）` → `保全（8）`。
      */
     const held = editing.current;
     const before = held ? formatExtra(held) : null;
@@ -285,8 +304,9 @@ export function ExtrasField({
    * 的字就能改這一批」這條路完全不可見。字改過之後它仍然在，因為那時框裡的字已經不是那一批的
    * 樣子了，**「我在編輯哪一批」得有人說**。
    *
-   * 與實體欄的差別只有一個字：這一格能改的是**名稱與人數**兩件事（`路人 x3` 是同一列裡的兩
-   * 段）。它**不是一列選項**：不進 `rows`、選不到、Enter 碰不到（標籤放結果、說明另外放，
+   * 與實體欄的差別只有一句話：框裡只有名稱，所以這一行要說出**人數保留**（票券 47）——
+   * 不然編劇會以為改名字得把 `x8` 一起重打。它**不是一列選項**：不進 `rows`、選不到、
+   * Enter 碰不到（標籤放結果、說明另外放，
    * 票券 36 立的分工）。框裡清空了它也還在 —— 那一刻那一批還握在手上，措辭換成下一顆
    * Backspace 會做什麼：放手（見 `letGo`）。
    */
@@ -296,7 +316,7 @@ export function ExtrasField({
       ? null
       : query === ""
         ? `${RENAME_MARK} 正在編輯「${formatExtra(heldNow)}」，再按一次 Backspace 移除這一批`
-        : `${RENAME_MARK} 正在編輯「${formatExtra(heldNow)}」，修改文字可更新名稱、人數`;
+        : `${RENAME_MARK} 正在編輯「${formatExtra(heldNow)}」，改的是名稱 —— 數量保留，不必手動重寫`;
 
   const activeRow = rows[Math.min(active, rows.length - 1)];
 
