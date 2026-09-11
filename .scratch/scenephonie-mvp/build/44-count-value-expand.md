@@ -11,7 +11,7 @@
 
 **Blocked by:** 無 —— 可以立刻開工
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## 四種樣子
 
@@ -71,12 +71,12 @@ countLowerBound(value: CountValue) → number | null      // 若干回 null
 
 ## 驗收
 
-- [ ] `CountValue` 四態齊全，有 tag，沒有可選欄位
-- [ ] `resolveCountInput` 三態；`8`／`3-5`／`3~5`／`10+` 都讀得出來，全形數字與全形 `＋～－—〜` 一樣認
-- [ ] `路人 8` 這種裸數字尾綴**不解析**（票券 43 的 ADR）
-- [ ] `countHintText` 三態文案：空是格式說明、parsed 是預覽、unreadable 是警告**而且說得出現在離開會記成什麼**
-- [ ] `countLowerBound`：確切回自己、區間與下限回下限、**若干回 `null`**
-- [ ] 兩層真的分離：`resolveCountInput` 的測試裡沒有中文文案，`countHintText` 的測試裡沒有解析規則
-- [ ] 全部測試在 Node 上跑，不需要 jsdom
-- [ ] `ExtraRef` 新舊兩個形態並存，`sceneExtras` 兩邊都填
-- [ ] **既有呼叫點一個字都沒改，CI 綠**
+- [x] `CountValue` 四態齊全，有 tag，沒有可選欄位
+- [x] `resolveCountInput` 三態；`8`／`3-5`／`3~5`／`10+` 都讀得出來，全形數字與全形 `＋～－—〜` 一樣認
+- [x] `路人 8` 這種裸數字尾綴**不解析**（票券 43 的 ADR）
+- [x] `countHintText` 三態文案：空是格式說明、parsed 是預覽、unreadable 是警告**而且說得出現在離開會記成什麼**
+- [x] `countLowerBound`：確切回自己、區間與下限回下限、**若干回 `null`**
+- [x] 兩層真的分離：`resolveCountInput` 的測試裡沒有中文文案，`countHintText` 的測試裡沒有解析規則
+- [x] 全部測試在 Node 上跑，不需要 jsdom
+- [x] `ExtraRef` 新舊兩個形態並存，`sceneExtras` 兩邊都填
+- [x] **既有呼叫點一個字都沒改，CI 綠**

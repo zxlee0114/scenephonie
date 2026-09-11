@@ -58,6 +58,11 @@ export {
   formatExtra,
 } from "./extras";
 
+// 人數的四種樣子（票券 44）。型別要出得去，因為 `ExtraRef.countValue` 是公開形狀的一部分；
+// `resolveCountInput`／`countHintText`／`countLowerBound` 還沒有呼叫端（票券 45–48 才會有），
+// 照這個檔案既有的規矩留在模組裡 —— 沒有讀者的公開介面是一種債。
+export type { CountValue } from "./count";
+
 // 多值欄位的輸入規則（地點欄與登場人物欄共用同一份；貼上走同一條路）。
 export { splitNamesLive } from "./names";
 

@@ -14,6 +14,7 @@
  * 的假承諾。這是與人物／地點**刻意相反**的設計：那兩者的自動補全命中的是一筆實體（`{ id, 顯示名 }`），
  * 這裡命中的只是幾個字。
  */
+import { countLowerBound, countValueOf, halfWidthDigits, type CountValue } from "./count";
 import { mintId } from "./ids";
 import type { ExtraRef } from "./schema";
 
@@ -40,26 +41,54 @@ export function isExtraId(value: unknown): value is string {
  *
  * 人數不是正整數時**不丟掉這一筆**，補成 1：描述才是那一筆的內容，人數壞掉只是少一個數字。
  * 沒有 `extraId` 的才丟 —— 那一筆沒有身分，對白的人物欄指不到它，留著也沒有人用得上。
+ *
+ * 人數在遷移窗口裡有兩個形態，這裡**兩邊都填**（票券 44）—— 規則見底下的 `bothShapes`。
  */
 export function sceneExtras(value: unknown): ExtraRef[] {
   if (!Array.isArray(value)) return [];
   const out: ExtraRef[] = [];
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) continue;
-    const { extraId, description, count } = raw as Record<string, unknown>;
+    const { extraId, description, count, countValue } = raw as Record<string, unknown>;
     if (!isExtraId(extraId) || typeof description !== "string") continue;
-    out.push({
-      extraId,
-      description,
-      count: Number.isInteger(count) && (count as number) >= 1 ? (count as number) : 1,
-    });
+    out.push({ extraId, description, ...bothShapes(count, countValue) });
   }
   return out;
 }
 
-/** 全形數字（`１２３`）打回半形 —— 注音鍵盤下的數字常常是全形，那不該變成另一種寫法。 */
-const halfWidthDigits = (text: string): string =>
-  text.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0));
+/**
+ * 遷移窗口裡的人數：**兩個形態都填得出來**（票券 44 的 expand）。
+ *
+ * - 舊資料只有數字 → 新形態由它推出「確切 N」
+ * - 新形態在 → 舊欄位填它的下限（若干沒有下限，只好填 1 —— ⚠️ 那個 1 就是會說謊的那一個）
+ *
+ * **兩個數字打架時舊的那個贏。** 這個窗口裡寫入端只有舊的那一批（command 要到票券 46
+ * 才搬），它們動的是 `count`、把 `countValue` 原封不動抄回去 —— 所以一筆
+ * `{ count: 1, countValue: 確切 2 }` 說的是「升格拉走了一個人」，不是「有兩個人」。
+ * 舊寫入端在這個窗口裡仍然是權威，這條讓它繼續是。
+ *
+ * ⚠️ **所以票券 45–49 的每一個寫入端都必須兩邊一起寫**：改了 `countValue` 卻讓 `count`
+ * 停在原地，讀回來會是舊的那個數字 —— 編劇挑的「若干」「3-5」就這麼不見了，而且不會報錯，
+ * 型別也擋不住（`count` 在票券 50 之前是必填的）。寫入端的規矩是
+ * `count: countLowerBound(v) ?? 1`，與這裡的填法同一句話。
+ *
+ * **「若干」不參加打架**：它沒有數字，所以任何 `count` 都不構成矛盾（那個 `?? 1` 只是
+ * 舊欄位填得出來的唯一值，不是「一個人」的意思）。票券 50 把 `count` 刪掉之後，
+ * 這整個 tie-break 一起消失。
+ */
+function bothShapes(
+  count: unknown,
+  countValue: unknown,
+): { count: number; countValue: CountValue } {
+  const hasLegacy = Number.isInteger(count) && (count as number) >= 1;
+  const legacy = hasLegacy ? (count as number) : 1;
+  const stored = countValueOf(countValue);
+  const contradicts =
+    stored !== null && hasLegacy && stored.kind !== "some" && countLowerBound(stored) !== legacy;
+  const shape: CountValue =
+    stored !== null && !contradicts ? stored : { kind: "exact", count: legacy };
+  return { count: countLowerBound(shape) ?? 1, countValue: shape };
+}
 
 /**
  * 人數的尾綴：`x8`／`X8`／`×8`／`＊8`／`*8`，前面可以有空白。

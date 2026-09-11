@@ -48,13 +48,13 @@ describe("sceneExtras —— 讀取容忍（§6.6）", () => {
 
   it("正常的清單原樣讀出來", () => {
     expect(sceneExtras([{ extraId: id, description: "咖啡廳客人", count: 8 }])).toEqual([
-      { extraId: id, description: "咖啡廳客人", count: 8 },
+      { extraId: id, description: "咖啡廳客人", count: 8, countValue: { kind: "exact", count: 8 } },
     ]);
   });
 
   it("人數壞掉補成 1，不丟掉那一筆 —— 描述才是內容", () => {
     expect(sceneExtras([{ extraId: id, description: "客人", count: "八" }])).toEqual([
-      { extraId: id, description: "客人", count: 1 },
+      { extraId: id, description: "客人", count: 1, countValue: { kind: "exact", count: 1 } },
     ]);
   });
 
@@ -63,6 +63,71 @@ describe("sceneExtras —— 讀取容忍（§6.6）", () => {
     expect(sceneExtras([{ extraId: id, count: 2 }])).toEqual([]);
     expect(sceneExtras(null)).toEqual([]);
     expect(sceneExtras("咖啡廳客人 x8")).toEqual([]);
+  });
+});
+
+describe("sceneExtras —— 新舊兩個形態並存（票券 44 的遷移窗口）", () => {
+  const id = mintExtraId();
+
+  it("舊資料只有數字時，新形態由它推出「確切 N」", () => {
+    expect(sceneExtras([{ extraId: id, description: "客人", count: 8 }])[0]?.countValue).toEqual({
+      kind: "exact",
+      count: 8,
+    });
+  });
+
+  it("新形態存在時，舊欄位填下限 —— 區間與下限用下限", () => {
+    const of = (countValue: unknown) =>
+      sceneExtras([{ extraId: id, description: "客人", countValue }])[0];
+    expect(of({ kind: "range", from: 3, to: 5 })).toEqual({
+      extraId: id,
+      description: "客人",
+      count: 3,
+      countValue: { kind: "range", from: 3, to: 5 },
+    });
+    expect(of({ kind: "atLeast", count: 10 })?.count).toBe(10);
+  });
+
+  it("⚠️ 若干的舊欄位只能填 1 —— 那個數字在遷移窗口裡會說謊，票券 50 把它刪掉", () => {
+    expect(sceneExtras([{ extraId: id, description: "客人", countValue: { kind: "some" } }])).toEqual([
+      { extraId: id, description: "客人", count: 1, countValue: { kind: "some" } },
+    ]);
+  });
+
+  it("兩端相同的區間在讀取路徑上也收斂成確切 —— `路人（3-3）` 不從這裡溜回畫面", () => {
+    const countValue = { kind: "range", from: 3, to: 3 };
+    const [read] = sceneExtras([{ extraId: id, description: "客人", countValue }]);
+    expect(read?.countValue).toEqual({ kind: "exact", count: 3 });
+  });
+
+  it("若干不參加打架 —— 它沒有數字，舊欄位是幾都不構成矛盾", () => {
+    expect(
+      sceneExtras([{ extraId: id, description: "客人", count: 1, countValue: { kind: "some" } }])[0]
+        ?.countValue,
+    ).toEqual({ kind: "some" });
+    expect(
+      sceneExtras([{ extraId: id, description: "客人", count: 7, countValue: { kind: "some" } }])[0]
+        ?.countValue,
+    ).toEqual({ kind: "some" });
+  });
+
+  it("兩邊打架時舊的數字贏 —— 這個窗口裡只有舊寫入端在動（升格拉走一個人：8 → 7）", () => {
+    expect(
+      sceneExtras([
+        { extraId: id, description: "客人", count: 7, countValue: { kind: "exact", count: 8 } },
+      ]),
+    ).toEqual([
+      { extraId: id, description: "客人", count: 7, countValue: { kind: "exact", count: 7 } },
+    ]);
+  });
+
+  it("壞掉的新形態退回去看舊欄位 —— 少讀一個形狀，不讓整筆掉", () => {
+    const of = (countValue: unknown) =>
+      sceneExtras([{ extraId: id, description: "客人", count: 6, countValue }])[0]?.countValue;
+    expect(of({ kind: "range", from: 5, to: 3 })).toEqual({ kind: "exact", count: 6 });
+    expect(of({ kind: "exact", count: 0 })).toEqual({ kind: "exact", count: 6 });
+    expect(of("若干")).toEqual({ kind: "exact", count: 6 });
+    expect(of(null)).toEqual({ kind: "exact", count: 6 });
   });
 });
 
