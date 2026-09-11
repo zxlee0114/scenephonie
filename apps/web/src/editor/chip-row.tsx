@@ -13,8 +13,9 @@
  * 輸入框不是永遠在隊尾 —— 它排在**第 `inputAt` 格**（拿一筆起來改時就是那一筆原本的位置）。
  * 所以這裡走的是**插入位置**（`0`…`chips.length`）而不是 chip 的索引。
  *
- * 空的輸入框插在中間時只是一個游標，**不佔版面** —— 那是 CSS 那一半的事
- * （`.entity-field__input--caret` 的負邊距），所以這裡的縫一律是同一個寬度。
+ * 空的輸入框插在中間時只是一個游標，**不佔版面**：寬度那一半是 CSS 的事
+ * （`.entity-field__input--caret` 的負邊距），而**縫的數量**是這裡的事 —— 游標擠進來會讓
+ * 原本一道縫變成兩道，所以它後面那一道收成零，游標就住在原本那一道裡。
  */
 "use client";
 
@@ -29,7 +30,10 @@ import type { ReactNode } from "react";
 export const columns = (text: string) =>
   Math.max(
     1,
-    [...text].reduce((n, c) => n + ((c.codePointAt(0) ?? 0) > 0x2ff ? 2 : 1), 0),
+    [...text].reduce(
+      (n, c) => n + ((c.codePointAt(0) ?? 0) > 0x2ff ? 2 : 1),
+      0,
+    ),
   );
 
 type Options = {
@@ -39,6 +43,8 @@ type Options = {
   input: ReactNode;
   /** 輸入框排在第幾格（`0` ＝ 所有 chip 之前，`chips.length` ＝ 全部之後）。 */
   inputAt: number;
+  /** 空的輸入框插在 chip 中間 —— 那時它只是一個游標，得住在**一道**縫裡（見下）。 */
+  bare: boolean;
   /** 手上正握著一筆 —— 整排的縫都不接受點擊（一次只編輯一筆）。 */
   locked: boolean;
   /** 把游標挪到第 `at` 格。 */
@@ -51,6 +57,7 @@ export function chipRow({
   chips,
   input,
   inputAt,
+  bare,
   locked,
   moveCaret,
   focusInput,
@@ -59,12 +66,13 @@ export function chipRow({
    * 兩顆 chip 之間那道縫。`at` 為 `null` ＝ 不接受點擊：游標已經在那（縫的一側就是輸入框），
    * 或者手上正握著一筆。
    */
-  const gap = (key: string, at: number | null, tail = false) => (
+  const gap = (key: string, at: number | null, tail = false, flush = false) => (
     <span
       key={key}
       className={[
         "entity-field__gap",
         tail && "entity-field__gap--tail",
+        flush && "entity-field__gap--flush",
         at != null && "entity-field__gap--pick",
       ]
         .filter(Boolean)
@@ -93,7 +101,16 @@ export function chipRow({
     const prev = units[k - 1];
     // 縫的插入位置就是它**右邊**那個東西的位置；等於游標現在站的那一格就沒得點。
     if (prev)
-      row.push(gap(`gap${k}`, unit.at === inputAt || locked ? null : unit.at));
+      row.push(
+        gap(
+          `gap${k}`,
+          unit.at === inputAt || locked ? null : unit.at,
+          false,
+          // 游標插進來時**多了一道縫** —— 原本 chip 之間只有一道，現在變成「縫 ＋ 游標 ＋ 縫」。
+          // 游標本身不佔位（CSS 的負邊距），所以只要把它後面那一道收掉，整排就一動也不動。
+          bare && prev.isInput,
+        ),
+      );
     row.push(unit.node);
   });
   // 輸入框不在隊尾時，尾端那一塊空白也要點得到 —— 否則欄位右半邊整片是死的（點下去既不

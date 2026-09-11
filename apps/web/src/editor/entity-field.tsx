@@ -1134,6 +1134,7 @@ export function EntityField({
     chips: refs.map((ref, i) => chipNode(ref, i)),
     input: inputNode,
     inputAt,
+    bare: caretOnly,
     locked: held != null,
     moveCaret: (at) => {
       caret.current = at;

@@ -1373,11 +1373,15 @@ describe("點 chip 之間那道縫，下一筆就插在那裡（票券 39 收票
     fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
     expect(container.querySelector("input")!.className).toContain("entity-field__input--caret");
 
+    // 游標擠進來會讓原本一道縫變成兩道 —— 它後面那一道要收成零，整排才不位移。
+    expect(container.querySelectorAll(".entity-field__gap--flush")).toHaveLength(1);
+
     // 打了字它就恢復成依內容決定寬度，把兩邊的 chip 擠開。
     fireEvent.change(container.querySelector("input")!, { target: { value: "小" } });
     expect(container.querySelector("input")!.className).not.toContain(
       "entity-field__input--caret",
     );
+    expect(container.querySelectorAll(".entity-field__gap--flush")).toHaveLength(0);
   });
 
   it("輸入框不在隊尾時，尾端那一塊空白還是點得到（游標回到最後）", () => {
