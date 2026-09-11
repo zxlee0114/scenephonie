@@ -235,7 +235,7 @@ describe("群演欄：同一套規則", () => {
     await waitFor(() => expect(document.activeElement).toBe(cell(container, "登場人物")));
   });
 
-  it("chip 上的 Backspace 把那一批拿下來重編輯（描述與人數一起回到輸入框）", async () => {
+  it("chip 上的 Backspace 把那一批拿下來重編輯（框裡只有名稱，票券 47）", async () => {
     const { container } = await mount(crowdedScene());
     const chips = chipsIn(container, "extras");
     const input = inputIn(container, "extras");
@@ -243,7 +243,7 @@ describe("群演欄：同一套規則", () => {
     chips[0]!.focus();
     fireEvent.keyDown(chips[0]!, { key: "Backspace" });
 
-    await waitFor(() => expect(input.value).toBe("咖啡廳客人（8）"));
+    await waitFor(() => expect(input.value).toBe("咖啡廳客人"));
     // 真的從欄位裡拿下來了 —— 剩下一批。
     await waitFor(() => expect(chipsIn(container, "extras")).toHaveLength(1));
   });
