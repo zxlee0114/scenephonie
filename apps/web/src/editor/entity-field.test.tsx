@@ -1365,14 +1365,26 @@ describe("點 chip 之間那道縫，下一筆就插在那裡（票券 39 收票
     expect(container.querySelectorAll(".entity-field__gap--pick")).toHaveLength(1);
   });
 
-  it("游標插進中間但還沒打字時，兩側的縫收成零寬 —— 不憑空撐開一塊", () => {
+  it("游標插進中間但還沒打字時，兩側的縫各收半寬 —— 合起來剛好是原本那一道", () => {
     const { container } = two();
     fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
-    expect(container.querySelectorAll(".entity-field__gap--flush")).toHaveLength(2);
+    // 兩道半寬 ＋ 幾乎沒有寬度的空輸入框 ＝ 原本那一道，那兩顆 chip 的間距看起來不變。
+    expect(container.querySelectorAll(".entity-field__gap--half")).toHaveLength(2);
 
     // 打了字那兩道縫就回來 —— 字自然把兩邊的 chip 擠開。
     fireEvent.change(container.querySelector("input")!, { target: { value: "小" } });
-    expect(container.querySelectorAll(".entity-field__gap--flush")).toHaveLength(0);
+    expect(container.querySelectorAll(".entity-field__gap--half")).toHaveLength(0);
+  });
+
+  it("輸入框不在隊尾時，尾端那一塊空白還是點得到（游標回到最後）", () => {
+    const { container } = two();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
+
+    const tail = container.querySelector(".entity-field__gap--tail")!;
+    expect(tail.className).toContain("entity-field__gap--pick"); // 那一大塊不是死的
+    fireEvent.mouseDown(tail);
+
+    expect(layout(container)).toEqual(["阿盈", "建鳴", "|"]);
   });
 
   it("握著一筆時整排的縫都不接受點擊", () => {

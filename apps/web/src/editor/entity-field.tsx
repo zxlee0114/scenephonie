@@ -463,6 +463,13 @@ export function EntityField({
       const ref = refs[i];
       if (ref) editRef(ref);
     },
+    // 方向鍵也停得進 chip 之間那道縫（與滑鼠點它同一個結果）。手上握著一筆時不動 ——
+    // 那一刻輸入框「排在第幾格」說的是那一筆的位置，挪走它畫面就對不上了。
+    moveCaret: (at) => {
+      if (editing.current) return;
+      caret.current = at;
+      redraw();
+    },
   });
 
   /**
@@ -1136,12 +1143,13 @@ export function EntityField({
    * `at` 為 `null` ＝ 這道縫不接受點擊：游標已經在那（縫的一側就是輸入框），或者手上正握著
    * 一筆（那時整排都動不得）。
    */
-  const gap = (key: string, at: number | null, flush = false) => (
+  const gap = (key: string, at: number | null, half = false, tail = false) => (
     <span
       key={key}
       className={[
         "entity-field__gap",
-        flush && "entity-field__gap--flush",
+        half && "entity-field__gap--half",
+        tail && "entity-field__gap--tail",
         at != null && "entity-field__gap--pick",
       ]
         .filter(Boolean)
@@ -1164,8 +1172,9 @@ export function EntityField({
    *
    * `i` 走的是**插入位置**（`0`…`refs.length`）而不是 chip 的索引 —— 輸入框佔的就是其中一格。
    *
-   * 游標只是插進中間、還沒打字時，它兩側的縫**收成零寬**（`flush`）—— 否則原本一道縫的
-   * 地方變成「縫 ＋ 空輸入框 ＋ 縫」，整排憑空撐開一塊（2026-09-11 驗收回饋）。打了字那兩道
+   * 游標只是插進中間、還沒打字時，它兩側的縫**各收成半寬**（`half`）—— 否則原本一道縫的
+   * 地方變成「縫 ＋ 空輸入框 ＋ 縫」，整排憑空撐開一塊；而兩道都收成零，那兩顆 chip 又會
+   * 黏在一起，比別處更擠（2026-09-11 驗收回饋，兩次）。合起來剛好是原本那一道。打了字兩道
    * 縫就回來，字自然把兩邊的 chip 擠開。
    */
   const row: ReactNode[] = [];
@@ -1191,8 +1200,10 @@ export function EntityField({
         );
       row.push(unit.node);
     });
-    // 輸入框不在隊尾時，尾端也要留一道縫 —— 否則游標回不到最後面。
-    if (inputAt < refs.length && !held) row.push(gap("gap-end", refs.length));
+    // 輸入框不在隊尾時，尾端那一塊空白也要點得到 —— 否則欄位右半邊整片是死的，點下去
+    // 既不聚焦也進不了游標（2026-09-11 驗收回饋）。那道縫吃掉剩下的空間（見 `--tail`）。
+    if (inputAt < refs.length)
+      row.push(gap("gap-end", held ? null : refs.length, false, true));
   }
 
   return (

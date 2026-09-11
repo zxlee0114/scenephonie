@@ -67,6 +67,11 @@ const chipsIn = (root: HTMLElement, field: string) =>
   [...root.querySelectorAll<HTMLElement>(`.scene__chip--${field} .entity-chip`)];
 const inputIn = (root: HTMLElement, field: string) =>
   root.querySelector<HTMLInputElement>(`.scene__chip--${field} input`)!;
+/** 看得見的順序：chip 與輸入框在這一欄裡實際排成什麼樣（`|` ＝ 輸入框）。 */
+const layoutOf = (root: HTMLElement, field: string) =>
+  [...root.querySelectorAll(`.scene__chip--${field} .entity-chip, .scene__chip--${field} input`)].map(
+    (el) => (el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×＋📍👤]/gu, "") ?? "")),
+  );
 const cell = (root: HTMLElement, label: string) =>
   root.querySelector<HTMLElement>(`.scene__chips [aria-label="${label}"]`)!;
 
@@ -87,36 +92,61 @@ describe("登場人物欄：←→ 在實體之間走", () => {
     await waitFor(() => expect(document.activeElement).toBe(chips[2]));
   });
 
-  it("一路 ← 退到第一個，再 ← 才離開這一格（去地點欄）", async () => {
+  it("一路 ← 是 chip 與縫交替，走完最前面那道縫才離開這一格（去地點欄）", async () => {
+    // `A B C |` 一路往左：C、B｜C 之間、B、A｜B 之間、A、A 左邊、出這一格（票券 39 收票）。
     const { container } = await mount(crowdedScene());
     const chips = chipsIn(container, "character");
 
     const input = inputIn(container, "character");
     input.focus();
     fireEvent.keyDown(input, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(chips[2]);
+
     fireEvent.keyDown(chips[2]!, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(input); // 游標插進 B｜C 之間
+    expect(layoutOf(container, "character")).toEqual(["小明", "小華", "|", "阿姨"]);
+
+    fireEvent.keyDown(input, { key: "ArrowLeft" });
     expect(document.activeElement).toBe(chips[1]);
+
     fireEvent.keyDown(chips[1]!, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(input); // A｜B 之間
+    expect(layoutOf(container, "character")).toEqual(["小明", "|", "小華", "阿姨"]);
+
+    fireEvent.keyDown(input, { key: "ArrowLeft" });
     expect(document.activeElement).toBe(chips[0]);
 
-    // 最前面了 —— 這一顆換 chip row 的格線接手。
+    // 第一顆左邊也有一道縫（新的一筆插得到那裡）—— 那是這一格的最後一站。
     fireEvent.keyDown(chips[0]!, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(input);
+    expect(layoutOf(container, "character")).toEqual(["|", "小明", "小華", "阿姨"]);
+
+    // 再往左就出這一格了 —— 換 chip row 的格線接手。
+    fireEvent.keyDown(input, { key: "ArrowLeft" });
     await waitFor(() => expect(document.activeElement).toBe(cell(container, "地點")));
   });
 
-  it("→ 反向走回來，最後一個 chip 再 → 回到輸入框的字首", async () => {
+  it("→ 反向走回來，一樣是 chip 與縫交替", async () => {
     const { container } = await mount(crowdedScene());
     const chips = chipsIn(container, "character");
     const input = inputIn(container, "character");
 
     chips[0]!.focus();
     fireEvent.keyDown(chips[0]!, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(input); // A｜B 之間
+    expect(layoutOf(container, "character")).toEqual(["小明", "|", "小華", "阿姨"]);
+
+    fireEvent.keyDown(input, { key: "ArrowRight" });
     expect(document.activeElement).toBe(chips[1]);
+
     fireEvent.keyDown(chips[1]!, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(input); // B｜C 之間
+    fireEvent.keyDown(input, { key: "ArrowRight" });
     expect(document.activeElement).toBe(chips[2]);
 
     fireEvent.keyDown(chips[2]!, { key: "ArrowRight" });
-    expect(document.activeElement).toBe(input);
+    expect(document.activeElement).toBe(input); // 回到隊尾
+    expect(layoutOf(container, "character")).toEqual(["小明", "小華", "阿姨", "|"]);
     expect(input.selectionStart).toBe(0); // 字接在 chip 後面，游標就落在那裡
   });
 
