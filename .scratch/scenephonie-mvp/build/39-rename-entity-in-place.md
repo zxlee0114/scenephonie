@@ -426,3 +426,13 @@ chip 也不在了），所以那時抬頭換一句話，說出下一顆 Backspac
 
 **記號與名字之間 2px。** chip 的 `gap` 是 2px，那是給名字與 × 的距離；記號直接貼著字，看起來
 擠。給記號一個 `margin-inline-end`，不動 `gap`（× 那一側不需要更寬）。
+
+### 2026-09-11 — 收票回饋第十二輪：那一小段是 CSS 的順序
+
+上一輪的模型是對的，但它沒生效：`.entity-field .entity-field__input--caret` 與
+`.entity-field .entity-field__input--inline` **同樣是 0-2-0**，靠在檔案裡的先後決勝，而 caret
+那條排在前面 —— 於是 `flex: 0 1 auto` 與 `field-sizing: content` 蓋掉了固定寬，輸入框又長回
+一小段（游標離開之後那一段還留在原地，因為游標本來就停在原地，只是它不該有寬度）。
+
+把 caret 那條移到 inline 之後，並補 `field-sizing: fixed` 明確關掉內容寬度。CSS 註解裡寫了
+這條順序依賴 —— 這種「靠順序決勝」的地方看不出來，得說出來。

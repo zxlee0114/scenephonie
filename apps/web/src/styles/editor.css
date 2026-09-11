@@ -618,18 +618,6 @@
   color: var(--text-primary);
 }
 
-/* 游標插在 chip 之間、還沒打字時，輸入框**寬度固定、而且不佔版面**：固定一格游標的寬
-   （靠內容寬度的話，空輸入框在不同瀏覽器下差零點幾像素，游標一進一出整排就微微晃動），
-   再用左右各一半的負邊距把那一格還回去 —— 淨貢獻是零，游標就浮在原本那一道縫上。
-   這樣連**第一顆 chip 左邊**也成立：那裡本來沒有縫可以扣，早先「兩側各收半寬」的做法在那
-   一格會硬生出一塊（使用者回報 2026-09-11，兩次）。 */
-.entity-field .entity-field__input--caret {
-  flex: 0 0 var(--caret-slot);
-  inline-size: var(--caret-slot);
-  min-inline-size: 0;
-  margin-inline: calc(var(--caret-slot) / -2);
-}
-
 /* 手上正握著一筆時，其餘的 chip 動不得（見 entity-field.tsx 的 `editRef`）—— 那就不該
    看起來可按。指標回到一般，連 × 一起。 */
 .entity-chip--locked,
@@ -756,6 +744,23 @@
   flex: 0 1 auto;
   field-sizing: content;
   min-inline-size: 0;
+}
+
+/* 游標插在 chip 之間、還沒打字時，輸入框**寬度固定、而且不佔版面**：固定一格游標的寬
+   （靠內容寬度的話，空輸入框在不同瀏覽器下差零點幾像素，游標一進一出整排就微微晃動），
+   再用左右各一半的負邊距把那一格還回去 —— 淨貢獻是零，游標就浮在原本那一道縫上。
+   這樣連**第一顆 chip 左邊**也成立：那裡本來沒有縫可以扣，「兩側各收半寬」的做法在那一格
+   會硬生出一塊（使用者回報 2026-09-11，兩次）。
+
+   ⚠️ 必須排在 `--inline` **後面**：兩條同樣是 0-2-0，靠順序決勝。排在前面的話 `flex: 0 1 auto`
+   與 `field-sizing: content` 會蓋掉這裡的固定寬，於是又長回一小段（使用者回報 2026-09-11）。 */
+.entity-field .entity-field__input--caret {
+  flex: 0 0 var(--caret-slot);
+  inline-size: var(--caret-slot);
+  min-inline-size: 0;
+  /* 內容寬度不再參與 —— 上面那條的 `field-sizing` 要在這裡關掉。 */
+  field-sizing: fixed;
+  margin-inline: calc(var(--caret-slot) / -2);
 }
 
 /* 手上握著一筆實體時的唯讀抬頭（票券 39 收票）—— 不是選項：選不到、Enter 碰不到。
