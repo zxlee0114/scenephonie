@@ -33,7 +33,7 @@ import {
 import { isExtraId, parseExtra, splitNamesLive } from "@scenephonie/schema";
 
 import { useChipCaret } from "./chip-caret";
-import { EXTRA_MARK, HIT_MARK, NEW_MARK } from "./field-marks";
+import { EXTRA_MARK, HIT_MARK, NEW_MARK, RENAME_MARK } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
 
 export type EntityOption = { id: string; name: string };
@@ -124,8 +124,34 @@ type Props = {
   onCommit: (refs: EntityRef[]) => void;
   /** 建立一筆新實體。**必須在 `onCommit` 之前完成** —— 先建立實體、再寫入 doc。 */
   onCreate: (name: string, via: EntityBirth) => Promise<EntityOption | null>;
-  /** 把實體本身改名（第三列第二步的「同時把實體改名」）。沒給就不出現那個選項。 */
+  /** 把實體本身改名（`✏️` 那一列，以及第三列第二步的「同時把實體改名」）。沒給就不出現。 */
   onRenameEntity?: (id: string, name: string) => void;
+  /**
+   * 改名之後，**別場還印著舊名的那些引用**要不要一起跟上（票券 39）。
+   *
+   * 這裡不替編劇決定：顯示名剛好等於舊實體名的引用，可能是他沒特地取名（那就該跟著改），
+   * 也可能是他就要那幾場印那個字。所以 `count` 先數出來**寫在按下去之前**（ADR-0006），
+   * 數到 0 就一步改完 —— 沒有別場印舊名時沒有什麼好問的。
+   *
+   * 沒給這支就只有「改目錄 ＋ 這一筆」那一半，與這張票之前的行為相同。
+   */
+  retitleOthers?: {
+    /**
+     * 還印著 `name` 的場次數（手上那一筆已經從 doc 拿掉，不在裡面）。
+     *
+     * ⚠️ **可能包含編劇正站著的這一場**：他改的是這一欄那一筆，而同一場的別欄（登場人物欄
+     * 與對白人物欄常是同一個人）仍印著舊名。那一場確實還印著舊名，所以它算進來是誠實的 ——
+     * 措辭因此是「還有 N 場印著…」而不是「別的 N 場」。
+     */
+    count: (id: string, name: string) => number;
+    /**
+     * 把那些引用的顯示名從 `from` 改成 `to`（走 kernel command，動的是 doc）。
+     *
+     * 回傳寫成功了沒 —— 被 command 拒絕時**整個改名都不做**，不留下「目錄改了、稿沒改」
+     * 的半套（見 `renameEntity`）。
+     */
+    run: (id: string, from: string, to: string) => boolean;
+  };
   className?: string;
   inputClassName?: string;
   /**
@@ -138,11 +164,16 @@ type Props = {
   inputRef?: React.Ref<HTMLInputElement>;
 };
 
-/** 選單的三個階段。第二、三階段是第三列（別名）展開後的兩步。 */
+/**
+ * 選單的階段。`aliasPick`／`aliasMode` 是第三列（別名）展開後的兩步；`rename` 是 `✏️`
+ * 那一列展開的第二步（**只在別場還印著舊名時才展開** —— 沒得問就不問，票券 39）。
+ */
 type Stage =
   | { name: "suggest" }
   | { name: "aliasPick" }
-  | { name: "aliasMode"; target: EntityOption };
+  | { name: "aliasMode"; target: EntityOption }
+  /** `others` ＝ 還印著舊名的場次數，兩列的措辭都靠它。 */
+  | { name: "rename"; target: EntityOption; others: number };
 
 type Row = {
   key: string;
@@ -164,6 +195,7 @@ export function EntityField({
   onCommit,
   onCreate,
   onRenameEntity,
+  retitleOthers,
   className,
   inputClassName,
   describedBy,
@@ -250,12 +282,24 @@ export function EntityField({
    */
   const editingMatch = (name: string): EntityOption | null => {
     const held = editing.current;
-    if (held?.id == null) return null;
-    // 群演不在目錄裡，所以這一查也順手把它們排除掉 —— 它們的存在性不走 `usage`，
-    // 從來就不會掉進「暫時是孤兒」這個坑（`resolve` 有自己那條 `isExtraId` 分支）。
-    const entity = options.find((o) => o.id === held.id);
-    if (!entity) return null;
+    const entity = heldEntity();
+    if (!held || !entity) return null;
     return name === held.displayName || name === entity.name ? entity : null;
+  };
+
+  /**
+   * 手上正握著的那一筆**指向哪一筆實體**（不問框裡的字改了沒）。
+   *
+   * 與 `editingMatch` 的差別就是那一句「不問名字」：命中列要的是「原封放回的是同一個」，
+   * 改名列要的是「這個 id 的名字要換掉」—— 後者的前提正是**字已經改掉了**。
+   *
+   * 群演不在目錄裡，所以這一查順手把它們排除掉：群演沒有跨場次身分，也就沒有「實體改名」
+   * 這件事（改它的顯示名就只是改這一場的叫法）。
+   */
+  const heldEntity = (): EntityOption | null => {
+    const held = editing.current;
+    if (held?.id == null) return null;
+    return options.find((o) => o.id === held.id) ?? null;
   };
 
   /** 把幾筆引用併進現有的（單值欄就是取代成最後一筆）。 */
@@ -480,6 +524,40 @@ export function EntityField({
           });
         }
       }
+      // ✏️ 把實體改名（票券 39）—— 條件是**手上握著一筆實體，而框裡的字不是它在目錄裡的
+      // 名字**。不看 `exact`：打了新字之後手上那一筆就不再是「命中」了（票券 38 的 `editingMatch`
+      // 刻意如此），而那正好是要改名的時候。孤兒進不來 —— 這一列問的是手上那一筆，不是目錄。
+      //
+      // **排在 `＋ 建立新實體` 後面**，不是排版問題：第一列就是 Enter 會做的事，而改名是
+      // 專案層級、⌘Z 回不來的動作（改名走 server action，不進 ProseMirror 的 history ——
+      // 票券 37 是同一個接縫）。它該是按出來的，不該是打完字順手 Enter 就發生的。
+      //
+      // 與命中那一列的差別要讀得出來：那一列是「這一場顯示為 X，實體還是叫舊名」，這一列是
+      // 「這筆實體從此叫 X」。改完**別的劇本也會看到** —— 實體屬於專案，不屬於劇本。
+      // ⚠️ 打的字剛好是**另一筆存在實體**的名字時這一列不出現：那會讓目錄裡有兩筆同名，而
+      // 編劇要的多半是「這一場指的是那一筆」（`📍` 那一列）或把兩筆併起來（合併不在這張票裡，
+      // ADR-0005 講過形狀）。同一條線也擋掉了 `＋ 建立新實體`，理由一樣。
+      const renameTarget = onRenameEntity && !byName(query) ? heldEntity() : null;
+      if (renameTarget && query !== renameTarget.name) {
+        const target = renameTarget;
+        // 代價寫在**按下去之前**（ADR-0006 那條方法論）—— 而代價是「改完還有幾場印著舊名」，
+        // 不是「這筆實體用在幾場」。後者聽起來像會動到那麼多場，但改名預設一場都不代換。
+        const others = retitleOthers?.count(target.id, target.name) ?? 0;
+        const note = others > 0 ? `（還有 ${others} 場印著「${target.name}」）` : "";
+        rows.push({
+          key: "rename",
+          label: `${RENAME_MARK} 把實體改名為「${query}」${note}`,
+          run: () => {
+            // 那幾場要不要跟上是**編劇的裁決**，不是這裡的預設值。一場都沒有就沒什麼好問的。
+            if (others === 0) {
+              renameEntity(target, false);
+              return;
+            }
+            setStage({ name: "rename", target, others });
+            setActive(0);
+          },
+        });
+      }
       // 第三列永遠在 —— 它不是建議，是一個入口。（一個存在的實體都沒有時就沒得指了。）
       if (known.length > 0) {
         rows.push({
@@ -491,6 +569,22 @@ export function EntityField({
           },
         });
       }
+    } else if (stage.name === "rename") {
+      // 改名的第二步（票券 39）。兩列的差別是**別場的舊名跟不跟著走**，所以兩邊都把場數
+      // 說出來 —— 讀得到代價才算裁決。
+      const { target, others } = stage;
+      rows.push({
+        key: "rename-scene-only",
+        // 「這一筆」而不是「這一場」：改的是手上那個 chip，同一場的別欄若也印著舊名，
+        // 它就在那 N 場裡面（見 `retitleOthers.count`）。
+        label: `只改這一筆的叫法 —— 那 ${others} 場繼續印「${target.name}」`,
+        run: () => renameEntity(target, false),
+      });
+      rows.push({
+        key: "rename-retitle",
+        label: `連那 ${others} 場一起改成「${query}」`,
+        run: () => renameEntity(target, true),
+      });
     } else if (stage.name === "aliasPick") {
       for (const option of known) {
         rows.push({
@@ -596,6 +690,28 @@ export function EntityField({
     onPromoteFromExtra(extra.id, ref.id);
     merge([ref]);
     setShowNamingHint(true);
+    reset();
+  };
+
+  /**
+   * 把**實體本身**改名（`✏️` 那一列，票券 39）。
+   *
+   * 三件事，刻意分開三個地方做：那幾場的舊稱呼走 `retitleOthers`（kernel command，動的是
+   * doc）、目錄那一筆走 `onRenameEntity`（server action，改完**別的劇本也會看到**）、手上
+   * 這一筆則是照常寫一筆引用。**那幾場只在編劇說要的時候才跑** —— 別名住在引用上
+   * （ADR-0005），系統不替他決定哪幾場的字該被換掉。
+   *
+   * **順序是先 doc、後目錄**：doc 那一半會被 command 拒絕（回 false），拒絕了就整個不做 ——
+   * 反過來的話會留下「目錄改了、稿沒改」的半套，而那一半 ⌘Z 回不來。
+   *
+   * ⚠️ 三者不在同一個 transaction。改名走 server action、不進 ProseMirror 的 history，所以
+   * ⌘Z 只退得回 doc 那一半（那幾場的字回到舊名，目錄仍是新名 —— 那幾場於是變成別名）。
+   * 這是票券 37 那個接縫，那張票落地前先別假設它會自己好。
+   */
+  const renameEntity = (target: EntityOption, alsoOthers: boolean) => {
+    if (alsoOthers && retitleOthers && !retitleOthers.run(target.id, target.name, query)) return;
+    onRenameEntity?.(target.id, query);
+    merge([{ id: target.id, displayName: query }]);
     reset();
   };
 

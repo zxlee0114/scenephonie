@@ -17,6 +17,7 @@ function Host({
   options = [dolphinApartment, policeStation],
   onCreate,
   onRenameEntity,
+  retitleOthers,
   multiple = true,
   usage,
 }: {
@@ -24,6 +25,10 @@ function Host({
   options?: EntityOption[];
   onCreate?: (name: string) => Promise<EntityOption | null>;
   onRenameEntity?: (id: string, name: string) => void;
+  retitleOthers?: {
+    count: (id: string, name: string) => number;
+    run: (id: string, from: string, to: string) => boolean;
+  };
   multiple?: boolean;
   /** 給要模擬「孤兒不算存在」的測試用；不給就是整份目錄都算存在（見 EntityField）。 */
   usage?: () => ReadonlyMap<string, number>;
@@ -49,6 +54,7 @@ function Host({
         })
       }
       onRenameEntity={onRenameEntity}
+      retitleOthers={retitleOthers}
     />
   );
 }
@@ -747,5 +753,202 @@ describe("命中列標出這一場的叫法（票券 38 驗收回饋）", () => 
 
   it("兩者相同時一個字都不多印", () => {
     expect(heldAlias([{ id: "lo_1", name: "test" }], "test")[0]).toBe("📍 test（1 場）");
+  });
+});
+
+
+describe("✏️ 把實體改名（票券 39）", () => {
+  /** 派出所被三場引用，其中這一場正被拿回來改 —— 所以 usage 只數得到別的兩場。 */
+  const held = () =>
+    render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map([[policeStation.id, 2]])}
+        onRenameEntity={() => {}}
+      />,
+    );
+
+  /** 把 chip 拿回來、改成另一個字。 */
+  const retype = (container: HTMLElement, value: string) => {
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value } });
+    return input;
+  };
+
+  it("把 chip 拿回來改字 → 多一列改名，場數寫在按下去之前", () => {
+    const { container } = held();
+    retype(container, "派出所後門");
+
+    // 場數是 usage ＋ 手上這一筆（它已經從 doc 拿掉了）。
+    // **排在建立新實體後面**：第一列是 Enter 會做的事，而改名 ⌘Z 回不來，不該順手發生。
+    expect(rows(container)).toEqual([
+      "＋ 建立新實體「派出所後門」",
+      "✏️ 把實體改名為「派出所後門」",
+      "🔗 作為既有實體的另一個名字…",
+    ]);
+  });
+
+  it("拿回來的是別名、字沒動時也能改名 —— 那個字本來就不是實體名", () => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "分局" }]}
+        usage={() => new Map([[policeStation.id, 2]])}
+        onRenameEntity={() => {}}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+
+    expect(rows(container)).toEqual([
+      "📍 派出所（這場顯示為 分局，2 場）",
+      "✏️ 把實體改名為「分局」",
+      "🔗 作為既有實體的另一個名字…",
+    ]);
+  });
+
+  it("框裡的字等於實體名（沒改）時那一列不出現 —— 沒有東西要改", () => {
+    const { container } = held();
+    retype(container, "派出所");
+
+    expect(rows(container)).toEqual(["📍 派出所（2 場）", "🔗 作為既有實體的另一個名字…"]);
+  });
+
+  it("沒有改名能力時就不出現那一列（不給做不到的選項）", () => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map([[policeStation.id, 2]])}
+      />,
+    );
+    retype(container, "派出所後門");
+
+    expect(rows(container).some((r) => r.includes("把實體改名"))).toBe(false);
+  });
+
+  it("打的字是另一筆存在實體的名字時不出現 —— 那會讓目錄有兩筆同名（合併是另一件事）", () => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        onRenameEntity={() => {}}
+      />,
+    );
+    retype(container, "海豚公寓房間");
+
+    expect(rows(container).some((r) => r.includes("把實體改名"))).toBe(false);
+  });
+
+  it("孤兒不出現改名列 —— 沒拿在手上的目錄殘骸不算命中", () => {
+    const { container } = render(
+      <Host usage={() => new Map()} onRenameEntity={() => {}} />,
+    );
+    fireEvent.change(container.querySelector("input")!, { target: { value: "派出所後門" } });
+
+    expect(rows(container).some((r) => r.includes("把實體改名"))).toBe(false);
+  });
+
+  it("沒有別場印著舊名 → 一步就改完：目錄改名，這一場也顯示新名", async () => {
+    const rename = vi.fn();
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map()}
+        onRenameEntity={rename}
+        retitleOthers={{ count: () => 0, run: vi.fn(() => true) }}
+      />,
+    );
+    retype(container, "派出所後門");
+    fireEvent.mouseDown(
+      [...container.querySelectorAll(".entity-field__menu li")].find((li) =>
+        li.textContent?.includes("把實體改名"),
+      )!,
+    );
+
+    expect(rename).toHaveBeenCalledWith(policeStation.id, "派出所後門");
+    await waitFor(() => expect(chipTexts(container)).toEqual(["派出所後門"]));
+  });
+
+  describe("別場還印著舊名 → 按下去先問「要不要一起改」", () => {
+    const openRename = (retitle: {
+      count: () => number;
+      run: (id: string, from: string, to: string) => boolean;
+    }) => {
+      const rename = vi.fn();
+      const view = render(
+        <Host
+          initial={[{ id: policeStation.id, displayName: "派出所" }]}
+          usage={() => new Map([[policeStation.id, 2]])}
+          onRenameEntity={rename}
+          retitleOthers={retitle}
+        />,
+      );
+      retype(view.container, "派出所後門");
+      fireEvent.mouseDown(
+        [...view.container.querySelectorAll(".entity-field__menu li")].find((li) =>
+          li.textContent?.includes("把實體改名"),
+        )!,
+      );
+      return { ...view, rename };
+    };
+
+    it("第二步攤出兩條路，數字都寫在按下去之前", () => {
+      const { container } = openRename({ count: () => 2, run: () => true });
+
+      expect(rows(container)).toEqual([
+        "只改這一筆的叫法 —— 那 2 場繼續印「派出所」",
+        "連那 2 場一起改成「派出所後門」",
+      ]);
+    });
+
+    it("第一步就把代價說出來 —— 數的是「還印著舊名的場次」，不是「這筆實體用在幾場」", () => {
+      const { container } = render(
+        <Host
+          initial={[{ id: policeStation.id, displayName: "派出所" }]}
+          usage={() => new Map([[policeStation.id, 2]])}
+          onRenameEntity={() => {}}
+          retitleOthers={{ count: () => 1, run: () => true }}
+        />,
+      );
+      retype(container, "派出所後門");
+
+      expect(rows(container)).toContain("✏️ 把實體改名為「派出所後門」（還有 1 場印著「派出所」）");
+    });
+
+    it("「只改這一場」→ 別場一個字都不動", async () => {
+      const run = vi.fn(() => true);
+      const { container, rename } = openRename({ count: () => 2, run });
+      fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[0]!);
+
+      expect(rename).toHaveBeenCalledWith(policeStation.id, "派出所後門");
+      expect(run).not.toHaveBeenCalled();
+      await waitFor(() => expect(chipTexts(container)).toEqual(["派出所後門"]));
+    });
+
+    it("「連那幾場一起改」→ 舊名換成新名，真正取過別名的那些不在這個範圍裡", async () => {
+      const run = vi.fn(() => true);
+      const { container, rename } = openRename({ count: () => 2, run });
+      fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[1]!);
+
+      expect(rename).toHaveBeenCalledWith(policeStation.id, "派出所後門");
+      expect(run).toHaveBeenCalledWith(policeStation.id, "派出所", "派出所後門");
+      await waitFor(() => expect(chipTexts(container)).toEqual(["派出所後門"]));
+    });
+
+    it("寫不進 doc 時整個改名都不做 —— 不留下「目錄改了、稿沒改」的半套", async () => {
+      const { container, rename } = openRename({ count: () => 2, run: () => false });
+      fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[1]!);
+
+      expect(rename).not.toHaveBeenCalled();
+      // 字也留在框裡 —— 他還站在那個決定上。
+      expect(container.querySelector("input")!.value).toBe("派出所後門");
+      await waitFor(() => expect(chipTexts(container)).toEqual([]));
+    });
+
+    it("Esc 退回第一步，打的字留著", () => {
+      const { container } = openRename({ count: () => 2, run: () => true });
+      fireEvent.keyDown(container.querySelector("input")!, { key: "Escape" });
+
+      expect(container.querySelector("input")!.value).toBe("派出所後門");
+      expect(rows(container).some((r) => r.includes("把實體改名為"))).toBe(true);
+    });
   });
 });

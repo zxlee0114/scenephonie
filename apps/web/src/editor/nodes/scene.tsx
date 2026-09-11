@@ -55,6 +55,7 @@ import { extraDescriptions } from "../extras-catalog";
 import { ExtrasField } from "../extras-field";
 import { FieldInfo } from "../field-info";
 import { entityUsage } from "../entity-usage";
+import { retitleOthersIn } from "../retitle-others";
 import { claimFocus, handOffFocus, subscribeFocusRequest } from "../focus";
 import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
 import { scrollToWritingPosition } from "../typewriter-scroll";
@@ -164,6 +165,9 @@ function SceneEntityChip({
           }
           onCreate={(name) => catalog.create(kind, name)}
           onRenameEntity={(id, name) => catalog.rename(kind, id, name)}
+          // 改名之後，**還印著舊名的那幾場**要不要跟上，由編劇當場裁（票券 39）。三個實體欄位
+          // 共用同一份接線，「什麼算還印著舊名」才只有一個答案。
+          retitleOthers={retitleOthersIn(editor)}
           onKeyDown={chipNavHandler(nav)}
         />
       )}

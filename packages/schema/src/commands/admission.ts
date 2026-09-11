@@ -105,6 +105,13 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     rationale: "拒絕對不存在人物／非本場群演的引用；以 sceneId 定址（blockIndex 是傳遞參數）。",
   },
   {
+    name: "retitleEntityRefs",
+    enforces: [],
+    addressesById: true,
+    rationale:
+      "以實體 id ＋ 舊顯示名定址（不掃位置）；只改顯示名，不建立也不移除引用，所以不碰不變式 ⑧。",
+  },
+  {
     name: "setSceneExtras",
     enforces: [],
     addressesById: true,

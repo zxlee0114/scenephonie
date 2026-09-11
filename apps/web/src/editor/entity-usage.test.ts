@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { docFromJSON, mintSceneId } from "@scenephonie/schema";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { entityUsage } from "./entity-usage";
+import { entityUsage, scenesShowingName } from "./entity-usage";
 
 const scene = (attrs: Record<string, unknown>, blocks: Record<string, unknown>[] = []) => ({
   type: "scene",
@@ -63,5 +63,35 @@ describe("entityUsage", () => {
     const usage = entityUsage(docOf(scene({ location: { locationId: null, displayName: "河堤" } })));
 
     expect(usage.size).toBe(0);
+  });
+});
+
+describe("scenesShowingName", () => {
+  const room = (displayName: string) => ({ locationId: "lo_1", displayName });
+
+  it("數的是「還印著這個名字」的場次 —— 取過別名的那一場不算", () => {
+    const doc = docOf(
+      scene({ location: room("海豚公寓房間") }),
+      scene({ location: room("海豚公寓房間") }),
+      scene({ location: room("未知大樓房間") }),
+    );
+
+    expect(scenesShowingName(doc, "lo_1", "海豚公寓房間")).toBe(2);
+  });
+
+  it("同一場的兩個位置印著同一個名字仍然是一場（單位與 entityUsage 一致）", () => {
+    const doc = docOf(
+      scene({ appearingCharacters: [{ characterId: "ch_1", displayName: "阿盈" }] }, [
+        dialogue("ch_1", "阿盈"),
+      ]),
+    );
+
+    expect(scenesShowingName(doc, "ch_1", "阿盈")).toBe(1);
+  });
+
+  it("別筆實體剛好同名不算 —— 判準是 id ＋ 顯示名", () => {
+    const doc = docOf(scene({}, [dialogue("ch_2", "阿盈")]));
+
+    expect(scenesShowingName(doc, "ch_1", "阿盈")).toBe(0);
   });
 });
