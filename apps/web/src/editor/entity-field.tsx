@@ -239,6 +239,25 @@ export function EntityField({
   /** 同名的**存在**實體。孤兒不算命中 —— 它不存在，所以那個名字仍然是「建立新實體」。 */
   const byName = (name: string) => existing().find((o) => o.name === name) ?? null;
 
+  /**
+   * 手上正在編輯的那一筆，**如果這個名字就是它**（票券 38）。
+   *
+   * `editRef` 為了把 chip 變回文字會先把引用從 doc 上拿掉，只被引用一次的實體於是暫時掉出
+   * `existing()` —— 但**它不是孤兒，只是暫時被拿在手上**。ADR-0005 要擋的是 ⌘Z 留在目錄裡
+   * 的殘骸，不是一個進行到一半的編輯動作。
+   *
+   * ⚠️ 只認**手上那一筆**，不放寬 `existing()`：孤兒仍然不進自動補全。
+   */
+  const editingMatch = (name: string): EntityOption | null => {
+    const held = editing.current;
+    if (held?.id == null) return null;
+    // 群演不在目錄裡，所以這一查也順手把它們排除掉 —— 它們的存在性不走 `usage`，
+    // 從來就不會掉進「暫時是孤兒」這個坑（`resolve` 有自己那條 `isExtraId` 分支）。
+    const entity = options.find((o) => o.id === held.id);
+    if (!entity) return null;
+    return name === held.displayName || name === entity.name ? entity : null;
+  };
+
   /** 把幾筆引用併進現有的（單值欄就是取代成最後一筆）。 */
   const merge = (added: EntityRef[]) => {
     if (added.length === 0) return;
@@ -270,12 +289,9 @@ export function EntityField({
     // 齊聲說的分界是編劇的宣告，不該由改名這個動作替他翻面。
     if (isExtraId(held?.id)) return { id: held!.id, displayName: name };
     // 一般實體：名字沒改就是原封放回，用回它自己的 id（見 `editing`）。
-    if (held?.id != null) {
-      const entity = options.find((o) => o.id === held.id);
-      if (name === held.displayName || name === entity?.name) {
-        return { id: held.id, displayName: name };
-      }
-    }
+    // 判準與選單那一列共用 `editingMatch` —— 兩邊對「沒改」的定義分家的話，選單會說一件事、
+    // 按下去做另一件事，正好是票券 38 修掉的那種不一致。
+    if (held?.id != null && editingMatch(name)) return { id: held.id, displayName: name };
 
     const hit = byName(name);
     if (hit) return { id: hit.id, displayName: name };
@@ -376,17 +392,32 @@ export function EntityField({
     // 指的是**不刪資料列**，不是「照樣顯示」。
     const counts = usage?.();
     const known = existing();
-    const hits = known.filter((o) => o.name.includes(query) && o.name !== query).slice(0, 5);
-    const exact = known.find((o) => o.name === query) ?? null;
+    // 手上那一筆也算命中 —— 少了它，把自己拿回來改會看到「建立新實體『它自己』」（票券 38）。
+    const exact = known.find((o) => o.name === query) ?? editingMatch(query);
+    // ⚠️ 排掉的是 `exact` **那一筆**，不是「名字剛好等於 query 的」。兩者多數時候同一件事，
+    // 但手上那一筆的顯示名可能不等於它在目錄裡的名字（別名，或實體改名後舊引用還留著舊字）
+    // —— 那時同一筆實體會從 `exact` 與 `hits` 各進榜一次，選單印出兩列一模一樣的名字。
+    const hits = known.filter((o) => o !== exact && o.name.includes(query)).slice(0, 5);
 
     if (stage.name === "suggest") {
       for (const option of [...(exact ? [exact] : []), ...hits]) {
         const count = counts?.get(option.id);
+        // 手上那一筆的顯示名可能不是它在目錄裡的名字（別名，或實體改名後舊引用留著舊字）
+        // —— 那時標籤主體印**實體名**、括號裡補這一場的叫法，沿用場次表那條慣例
+        // （CONTEXT.md 地點詞條：印 `實體名（這一場的顯示名）`，只在兩者不同時才印）。
+        // 主體是實體名而不是編劇打的字：他打的字他自己知道，不知道的是它會綁到誰。
+        const alias = option === exact && query !== option.name ? query : null;
+        const note = [alias && `這場顯示為 ${alias}`, count && `${count} 場`]
+          .filter(Boolean)
+          .join("，");
         rows.push({
           key: `hit:${option.id}`,
-          label: `${HIT_MARK[kind]} ${option.name}${count ? `（${count} 場）` : ""}`,
+          label: `${HIT_MARK[kind]} ${option.name}${note ? `（${note}）` : ""}`,
           run: () => {
-            merge([{ id: option.id, displayName: option.name }]);
+            // 命中列的顯示名就是實體名 —— 但**手上那一筆**用回框裡的字：它的顯示名可能是
+            // 這一場的別名（ADR-0005：別名住在引用上），拿目錄名蓋回去等於靜悄悄改掉它。
+            // 目錄命中的那一列兩者本來就相同，這一條只在「拿回來改」那條路上有差別。
+            merge([{ id: option.id, displayName: option === exact ? query : option.name }]);
             reset();
           },
         });

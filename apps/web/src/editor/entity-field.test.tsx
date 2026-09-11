@@ -551,3 +551,201 @@ describe("把 chip 拿回來重新編輯", () => {
     await waitFor(() => expect(onCreate).toHaveBeenCalledWith("派出所後門", "typed"));
   });
 });
+
+describe("編輯中的那一筆不是孤兒（票券 38）", () => {
+  // 拿下來的那一刻它的引用就從 doc 上消失了 —— 只被引用一次的話 usage 掉到 0。
+  // 那不是孤兒，是**暫時被拿在手上**：ADR-0005 要擋的是 ⌘Z 留下的殘骸，不是進行到一半的編輯。
+  const lonely = () =>
+    render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map()}
+      />,
+    );
+
+  it("拿回來改 → 沒有「建立新實體」那一列，第一列印著它自己", () => {
+    const { container } = lonely();
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
+
+    expect(rows(container)[0]).toBe("📍 派出所");
+    expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
+  });
+
+  it("一個字都不改直接定案 → 還是同一筆實體，不多建", async () => {
+    const onCreate = vi.fn(async (name: string) => ({ id: `lo_new_${name}`, name }));
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map()}
+        onCreate={onCreate}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["派出所"]));
+    expect(onCreate).not.toHaveBeenCalled();
+    // 同名的新實體 chip 文字會長得一模一樣 —— 看的是它仍然是**命中**那一種。
+    expect(chips(container)[0]!.className).toContain("--hit");
+  });
+
+  it("改成沒人用過的名字 → 「建立新實體」回來了（那才真的是新的一位）", () => {
+    const { container } = lonely();
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "派出所後門" } });
+
+    expect(rows(container)[0]).toBe("＋ 建立新實體「派出所後門」");
+  });
+
+  it("改成另一位既有存在實體的名字 → 命中那一列在、建立新的不在", () => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map([[dolphinApartment.id, 2]])}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "海豚公寓房間" } });
+
+    expect(rows(container)[0]).toBe("📍 海豚公寓房間（2 場）");
+    expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
+  });
+
+  it("被引用兩次以上的那一筆行為不變 —— 它本來就沒離開 existing()", () => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map([[policeStation.id, 1]])}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+
+    expect(rows(container)[0]).toBe("📍 派出所（1 場）");
+    expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
+  });
+
+  it("孤兒仍然不進自動補全 —— 手上沒握著它就還是不存在", () => {
+    const { container } = render(
+      <Host initial={[]} usage={() => new Map([[dolphinApartment.id, 2]])} />,
+    );
+
+    fireEvent.change(container.querySelector("input")!, { target: { value: "派出所" } });
+
+    expect(rows(container)[0]).toBe("＋ 建立新實體「派出所」");
+  });
+});
+
+describe("編輯中的那一筆：別名與人物欄（票券 38 code review）", () => {
+  it("拿回來原封放回 → 顯示名仍是這一場的別名，不會被目錄名蓋掉", async () => {
+    // 別名住在引用上（ADR-0005）。第一列印的是**實體**（📍 海豚公寓房間），按下去指的
+    // 也是它 —— 但這一場叫什麼，是編劇寫在這一場的字，不該被那一列順手改掉。
+    const commits: EntityRef[][] = [];
+    const { container } = render(
+      <EntityField
+        kind="location"
+        placeholder="地點"
+        refs={[{ id: dolphinApartment.id, displayName: "未知大樓房間" }]}
+        options={[dolphinApartment]}
+        usage={() => new Map()}
+        multiple
+        onCommit={(next) => commits.push(next)}
+        onCreate={async () => null}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    // 主體是實體名，括號裡是這一場的叫法（票券 38 驗收回饋那一節）。
+    expect(rows(container)[0]).toBe("📍 海豚公寓房間（這場顯示為 未知大樓房間）");
+
+    fireEvent.keyDown(input, { key: "Enter" }); // 第一列就是預設那一列
+    await waitFor(() => expect(commits.at(-1)).toHaveLength(1));
+    expect(commits.at(-1)![0]).toEqual({
+      id: dolphinApartment.id,
+      displayName: "未知大樓房間",
+    });
+  });
+
+  it("人物欄走同一段程式碼 —— 拿回來改一樣不冒那一列", () => {
+    const { container } = render(
+      <EntityField
+        kind="character"
+        placeholder="人物"
+        refs={[{ id: "ch_1", displayName: "服務生小李" }]}
+        options={[{ id: "ch_1", name: "服務生小李" }]}
+        usage={() => new Map()}
+        onCommit={() => {}}
+        onCreate={async () => null}
+      />,
+    );
+
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
+
+    expect(rows(container)[0]).toBe("👤 服務生小李");
+    expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
+  });
+});
+
+describe("別名 ＋ 實體改名之後，命中列不重覆（票券 38 人工驗收）", () => {
+  it("舊顯示名是實體新名的前綴時，第一列只印一次", () => {
+    // 編劇跑出來的路：A 場地點 `test` 建了實體 → B 場打 `test1` 走別名那一列，
+    // 並且「同時把實體改名」→ 目錄裡那筆現在叫 `test1`，A 場的引用顯示名還是 `test`。
+    // 回 A 場把 chip 拿回來改時，同一筆實體會從兩條路各進榜一次：
+    // `exact`（手上那一筆，票券 38）與 `hits`（名字**包含** `test` 且不等於 `test`）。
+    const { container } = render(
+      <EntityField
+        kind="location"
+        placeholder="地點"
+        refs={[{ id: "lo_1", displayName: "test" }]}
+        options={[{ id: "lo_1", name: "test1" }]}
+        usage={() => new Map([["lo_1", 1]])}
+        multiple
+        onCommit={() => {}}
+        onCreate={async () => null}
+      />,
+    );
+
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
+
+    expect(rows(container).filter((r) => r.startsWith("📍 test1"))).toHaveLength(1);
+  });
+});
+
+describe("命中列標出這一場的叫法（票券 38 驗收回饋）", () => {
+  const heldAlias = (options: EntityOption[], displayName: string) => {
+    const { container } = render(
+      <EntityField
+        kind="location"
+        placeholder="地點"
+        refs={[{ id: "lo_1", displayName }]}
+        options={options}
+        usage={() => new Map([["lo_1", 1]])}
+        multiple
+        onCommit={() => {}}
+        onCreate={async () => null}
+      />,
+    );
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
+    return rows(container);
+  };
+
+  it("顯示名不等於實體名時，括號裡補一句這一場叫什麼", () => {
+    // 沿用場次表那條慣例：印 `實體名（這一場的顯示名）`，只在兩者不同時才印括號
+    // （CONTEXT.md 的地點詞條）。選單與場次表回答同一個問題，形狀就該是同一個。
+    expect(heldAlias([{ id: "lo_1", name: "test1" }], "test")[0]).toBe(
+      "📍 test1（這場顯示為 test，1 場）",
+    );
+  });
+
+  it("兩者相同時一個字都不多印", () => {
+    expect(heldAlias([{ id: "lo_1", name: "test" }], "test")[0]).toBe("📍 test（1 場）");
+  });
+});
