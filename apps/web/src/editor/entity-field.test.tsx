@@ -663,7 +663,8 @@ describe("編輯中的那一筆：別名與人物欄（票券 38 code review）"
     const input = container.querySelector("input")!;
 
     fireEvent.keyDown(input, { key: "Backspace" });
-    expect(rows(container)[0]).toBe("📍 海豚公寓房間");
+    // 主體是實體名，括號裡是這一場的叫法（票券 38 驗收回饋那一節）。
+    expect(rows(container)[0]).toBe("📍 海豚公寓房間（這一場叫 未知大樓房間）");
 
     fireEvent.keyDown(input, { key: "Enter" }); // 第一列就是預設那一列
     await waitFor(() => expect(commits.at(-1)).toHaveLength(1));
@@ -715,5 +716,36 @@ describe("別名 ＋ 實體改名之後，命中列不重覆（票券 38 人工�
     fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
 
     expect(rows(container).filter((r) => r.startsWith("📍 test1"))).toHaveLength(1);
+  });
+});
+
+describe("命中列標出這一場的叫法（票券 38 驗收回饋）", () => {
+  const heldAlias = (options: EntityOption[], displayName: string) => {
+    const { container } = render(
+      <EntityField
+        kind="location"
+        placeholder="地點"
+        refs={[{ id: "lo_1", displayName }]}
+        options={options}
+        usage={() => new Map([["lo_1", 1]])}
+        multiple
+        onCommit={() => {}}
+        onCreate={async () => null}
+      />,
+    );
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
+    return rows(container);
+  };
+
+  it("顯示名不等於實體名時，括號裡補一句這一場叫什麼", () => {
+    // 沿用場次表那條慣例：印 `實體名（這一場的顯示名）`，只在兩者不同時才印括號
+    // （CONTEXT.md 的地點詞條）。選單與場次表回答同一個問題，形狀就該是同一個。
+    expect(heldAlias([{ id: "lo_1", name: "test1" }], "test")[0]).toBe(
+      "📍 test1（這一場叫 test，1 場）",
+    );
+  });
+
+  it("兩者相同時一個字都不多印", () => {
+    expect(heldAlias([{ id: "lo_1", name: "test" }], "test")[0]).toBe("📍 test（1 場）");
   });
 });

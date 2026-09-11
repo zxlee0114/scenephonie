@@ -402,9 +402,17 @@ export function EntityField({
     if (stage.name === "suggest") {
       for (const option of [...(exact ? [exact] : []), ...hits]) {
         const count = counts?.get(option.id);
+        // 手上那一筆的顯示名可能不是它在目錄裡的名字（別名，或實體改名後舊引用留著舊字）
+        // —— 那時標籤主體印**實體名**、括號裡補這一場的叫法，沿用場次表那條慣例
+        // （CONTEXT.md 地點詞條：印 `實體名（這一場的顯示名）`，只在兩者不同時才印）。
+        // 主體是實體名而不是編劇打的字：他打的字他自己知道，不知道的是它會綁到誰。
+        const alias = option === exact && query !== option.name ? query : null;
+        const note = [alias && `這一場叫 ${alias}`, count && `${count} 場`]
+          .filter(Boolean)
+          .join("，");
         rows.push({
           key: `hit:${option.id}`,
-          label: `${HIT_MARK[kind]} ${option.name}${count ? `（${count} 場）` : ""}`,
+          label: `${HIT_MARK[kind]} ${option.name}${note ? `（${note}）` : ""}`,
           run: () => {
             // 命中列的顯示名就是實體名 —— 但**手上那一筆**用回框裡的字：它的顯示名可能是
             // 這一場的別名（ADR-0005：別名住在引用上），拿目錄名蓋回去等於靜悄悄改掉它。
