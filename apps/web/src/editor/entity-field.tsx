@@ -1134,8 +1134,6 @@ export function EntityField({
     chips: refs.map((ref, i) => chipNode(ref, i)),
     input: inputNode,
     inputAt,
-    // 空的輸入框插在中間 ＝ 它只是一個游標，不該佔位。
-    bare: caretOnly,
     locked: held != null,
     moveCaret: (at) => {
       caret.current = at;

@@ -426,7 +426,6 @@ export function ExtrasField({
     chips: extras.map((extra, i) => chipNode(extra, i)),
     input: inputNode,
     inputAt,
-    bare: caretOnly,
     locked: held != null,
     moveCaret: (at) => {
       caret.current = at;

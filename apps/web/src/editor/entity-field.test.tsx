@@ -1365,15 +1365,19 @@ describe("點 chip 之間那道縫，下一筆就插在那裡（票券 39 收票
     expect(container.querySelectorAll(".entity-field__gap--pick")).toHaveLength(1);
   });
 
-  it("游標插進中間但還沒打字時，兩側的縫各收半寬 —— 合起來剛好是原本那一道", () => {
+  it("游標插進中間但還沒打字時，輸入框不佔版面 —— 整排不位移", () => {
+    // 固定一格游標的寬，再用左右各一半的負邊距還回去（淨貢獻零）。靠內容寬度的話，空輸入框
+    // 在不同瀏覽器下差零點幾像素，游標一進一出整排就微微晃動；只收兩側的縫則在第一顆 chip
+    // 左邊不成立 —— 那裡本來就沒有縫可以扣（使用者回報 2026-09-11，兩次）。
     const { container } = two();
     fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
-    // 兩道半寬 ＋ 幾乎沒有寬度的空輸入框 ＝ 原本那一道，那兩顆 chip 的間距看起來不變。
-    expect(container.querySelectorAll(".entity-field__gap--half")).toHaveLength(2);
+    expect(container.querySelector("input")!.className).toContain("entity-field__input--caret");
 
-    // 打了字那兩道縫就回來 —— 字自然把兩邊的 chip 擠開。
+    // 打了字它就恢復成依內容決定寬度，把兩邊的 chip 擠開。
     fireEvent.change(container.querySelector("input")!, { target: { value: "小" } });
-    expect(container.querySelectorAll(".entity-field__gap--half")).toHaveLength(0);
+    expect(container.querySelector("input")!.className).not.toContain(
+      "entity-field__input--caret",
+    );
   });
 
   it("輸入框不在隊尾時，尾端那一塊空白還是點得到（游標回到最後）", () => {

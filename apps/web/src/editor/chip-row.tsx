@@ -12,6 +12,9 @@
  *
  * 輸入框不是永遠在隊尾 —— 它排在**第 `inputAt` 格**（拿一筆起來改時就是那一筆原本的位置）。
  * 所以這裡走的是**插入位置**（`0`…`chips.length`）而不是 chip 的索引。
+ *
+ * 空的輸入框插在中間時只是一個游標，**不佔版面** —— 那是 CSS 那一半的事
+ * （`.entity-field__input--caret` 的負邊距），所以這裡的縫一律是同一個寬度。
  */
 "use client";
 
@@ -36,8 +39,6 @@ type Options = {
   input: ReactNode;
   /** 輸入框排在第幾格（`0` ＝ 所有 chip 之前，`chips.length` ＝ 全部之後）。 */
   inputAt: number;
-  /** 空的輸入框插在 chip 中間 —— 那時它只是一個游標，兩側的縫要各收半寬。 */
-  bare: boolean;
   /** 手上正握著一筆 —— 整排的縫都不接受點擊（一次只編輯一筆）。 */
   locked: boolean;
   /** 把游標挪到第 `at` 格。 */
@@ -50,7 +51,6 @@ export function chipRow({
   chips,
   input,
   inputAt,
-  bare,
   locked,
   moveCaret,
   focusInput,
@@ -59,12 +59,11 @@ export function chipRow({
    * 兩顆 chip 之間那道縫。`at` 為 `null` ＝ 不接受點擊：游標已經在那（縫的一側就是輸入框），
    * 或者手上正握著一筆。
    */
-  const gap = (key: string, at: number | null, half = false, tail = false) => (
+  const gap = (key: string, at: number | null, tail = false) => (
     <span
       key={key}
       className={[
         "entity-field__gap",
-        half && "entity-field__gap--half",
         tail && "entity-field__gap--tail",
         at != null && "entity-field__gap--pick",
       ]
@@ -94,19 +93,13 @@ export function chipRow({
     const prev = units[k - 1];
     // 縫的插入位置就是它**右邊**那個東西的位置；等於游標現在站的那一格就沒得點。
     if (prev)
-      row.push(
-        gap(
-          `gap${k}`,
-          unit.at === inputAt || locked ? null : unit.at,
-          bare && (unit.isInput || prev.isInput),
-        ),
-      );
+      row.push(gap(`gap${k}`, unit.at === inputAt || locked ? null : unit.at));
     row.push(unit.node);
   });
   // 輸入框不在隊尾時，尾端那一塊空白也要點得到 —— 否則欄位右半邊整片是死的（點下去既不
   // 聚焦也進不了游標）。那道縫吃掉剩下的空間（見 CSS 的 `--tail`）。
   if (inputAt < chips.length)
-    row.push(gap("gap-end", locked ? null : chips.length, false, true));
+    row.push(gap("gap-end", locked ? null : chips.length, true));
 
   return row;
 }
