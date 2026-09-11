@@ -205,6 +205,21 @@ export function ExtrasField({
   };
 
   /**
+   * **整輪編輯作廢** —— 手上那一筆原封回到它原本那一格，框裡打的字丟掉。
+   *
+   * 這是 `↩︎ 不修改，返回` 那一列（票券 42 第 2 條：選單走到哪一階段它都要在，因為
+   * 「編劇可能隨時都會反悔」）。它與 `↰ 回上一步` 是兩件事，別因為某一階段結果相同就合併。
+   */
+  const putBack = () => {
+    const held = editing.current;
+    if (!held) return;
+    const at = Math.min(caret.current ?? extras.length, extras.length);
+    caret.current = at + 1;
+    onCommit([...extras.slice(0, at), held, ...extras.slice(at)]);
+    reset();
+  };
+
+  /**
    * **另外開一批**（票券 40）—— 手上那一筆放回原位，框裡的字另外鑄一個 id。
    *
    * 沒有這一條路，拿起 `路人` 改到一半發現其實是另一批人（`保全`）的編劇只能先放手、
@@ -261,19 +276,19 @@ export function ExtrasField({
     const before = held ? formatExtra(held) : null;
     const after = formatExtra(parsed);
     const changed = before != null && before !== after;
-    // 這一列永遠是 `commitText`（Enter 也走它）—— 變的只有它怎麼自我介紹。
-    rows.push({
-      key: "commit",
-      label:
-        before == null
-          ? `${NEW_MARK} 新增群演「${parsed.description}」${parsed.count} 人`
-          : changed
-            ? `${RENAME_MARK} 把「${before}」改成「${after}」`
-            : // 字一個都沒改 —— 這一下什麼都沒動。名字不必再說一次（抬頭已經印著它），
-              // 這一列要說的只有「按下去等於沒事發生」（編劇指定，票券 40 第二輪）。
-              `${PUT_BACK_MARK} 不修改，返回`,
-      run: commitText,
-    });
+    // 這一列是 `commitText`（Enter 也走它）—— 變的只有它怎麼自我介紹。字一個都沒改時
+    // **它整列不出現**：那一下什麼都沒動，該說的話下面那一列 `↩︎` 已經說完了，印兩次
+    // 同一句話只是雜訊。
+    if (before == null || changed) {
+      rows.push({
+        key: "commit",
+        label:
+          before == null
+            ? `${NEW_MARK} 新增群演「${parsed.description}」${parsed.count} 人`
+            : `${RENAME_MARK} 把「${before}」改成「${after}」`,
+        run: commitText,
+      });
+    }
     // 另外開一批：只在**手上握著一批而且字改了**的時候有話說。沒握著東西時「新增」本來就
     // 是另外一批；字沒改時它只會造出一批一模一樣的，那不是編劇在這一刻要的。
     if (changed) {
@@ -285,6 +300,14 @@ export function ExtrasField({
         run: addAnother,
       });
     }
+    // `↩︎ 不修改，返回` —— **握著一批時永遠在**（票券 42 第 2 條，使用者回報 2026-09-12：
+    // 「更動文字時沒有出現不修改，返回」）。它不是「字沒改」那一格的專屬措辭，而是這一輪
+    // 編輯的退路：字改到一半反悔，按它就是原封放回。沒握著東西時不出 —— 那時沒有一輪編輯
+    // 可以作廢，`Esc` 收起選單就夠了（票券 42 建議做法第 2 條）。
+    if (held) {
+      rows.push({ key: "put-back", label: `${PUT_BACK_MARK} 不修改，返回`, run: putBack });
+    }
+
     for (const description of hits()) {
       rows.push({
         key: `hit:${description}`,

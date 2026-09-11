@@ -85,9 +85,10 @@ blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開
 | [44](./44-count-value-expand.md) | **expand**：群演人數的四種樣子（確切／區間／下限／若干）與既有 `count: number` 並存，畫面零改動。無 blocker。票券 41 拆出。 |
 | [45](./45-migrate-schema-value-semantics.md) | 遷移批次 1：值語意改吃四種樣子，顯示改用括號不用乘號。blocked by 43、44。 |
 | [46](./46-migrate-commands-four-shapes.md) | 遷移批次 2：command 收得下四種樣子；升格減一在區間／下限／若干上是什麼（票券 35 的延伸）。blocked by 45，與 47 平行。 |
-| [47](./47-migrate-extras-field-edit-state.md) | 遷移批次 3：改群演名字時人數自動保留，編輯框只認名稱。blocked by 45，與 46 平行。**票券 40 那三列一字不改地繼續成立**。 |
+| [47](./47-migrate-extras-field-edit-state.md) | 遷移批次 3：改群演名字時人數自動保留，編輯框只認名稱（已完成）。blocked by 45，與 46 平行。**票券 40 那三列一字不改地繼續成立**，只是 `↩︎ 不修改，返回` 從第一列的措辭變成自己一列、永遠在（人工驗收追加）。抬頭的新措辭與放手後的 ⌘Z 分別落在 48、53。 |
 | [48](./48-migrate-count-submenu.md) | 遷移批次 4：`修改數量…` 子選單（`↰ 不修改數量（8），回上一步`／若干／1／自由輸入）。blocked by 47、37（那條 ⌘Z 驗收沿用 37，不在群演欄另寫一套 undo 還字）。**吸收了票券 42 的第 3 條**（群演欄那一側的「回上一步」），並先加上 `↰`／`↩︎` 兩個共用記號給 42 沿用。 |
 | [49](./49-migrate-add-flow-and-promote-wording.md) | 遷移批次 5：新增流程對齊；對白人物欄與升格措辭不再印乘號（票券 35 那一列）。blocked by 48、46。 |
 | [50](./50-contract-drop-legacy-count.md) | **contract**：刪掉 `count: number`，四種樣子成為 canonical，開發資料庫 reset（不升 `doc_schema_version`）。blocked by 45–49。 |
 | [51](./51-rewrite-context-extras-decision.md) | CONTEXT.md 群演實作定案第 1 條連同理由改寫（票券 09 那條被推翻）。blocked by 50。 |
+| [53](./53-let-go-undo-restores-raw-text.md) | bug：群演放手之後的 ⌘Z 還回來的是一串裸字（瀏覽器對 input 的原生 undo），`extraId` 與人數都沒了。**從票券 47 的人工驗收切出來**；與 37 的分工是「焦點還在欄位裡」對「焦點已經走了」。 |
 | [52](./52-editing-ref-matches-itself-by-prefix.md) | bug：握著一筆實體、清空重打前綴命中不了自己（票券 38 那條裂縫）。**從票券 42 的第 4 條切出來**，與 42 的措辭工作無關。blocked by 40。 |

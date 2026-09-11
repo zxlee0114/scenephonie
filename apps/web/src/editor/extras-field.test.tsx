@@ -560,3 +560,54 @@ describe("編輯框裡只有名稱，人數自動保留（票券 47）", () => {
     expect(heldNote(container)).toBeNull();
   });
 });
+
+describe("「不修改，返回」每一階段都在（票券 42 第 2 條的通則）", () => {
+  const one = (onChangeExtras?: (extras: ExtraRef[]) => void) =>
+    render(
+      <Host
+        initial={[{ extraId: "ex_held", description: "路人", count: 8 }]}
+        onChangeExtras={onChangeExtras}
+      />,
+    );
+
+  it("字改過了它仍然在 —— 編劇隨時可能反悔", () => {
+    const { container } = one();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "保全" } });
+
+    expect(rows(container)).toEqual([
+      "✏️ 把「路人（8）」改成「保全（8）」",
+      "＋ 新增「保全（8）」群演，保留「路人（8）」",
+      "↩︎ 不修改，返回",
+    ]);
+  });
+
+  it("按下它 ＝ 整輪作廢：那一批原封回到原位，打的字丟掉", async () => {
+    const committed: ExtraRef[][] = [];
+    const { container } = one((e) => committed.push(e));
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "保全" } });
+
+    const back = rows(container).findIndex((r) => r.startsWith("↩︎"));
+    fireEvent.mouseDown(menuItems(container)[back]!);
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["路人（8）"]));
+    expect(committed.at(-1)).toEqual([{ extraId: "ex_held", description: "路人", count: 8 }]);
+    expect(container.querySelector("input")!.value).toBe("");
+  });
+
+  it("字沒改時只有它一列 —— 不會印兩次同一句話", () => {
+    const { container } = one();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "路人" } });
+
+    expect(rows(container)).toEqual(["↩︎ 不修改，返回"]);
+  });
+
+  it("沒握著東西時不出這一列 —— 沒有一輪編輯可以作廢", () => {
+    const { container } = render(<Host initial={[]} />);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "保全" } });
+
+    expect(rows(container).some((r) => r.startsWith("↩︎"))).toBe(false);
+  });
+});
