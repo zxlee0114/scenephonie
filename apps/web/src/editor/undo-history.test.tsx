@@ -352,6 +352,65 @@ describe("⌘Z 撤銷一筆定案 → 那串字回到輸入框（票券 37）", 
     expect(input.value).toBe("");
   });
 
+  it("那一下退掉的是別的動作時，欄位不插手（拿掉一顆 chip 之後的 ⌘Z）", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    const input = await newLocationChip(container);
+
+    // ⚠️ 等過歷史的分組窗（`newGroupDelay`，500ms）—— 不等的話這兩步會被併成一次 undo，
+    // 那就變成上一條測試的情況，不是這一條要釘的「退掉的是別的動作」。
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    // × ＝ 拿掉這一場對它的引用。這一步才是歷史最上面那一步了。
+    fireEvent.mouseDown(
+      container.querySelector(`${LOCATION} .entity-chip__remove`)!,
+    );
+    await waitFor(() =>
+      expect(editor.state.doc.firstChild!.attrs.location).toBeNull(),
+    );
+
+    fireEvent.keyDown(input, undoKey);
+
+    // 退回來的是那一顆 chip，不是「定案」那一步 —— 舊快照不該被誤用。
+    await waitFor(() =>
+      expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull(),
+    );
+    expect(input.value).toBe("");
+  });
+
+  it("兩筆定案被歷史併成一次 undo 時，一個名字都不接回來", async () => {
+    const CHARACTERS = ".scene__chip--character";
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    const input = await fieldInput(container, CHARACTERS);
+
+    // 連著兩筆（ProseMirror 的歷史會把 500ms 內的相鄰步驟併成一組 —— 量過，確實會）。
+    for (const name of ["小李", "小華"]) {
+      fireEvent.change(input, { target: { value: name } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() =>
+        expect(
+          container.querySelectorAll(`${CHARACTERS} .entity-chip`).length,
+        ).toBeGreaterThan(0),
+      );
+    }
+    await waitFor(() =>
+      expect(
+        container.querySelectorAll(`${CHARACTERS} .entity-chip`),
+      ).toHaveLength(2),
+    );
+
+    fireEvent.keyDown(input, undoKey);
+
+    await waitFor(() =>
+      expect(
+        editor.state.doc.firstChild!.attrs.appearingCharacters,
+      ).toBeNull(),
+    );
+    // 兩顆一起沒了 —— 這一下撤掉的不是「那一筆定案」，所以欄位不接手。把「小華」塞回框裡
+    // 會讀成「只撤了一筆」，而「小李」就這樣無聲消失了。
+    expect(input.value).toBe("");
+  });
+
   it("注音組字期間的 ⌘Z 仍然整顆還給 IME（§7.6）", async () => {
     let editor!: Editor;
     const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
