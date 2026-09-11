@@ -1175,6 +1175,20 @@ describe("編輯中的那一筆也留在原位（票券 39 收票）", () => {
     expect(layout(container)).toEqual(["阿盈", "小明", "|"]);
   });
 
+  it("夾在 chip 中間時輸入框依內容決定寬度 —— 不然它會把後半排推開", () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+    const input = container.querySelector("input")!;
+
+    expect(input.className).toContain("entity-field__input--inline");
+    expect(input.size).toBe(4); // 「建鳴」兩個寬字元
+
+    // 放手之後回到隊尾，也就回到那條彈性寬度。
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.keyDown(input, { key: "Backspace" });
+    expect(input.className).not.toContain("entity-field__input--inline");
+  });
+
   it("沒在編輯時輸入框照樣在最後", () => {
     const { container } = three();
 

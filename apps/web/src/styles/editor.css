@@ -675,6 +675,14 @@
   background: var(--selection-bg);
 }
 
+/* 輸入框夾在 chip 中間時（正在改中間那一筆，票券 39 收票）—— 它平常是彈性的，會吃掉整行
+   剩下的空間；夾在中間那就成了一道把後半排 chip 推開的空白。這裡改成依內容決定寬度。 */
+.entity-field .entity-field__input--inline {
+  flex: 0 1 auto;
+  field-sizing: content;
+  min-inline-size: 2ch;
+}
+
 /* 手上握著一筆實體時的唯讀抬頭（票券 39 收票）—— 不是選項：選不到、Enter 碰不到。
    看起來就該不像選項，所以比其餘各列淡一階、也不吃 hover。 */
 .entity-field__menu li.entity-field__menu-hint {

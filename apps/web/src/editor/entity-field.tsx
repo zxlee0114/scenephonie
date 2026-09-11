@@ -182,6 +182,20 @@ type Row = {
   run: () => void;
 };
 
+/**
+ * 一串字大概佔幾格 —— `<input size>` 的退路值（`field-sizing: content` 沒生效時才看得到）。
+ *
+ * `size` 以**平均字寬**計，中日文字元會因此排得太窄，所以拉丁字母與標點之外一律算兩格。
+ */
+const columns = (text: string) =>
+  Math.max(
+    2,
+    [...text].reduce(
+      (n, c) => n + ((c.codePointAt(0) ?? 0) > 0x2ff ? 2 : 1),
+      0,
+    ),
+  );
+
 export function EntityField({
   kind,
   placeholder,
@@ -997,7 +1011,16 @@ export function EntityField({
 
       <input
         ref={takeInput}
-        className={inputClassName}
+        // 夾在 chip 中間時**寬度依內容而定**（2026-09-11 驗收回饋）—— 平常那條 `flex` 會
+        // 吃掉整行剩下的空間，在中間就成了一道把後半排 chip 推開的空白。
+        className={[
+          inputClassName,
+          inputAt < refs.length && "entity-field__input--inline",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        // `field-sizing: content` 沒生效時的退路（見 `columns`）。
+        size={inputAt < refs.length ? columns(text) : undefined}
         // 已經有 chip 就不必再留提示字 —— chip 自己就說明了這一欄是什麼。
         placeholder={refs.length > 0 ? "" : placeholder}
         aria-label={placeholder}
