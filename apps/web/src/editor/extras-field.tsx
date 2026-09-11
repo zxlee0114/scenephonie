@@ -19,6 +19,12 @@
  *
  * ⚠️ **重新編輯保住 `extraId`**：對白的人物欄可以指向本場的群演，改人數若換一個新 id，那句
  * 台詞的引用當場懸空。拿下來的東西放回去就該是原來那一筆（同 `entity-field.tsx` 的 `editing`）。
+ *
+ * ── 手上握著一批時，選單說的是「改」不是「新增」（票券 40）─────────────────
+ * 承上：那一下就是**就地改**，所以第一列印 `✏️ 把「路人 x3」改成「路人 x8」`。想留著原本
+ * 那批、另外造一筆的，走 `addAnother` 那一列 —— 那是人物欄 `＋ 建立新實體` 在這一側的對應
+ * 物。兩列都不寫場數：群演只影響這一場，這正是它與票券 39 那三列（實體有別場，按下去可能
+ * 動到別場）的差別。
  */
 "use client";
 
@@ -40,7 +46,7 @@ import {
 
 import { useChipCaret } from "./chip-caret";
 import { chipRow, columns } from "./chip-row";
-import { EXTRA_MARK } from "./field-marks";
+import { EXTRA_MARK, NEW_MARK, PUT_BACK_MARK, RENAME_MARK } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
 
 type Props = {
@@ -181,6 +187,25 @@ export function ExtrasField({
     reset();
   };
 
+  /**
+   * **另外開一批**（票券 40）—— 手上那一筆放回原位，框裡的字另外鑄一個 id。
+   *
+   * 沒有這一條路，拿起 `路人 x3` 改到一半發現其實是另一批人（`保全 x1`）的編劇只能先放手、
+   * 再打一次：`toExtra` 一律沿用握著那一筆的 id（見檔頭），改就是就地改。這一列是人物欄
+   * `＋ 建立新實體` 在群演這一側的對應物 —— 留著原本那筆，另外造一筆。
+   */
+  const addAnother = () => {
+    const held = editing.current;
+    const parsed = parseExtra(text);
+    if (!held || !parsed) return;
+    const at = Math.min(caret.current ?? extras.length, extras.length);
+    const minted: ExtraRef = { extraId: mintExtraId(), ...parsed };
+    // 放回去的那一筆站回它原本那一格，新的一批緊接在後 —— 游標停在兩顆之後（同 `add`）。
+    caret.current = at + 2;
+    onCommit([...extras.slice(0, at), held, minted, ...extras.slice(at)]);
+    reset();
+  };
+
   const query = text.trim();
   const parsed = parseExtra(text);
   const menuOpen = !composingNow && !dismissed && query.length > 0;
@@ -197,11 +222,42 @@ export function ExtrasField({
 
   const rows: Row[] = [];
   if (menuOpen && parsed) {
+    /**
+     * 第一列說的是**按下去會發生的事**（票券 40）。
+     *
+     * 手上握著一批時那一下不是「新增」—— `toExtra` 沿用握著那一筆的 `extraId`（見檔頭），
+     * 所以它是**就地改**。這一列不寫場數：群演本來就只影響這一場，那正是它與票券 39 那列
+     * （實體有別場，所以要先說會不會動到別場）的差別。
+     *
+     * 描述與人數是同一列裡的兩件事（`路人 x3` → `路人 x8` 只改了後者），所以兩邊都印整串
+     * `描述 x 人數` —— 改了哪一半都讀得出來，不必猜。
+     */
+    const held = editing.current;
+    const before = held ? formatExtra(held) : null;
+    const after = formatExtra(parsed);
+    const changed = before != null && before !== after;
+    // 這一列永遠是 `commitText`（Enter 也走它）—— 變的只有它怎麼自我介紹。
     rows.push({
       key: "commit",
-      label: `＋ 新增群演「${parsed.description}」${parsed.count} 人`,
+      label:
+        before == null
+          ? `${NEW_MARK} 新增群演「${parsed.description}」${parsed.count} 人`
+          : changed
+            ? `${RENAME_MARK} 把「${before}」改成「${after}」`
+            : // 字一個都沒改 —— 這一下什麼都沒動，就照實說它只是把那一批放回去。
+              `${PUT_BACK_MARK} 放回「${after}」`,
       run: commitText,
     });
+    // 另外開一批：只在**手上握著一批而且字改了**的時候有話說。沒握著東西時「新增」本來就
+    // 是另外一批；字沒改時它只會造出一批一模一樣的，那不是編劇在這一刻要的。
+    if (changed) {
+      rows.push({
+        key: "another",
+        // 代價寫在按下去之前（ADR-0006）—— 這一列與上一列的差別就是「原本那批還在不在」。
+        label: `${NEW_MARK} 另外開一批「${after}」 —— 原本的「${before}」留著`,
+        run: addAnother,
+      });
+    }
     for (const description of hits()) {
       rows.push({
         key: `hit:${description}`,

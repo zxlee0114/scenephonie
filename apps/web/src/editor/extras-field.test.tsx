@@ -294,3 +294,95 @@ describe("群演欄吃的是同一套 chip 手感（票券 39 收票）", () => 
     expect(chipTexts(container)).toEqual(["客人 x8", "警察 x3", "服務生 x2"]);
   });
 });
+
+describe("改一批群演，選單要說它真的在做的事（票券 40）", () => {
+  const one = (onChangeExtras?: (extras: ExtraRef[]) => void) =>
+    render(
+      <Host initial={[{ extraId: "ex_held", description: "路人", count: 3 }]} onChangeExtras={onChangeExtras} />,
+    );
+
+  it("握著一批、字改掉了 —— 第一列說的是「改」，不是「新增」", () => {
+    const { container } = one();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "保全 x1" } });
+
+    expect(rows(container)[0]).toBe("✏️ 把「路人 x3」改成「保全 x1」");
+  });
+
+  it("只改人數也是同一列，兩邊的人數都讀得到", () => {
+    const { container } = one();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "路人 x8" } });
+
+    expect(rows(container)[0]).toBe("✏️ 把「路人 x3」改成「路人 x8」");
+  });
+
+  it("按下去就是就地改 —— id 不變，指著它的對白不懸空", async () => {
+    const committed: ExtraRef[][] = [];
+    const { container } = one((e) => committed.push(e));
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "路人 x8" } });
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[0]!);
+
+    await waitFor(() =>
+      expect(committed.at(-1)).toEqual([{ extraId: "ex_held", description: "路人", count: 8 }]),
+    );
+  });
+
+  it("字沒改時那一列說的是「放回」 —— 沒有東西被改，也沒有東西被新增", () => {
+    const { container } = one();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "路人 x3" } });
+
+    expect(rows(container)[0]).toBe("↩︎ 放回「路人 x3」");
+    expect(rows(container).some((r) => r.includes("另外開一批"))).toBe(false);
+  });
+
+  it("另外開一批：原本那批留著，新的一批是另一個 id", async () => {
+    const committed: ExtraRef[][] = [];
+    const { container } = one((e) => committed.push(e));
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "保全 x1" } });
+
+    const another = rows(container).findIndex((r) => r.includes("另外開一批"));
+    expect(rows(container)[another]).toBe("＋ 另外開一批「保全 x1」 —— 原本的「路人 x3」留著");
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[another]!);
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["路人 x3", "保全 x1"]));
+    const [kept, minted] = committed.at(-1)!;
+    expect(kept).toEqual({ extraId: "ex_held", description: "路人", count: 3 });
+    expect(minted!.extraId).not.toBe("ex_held");
+    expect(minted).toMatchObject({ description: "保全", count: 1 });
+  });
+
+  it("另外開一批：放回原本那一格，新的一批緊接在後，游標停在兩顆之後", () => {
+    const { container } = render(
+      <Host
+        initial={[
+          { extraId: "ex_a", description: "客人", count: 8 },
+          { extraId: "ex_b", description: "服務生", count: 2 },
+        ]}
+      />,
+    );
+    /** 看得見的順序（`|` ＝ 輸入框）—— 拿起中間那一筆時，兩批都該站回它原本那一段。 */
+    const layout = () =>
+      [...container.querySelectorAll(".entity-chip, input")].map((el) =>
+        el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×👥]/gu, "").trim() ?? ""),
+      );
+
+    fireEvent.mouseDown(container.querySelectorAll(".entity-chip")[0]!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "警察 x3" } });
+    const another = rows(container).findIndex((r) => r.includes("另外開一批"));
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[another]!);
+
+    expect(layout()).toEqual(["客人 x8", "警察 x3", "|", "服務生 x2"]);
+  });
+
+  it("手上沒握著東西時還是「新增」 —— 那一下確實是憑空多一批", () => {
+    const { container } = render(<Host />);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "路人 x3" } });
+
+    expect(rows(container)[0]).toBe("＋ 新增群演「路人」3 人");
+    expect(rows(container).some((r) => r.includes("另外開一批"))).toBe(false);
+  });
+});
