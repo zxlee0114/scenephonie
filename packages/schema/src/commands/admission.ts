@@ -129,7 +129,8 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     name: "takeOneFromExtra",
     enforces: [],
     addressesById: true,
-    rationale: "以 sceneId ＋ extraId 定址；拒絕別場的 extraId，減到 0 就整筆移除（群演是場次限定實體）。",
+    rationale:
+      "以 sceneId ＋ extraId 定址；拒絕別場的 extraId，確切人數減到 0 就整筆移除（群演是場次限定實體）。",
   },
   {
     name: "dedupeSceneIds",

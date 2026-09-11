@@ -186,3 +186,56 @@ export function countValueOf(raw: unknown): CountValue | null {
       return null;
   }
 }
+
+/**
+ * 遷移窗口裡那個**舊欄位**該填什麼：一種樣子算得出的下限，若干沒有下限只好填 1（票券 44）。
+ *
+ * 這條規則原本以 `countLowerBound(v) ?? 1` 的樣子散在好幾個寫入端與讀取端 —— 同一句話沒有
+ * 名字，就會有人只改其中一處。⚠️ 那個 1 就是**會說謊的那一個**（`路人（若干）` 的舊欄位是 1，
+ * 不是「一個人」的意思）；票券 50 刪掉 `count` 時，要刪的就是這個函式與它的呼叫端。
+ */
+export function legacyCount(value: CountValue): number {
+  return countLowerBound(value) ?? 1;
+}
+
+/**
+ * 拉走一個人之後，那批人**剩下的樣子**；`null` ＝ 這一批就沒有了（票券 46）。
+ *
+ * 升格（票券 35）把一個人從背景演員裡拉出來變成人物，那批人因此少一個。這個函式是
+ * 「`3-5` 減一是多少」的**唯一真相來源** —— 措辭那一側（票券 49 的「群演剩 2-4 人」）
+ * 吃的是它的回傳值，畫面不自己算。
+ *
+ * | 原值 | 剩下 |
+ * |---|---|
+ * | `8` | `7` |
+ * | `3-5` | `2-4` |
+ * | `10+` | `9+` |
+ * | `若干` | `若干` |
+ * | `1` | 整筆移除（`null`） |
+ *
+ * ⚠️ **只有「確切」走得到「減到 0 就整筆移除」**（票券 35 那條裁決因此是**加一個條件、
+ * 不是被推翻**）：區間、下限、若干本來就沒有說死有幾個人，拉走一個不會讓那批人消失。
+ *
+ * 有數字的那幾端**減不到 1 以下**：0 不是四種樣子裡的任何一種，而「說不定沒有人了」這件事
+ * 這四種樣子都說不出來。`1+` 拉走一個仍然是 `1+`、`1-3` 是 `1-2` —— 下限最多高估一個人，
+ * 但上限與「這批人還在」都是真的，那是四種樣子裡最接近的一種說法。
+ */
+export function countAfterTakingOne(value: CountValue): CountValue | null {
+  /** 減一，但踩在 1 上不動（見上面那段）—— 確切那一種走的是另一條路，它減得到 0。 */
+  const minusOne = (n: number) => Math.max(1, n - 1);
+  switch (value.kind) {
+    case "exact":
+      // 0 個背景演員等於沒有這一筆（票券 09 對 `x0` 的裁決，同 `parseExtra`）。
+      return value.count > 1 ? { kind: "exact", count: value.count - 1 } : null;
+    case "range": {
+      const from = minusOne(value.from);
+      const to = minusOne(value.to);
+      // 兩端相同收斂成確切 —— 同 `countValueOf`，否則 `路人（2-2）` 會從這裡溜出去。
+      return from === to ? { kind: "exact", count: from } : { kind: "range", from, to };
+    }
+    case "atLeast":
+      return { kind: "atLeast", count: minusOne(value.count) };
+    case "some":
+      return { kind: "some" };
+  }
+}
