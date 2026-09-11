@@ -59,7 +59,8 @@ export {
 } from "./extras";
 
 // 人數的四種樣子（票券 44）。型別要出得去，因為 `ExtraRef.countValue` 是公開形狀的一部分；
-// `resolveCountInput`／`countHintText`／`countLowerBound` 還沒有呼叫端（票券 45–48 才會有），
+// `resolveCountInput`／`countHintText`／`countLowerBound`／`countAfterTakingOne`（票券 46 的
+// 「升格減一」，第一個套件外呼叫端是票券 49 的措辭）還沒有呼叫端，
 // 照這個檔案既有的規矩留在模組裡 —— 沒有讀者的公開介面是一種債。
 export type { CountValue } from "./count";
 

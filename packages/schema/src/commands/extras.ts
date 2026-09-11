@@ -11,6 +11,7 @@
  */
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
+import { countAfterTakingOne, countValueOf, legacyCount, type CountValue } from "../count";
 import { isExtraId, sceneExtras } from "../extras";
 import type { ExtraRef } from "../schema";
 import { type CommandResult, ok, reject } from "./result";
@@ -28,8 +29,14 @@ export interface SetSceneExtrasOptions {
  * **多值是這一欄的性質**（`咖啡廳客人 x8、服務生 x2`）—— 與地點欄相反，那裡多值是雜景的
  * 性質。理由是同一個時空本來就可以同時有好幾批背景演員，那不動搖場次的身分。
  *
- * 人數必須是**正整數**：0 個背景演員等於沒有這一筆，小數與負數不是人。描述空白的那一筆
- * 也擋下來 —— 沒有描述的人數不知道是在數什麼。
+ * 人數必須是**四種樣子之一**（票券 46 把合法性從「正整數」搬到這裡）：確切、區間、下限、
+ * 若干。拒收的因此是**壞形狀** —— `{ kind: "range", from: 5, to: 3 }`、`kind` 不認得、
+ * 根本不是一個值 —— 而不是「非正整數」，因為區間與若干本來就不是一個整數。
+ * 描述空白的那一筆照樣擋下來 —— 沒有描述的人數不知道是在數什麼。
+ *
+ * ⚠️ 遷移窗口裡**兩個形態一起寫**（票券 44 的 `bothShapes` 那條規矩）：新形態是權威，舊欄位
+ * 由它推（`legacyCount`），呼叫端給的 `count` 直接被蓋掉。兩邊一起寫是硬性的
+ * —— 只改一邊，讀回來會是另一邊那個數字，而且不會報錯（票券 50 刪掉 `count` 之後這條消失）。
  */
 export function setSceneExtras(
   doc: ProseMirrorNode,
@@ -42,6 +49,7 @@ export function setSceneExtras(
   if (index === -1) return reject(`找不到 sceneId「${sceneId}」`);
 
   const seen = new Set<string>();
+  const normalized: ExtraRef[] = [];
   for (const extra of extras) {
     if (!isExtraId(extra.extraId)) {
       return reject(`群演 id「${extra.extraId}」不是 ex_ 開頭的識別碼`);
@@ -49,15 +57,22 @@ export function setSceneExtras(
     if (seen.has(extra.extraId)) return reject(`群演「${extra.extraId}」在同一場出現兩次`);
     seen.add(extra.extraId);
     if (extra.description.trim() === "") return reject("群演要有描述 —— 只有人數不知道是在數什麼");
-    if (!Number.isInteger(extra.count) || extra.count < 1) {
-      return reject(`群演「${extra.description}」的人數要是正整數，收到 ${extra.count}`);
+    const countValue = writtenCount(extra);
+    if (!countValue) {
+      return reject(`群演「${extra.description}」的人數不是四種樣子裡的任何一種`);
     }
+    normalized.push({
+      extraId: extra.extraId,
+      description: extra.description,
+      count: legacyCount(countValue),
+      countValue,
+    });
   }
 
   const scene = children[index]!;
   const next = [...children];
   next[index] = scene.type.create(
-    { ...scene.attrs, extras: extras.map((e) => ({ ...e })) },
+    { ...scene.attrs, extras: normalized },
     scene.content,
     scene.marks,
   );
@@ -66,6 +81,21 @@ export function setSceneExtras(
   } catch (err) {
     return reject(`寫入群演後 doc 不符 schema：${(err as Error).message}`);
   }
+}
+
+/**
+ * 這一筆要寫進去的人數。讀不出一種樣子就回 `null`（＝拒收）。
+ *
+ * 新形態在就以它為準；只帶舊數字的呼叫端（票券 47–49 還沒搬過來的那幾個）由正整數推出
+ * 「確切 N」。⚠️ 這裡**不學讀取路徑補「若干」**：`sceneExtras` 補得起，是因為它面對的是
+ * 已經躺在 doc 裡的資料，少讀一筆不如讀歪一筆；而寫入端手上那一筆還沒落地，一個推不出
+ * 樣子的人數是呼叫端的 bug，靜靜補一個值等於把它藏起來。
+ */
+function writtenCount(extra: ExtraRef): CountValue | null {
+  if (extra.countValue !== undefined) return countValueOf(extra.countValue);
+  return Number.isInteger(extra.count) && extra.count >= 1
+    ? { kind: "exact", count: extra.count }
+    : null;
 }
 
 export interface AddSceneExtrasOptions {
@@ -117,8 +147,13 @@ export interface TakeOneFromExtraOptions {
  * 另一半（那個人物落地、對白的引用指向他）住在畫面那一側，因為它要經過實體目錄；兩半在
  * 呼叫端串成**同一個 transaction**，⌘Z 一次回到升格前。
  *
- * **減到 0 就整筆移除**，不留 `x0`：0 個背景演員等於沒有這一筆（票券 09 已裁決，同 `parseExtra`
- * 拒收 `x0` 的那條理由）。留著的話場次表會印出「服務生 x0」，副導看到一個不存在的需求。
+ * **只有「確切」走得到「減到 0 就整筆移除」**（票券 46）：0 個背景演員等於沒有這一筆（票券 09
+ * 已裁決，同 `parseExtra` 拒收 `x0` 的那條理由，留著的話場次表會印出一個不存在的需求）——
+ * 但區間、下限、若干**減不到 0**，它們本來就沒有說死有幾個人，拉走一個不會讓那批人消失。
+ * 票券 35 那條裁決因此是**加一個條件，不是被推翻**。
+ *
+ * 「剩多少」這件事這裡不自己算，`countAfterTakingOne` 是唯一真相來源 —— 措辭那一側
+ * （票券 49 的「群演剩 2-4 人」）吃的是同一個函式，畫面不該自己決定 `3-5` 減一是多少。
  *
  * ⚠️ 找不到那筆群演就**拒絕**，不當作沒事發生。呼叫端要的是「那批人少一個」，少掉的那一個
  * 已經在同一個 transaction 裡變成人物了 —— 靜靜跳過等於憑空多一個演員。別場的 `extraId`
@@ -137,8 +172,12 @@ export function takeOneFromExtra(
     return reject(`場次「${sceneId}」沒有群演「${extraId}」—— 群演是場次限定實體`);
   }
 
-  const next = current.flatMap((e) =>
-    e.extraId === extraId ? (e.count > 1 ? [{ ...e, count: e.count - 1 }] : []) : [e],
-  );
+  const next = current.flatMap((e) => {
+    if (e.extraId !== extraId) return [e];
+    // `sceneExtras` 讀回來的每一筆都帶得出新形態（票券 44），`??` 那一半只是遷移窗口裡
+    // `countValue` 還是可選欄位 —— 票券 50 之後連同這個 fallback 一起消失。
+    const left = countAfterTakingOne(e.countValue ?? { kind: "exact", count: e.count });
+    return left ? [{ ...e, countValue: left }] : [];
+  });
   return setSceneExtras(doc, { sceneId, extras: next });
 }
