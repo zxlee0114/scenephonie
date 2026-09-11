@@ -176,6 +176,22 @@ describe("countAfterTakingOne —— 升格拉走一個之後那批人剩多少�
     expect(countAfterTakingOne({ kind: "some" })).toEqual({ kind: "some" });
   });
 
+  it("下限踩在 1 上之後，一路減的是上限，最後一個才用完（使用者裁決 2026-09-12）", () => {
+    // `1-3` → `1-2` → 確切 1 → 整筆移除。這條鏈整串走一次，因為它是使用者裁決的那個邊：
+    // 下限是 1 時先減上限，上限也到 1 之後再減才會用完。
+    const chain: (CountValue | null)[] = [];
+    let value: CountValue | null = { kind: "range", from: 1, to: 3 };
+    while (value) {
+      value = countAfterTakingOne(value);
+      chain.push(value);
+    }
+    expect(chain).toEqual([
+      { kind: "range", from: 1, to: 2 },
+      { kind: "exact", count: 1 },
+      null,
+    ]);
+  });
+
   it("減不到 1 以下 —— 0 不是四種樣子裡的任何一種", () => {
     expect(countAfterTakingOne({ kind: "atLeast", count: 1 })).toEqual({
       kind: "atLeast",
