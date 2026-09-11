@@ -24,14 +24,22 @@
 
 import {
   useEffect,
+  useReducer,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 
-import { formatExtra, mintExtraId, parseExtra, splitNamesLive, type ExtraRef } from "@scenephonie/schema";
+import {
+  formatExtra,
+  mintExtraId,
+  parseExtra,
+  splitNamesLive,
+  type ExtraRef,
+} from "@scenephonie/schema";
 
 import { useChipCaret } from "./chip-caret";
+import { chipRow, columns } from "./chip-row";
 import { EXTRA_MARK } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
 
@@ -72,6 +80,15 @@ export function ExtrasField({
   const [composingNow, setComposingNow] = useState(false);
   /** 正在被重新編輯的那一筆：放回去時用回它自己的 `extraId`（見檔頭）。 */
   const editing = useRef<ExtraRef | null>(null);
+  /**
+   * **輸入框排在第幾格** —— `0` ＝ 所有 chip 之前，`null` ＝ 全部之後（平常的樣子）。
+   *
+   * 與實體欄位逐字同一套（見 `entity-field.tsx` 的 `caret`）：拿一筆起來改時輸入框停在它
+   * 原本的位置、定案之後停在那一顆之後、點兩顆之間那道縫也是改它。
+   */
+  const caret = useRef<number | null>(null);
+  /** 只為了重繪 —— 「手上那一筆」與游標位置都住在 ref 裡，改它們不會驚動 React。 */
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
   const selectNext = useRef(false);
   const input = useRef<HTMLInputElement>(null);
   const takeInput = (el: HTMLInputElement | null) => {
@@ -88,6 +105,7 @@ export function ExtrasField({
 
   const reset = () => {
     editing.current = null;
+    // `caret` 不清 —— `add` 剛把它挪到新 chip 之後，那就是游標該在的地方。
     setText("");
     setActive(0);
     setDismissed(false);
@@ -105,7 +123,16 @@ export function ExtrasField({
   const add = (segments: string[]) => {
     const added = segments.map(toExtra).filter((e): e is ExtraRef => e !== null);
     if (added.length === 0) return;
-    onCommit([...extras, ...added]);
+    // 放在**游標停的地方**，定案之後游標停在這一串之後（同實體欄位的 `merge`）。
+    const at = caret.current;
+    if (at != null && at <= extras.length) {
+      caret.current = at + added.length;
+      onCommit([...extras.slice(0, at), ...added, ...extras.slice(at)]);
+    } else {
+      caret.current = null;
+      onCommit([...extras, ...added]);
+    }
+    redraw(); // `toExtra` 把手上那一筆放下了 —— 那是 ref，要自己說一聲
   };
 
   /**
@@ -113,8 +140,12 @@ export function ExtrasField({
    *
    * **一律整串反白**：可以直接覆寫，也還是能按 → 收起來接著改。滑鼠進來與 Backspace 進來
    * 原本是兩種樣子，統一成這一種（使用者裁決 2026-09-11，同實體欄位的 `editRef`）。
+   *
+   * **手上已經握著一筆時擋住** —— 同一個手勢不該有兩種看不見的結果（同上）。
    */
   const editExtra = (extra: ExtraRef) => {
+    if (editing.current) return; // 一次只編輯一筆（同實體欄位的 `editRef`）
+    caret.current = extras.indexOf(extra);
     editing.current = extra;
     onCommit(extras.filter((e) => e !== extra));
     setText(formatExtra(extra));
@@ -124,14 +155,25 @@ export function ExtrasField({
     input.current?.focus();
   };
 
+  /** 把手上那一筆**放掉** —— 這一場就沒有這一批群演了（拿起來時已經從 doc 上撤掉）。 */
+  const letGo = () => {
+    editing.current = null;
+    // `caret` 刻意不動 —— 游標留在它原本站的那一格，不跳回隊尾。
+    redraw();
+  };
+
   const commitText = () => {
     if (!text.trim()) return;
-    // 解析不出一筆群演（例：只打了 `x8`）時**把手上那一筆放回去** —— 重新編輯是把 chip
+    // 解析不出一筆群演（例：只打了 `x8`）時**把手上那一筆放回原位** —— 重新編輯是把 chip
     // 拿下來改，改到一半打成沒有描述的字不該讓它消失。沒有手上那一筆就什麼都不做。
     const parsed = parseExtra(text);
     if (!parsed) {
       const held = editing.current;
-      if (held) onCommit([...extras, held]);
+      if (held) {
+        const at = caret.current ?? extras.length;
+        caret.current = at + 1;
+        onCommit([...extras.slice(0, at), held, ...extras.slice(at)]);
+      }
       reset();
       return;
     }
@@ -182,12 +224,20 @@ export function ExtrasField({
   /** chip 之間的方向鍵（票券 34 第三輪）—— 規則與版面說明見 `./chip-caret`。 */
   const chipCaret = useChipCaret({
     count: extras.length,
+    home: Math.min(caret.current ?? extras.length, extras.length),
     input,
     text,
     exit: (event) => onKeyDown?.(event),
     edit: (i) => {
       const extra = extras[i];
       if (extra) editExtra(extra);
+    },
+    // 方向鍵也停得進 chip 之間那道縫。手上握著一筆時不動 —— 那一刻輸入框「排在第幾格」
+    // 說的是那一筆的位置，挪走它畫面就對不上了。
+    moveCaret: (at) => {
+      if (editing.current) return;
+      caret.current = at;
+      redraw();
     },
   });
 
@@ -227,11 +277,20 @@ export function ExtrasField({
       return;
     }
 
-    if (event.key === "Backspace" && text === "" && extras.length > 0) {
-      event.preventDefault();
-      // 拿下來的那一筆整串反白：再按一次就一起刪掉（同實體欄位的裁決）。
-      editExtra(extras[extras.length - 1]!);
-      return;
+    if (event.key === "Backspace" && text === "") {
+      // 手上還握著一筆（清空了但還沒放手）—— 這一下是**放掉它**，不是去拿前一個。
+      if (editing.current) {
+        event.preventDefault();
+        letGo();
+        return;
+      }
+      // 把**游標左邊**那一顆拿下來改，整串反白：再按一次就一起刪掉（同實體欄位的裁決）。
+      const left = extras[(caret.current ?? extras.length) - 1];
+      if (left) {
+        event.preventDefault();
+        editExtra(left);
+        return;
+      }
     }
 
     // ← 從字首退進 chip（空欄位才算）—— 沒退成才輪到 chip row 的格線導航。
@@ -251,44 +310,72 @@ export function ExtrasField({
     add(names);
   };
 
-  return (
-    <div className="entity-field extras-field">
-      <span className="entity-field__chips">
-        {extras.map((extra, i) => (
-          <span
-            key={extra.extraId}
-            {...chipCaret.chipProps(i)}
-            className="entity-chip entity-chip--extra"
-            // 點它 ＝ 改它（描述與人數一起回到輸入框）。`mousedown` 而非 `click`：見 entity-field.tsx。
-            onMouseDown={(e) => {
-              e.preventDefault();
-              editExtra(extra);
-            }}
-          >
-            <span className="entity-chip__mark" aria-hidden="true">
-              {EXTRA_MARK}
-            </span>
-            {formatExtra(extra)}
-            <button
-              type="button"
-              className="entity-chip__remove"
-              tabIndex={-1}
-              aria-label={`移除${extra.description}`}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onCommit(extras.filter((x) => x !== extra));
-                input.current?.focus();
-              }}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-      </span>
+  const held = editing.current;
+  /** 輸入框現在**夾在 chip 中間**嗎 —— 決定它吃不吃那條彈性寬度（見 CSS 的 `--inline`）。 */
+  const inputAt = Math.min(caret.current ?? extras.length, extras.length);
+  const inline = held != null || inputAt < extras.length;
+  /** 空的輸入框插在 chip 中間 —— 它這一刻只是一個游標。 */
+  const caretOnly = !held && inputAt < extras.length && text === "";
 
+  /** 一筆已經定案的群演。手上握著一筆時整排 chip 都是動不得的（見 `editExtra`）。 */
+  const chipNode = (extra: ExtraRef, i: number) => (
+    <span
+      key={extra.extraId}
+      {...chipCaret.chipProps(i)}
+      className={["entity-chip", "entity-chip--extra", held && "entity-chip--locked"]
+        .filter(Boolean)
+        .join(" ")}
+      // 點它 ＝ 改它（描述與人數一起回到輸入框）。`mousedown` 而非 `click`：見 entity-field.tsx。
+      // 握著一筆時只擋住、不放行，但 `preventDefault` 一定要照做 —— 少了它這一下會 blur，
+      // 而 blur 會把手上那一筆定案。
+      onMouseDown={(e) => {
+        e.preventDefault();
+        editExtra(extra);
+      }}
+    >
+      <span className="entity-chip__mark" aria-hidden="true">
+        {EXTRA_MARK}
+      </span>
+      {formatExtra(extra)}
+      <button
+        type="button"
+        className="entity-chip__remove"
+        tabIndex={-1}
+        aria-label={`移除${extra.description}`}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (held) return; // 動不得的時候連 × 也動不得
+          onCommit(extras.filter((x) => x !== extra));
+          input.current?.focus();
+        }}
+      >
+        ×
+      </button>
+    </span>
+  );
+
+  /**
+   * 編輯中的那一筆**看起來還是一顆 chip**（同實體欄位）—— 記號、邊框、× 都留著，只有裡面
+   * 那段字換成可以打的。少了這一層，點下去的那一刻 chip 整個變成裸字，整排跟著位移。
+   */
+  const inputNode = (
+    <span key="input" className={held ? "entity-field__input-chip" : "entity-field__input-wrap"}>
+      {held && (
+        <span className="entity-chip__mark" aria-hidden="true">
+          {EXTRA_MARK}
+        </span>
+      )}
       <input
         ref={takeInput}
+        // 夾在 chip 中間時寬度依內容而定；只是一個游標插在中間時寬度固定（見 entity-field）。
+        className={[
+          inline && "entity-field__input--inline",
+          caretOnly && "entity-field__input--caret",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        size={inline ? columns(text) : undefined}
         placeholder={extras.length > 0 ? "" : placeholder}
         aria-label={placeholder}
         aria-describedby={describedBy}
@@ -311,8 +398,46 @@ export function ExtrasField({
         onBlur={() => {
           // 打完就走是常態，不該把字吃掉（同實體欄位的 blur 回寫）。
           if (!composing.current) commitText();
+          // 空著離開 ＝ 放手（`commitText` 沒字時直接 return，不清任何東西）。
+          if (!text.trim()) letGo();
         }}
       />
+      {held && (
+        // 編輯中那一顆的 × 與唯讀 chip 的 × 同一個意思：把這一批從這一場拿掉。
+        <button
+          type="button"
+          className="entity-chip__remove"
+          tabIndex={-1}
+          aria-label={`移除${held.description}`}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setText("");
+            letGo();
+            input.current?.focus();
+          }}
+        >
+          ×
+        </button>
+      )}
+    </span>
+  );
+
+  const row = chipRow({
+    chips: extras.map((extra, i) => chipNode(extra, i)),
+    input: inputNode,
+    inputAt,
+    bare: caretOnly,
+    locked: held != null,
+    moveCaret: (at) => {
+      caret.current = at;
+      redraw();
+    },
+    focusInput: () => input.current?.focus(),
+  });
+
+  return (
+    <div className="entity-field extras-field">
+      {row}
 
       {preview.length > 0 && (
         <ul className="entity-field__menu entity-field__menu--preview" aria-hidden="true">

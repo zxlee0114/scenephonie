@@ -34,6 +34,7 @@ import {
 import { isExtraId, parseExtra, splitNamesLive } from "@scenephonie/schema";
 
 import { useChipCaret } from "./chip-caret";
+import { chipRow, columns } from "./chip-row";
 import { EXTRA_MARK, HIT_MARK, NEW_MARK, RENAME_MARK } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
 
@@ -181,21 +182,6 @@ type Row = {
   label: ReactNode;
   run: () => void;
 };
-
-/**
- * 一串字大概佔幾格 —— `<input size>` 的退路值（`field-sizing: content` 沒生效時才看得到）。
- *
- * `size` 以**平均字寬**計，中日文字元會因此排得太窄，所以拉丁字母與標點之外一律算兩格。
- * 下限是 `1`（`size=0` 不合法）：給到 `2` 的話，單字元的名字（`a`）會被撐得比它唯讀時還寬。
- */
-const columns = (text: string) =>
-  Math.max(
-    1,
-    [...text].reduce(
-      (n, c) => n + ((c.codePointAt(0) ?? 0) > 0x2ff ? 2 : 1),
-      0,
-    ),
-  );
 
 export function EntityField({
   kind,
@@ -983,6 +969,8 @@ export function EntityField({
    * 正在改一筆時是（輸入框停在那一筆原本那一格），只是把游標插進去也是。
    */
   const inline = held != null || inputAt < refs.length;
+  /** 空的輸入框插在 chip 中間 —— 它這一刻只是一個游標。 */
+  const caretOnly = !held && inputAt < refs.length && text === "";
 
   /** 一顆已經定案的引用。手上握著一筆時整排 chip 都是動不得的（見 `editRef`）。 */
   const chipNode = (ref: EntityRef, i: number): ReactNode => {
@@ -1076,7 +1064,13 @@ export function EntityField({
         // 夾在 chip 中間時**寬度依內容而定** —— 平常那條 `flex` 會吃掉整行剩下的空間（欄位
         // 尾端該有的可點區），夾在中間那就成了一道把後半排推開的空白（2026-09-11 驗收回饋）。
         // 正在改一筆是這樣，只是把游標插進去也是 —— 空的輸入框不該自己長出一塊空間。
-        className={[inputClassName, inline && "entity-field__input--inline"]
+        className={[
+          inputClassName,
+          inline && "entity-field__input--inline",
+          // 只是一個游標插在中間時**寬度固定** —— 靠內容寬度的話，空輸入框在不同瀏覽器
+          // 下有零點幾像素的差，整排會跟著微微晃動（2026-09-11 驗收回饋）。
+          caretOnly && "entity-field__input--caret",
+        ]
           .filter(Boolean)
           .join(" ")}
         // `field-sizing: content` 沒生效時的退路（見 `columns`）。
@@ -1136,75 +1130,19 @@ export function EntityField({
     </span>
   );
 
-  /**
-   * 兩顆 chip 之間那道縫 —— 它同時是**間距**與**插入點**。
-   *
-   * 點它就把游標插進那一格，下一筆實體於是落在編劇指的位置（2026-09-11 驗收回饋）。
-   * `at` 為 `null` ＝ 這道縫不接受點擊：游標已經在那（縫的一側就是輸入框），或者手上正握著
-   * 一筆（那時整排都動不得）。
-   */
-  const gap = (key: string, at: number | null, half = false, tail = false) => (
-    <span
-      key={key}
-      className={[
-        "entity-field__gap",
-        half && "entity-field__gap--half",
-        tail && "entity-field__gap--tail",
-        at != null && "entity-field__gap--pick",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      onMouseDown={
-        at == null
-          ? undefined
-          : (e) => {
-              e.preventDefault();
-              caret.current = at;
-              redraw();
-              input.current?.focus();
-            }
-      }
-    />
-  );
-
-  /**
-   * 整排：chip 與輸入框照**看得見的順序**排好，每兩個之間夾一道縫。
-   *
-   * `i` 走的是**插入位置**（`0`…`refs.length`）而不是 chip 的索引 —— 輸入框佔的就是其中一格。
-   *
-   * 游標只是插進中間、還沒打字時，它兩側的縫**各收成半寬**（`half`）—— 否則原本一道縫的
-   * 地方變成「縫 ＋ 空輸入框 ＋ 縫」，整排憑空撐開一塊；而兩道都收成零，那兩顆 chip 又會
-   * 黏在一起，比別處更擠（2026-09-11 驗收回饋，兩次）。合起來剛好是原本那一道。打了字兩道
-   * 縫就回來，字自然把兩邊的 chip 擠開。
-   */
-  const row: ReactNode[] = [];
-  {
-    const units: { node: ReactNode; at: number; isInput: boolean }[] = [];
-    for (let i = 0; i <= refs.length; i += 1) {
-      if (i === inputAt) units.push({ node: inputNode, at: i, isInput: true });
-      const ref = refs[i];
-      if (ref) units.push({ node: chipNode(ref, i), at: i, isInput: false });
-    }
-    // 空的輸入框插在中間 ＝ 它只是一個游標，不該佔位（見上面那段）。
-    const bare = !held && inputAt < refs.length && text === "";
-    units.forEach((unit, k) => {
-      const prev = units[k - 1];
-      // 縫的插入位置就是它**右邊**那個東西的位置；等於游標現在站的那一格就沒得點。
-      if (prev)
-        row.push(
-          gap(
-            `gap${k}`,
-            unit.at === inputAt || held ? null : unit.at,
-            bare && (unit.isInput || prev.isInput),
-          ),
-        );
-      row.push(unit.node);
-    });
-    // 輸入框不在隊尾時，尾端那一塊空白也要點得到 —— 否則欄位右半邊整片是死的，點下去
-    // 既不聚焦也進不了游標（2026-09-11 驗收回饋）。那道縫吃掉剩下的空間（見 `--tail`）。
-    if (inputAt < refs.length)
-      row.push(gap("gap-end", held ? null : refs.length, false, true));
-  }
+  const row = chipRow({
+    chips: refs.map((ref, i) => chipNode(ref, i)),
+    input: inputNode,
+    inputAt,
+    // 空的輸入框插在中間 ＝ 它只是一個游標，不該佔位。
+    bare: caretOnly,
+    locked: held != null,
+    moveCaret: (at) => {
+      caret.current = at;
+      redraw();
+    },
+    focusInput: () => input.current?.focus(),
+  });
 
   return (
     <div

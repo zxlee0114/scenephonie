@@ -101,6 +101,8 @@
   /* 間距節奏（偏鬆 —— 判準是八小時的疲勞度） */
   --space-1: 4px;
   --space-2: 8px;
+  /* 游標插在兩顆 chip 之間時，輸入框佔的那一格（見 editor.css 的 `--caret-slot` 用法）。 */
+  --caret-slot: 2px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;

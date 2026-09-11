@@ -70,7 +70,7 @@ const inputIn = (root: HTMLElement, field: string) =>
 /** 看得見的順序：chip 與輸入框在這一欄裡實際排成什麼樣（`|` ＝ 輸入框）。 */
 const layoutOf = (root: HTMLElement, field: string) =>
   [...root.querySelectorAll(`.scene__chip--${field} .entity-chip, .scene__chip--${field} input`)].map(
-    (el) => (el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×＋📍👤]/gu, "") ?? "")),
+    (el) => (el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×＋📍👤👥]/gu, "").trim() ?? "")),
   );
 const cell = (root: HTMLElement, label: string) =>
   root.querySelector<HTMLElement>(`.scene__chips [aria-label="${label}"]`)!;
@@ -211,7 +211,8 @@ describe("登場人物欄：←→ 在實體之間走", () => {
 });
 
 describe("群演欄：同一套規則", () => {
-  it("空輸入框 ← 退進最後一批群演，第一批再 ← 才回登場人物欄", async () => {
+  it("空輸入框 ← 退進最後一批群演，chip 與縫交替，走完最前面才回登場人物欄", async () => {
+    // 群演欄也吃同一套（票券 39 收票）—— 縫也是一站，新的一批插得進去。
     const { container } = await mount(crowdedScene());
     const chips = chipsIn(container, "extras");
     expect(chips).toHaveLength(2);
@@ -220,10 +221,17 @@ describe("群演欄：同一套規則", () => {
     input.focus();
     fireEvent.keyDown(input, { key: "ArrowLeft" });
     expect(document.activeElement).toBe(chips[1]);
+
     fireEvent.keyDown(chips[1]!, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(input); // 兩批之間那道縫
+    expect(layoutOf(container, "extras")).toEqual(["咖啡廳客人 x8", "|", "服務生 x2"]);
+
+    fireEvent.keyDown(input, { key: "ArrowLeft" });
     expect(document.activeElement).toBe(chips[0]);
 
     fireEvent.keyDown(chips[0]!, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(input); // 第一批左邊那道縫
+    fireEvent.keyDown(input, { key: "ArrowLeft" });
     await waitFor(() => expect(document.activeElement).toBe(cell(container, "登場人物")));
   });
 
