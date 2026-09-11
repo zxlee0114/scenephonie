@@ -243,7 +243,14 @@ export function ExtrasField({
 
   const query = text.trim();
   const parsed = readText(text);
-  const menuOpen = !composingNow && !dismissed && query.length > 0;
+  /**
+   * 選單開著嗎 —— 框裡有字，**或**手上握著一批。
+   *
+   * 後者是為了那條退路（使用者回報 2026-09-12：「chip 內空字串時沒有不修改的選項」）：
+   * 字刪光的那一刻只剩一個 chip 外殼，而那正是最需要看見「這一輪還能整個放棄」的時候。
+   * 沒握著東西、框又是空的 —— 那時選單整個不出現（沒有話可說）。
+   */
+  const menuOpen = !composingNow && !dismissed && (query.length > 0 || editing.current != null);
 
   /**
    * 命中的別場描述 —— 拿**描述那一段**去比對，人數不參與（`咖啡廳客 x8` 也要命中）。
@@ -261,7 +268,7 @@ export function ExtrasField({
   };
 
   const rows: Row[] = [];
-  if (menuOpen && parsed) {
+  if (menuOpen) {
     /**
      * 第一列說的是**按下去會發生的事**（票券 40）。
      *
@@ -274,41 +281,47 @@ export function ExtrasField({
      */
     const held = editing.current;
     const before = held ? formatExtra(held) : null;
-    const after = formatExtra(parsed);
-    const changed = before != null && before !== after;
-    // 這一列是 `commitText`（Enter 也走它）—— 變的只有它怎麼自我介紹。字一個都沒改時
-    // **它整列不出現**：那一下什麼都沒動，該說的話下面那一列 `↩︎` 已經說完了，印兩次
-    // 同一句話只是雜訊。
-    if (before == null || changed) {
-      rows.push({
-        key: "commit",
-        label:
-          before == null
-            ? `${NEW_MARK} 新增群演「${parsed.description}」${parsed.count} 人`
-            : `${RENAME_MARK} 把「${before}」改成「${after}」`,
-        run: commitText,
-      });
+    // 框裡讀不出一筆（空著，或只打了 `x8`）時這兩列都沒話說 —— 它們說的都是「按下去會
+    // 得到什麼」，而那一刻沒有東西可以得到。`↩︎` 那一列不在這個 if 裡：它說的是別的事。
+    if (parsed) {
+      const after = formatExtra(parsed);
+      const changed = before != null && before !== after;
+      // 這一列是 `commitText`（Enter 也走它）—— 變的只有它怎麼自我介紹。字一個都沒改時
+      // **它整列不出現**：那一下什麼都沒動，該說的話下面那一列 `↩︎` 已經說完了，印兩次
+      // 同一句話只是雜訊。
+      if (before == null || changed) {
+        rows.push({
+          key: "commit",
+          label:
+            before == null
+              ? `${NEW_MARK} 新增群演「${parsed.description}」${parsed.count} 人`
+              : `${RENAME_MARK} 把「${before}」改成「${after}」`,
+          run: commitText,
+        });
+      }
+      // 另外開一批：只在**手上握著一批而且字改了**的時候有話說。沒握著東西時「新增」本來就
+      // 是另外一批；字沒改時它只會造出一批一模一樣的，那不是編劇在這一刻要的。
+      if (changed) {
+        rows.push({
+          key: "another",
+          // 代價寫在按下去之前（ADR-0006）—— 這一列與上一列的差別就是「原本那批還在不在」，
+          // 所以兩批都點名（編劇指定的措辭，票券 40 第二輪）。
+          label: `${NEW_MARK} 新增「${after}」群演，保留「${before}」`,
+          run: addAnother,
+        });
+      }
     }
-    // 另外開一批：只在**手上握著一批而且字改了**的時候有話說。沒握著東西時「新增」本來就
-    // 是另外一批；字沒改時它只會造出一批一模一樣的，那不是編劇在這一刻要的。
-    if (changed) {
-      rows.push({
-        key: "another",
-        // 代價寫在按下去之前（ADR-0006）—— 這一列與上一列的差別就是「原本那批還在不在」，
-        // 所以兩批都點名（編劇指定的措辭，票券 40 第二輪）。
-        label: `${NEW_MARK} 新增「${after}」群演，保留「${before}」`,
-        run: addAnother,
-      });
-    }
-    // `↩︎ 不修改，返回` —— **握著一批時永遠在**（票券 42 第 2 條，使用者回報 2026-09-12：
-    // 「更動文字時沒有出現不修改，返回」）。它不是「字沒改」那一格的專屬措辭，而是這一輪
-    // 編輯的退路：字改到一半反悔，按它就是原封放回。沒握著東西時不出 —— 那時沒有一輪編輯
-    // 可以作廢，`Esc` 收起選單就夠了（票券 42 建議做法第 2 條）。
+    // `↩︎ 不修改，返回` —— **握著一批時永遠在**，字改過了在、字刪光了也在（票券 42
+    // 第 2 條，使用者回報 2026-09-12 兩則）。它不是「字沒改」那一格的專屬措辭，而是這一輪
+    // 編輯的退路：按它就是把那一批原封放回、打的字丟掉。與空框上的 Backspace **是兩件事**
+    // ——那一下是放手（這一場從此沒有這一批），抬頭說的就是它，兩條路同時看得見。
+    // 沒握著東西時不出 —— 那時沒有一輪編輯可以作廢（票券 42 建議做法第 2 條）。
     if (held) {
       rows.push({ key: "put-back", label: `${PUT_BACK_MARK} 不修改，返回`, run: putBack });
     }
 
-    for (const description of hits()) {
+    // 補字串那幾列只在框裡真的有字時才比對 —— 空字串誰都命中，那不是自動補全。
+    for (const description of query.length > 0 ? hits() : []) {
       rows.push({
         key: `hit:${description}`,
         // **只補字串**：選它只是把描述填進輸入框，還沒有任何一筆被建立，人數也還沒決定。

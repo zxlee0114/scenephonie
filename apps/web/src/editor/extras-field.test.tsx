@@ -611,3 +611,82 @@ describe("「不修改，返回」每一階段都在（票券 42 第 2 條的通
     expect(rows(container).some((r) => r.startsWith("↩︎"))).toBe(false);
   });
 });
+
+describe("框裡空著時「不修改，返回」也在（使用者回報 2026-09-12）", () => {
+  const one = (onChangeExtras?: (extras: ExtraRef[]) => void) =>
+    render(
+      <Host
+        initial={[{ extraId: "ex_held", description: "路人", count: 8 }]}
+        onChangeExtras={onChangeExtras}
+      />,
+    );
+
+  /** 握著一批、把字刪光 —— 剩下的是那個 chip 外殼。 */
+  const emptied = (onChangeExtras?: (extras: ExtraRef[]) => void) => {
+    const { container } = one(onChangeExtras);
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "" } });
+    return container;
+  };
+
+  it("字刪光了它仍然在 —— 那一刻退路最需要看得見", () => {
+    expect(rows(emptied())).toEqual(["↩︎ 不修改，返回"]);
+  });
+
+  it("按下它 ＝ 那一批原封回到原位（不是放手）", async () => {
+    const committed: ExtraRef[][] = [];
+    const container = emptied((e) => committed.push(e));
+    fireEvent.mouseDown(menuItems(container)[0]!);
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["路人（8）"]));
+    expect(committed.at(-1)).toEqual([{ extraId: "ex_held", description: "路人", count: 8 }]);
+  });
+
+  it("抬頭照舊說下一顆 Backspace 會做什麼 —— 兩條路都看得見", () => {
+    const container = emptied();
+    expect(heldNote(container)).toBe("✏️ 正在編輯「路人（8）」，再按一次 Backspace 移除這一批");
+  });
+
+  it("Backspace 仍然是放手 —— 多出來的那一列沒有搶走它", async () => {
+    const container = emptied();
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual([]));
+    expect(heldNote(container)).toBeNull();
+  });
+
+  it("沒握著東西、框又是空的 —— 選單整個不出現", () => {
+    const { container } = render(<Host initial={[{ extraId: "ex_a", description: "路人", count: 8 }]} />);
+    expect(rows(container)).toEqual([]);
+    expect(heldNote(container)).toBeNull();
+  });
+});
+
+describe("空框上 Enter 與 blur 是兩件事（票券 47 驗收追加）", () => {
+  const emptied = (onChangeExtras?: (extras: ExtraRef[]) => void) => {
+    const { container } = render(
+      <Host
+        initial={[{ extraId: "ex_held", description: "路人", count: 8 }]}
+        onChangeExtras={onChangeExtras}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "" } });
+    return container;
+  };
+
+  it("Enter 打在看得見的那一列上 —— 空框時那一列是「不修改，返回」", async () => {
+    const container = emptied();
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" });
+
+    // Enter 是一個選擇，而選單上唯一那一列就是它的意思（同其他階段）。
+    await waitFor(() => expect(chipTexts(container)).toEqual(["路人（8）"]));
+  });
+
+  it("blur 仍然是放手 —— 那不是選擇，是人走了", async () => {
+    const container = emptied();
+    fireEvent.blur(container.querySelector("input")!);
+
+    await waitFor(() => expect(chipTexts(container)).toEqual([]));
+  });
+});
