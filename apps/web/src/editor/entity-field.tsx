@@ -24,6 +24,7 @@
 
 import {
   useEffect,
+  useReducer,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -204,6 +205,8 @@ export function EntityField({
 }: Props) {
   const [text, setText] = useState("");
   const [stage, setStage] = useState<Stage>({ name: "suggest" });
+  /** 只為了重繪 —— 「手上那一筆」是 ref 不是 state（見 `editing`），改它不會驚動 React。 */
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   /** 這一輪由本欄位建出來的實體 —— 新建 chip 與命中 chip 視覺可辨（`＋` vs `📍`）。 */
@@ -396,6 +399,20 @@ export function EntityField({
       if (ref) editRef(ref, selectAll);
     },
   });
+
+  /**
+   * 把手上那一筆**放掉** —— 這一場對它的引用就此沒了（它在 chip 被拿起來時就從 doc 上撤掉了，
+   * 這一步只是承認編劇不打算放回去）。
+   *
+   * 它是一個**獨立的一步**，不跟「字刪光」綁在一起：清空之後那一筆還握在手上，因為編劇可能
+   * 正要重新命名它（2026-09-11 驗收裁決）。所以整條路是三段 —— 拿起來（字反白）／清空
+   * （還握著，可以改名）／再一次 Backspace 才放手。
+   */
+  const letGo = () => {
+    editing.current = null;
+    heldScenes.current = null;
+    redraw(); // 手上那一筆住在 ref 裡，放手不會自己觸發一次渲染（抬頭要跟著收）。
+  };
 
   const closeMenu = () => {
     setStage({ name: "suggest" });
@@ -662,14 +679,17 @@ export function EntityField({
    * 它**不是一列選項**：不進 `rows`、選不到、Enter 碰不到它。標籤放結果、說明另外放，這條
    * 分工是票券 36 立的；等 36 的側邊說明欄落地，這一行可以搬進去。
    *
-   * 框裡空著時沒有抬頭 —— 那一刻手上已經放開了（見 `onChange`），沒有誰正在被編輯。
+   * **框裡清空了它也還在** —— 那一刻那一筆還握在手上（可以重新命名），而畫面上除了這一行
+   * 沒有任何東西說得出這件事。那時措辭換成下一顆 Backspace 會做什麼：放手（見 `letGo`）。
    */
   const heldEntityNow = heldEntity();
   const heldNote =
-    onRenameEntity && heldEntityNow && query !== "" && !pending && !dismissed && !composingNow &&
-    stage.name === "suggest"
-      ? `${RENAME_MARK} 正在編輯「${heldEntityNow.name}」，修改文字可更新名稱`
-      : null;
+    !onRenameEntity || !heldEntityNow || pending || dismissed || composingNow ||
+    stage.name !== "suggest"
+      ? null
+      : query === ""
+        ? `${RENAME_MARK} 正在編輯「${heldEntityNow.name}」，再按一次 Backspace 移除這一場的引用`
+        : `${RENAME_MARK} 正在編輯「${heldEntityNow.name}」，修改文字可更新名稱`;
 
   const activeRow = rows[Math.min(active, rows.length - 1)];
 
@@ -796,8 +816,14 @@ export function EntityField({
       // Esc ＝「現在別煩我」：關掉選單，打到一半的字留著。
       event.preventDefault();
       event.stopPropagation();
-      if (stage.name === "suggest") closeMenu();
-      else setStage({ name: "suggest" });
+      if (stage.name !== "suggest") {
+        setStage({ name: "suggest" });
+        return;
+      }
+      // 框裡空著時，抬頭是這個狀態**唯一**看得見的地方 —— 收掉它就該連手一起放，
+      // 否則留下一個看不見的持有：下一個字打下去會變成「把它改名」。
+      if (query === "") letGo();
+      closeMenu();
       return;
     }
 
@@ -810,11 +836,21 @@ export function EntityField({
       return;
     }
 
-    // Backspace 在空欄位上 ＝ 把最後一個 chip 還原成可編輯文字（不是直接刪掉）。
-    if (event.key === "Backspace" && text === "" && refs.length > 0) {
-      event.preventDefault();
-      editRef(refs[refs.length - 1]!, true);
-      return;
+    if (event.key === "Backspace" && text === "") {
+      // 手上還握著一筆（清空了但還沒放手）—— 這一下是**放掉它**，不是去拿前一個。
+      // 少了這一段，`a b c` 裡清空 c 的那一下會直接跳進 b 的編輯狀態，而 c 是什麼時候
+      // 沒的沒有人看見。
+      if (editing.current) {
+        event.preventDefault();
+        letGo();
+        return;
+      }
+      // Backspace 在空欄位上 ＝ 把最後一個 chip 還原成可編輯文字（不是直接刪掉）。
+      if (refs.length > 0) {
+        event.preventDefault();
+        editRef(refs[refs.length - 1]!, true);
+        return;
+      }
     }
 
     // ← 從字首退進 chip（空欄位才算）—— 沒退成才輪到 chip row 的格線導航。
@@ -824,15 +860,6 @@ export function EntityField({
   };
 
   const onChange = (value: string) => {
-    // **刪到空的那一刻就放手**（2026-09-11 驗收回饋）。引用在 chip 被拿起來時就從 doc 上撤掉了，
-    // 字再刪光，編劇看到的就是「這一場的它沒了」—— 那時還握著它只會製造一個看不見的狀態：
-    // 抬頭說手上是 B、畫面上 B 早就不在，而下一個字打下去會變成「把 B 改名」。
-    // 放手之後這一步成為一個乾淨的落點：B 消失、游標停在前一個 chip 後面，再一次 Backspace
-    // 才輪到它（票券 34 那條「空欄位的 Backspace」原封不動）。
-    if (value === "") {
-      editing.current = null;
-      heldScenes.current = null;
-    }
     setText(value);
     setDismissed(false);
     setActive(0);
@@ -937,6 +964,9 @@ export function EntityField({
           // 打完就走是常態，不該把字吃掉）。
           // 待確認的字**不在 blur 時定案** —— 它正等著編劇回答，離開欄位不是答案。
           if (!composing.current && !needsConfirm) void commitText();
+          // 空著離開 ＝ 放手。`commitText` 沒字時直接 return，不清任何東西 —— 少了這一句，
+          // 抬頭會跟著欄位一路掛在畫面上（2026-09-11 驗收回饋）。
+          if (query === "") letGo();
           setStage({ name: "suggest" });
           setShowNamingHint(false); // 他移開就是決定了（見 `showNamingHint`）
         }}
