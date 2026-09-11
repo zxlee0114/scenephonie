@@ -108,14 +108,19 @@ export function ExtrasField({
     onCommit([...extras, ...added]);
   };
 
-  /** 把一筆 chip 還原成可編輯的文字（點它，或空欄位上 Backspace）—— 連人數一起。 */
-  const editExtra = (extra: ExtraRef, selectAll = false) => {
+  /**
+   * 把一筆 chip 還原成可編輯的文字（點它，或空欄位上 Backspace）—— 連人數一起。
+   *
+   * **一律整串反白**：可以直接覆寫，也還是能按 → 收起來接著改。滑鼠進來與 Backspace 進來
+   * 原本是兩種樣子，統一成這一種（使用者裁決 2026-09-11，同實體欄位的 `editRef`）。
+   */
+  const editExtra = (extra: ExtraRef) => {
     editing.current = extra;
     onCommit(extras.filter((e) => e !== extra));
     setText(formatExtra(extra));
     setActive(0);
     setDismissed(false);
-    selectNext.current = selectAll;
+    selectNext.current = true;
     input.current?.focus();
   };
 
@@ -180,9 +185,9 @@ export function ExtrasField({
     input,
     text,
     exit: (event) => onKeyDown?.(event),
-    edit: (i, selectAll) => {
+    edit: (i) => {
       const extra = extras[i];
-      if (extra) editExtra(extra, selectAll);
+      if (extra) editExtra(extra);
     },
   });
 
@@ -225,7 +230,7 @@ export function ExtrasField({
     if (event.key === "Backspace" && text === "" && extras.length > 0) {
       event.preventDefault();
       // 拿下來的那一筆整串反白：再按一次就一起刪掉（同實體欄位的裁決）。
-      editExtra(extras[extras.length - 1]!, true);
+      editExtra(extras[extras.length - 1]!);
       return;
     }
 

@@ -44,7 +44,7 @@ type Options = {
   /** 第一個 chip 再往左、或 chip 上的 ↑↓ —— 原封交回呼叫端（chip row 的格線導航）。 */
   exit: (event: ReactKeyboardEvent<HTMLElement>) => void;
   /** 把第 `index` 個 chip 拿下來重編輯（Enter／Backspace，與滑鼠點它同一條路）。 */
-  edit: (index: number, selectAll: boolean) => void;
+  edit: (index: number) => void;
 };
 
 export function useChipCaret({ count, home = count, input, text, exit, edit }: Options) {
@@ -99,12 +99,12 @@ export function useChipCaret({ count, home = count, input, text, exit, edit }: O
       case "Enter":
         event.preventDefault();
         event.stopPropagation();
-        return edit(i, false); // 與滑鼠點它一樣：字回到輸入框，游標留在字尾
+        return edit(i); // 與滑鼠點它一樣：字回到輸入框、整串反白
       case "Backspace":
       case "Delete":
         event.preventDefault();
         event.stopPropagation();
-        return edit(i, true); // 整串反白 —— 再按一次就一起刪掉（同空欄位上的 Backspace）
+        return edit(i); // 整串反白 —— 再按一次就一起刪掉（同空欄位上的 Backspace）
       case "ArrowUp":
       case "ArrowDown":
         return exit(event); // 上下不歸這裡：那是 chip row 的格線導航
