@@ -402,6 +402,10 @@ export function EntityField({
    * （原地改分不出「這一場叫別的名字」與「這個實體改名了」，而那正是 §4.7 要編劇說清楚的事）。
    */
   const editRef = (ref: EntityRef, selectAll = false) => {
+    // **一次只編輯一筆**（2026-09-11 驗收回饋）。手上已經握著一筆時，點別的 chip 不接手 ——
+    // 接手的那一下會把手上那一筆弄丟：它早就不在 `refs` 裡了，下面這行 `onCommit` 的過濾
+    // 救不回它，於是畫面上它直接消失。要換一筆，先把手上這一筆定案（Enter、或移開欄位）。
+    if (editing.current) return;
     // ⚠️ 在 `onCommit` 之前問 —— 引用一從 doc 上拿掉，這一場就從場次數裡消失了。
     heldScenes.current =
       ref.id == null ? null : (usage?.().get(ref.id) ?? null);
@@ -988,6 +992,7 @@ export function EntityField({
             onMouseDown={(e) => {
               e.preventDefault();
               e.stopPropagation(); // × 是刪除，不是編輯 —— 別讓它冒泡成點了 chip
+              if (editing.current) return; // 同 `editRef`：手上握著一筆時，別的 chip 動不得
               onCommit(refs.filter((r) => r !== ref));
               input.current?.focus();
             }}

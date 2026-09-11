@@ -1195,3 +1195,49 @@ describe("編輯中的那一筆也留在原位（票券 39 收票）", () => {
     expect(layout(container)).toEqual(["阿盈", "建鳴", "小明", "|"]);
   });
 });
+
+describe("一次只編輯一筆（票券 39 收票）", () => {
+  const two = () =>
+    render(
+      <Host
+        initial={[
+          { id: "ch_a", displayName: "阿盈" },
+          { id: "ch_b", displayName: "建鳴" },
+        ]}
+        options={[
+          { id: "ch_a", name: "阿盈" },
+          { id: "ch_b", name: "建鳴" },
+        ]}
+        onRenameEntity={() => {}}
+      />,
+    );
+
+  it("正在改一筆時點別的 chip 不接手 —— 接手那一下會把手上那一筆弄丟", () => {
+    const { container } = two();
+    fireEvent.mouseDown(chips(container)[0]!); // 拿起「阿盈」
+    fireEvent.mouseDown(chips(container)[0]!); // 畫面上只剩「建鳴」，點它
+
+    const input = container.querySelector("input")!;
+    expect(input.value).toBe("阿盈"); // 手上還是原來那一筆
+    expect(chipTexts(container)).toEqual(["建鳴"]); // 「建鳴」也還在
+  });
+
+  it("正在改一筆時別的 chip 的 × 也不動 —— 同一條線", () => {
+    const { container } = two();
+    fireEvent.mouseDown(chips(container)[0]!);
+    fireEvent.mouseDown(container.querySelector(".entity-chip__remove")!);
+
+    expect(chipTexts(container)).toEqual(["建鳴"]);
+    expect(container.querySelector("input")!.value).toBe("阿盈");
+  });
+
+  it("定案之後就換得了 —— 兩筆都在，次序也沒變", async () => {
+    const { container } = two();
+    fireEvent.mouseDown(chips(container)[0]!);
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "建鳴"]));
+    fireEvent.mouseDown(chips(container)[1]!);
+    expect(container.querySelector("input")!.value).toBe("建鳴");
+  });
+});
