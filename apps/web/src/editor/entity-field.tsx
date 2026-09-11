@@ -260,7 +260,8 @@ export function EntityField({
   const takeInput = (el: HTMLInputElement | null) => {
     input.current = el;
     if (typeof inputRef === "function") inputRef(el);
-    else if (inputRef) (inputRef as { current: HTMLInputElement | null }).current = el;
+    else if (inputRef)
+      (inputRef as { current: HTMLInputElement | null }).current = el;
   };
   const field = useRef<HTMLDivElement>(null);
 
@@ -282,7 +283,8 @@ export function EntityField({
   };
 
   /** 同名的**存在**實體。孤兒不算命中 —— 它不存在，所以那個名字仍然是「建立新實體」。 */
-  const byName = (name: string) => existing().find((o) => o.name === name) ?? null;
+  const byName = (name: string) =>
+    existing().find((o) => o.name === name) ?? null;
 
   /**
    * 手上正在編輯的那一筆，**如果這個名字就是它**（票券 38）。
@@ -356,7 +358,8 @@ export function EntityField({
     // 一般實體：名字沒改就是原封放回，用回它自己的 id（見 `editing`）。
     // 判準與選單那一列共用 `editingMatch` —— 兩邊對「沒改」的定義分家的話，選單會說一件事、
     // 按下去做另一件事，正好是票券 38 修掉的那種不一致。
-    if (held?.id != null && editingMatch(name)) return { id: held.id, displayName: name };
+    if (held?.id != null && editingMatch(name))
+      return { id: held.id, displayName: name };
 
     const hit = byName(name);
     if (hit) return { id: hit.id, displayName: name };
@@ -386,7 +389,8 @@ export function EntityField({
    */
   const editRef = (ref: EntityRef, selectAll = false) => {
     // ⚠️ 在 `onCommit` 之前問 —— 引用一從 doc 上拿掉，這一場就從場次數裡消失了。
-    heldScenes.current = ref.id == null ? null : (usage?.().get(ref.id) ?? null);
+    heldScenes.current =
+      ref.id == null ? null : (usage?.().get(ref.id) ?? null);
     heldIndex.current = refs.indexOf(ref);
     editing.current = ref;
     onCommit(refs.filter((r) => r !== ref));
@@ -402,6 +406,7 @@ export function EntityField({
   /** chip 之間的方向鍵（票券 34 第三輪）—— 規則與版面說明見 `./chip-caret`。 */
   const chipCaret = useChipCaret({
     count: refs.length,
+    home: heldIndex.current ?? refs.length,
     input,
     text,
     exit: (event) => onKeyDown?.(event),
@@ -478,14 +483,17 @@ export function EntityField({
     const counts = usage?.();
     /** 選單印的場次數 —— 手上那一筆用拿起來之前的快照（見 `heldScenes`）。 */
     const scenesOf = (id: string) =>
-      (id === editing.current?.id ? heldScenes.current : null) ?? counts?.get(id);
+      (id === editing.current?.id ? heldScenes.current : null) ??
+      counts?.get(id);
     const known = existing();
     // 手上那一筆也算命中 —— 少了它，把自己拿回來改會看到「建立新實體『它自己』」（票券 38）。
     const exact = known.find((o) => o.name === query) ?? editingMatch(query);
     // ⚠️ 排掉的是 `exact` **那一筆**，不是「名字剛好等於 query 的」。兩者多數時候同一件事，
     // 但手上那一筆的顯示名可能不等於它在目錄裡的名字（別名，或實體改名後舊引用還留著舊字）
     // —— 那時同一筆實體會從 `exact` 與 `hits` 各進榜一次，選單印出兩列一模一樣的名字。
-    const hits = known.filter((o) => o !== exact && o.name.includes(query)).slice(0, 5);
+    const hits = known
+      .filter((o) => o !== exact && o.name.includes(query))
+      .slice(0, 5);
 
     if (stage.name === "suggest") {
       for (const option of [...(exact ? [exact] : []), ...hits]) {
@@ -505,7 +513,12 @@ export function EntityField({
             // 命中列的顯示名就是實體名 —— 但**手上那一筆**用回框裡的字：它的顯示名可能是
             // 這一場的別名（ADR-0005：別名住在引用上），拿目錄名蓋回去等於靜悄悄改掉它。
             // 目錄命中的那一列兩者本來就相同，這一條只在「拿回來改」那條路上有差別。
-            merge([{ id: option.id, displayName: option === exact ? query : option.name }]);
+            merge([
+              {
+                id: option.id,
+                displayName: option === exact ? query : option.name,
+              },
+            ]);
             reset();
           },
         });
@@ -537,10 +550,14 @@ export function EntityField({
           // 命中條件比齊聲那列**多認一條：query 以描述開頭**。少了它，打「服務生小李」的編劇
           // 看不到這一列，於是選「建立新實體」—— 拿到人物、群演還是 x2。代價不是名字難看，
           // 是**人數少算一個群演**（票券 35 的起點就是這個坑）。
-          if (!extra.name.includes(query) && !query.startsWith(extra.name)) continue;
+          if (!extra.name.includes(query) && !query.startsWith(extra.name))
+            continue;
           // 人數變化寫在**按下去之前**：升格會動到編劇沒有打過字的地方（群演那一欄），那句話
           // 該在他做決定的當下就在眼前，而不是事後去簡表才發現（ADR-0006 那條方法論）。
-          const left = extra.count > 1 ? `群演剩 ${extra.count - 1} 人` : "這批群演就此用完";
+          const left =
+            extra.count > 1
+              ? `群演剩 ${extra.count - 1} 人`
+              : "這批群演就此用完";
           rows.push({
             key: `promote:${extra.id}`,
             label: `${HIT_MARK[kind]} 從「${extra.name} x${extra.count}」裡升格一個人 —— ${who}（${left}）`,
@@ -581,13 +598,15 @@ export function EntityField({
       // ⚠️ 打的字剛好是**另一筆存在實體**的名字時這一列不出現：那會讓目錄裡有兩筆同名，而
       // 編劇要的多半是「這一場指的是那一筆」（`📍` 那一列）或把兩筆併起來（合併不在這張票裡，
       // ADR-0005 講過形狀）。同一條線也擋掉了 `＋ 建立新實體`，理由一樣。
-      const renameTarget = onRenameEntity && !byName(query) ? heldEntity() : null;
+      const renameTarget =
+        onRenameEntity && !byName(query) ? heldEntity() : null;
       if (renameTarget && query !== renameTarget.name) {
         const target = renameTarget;
         // 代價寫在**按下去之前**（ADR-0006 那條方法論）—— 而代價是「改完還有幾場印著舊名」，
         // 不是「這筆實體用在幾場」。後者聽起來像會動到那麼多場，但改名預設一場都不代換。
         const others = retitleOthers?.count(target.id, target.name) ?? 0;
-        const note = others > 0 ? `（還有 ${others} 場印著「${target.name}」）` : "";
+        const note =
+          others > 0 ? `（還有 ${others} 場印著「${target.name}」）` : "";
         rows.push({
           key: "rename",
           label: `${RENAME_MARK} 把實體改名為「${query}」${note}`,
@@ -697,7 +716,11 @@ export function EntityField({
    */
   const heldEntityNow = heldEntity();
   const heldNote =
-    !onRenameEntity || !heldEntityNow || pending || dismissed || composingNow ||
+    !onRenameEntity ||
+    !heldEntityNow ||
+    pending ||
+    dismissed ||
+    composingNow ||
     stage.name !== "suggest"
       ? null
       : query === ""
@@ -776,7 +799,12 @@ export function EntityField({
    * 這是票券 37 那個接縫，那張票落地前先別假設它會自己好。
    */
   const renameEntity = (target: EntityOption, alsoOthers: boolean) => {
-    if (alsoOthers && retitleOthers && !retitleOthers.run(target.id, target.name, query)) return;
+    if (
+      alsoOthers &&
+      retitleOthers &&
+      !retitleOthers.run(target.id, target.name, query)
+    )
+      return;
     onRenameEntity?.(target.id, query);
     merge([{ id: target.id, displayName: query }]);
     reset();
@@ -891,63 +919,81 @@ export function EntityField({
     void resolveAll(names);
   };
 
-  return (
-    <div className={`entity-field${className ? ` ${className}` : ""}`} ref={field}>
-      <span className="entity-field__chips">
-        {refs.map((ref, i) => {
-          const entity =
-            options.find((o) => o.id === ref.id) ?? sceneExtras.find((e) => e.id === ref.id) ?? null;
-          const born = ref.id != null && bornHere.includes(ref.id);
-          // 群演的 chip 用自己的記號 —— 讀 chip 的人要看得出這一筆沒有跨場次身分。
-          const extra = isExtraId(ref.id);
-          const mark = extra ? EXTRA_MARK : born ? NEW_MARK : HIT_MARK[kind];
-          return (
-            <span
-              key={`${ref.id}:${ref.displayName}`}
-              {...chipCaret.chipProps(i)}
-              className={[
-                "entity-chip",
-                extra
-                  ? "entity-chip--extra"
-                  : born
-                    ? "entity-chip--new"
-                    : entity
-                      ? "entity-chip--hit"
-                      : "entity-chip--dangling",
-              ].join(" ")}
-              // 懸空引用（實體被 ⌘Z 掉）不跳警告、不少印 —— 只是少一條可聚合的連結。
-              title={entity && entity.name !== ref.displayName ? entity.name : undefined}
-              // 點 chip ＝ 改它。`mousedown` 而非 `click`：`click` 要等 `mouseup`，中間
-              // 輸入框已經先 blur 過一輪，打到一半的字會被 blur 的定案吃掉。
-              onMouseDown={(e) => {
-                e.preventDefault();
-                editRef(ref);
-              }}
-            >
-              {entity || born ? (
-                <span className="entity-chip__mark" aria-hidden="true">
-                  {mark}
-                </span>
-              ) : null}
-              {ref.displayName}
-              <button
-                type="button"
-                className="entity-chip__remove"
-                tabIndex={-1}
-                aria-label={`移除${ref.displayName}`}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation(); // × 是刪除，不是編輯 —— 別讓它冒泡成點了 chip
-                  onCommit(refs.filter((r) => r !== ref));
-                  input.current?.focus();
-                }}
-              >
-                ×
-              </button>
+  /**
+   * 輸入框排在第幾格 —— 平常是所有 chip 之後，**正在改某一筆時就停在它原本的位置**
+   * （2026-09-11 驗收回饋）。少了這一段，拿起來的那一筆在編輯途中看起來跑到了隊尾，
+   * 放回去又跳回原位，中間那一段畫面是騙人的。
+   */
+  const inputAt = heldIndex.current ?? refs.length;
+  const chipNodes = ((): ReactNode[] =>
+    refs.map((ref, i) => {
+      const entity =
+        options.find((o) => o.id === ref.id) ??
+        sceneExtras.find((e) => e.id === ref.id) ??
+        null;
+      const born = ref.id != null && bornHere.includes(ref.id);
+      // 群演的 chip 用自己的記號 —— 讀 chip 的人要看得出這一筆沒有跨場次身分。
+      const extra = isExtraId(ref.id);
+      const mark = extra ? EXTRA_MARK : born ? NEW_MARK : HIT_MARK[kind];
+      return (
+        <span
+          key={`${ref.id}:${ref.displayName}`}
+          {...chipCaret.chipProps(i)}
+          className={[
+            "entity-chip",
+            extra
+              ? "entity-chip--extra"
+              : born
+                ? "entity-chip--new"
+                : entity
+                  ? "entity-chip--hit"
+                  : "entity-chip--dangling",
+          ].join(" ")}
+          // 懸空引用（實體被 ⌘Z 掉）不跳警告、不少印 —— 只是少一條可聚合的連結。
+          title={
+            entity && entity.name !== ref.displayName ? entity.name : undefined
+          }
+          // 點 chip ＝ 改它。`mousedown` 而非 `click`：`click` 要等 `mouseup`，中間
+          // 輸入框已經先 blur 過一輪，打到一半的字會被 blur 的定案吃掉。
+          onMouseDown={(e) => {
+            e.preventDefault();
+            editRef(ref);
+          }}
+        >
+          {entity || born ? (
+            <span className="entity-chip__mark" aria-hidden="true">
+              {mark}
             </span>
-          );
-        })}
-      </span>
+          ) : null}
+          {ref.displayName}
+          <button
+            type="button"
+            className="entity-chip__remove"
+            tabIndex={-1}
+            aria-label={`移除${ref.displayName}`}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation(); // × 是刪除，不是編輯 —— 別讓它冒泡成點了 chip
+              onCommit(refs.filter((r) => r !== ref));
+              input.current?.focus();
+            }}
+          >
+            ×
+          </button>
+        </span>
+      );
+    }))();
+
+  return (
+    <div
+      className={`entity-field${className ? ` ${className}` : ""}`}
+      ref={field}
+    >
+      {inputAt > 0 && (
+        <span className="entity-field__chips">
+          {chipNodes.slice(0, inputAt)}
+        </span>
+      )}
 
       <input
         ref={takeInput}
@@ -986,10 +1032,17 @@ export function EntityField({
         }}
       />
 
+      {inputAt < refs.length && (
+        <span className="entity-field__chips">{chipNodes.slice(inputAt)}</span>
+      )}
+
       {preview.length > 0 && (
         // aria-hidden ＋ CSS 的 pointer-events: none —— 它是一瞥，不是一個選單：不進無障礙
         // 樹（輸入框的 aria-expanded 這一刻仍然是 false，那是實話），也接不到滑鼠。
-        <ul className="entity-field__menu entity-field__menu--preview" aria-hidden="true">
+        <ul
+          className="entity-field__menu entity-field__menu--preview"
+          aria-hidden="true"
+        >
           {preview.map((option) => (
             <li key={option.id}>
               {HIT_MARK[kind]} {option.name}
@@ -1001,8 +1054,8 @@ export function EntityField({
       {rows.length > 0 && pending && (
         <div className="entity-field__confirm">
           <p className="entity-field__note">
-            這一場已經有{placeholder}「{refs[0]?.displayName}」。一個場次一個{placeholder} ——
-            要留哪一個？
+            這一場已經有{placeholder}「{refs[0]?.displayName}」。一個場次一個
+            {placeholder} —— 要留哪一個？
           </p>
           <ul
             className="entity-field__menu entity-field__menu--nested"
@@ -1031,13 +1084,21 @@ export function EntityField({
       {showNamingHint && (
         // 建議不是規則 —— 不擋寫入、沒有 ✕、失焦就收。`role="note"` 讓螢幕閱讀器讀得出它是
         // 一句附註而不是一個錯誤。
-        <p className="entity-field__note entity-field__note--naming" role="note">
-          人物名稱是劇組用來識別演員的 —— 給他一個有辨識度的名字。點 chip 可以改。
+        <p
+          className="entity-field__note entity-field__note--naming"
+          role="note"
+        >
+          人物名稱是劇組用來識別演員的 —— 給他一個有辨識度的名字。點 chip
+          可以改。
         </p>
       )}
 
       {(rows.length > 0 || heldNote) && !pending && (
-        <ul className="entity-field__menu" role="listbox" aria-label={`${placeholder}建議`}>
+        <ul
+          className="entity-field__menu"
+          role="listbox"
+          aria-label={`${placeholder}建議`}
+        >
           {heldNote && (
             <li role="presentation" className="entity-field__menu-hint">
               {heldNote}

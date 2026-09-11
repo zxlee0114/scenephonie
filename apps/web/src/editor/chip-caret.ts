@@ -30,6 +30,13 @@ import { useRef, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from
 type Options = {
   /** 這一格現在有幾個 chip。 */
   count: number;
+  /**
+   * 輸入框**排在第幾格**（`0` ＝ 所有 chip 之前，`count` ＝ 全部之後，也就是平常的樣子）。
+   *
+   * 拿起來改的那一筆會把輸入框留在它原本的位置（票券 39 收票），所以「輸入框左邊那一個」
+   * 不一定是最後一個 chip。←／→ 要走的是**看得見的順序**，不是陣列的尾端。
+   */
+  home?: number;
   /** 這一格的輸入框。 */
   input: RefObject<HTMLInputElement | null>;
   /** 輸入框裡打到一半的字（空字串才進得了 chip —— 見檔頭）。 */
@@ -40,7 +47,7 @@ type Options = {
   edit: (index: number, selectAll: boolean) => void;
 };
 
-export function useChipCaret({ count, input, text, exit, edit }: Options) {
+export function useChipCaret({ count, home = count, input, text, exit, edit }: Options) {
   const chips = useRef<(HTMLElement | null)[]>([]);
   chips.current.length = count;
 
@@ -62,9 +69,10 @@ export function useChipCaret({ count, input, text, exit, edit }: Options) {
     const atStart = el.selectionStart === 0 && el.selectionEnd === 0;
 
     if (event.key === "ArrowLeft" && (event.metaKey ? true : atStart)) {
+      if (!event.metaKey && home === 0) return false; // 輸入框已經在最前面，左邊沒有 chip
       event.preventDefault();
       event.stopPropagation();
-      focusChip(event.metaKey ? 0 : count - 1);
+      focusChip(event.metaKey ? 0 : home - 1);
       return true;
     }
     return false;
@@ -85,6 +93,8 @@ export function useChipCaret({ count, input, text, exit, edit }: Options) {
         if (event.metaKey) break;
         event.preventDefault();
         event.stopPropagation();
+        // 輸入框夾在中間時，走到它左邊那一個就該進框裡（看得見的順序）。
+        if (i + 1 === home) return focusInput("start");
         return i === count - 1 ? focusInput("start") : focusChip(i + 1);
       case "Enter":
         event.preventDefault();

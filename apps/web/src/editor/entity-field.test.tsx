@@ -1133,3 +1133,51 @@ describe("拿起來改的那一筆放回原位（票券 39 收票）", () => {
     await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "建鳴", "小明", "小華"]));
   });
 });
+
+describe("編輯中的那一筆也留在原位（票券 39 收票）", () => {
+  const three = () =>
+    render(
+      <Host
+        initial={[
+          { id: "ch_a", displayName: "阿盈" },
+          { id: "ch_b", displayName: "建鳴" },
+          { id: "ch_c", displayName: "小明" },
+        ]}
+        options={[
+          { id: "ch_a", name: "阿盈" },
+          { id: "ch_b", name: "建鳴" },
+          { id: "ch_c", name: "小明" },
+        ]}
+        onRenameEntity={() => {}}
+      />,
+    );
+
+  /** 看得見的順序：chip 與輸入框在這一欄裡實際排成什麼樣。 */
+  const layout = (root: HTMLElement) =>
+    [...root.querySelectorAll(".entity-chip, input")].map((el) =>
+      el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×＋📍👤]/gu, "") ?? ""),
+    );
+
+  it("拿起中間那一筆，輸入框就停在它原本那一格", () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+
+    expect(layout(container)).toEqual(["阿盈", "|", "小明"]);
+  });
+
+  it("放手之後輸入框回到隊尾（沒有誰正在被編輯了）", () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.keyDown(input, { key: "Backspace" });
+
+    expect(layout(container)).toEqual(["阿盈", "小明", "|"]);
+  });
+
+  it("沒在編輯時輸入框照樣在最後", () => {
+    const { container } = three();
+
+    expect(layout(container)).toEqual(["阿盈", "建鳴", "小明", "|"]);
+  });
+});
