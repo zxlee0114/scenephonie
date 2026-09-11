@@ -16,10 +16,10 @@ const halfWidthSymbols = (text: string): string =>
 /**
  * 全形數字（`１２３`）打回半形 —— 注音鍵盤下的數字常常是全形，那不該變成另一種寫法。
  *
- * 住在這裡、由 `extras.ts` 那一側 import：新舊兩條路認得的數字必須是同一套，各寫一份
- * 就會在某一天分岔。
+ * **不對外**：票券 45 之後只有一條路認數字 —— `extras.ts` 的尾綴解析整段交給
+ * `resolveCountInput`，不自己再正規化一次。各寫一份就會在某一天分岔。
  */
-export const halfWidthDigits = (text: string): string =>
+const halfWidthDigits = (text: string): string =>
   text.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0));
 
 /**

@@ -364,7 +364,7 @@ export function EntityField({
   ): Promise<EntityRef | null> => {
     const held = editing.current;
     // 剛拿下來的那一筆是**群演**：改字改的是「這一場顯示的名字」，不是換一個目標。
-    // （CONTEXT.md：群演欄寫「咖啡廳客人 x8」，對白顯示「眾人」—— 兩者本來就可以不同。）
+    // （CONTEXT.md：群演欄寫「咖啡廳客人（8）」，對白顯示「眾人」—— 兩者本來就可以不同。）
     // 少了這一條，改一個字就會把 `ex_` 引用悄悄換成一筆新建的**人物**，而一人說話與一群
     // 齊聲說的分界是編劇的宣告，不該由改名這個動作替他翻面。
     if (isExtraId(held?.id)) return { id: held!.id, displayName: name };

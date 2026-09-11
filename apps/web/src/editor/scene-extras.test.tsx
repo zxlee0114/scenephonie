@@ -78,7 +78,7 @@ describe("簡表的群演欄", () => {
 
     fireEvent.change(input, { target: { value: "咖啡廳客人 x8、服務生 x2、" } });
 
-    await waitFor(() => expect(extrasChips(container)).toEqual(["咖啡廳客人 x8", "服務生 x2"]));
+    await waitFor(() => expect(extrasChips(container)).toEqual(["咖啡廳客人（8）", "服務生（2）"]));
     expect(extrasOf(editor).map((e) => [e.description, e.count])).toEqual([
       ["咖啡廳客人", 8],
       ["服務生", 2],
