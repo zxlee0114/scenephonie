@@ -251,6 +251,8 @@ export function EntityField({
    * chip 拿起來就少一 —— 判準與 ADR-0005 那條邊界同一條：**手上那一筆不是孤兒**。
    */
   const heldScenes = useRef<number | null>(null);
+  /** 拿起來的那一筆原本排第幾 —— 放回去時要回到同一個位置（見 `merge`）。 */
+  const heldIndex = useRef<number | null>(null);
   /** 下一次重繪之後把輸入框整串反白（值要先進 DOM 才選得到）。 */
   const selectNext = useRef(false);
   /** 呼叫端也可能要這個 input（焦點串接），所以自己留一份再轉交出去。 */
@@ -321,6 +323,14 @@ export function EntityField({
       return;
     }
     const kept = refs.filter((r) => !added.some((a) => a.id === r.id));
+    // 拿起來改的那一筆放回**原來的位置**（2026-09-11 驗收回饋）。它是被編輯，不是新加的一筆
+    // —— 登場人物欄的次序是編劇排的（誰先出場、誰是主角），改一個字就被擠到隊尾不合理。
+    // 一口氣切出好幾筆（`小明、小華`）就整串插在那個位置，順序跟他打的一樣。
+    const at = heldIndex.current;
+    if (at != null && at <= kept.length) {
+      onCommit([...kept.slice(0, at), ...added, ...kept.slice(at)]);
+      return;
+    }
     onCommit([...kept, ...added]);
   };
 
@@ -377,6 +387,7 @@ export function EntityField({
   const editRef = (ref: EntityRef, selectAll = false) => {
     // ⚠️ 在 `onCommit` 之前問 —— 引用一從 doc 上拿掉，這一場就從場次數裡消失了。
     heldScenes.current = ref.id == null ? null : (usage?.().get(ref.id) ?? null);
+    heldIndex.current = refs.indexOf(ref);
     editing.current = ref;
     onCommit(refs.filter((r) => r !== ref));
     setText(ref.displayName);
@@ -411,6 +422,7 @@ export function EntityField({
   const letGo = () => {
     editing.current = null;
     heldScenes.current = null;
+    heldIndex.current = null;
     redraw(); // 手上那一筆住在 ref 裡，放手不會自己觸發一次渲染（抬頭要跟著收）。
   };
 
@@ -422,6 +434,7 @@ export function EntityField({
   const reset = () => {
     editing.current = null;
     heldScenes.current = null;
+    heldIndex.current = null;
     setText("");
     setStage({ name: "suggest" });
     setActive(0);
@@ -738,6 +751,7 @@ export function EntityField({
     // 升格是一個**新的宣告**，不是把剛拿下來那一筆原封放回去 —— 手上若正握著一筆群演引用，
     // `resolve` 會用回那個 `ex_` id，於是「升格」產出的會是一筆群演，正好相反。
     editing.current = null;
+    heldIndex.current = null; // 升格是新的一筆，排在隊尾（不是把誰放回原位）。
     const ref = await resolve(query, "promote");
     if (!ref?.id) return;
     onPromoteFromExtra(extra.id, ref.id);

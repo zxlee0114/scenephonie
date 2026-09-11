@@ -1079,3 +1079,57 @@ describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
     expect(heldNote(container)).toBeNull();
   });
 });
+
+describe("拿起來改的那一筆放回原位（票券 39 收票）", () => {
+  const three = () =>
+    render(
+      <Host
+        initial={[
+          { id: "ch_a", displayName: "阿盈" },
+          { id: "ch_b", displayName: "建鳴" },
+          { id: "ch_c", displayName: "小明" },
+        ]}
+        options={[
+          { id: "ch_a", name: "阿盈" },
+          { id: "ch_b", name: "建鳴" },
+          { id: "ch_c", name: "小明" },
+        ]}
+        onRenameEntity={() => {}}
+      />,
+    );
+
+  it("點中間那一筆、原封放回 —— 次序不動", async () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "建鳴", "小明"]));
+  });
+
+  it("改成另一筆既有實體，也是回到原來那一格 —— 次序是編劇排的，改字不該把誰擠到隊尾", async () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[0]!);
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "新的人" } });
+    fireEvent.keyDown(input, { key: "Enter" }); // ＋ 建立新實體
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["新的人", "建鳴", "小明"]));
+  });
+
+  it("一口氣切出好幾筆就整串插在那個位置，順序跟打的一樣", async () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "小華、阿姨、" } });
+
+    await waitFor(() =>
+      expect(chipTexts(container)).toEqual(["阿盈", "小華", "阿姨", "小明"]),
+    );
+  });
+
+  it("新打的一筆照樣排在隊尾（沒有拿起任何人）", async () => {
+    const { container } = three();
+    fireEvent.change(container.querySelector("input")!, { target: { value: "小華、" } });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "建鳴", "小明", "小華"]));
+  });
+});
