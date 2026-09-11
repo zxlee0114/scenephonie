@@ -61,18 +61,18 @@ describe("多組「描述 x 人數」", () => {
 
     fireEvent.change(input, { target: { value: "咖啡廳客人 x8、服務生 x2、" } });
 
-    await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳客人 x8", "服務生 x2"]));
+    await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳客人（8）", "服務生（2）"]));
     expect(input.value).toBe("");
   });
 
-  it("沒寫人數就是一位", async () => {
+  it("沒寫人數就是「若干」—— 系統不憑空生出一個數字（票券 45）", async () => {
     const { container } = render(<Host />);
     const input = container.querySelector("input")!;
 
     fireEvent.change(input, { target: { value: "服務生" } });
     fireEvent.keyDown(input, { key: "Enter" });
 
-    await waitFor(() => expect(chipTexts(container)).toEqual(["服務生 x1"]));
+    await waitFor(() => expect(chipTexts(container)).toEqual(["服務生（若干）"]));
   });
 
   it("描述裡的空白留著（多值欄輸入規則）", async () => {
@@ -81,7 +81,7 @@ describe("多組「描述 x 人數」", () => {
 
     fireEvent.change(input, { target: { value: "咖啡廳 客人 x8、" } });
 
-    await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳 客人 x8"]));
+    await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳 客人（8）"]));
   });
 
   it("離開欄位時把還沒切成 chip 的字定案", async () => {
@@ -91,7 +91,7 @@ describe("多組「描述 x 人數」", () => {
     fireEvent.change(input, { target: { value: "路人 x3" } });
     fireEvent.blur(input);
 
-    await waitFor(() => expect(chipTexts(container)).toEqual(["路人 x3"]));
+    await waitFor(() => expect(chipTexts(container)).toEqual(["路人（3）"]));
   });
 
   it("× 拿掉一筆", async () => {
@@ -131,7 +131,7 @@ describe("跨場次描述：只補字串、不建立連結", () => {
     fireEvent.change(input, { target: { value: "咖啡廳客人 x8" } });
     fireEvent.keyDown(input, { key: "Enter" });
 
-    await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳客人 x8"]));
+    await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳客人（8）"]));
     const [written] = committed.at(-1)!;
     expect(written!.extraId.startsWith("ex_")).toBe(true);
     expect(written).toMatchObject({ description: "咖啡廳客人", count: 8 });
@@ -181,7 +181,7 @@ describe("注音組字期間選單完全不動作（§7.6）", () => {
 
     fireEvent.change(input, { target: { value: "咖啡廳客人 x8、" } });
     fireEvent.compositionEnd(input);
-    await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳客人 x8"]));
+    await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳客人（8）"]));
   });
 });
 
@@ -194,11 +194,11 @@ describe("重新編輯", () => {
     const input = container.querySelector("input")!;
 
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
-    await waitFor(() => expect(input.value).toBe("咖啡廳客人 x8"));
+    await waitFor(() => expect(input.value).toBe("咖啡廳客人（8）"));
     fireEvent.change(input, { target: { value: "x8" } });
     fireEvent.blur(input);
 
-    await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳客人 x8"]));
+    await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳客人（8）"]));
   });
 
   it("點 chip 把描述與人數一起放回輸入框，改完仍是**同一筆** extraId", async () => {
@@ -213,14 +213,21 @@ describe("重新編輯", () => {
     const input = container.querySelector("input")!;
 
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
-    await waitFor(() => expect(input.value).toBe("咖啡廳客人 x8"));
+    await waitFor(() => expect(input.value).toBe("咖啡廳客人（8）"));
 
     fireEvent.change(input, { target: { value: "咖啡廳客人 x9" } });
     fireEvent.keyDown(input, { key: "Enter" });
 
     // 同一筆 id —— 對白的人物欄可能正指著它，換 id 會讓那句台詞的引用當場懸空。
     await waitFor(() =>
-      expect(committed.at(-1)).toEqual([{ extraId, description: "咖啡廳客人", count: 9 }]),
+      expect(committed.at(-1)).toEqual([
+        {
+          extraId,
+          description: "咖啡廳客人",
+          count: 9,
+          countValue: { kind: "exact", count: 9 },
+        },
+      ]),
     );
   });
 
@@ -232,7 +239,7 @@ describe("重新編輯", () => {
 
     fireEvent.keyDown(input, { key: "Backspace" });
 
-    await waitFor(() => expect(input.value).toBe("客人 x8"));
+    await waitFor(() => expect(input.value).toBe("客人（8）"));
     expect(chipTexts(container)).toEqual([]);
   });
 });
@@ -258,7 +265,7 @@ describe("群演欄吃的是同一套 chip 手感（票券 39 收票）", () => 
     const { container } = two();
     fireEvent.mouseDown(container.querySelectorAll(".entity-chip")[0]!);
 
-    expect(layout(container)).toEqual(["|", "服務生 x2"]);
+    expect(layout(container)).toEqual(["|", "服務生（2）"]);
     const shell = container.querySelector(".entity-field__input-chip")!;
     expect(shell.querySelector(".entity-chip__mark")?.textContent).toBe("👥");
     expect(shell.querySelector(".entity-chip__remove")).not.toBeNull();
@@ -271,33 +278,33 @@ describe("群演欄吃的是同一套 chip 手感（票券 39 收票）", () => 
     const other = container.querySelector(".entity-chip")!;
     expect(other.className).toContain("entity-chip--locked");
     fireEvent.mouseDown(other.querySelector(".entity-chip__remove")!);
-    expect(chipTexts(container)).toEqual(["服務生 x2"]);
-    expect(container.querySelector("input")!.value).toBe("客人 x8");
+    expect(chipTexts(container)).toEqual(["服務生（2）"]);
+    expect(container.querySelector("input")!.value).toBe("客人（8）");
   });
 
   it("清空之後再一次 Backspace 才放手 —— 不會直接跳進前一筆", () => {
     const { container } = two();
     const input = container.querySelector("input")!;
-    fireEvent.keyDown(input, { key: "Backspace" }); // 拿起「服務生 x2」
+    fireEvent.keyDown(input, { key: "Backspace" }); // 拿起「服務生（2）」
     fireEvent.change(input, { target: { value: "" } });
 
     fireEvent.keyDown(input, { key: "Backspace" }); // 放手
-    expect(chipTexts(container)).toEqual(["客人 x8"]);
+    expect(chipTexts(container)).toEqual(["客人（8）"]);
     expect(input.value).toBe("");
 
     fireEvent.keyDown(input, { key: "Backspace" }); // 這一下才輪到前一筆
-    expect(input.value).toBe("客人 x8");
+    expect(input.value).toBe("客人（8）");
   });
 
   it("點兩批之間那道縫，新的一批就插在那裡", () => {
     const { container } = two();
     fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
-    expect(layout(container)).toEqual(["客人 x8", "|", "服務生 x2"]);
+    expect(layout(container)).toEqual(["客人（8）", "|", "服務生（2）"]);
 
     const input = container.querySelector("input")!;
     fireEvent.change(input, { target: { value: "警察 x3、" } });
 
-    expect(chipTexts(container)).toEqual(["客人 x8", "警察 x3", "服務生 x2"]);
+    expect(chipTexts(container)).toEqual(["客人（8）", "警察（3）", "服務生（2）"]);
   });
 });
 
@@ -312,7 +319,7 @@ describe("改一批群演，選單要說它真的在做的事（票券 40）", (
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
     fireEvent.change(container.querySelector("input")!, { target: { value: "保全 x1" } });
 
-    expect(rows(container)[0]).toBe("✏️ 把「路人 x3」改成「保全 x1」");
+    expect(rows(container)[0]).toBe("✏️ 把「路人（3）」改成「保全（1）」");
   });
 
   it("只改人數也是同一列，兩邊的人數都讀得到", () => {
@@ -320,7 +327,7 @@ describe("改一批群演，選單要說它真的在做的事（票券 40）", (
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
     fireEvent.change(container.querySelector("input")!, { target: { value: "路人 x8" } });
 
-    expect(rows(container)[0]).toBe("✏️ 把「路人 x3」改成「路人 x8」");
+    expect(rows(container)[0]).toBe("✏️ 把「路人（3）」改成「路人（8）」");
   });
 
   it("按下去就是就地改 —— id 不變，指著它的對白不懸空", async () => {
@@ -331,7 +338,14 @@ describe("改一批群演，選單要說它真的在做的事（票券 40）", (
     fireEvent.mouseDown(menuItems(container)[0]!);
 
     await waitFor(() =>
-      expect(committed.at(-1)).toEqual([{ extraId: "ex_held", description: "路人", count: 8 }]),
+      expect(committed.at(-1)).toEqual([
+        {
+          extraId: "ex_held",
+          description: "路人",
+          count: 8,
+          countValue: { kind: "exact", count: 8 },
+        },
+      ]),
     );
   });
 
@@ -351,10 +365,10 @@ describe("改一批群演，選單要說它真的在做的事（票券 40）", (
     fireEvent.change(container.querySelector("input")!, { target: { value: "保全 x1" } });
 
     const another = rows(container).findIndex((r) => r.includes("保留"));
-    expect(rows(container)[another]).toBe("＋ 新增「保全 x1」群演，保留「路人 x3」");
+    expect(rows(container)[another]).toBe("＋ 新增「保全（1）」群演，保留「路人（3）」");
     fireEvent.mouseDown(menuItems(container)[another]!);
 
-    await waitFor(() => expect(chipTexts(container)).toEqual(["路人 x3", "保全 x1"]));
+    await waitFor(() => expect(chipTexts(container)).toEqual(["路人（3）", "保全（1）"]));
     const [kept, minted] = committed.at(-1)!;
     expect(kept).toEqual({ extraId: "ex_held", description: "路人", count: 3 });
     expect(minted!.extraId).not.toBe("ex_held");
@@ -381,7 +395,7 @@ describe("改一批群演，選單要說它真的在做的事（票券 40）", (
     const another = rows(container).findIndex((r) => r.includes("保留"));
     fireEvent.mouseDown(menuItems(container)[another]!);
 
-    expect(layout()).toEqual(["客人 x8", "警察 x3", "|", "服務生 x2"]);
+    expect(layout()).toEqual(["客人（8）", "警察（3）", "|", "服務生（2）"]);
   });
 
   it("手上沒握著東西時還是「新增」 —— 那一下確實是憑空多一批", () => {
@@ -397,7 +411,7 @@ describe("改一批群演，選單要說它真的在做的事（票券 40）", (
       const { container } = one();
       fireEvent.mouseDown(container.querySelector(".entity-chip")!);
 
-      expect(heldNote(container)).toBe("✏️ 正在編輯「路人 x3」，修改文字可更新名稱、人數");
+      expect(heldNote(container)).toBe("✏️ 正在編輯「路人（3）」，修改文字可更新名稱、人數");
     });
 
     it("字改過之後還在，印的仍是原本那一批", () => {
@@ -405,7 +419,7 @@ describe("改一批群演，選單要說它真的在做的事（票券 40）", (
       fireEvent.mouseDown(container.querySelector(".entity-chip")!);
       fireEvent.change(container.querySelector("input")!, { target: { value: "保全 x1" } });
 
-      expect(heldNote(container)).toBe("✏️ 正在編輯「路人 x3」，修改文字可更新名稱、人數");
+      expect(heldNote(container)).toBe("✏️ 正在編輯「路人（3）」，修改文字可更新名稱、人數");
     });
 
     it("框裡清空了它也還在 —— 那時說的是下一顆 Backspace 會做什麼", () => {
@@ -413,7 +427,7 @@ describe("改一批群演，選單要說它真的在做的事（票券 40）", (
       fireEvent.mouseDown(container.querySelector(".entity-chip")!);
       fireEvent.change(container.querySelector("input")!, { target: { value: "" } });
 
-      expect(heldNote(container)).toBe("✏️ 正在編輯「路人 x3」，再按一次 Backspace 移除這一批");
+      expect(heldNote(container)).toBe("✏️ 正在編輯「路人（3）」，再按一次 Backspace 移除這一批");
     });
 
     it("它不是一列選項 —— 選不到，Enter 碰不到", () => {
@@ -424,7 +438,7 @@ describe("改一批群演，選單要說它真的在做的事（票券 40）", (
       expect(container.querySelector(".entity-field__menu-hint")!.getAttribute("role")).toBe(
         "presentation",
       );
-      expect(rows(container)[0]).toBe("✏️ 把「路人 x3」改成「保全 x1」");
+      expect(rows(container)[0]).toBe("✏️ 把「路人（3）」改成「保全（1）」");
     });
 
     it("手上沒握著東西時沒有抬頭", () => {

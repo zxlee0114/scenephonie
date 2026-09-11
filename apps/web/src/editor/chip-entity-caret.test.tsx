@@ -224,7 +224,7 @@ describe("群演欄：同一套規則", () => {
 
     fireEvent.keyDown(chips[1]!, { key: "ArrowLeft" });
     expect(document.activeElement).toBe(input); // 兩批之間那道縫
-    expect(layoutOf(container, "extras")).toEqual(["咖啡廳客人 x8", "|", "服務生 x2"]);
+    expect(layoutOf(container, "extras")).toEqual(["咖啡廳客人（8）", "|", "服務生（2）"]);
 
     fireEvent.keyDown(input, { key: "ArrowLeft" });
     expect(document.activeElement).toBe(chips[0]);
@@ -243,7 +243,7 @@ describe("群演欄：同一套規則", () => {
     chips[0]!.focus();
     fireEvent.keyDown(chips[0]!, { key: "Backspace" });
 
-    await waitFor(() => expect(input.value).toBe("咖啡廳客人 x8"));
+    await waitFor(() => expect(input.value).toBe("咖啡廳客人（8）"));
     // 真的從欄位裡拿下來了 —— 剩下一批。
     await waitFor(() => expect(chipsIn(container, "extras")).toHaveLength(1));
   });
