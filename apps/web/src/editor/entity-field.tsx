@@ -401,17 +401,40 @@ export function EntityField({
    * 命中／新建／別名那三列 —— 改名這件事本來就該經過那個選單，而不是在 chip 上原地改掉
    * （原地改分不出「這一場叫別的名字」與「這個實體改名了」，而那正是 §4.7 要編劇說清楚的事）。
    */
-  const editRef = (ref: EntityRef, selectAll = false) => {
-    // **一次只編輯一筆**（2026-09-11 驗收回饋）。手上已經握著一筆時，點別的 chip 不接手 ——
-    // 接手的那一下會把手上那一筆弄丟：它早就不在 `refs` 裡了，下面這行 `onCommit` 的過濾
-    // 救不回它，於是畫面上它直接消失。要換一筆，先把手上這一筆定案（Enter、或移開欄位）。
-    if (editing.current) return;
+  /**
+   * 把手上那一筆**定案放回原位**，回傳放回之後的引用清單（沒握著任何一筆就回 `null`）。
+   *
+   * 它是接力的前半段（見 `editRef`），所以**不自己寫回** —— 「放回 A」與「拿起 B」必須落在
+   * 同一次 `onCommit`：`refs` 是 prop，中途不會重繪，分兩次寫的話第二次會拿舊的清單覆蓋掉
+   * 第一次（同 `resolve` 檔頭那條理由）。
+   */
+  const settleHeld = async (): Promise<readonly EntityRef[] | null> => {
+    if (!editing.current) return null;
+    const at = heldIndex.current ?? refs.length;
+    // 框裡空著 ＝ 編劇已經把它清掉了，那就放手，不放回去（見 `letGo`）。
+    if (query === "") {
+      letGo();
+      return refs;
+    }
+    const put = await resolve(query);
+    letGo();
+    setText(""); // 定案了 —— 那串字已經變成一個 chip，不該還留在輸入框裡
+    if (!put) return refs; // 建不出實體就什麼都不寫（不變式 ⑧）
+    return [...refs.slice(0, at), put, ...refs.slice(at)];
+  };
+
+  /** 把一筆引用拿起來改（`base` ＝ 拿起來之前這一欄有哪些引用）。 */
+  const takeUp = (
+    ref: EntityRef,
+    base: readonly EntityRef[],
+    selectAll: boolean,
+  ) => {
     // ⚠️ 在 `onCommit` 之前問 —— 引用一從 doc 上拿掉，這一場就從場次數裡消失了。
     heldScenes.current =
       ref.id == null ? null : (usage?.().get(ref.id) ?? null);
-    heldIndex.current = refs.indexOf(ref);
+    heldIndex.current = base.indexOf(ref);
     editing.current = ref;
-    onCommit(refs.filter((r) => r !== ref));
+    onCommit(base.filter((r) => r !== ref));
     setText(ref.displayName);
     setDismissed(false);
     setActive(0);
@@ -419,6 +442,24 @@ export function EntityField({
     // 滑鼠點 chip 進來的不反白 —— 那是「我要改這個名字」，游標該留在字尾。
     selectNext.current = selectAll;
     input.current?.focus();
+  };
+
+  /**
+   * **接力**（2026-09-11 裁決）：手上已經握著一筆時，先把它定案放回原位，再拿起新的。
+   *
+   * 不能只是擋住 —— 跨欄位點過去本來就是接力（焦點一走，`blur` 就把手上那一筆定案），
+   * 同一欄裡擋住會讓同一個手勢有兩種結果。也不能直接接手：被拿起來的那一筆早就不在
+   * `refs` 裡，`takeUp` 那行 `onCommit` 的過濾救不回它，它會**直接消失**。
+   *
+   * 沒握著任何一筆時**同步**走完 —— 定案可能要先建一筆實體（`onCreate` 是 async），但
+   * 那條路只有接力才走得到，不該讓平常點一個 chip 也慢一拍。
+   */
+  const editRef = (ref: EntityRef, selectAll = false) => {
+    if (!editing.current) {
+      takeUp(ref, refs, selectAll);
+      return;
+    }
+    void settleHeld().then((base) => takeUp(ref, base ?? refs, selectAll));
   };
 
   /** chip 之間的方向鍵（票券 34 第三輪）—— 規則與版面說明見 `./chip-caret`。 */
@@ -966,8 +1007,6 @@ export function EntityField({
                 : entity
                   ? "entity-chip--hit"
                   : "entity-chip--dangling",
-            // 手上握著一筆時其餘的 chip 動不得（見 `editRef`）—— 指標得說出這件事。
-            editing.current ? "entity-chip--locked" : null,
           ]
             .filter(Boolean)
             .join(" ")}
@@ -996,9 +1035,12 @@ export function EntityField({
             onMouseDown={(e) => {
               e.preventDefault();
               e.stopPropagation(); // × 是刪除，不是編輯 —— 別讓它冒泡成點了 chip
-              if (editing.current) return; // 同 `editRef`：手上握著一筆時，別的 chip 動不得
-              onCommit(refs.filter((r) => r !== ref));
-              input.current?.focus();
+              // 手上握著一筆時同樣先接力（見 `editRef`）：A 定案回到原位，B 才被刪掉。
+              void (async () => {
+                const base = (await settleHeld()) ?? refs;
+                onCommit(base.filter((r) => r !== ref));
+                input.current?.focus();
+              })();
             }}
           >
             ×
@@ -1018,51 +1060,73 @@ export function EntityField({
         </span>
       )}
 
-      <input
-        ref={takeInput}
-        // 夾在 chip 中間時**寬度依內容而定**（2026-09-11 驗收回饋）—— 平常那條 `flex` 會
-        // 吃掉整行剩下的空間，在中間就成了一道把後半排 chip 推開的空白。
-        className={[
-          inputClassName,
-          inputAt < refs.length && "entity-field__input--inline",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        // `field-sizing: content` 沒生效時的退路（見 `columns`）。
-        size={inputAt < refs.length ? columns(text) : undefined}
-        // 已經有 chip 就不必再留提示字 —— chip 自己就說明了這一欄是什麼。
-        placeholder={refs.length > 0 ? "" : placeholder}
-        aria-label={placeholder}
-        aria-describedby={describedBy}
-        aria-keyshortcuts={describedBy ? HELP_KEY_HINT : undefined}
-        aria-expanded={rows.length > 0 || heldNote != null}
-        aria-haspopup="listbox"
-        role="combobox"
-        value={text}
-        onCompositionStart={() => {
-          composing.current = true;
-          setComposingNow(true);
-        }}
-        onCompositionEnd={(event) => {
-          composing.current = false;
-          setComposingNow(false);
-          // 組字結束才輪到我們：這一刻起選單與分隔符才開始作用。
-          onChange(event.currentTarget.value);
-        }}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={() => {
-          // 離開欄位時把還沒 chip 化的字定案（與 CjkField 的 blur 回寫同一個理由：
-          // 打完就走是常態，不該把字吃掉）。
-          // 待確認的字**不在 blur 時定案** —— 它正等著編劇回答，離開欄位不是答案。
-          if (!composing.current && !needsConfirm) void commitText();
-          // 空著離開 ＝ 放手。`commitText` 沒字時直接 return，不清任何東西 —— 少了這一句，
-          // 抬頭會跟著欄位一路掛在畫面上（2026-09-11 驗收回饋）。
-          if (query === "") letGo();
-          setStage({ name: "suggest" });
-          setShowNamingHint(false); // 他移開就是決定了（見 `showNamingHint`）
-        }}
-      />
+      {/* 編輯中的那一筆**看起來還是一顆 chip**（2026-09-11 驗收回饋）—— 記號與邊框都留著，
+          只有裡面那段字換成可以打的。少了這一層，點下去的那一刻 chip 整個變成裸字，
+          整排跟著位移，畫面跳得比實際發生的事還大。沒在編輯時這層 span 是透明的
+          （`display: contents`），輸入框照樣是 `.entity-field` 的 flex 項。 */}
+      <span
+        className={
+          editing.current
+            ? "entity-field__input-chip"
+            : "entity-field__input-wrap"
+        }
+      >
+        {editing.current && (
+          <span className="entity-chip__mark" aria-hidden="true">
+            {isExtraId(editing.current.id)
+              ? EXTRA_MARK
+              : editing.current.id != null &&
+                  bornHere.includes(editing.current.id)
+                ? NEW_MARK
+                : HIT_MARK[kind]}
+          </span>
+        )}
+        <input
+          ref={takeInput}
+          // 編輯中**寬度依內容而定** —— 平常那條 `flex` 會吃掉整行剩下的空間，在 chip 裡就成了
+          // 一道把後半排推開的空白（2026-09-11 驗收回饋）。
+          className={[
+            inputClassName,
+            editing.current && "entity-field__input--inline",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          // `field-sizing: content` 沒生效時的退路（見 `columns`）。
+          size={editing.current ? columns(text) : undefined}
+          // 已經有 chip 就不必再留提示字 —— chip 自己就說明了這一欄是什麼。
+          placeholder={refs.length > 0 ? "" : placeholder}
+          aria-label={placeholder}
+          aria-describedby={describedBy}
+          aria-keyshortcuts={describedBy ? HELP_KEY_HINT : undefined}
+          aria-expanded={rows.length > 0 || heldNote != null}
+          aria-haspopup="listbox"
+          role="combobox"
+          value={text}
+          onCompositionStart={() => {
+            composing.current = true;
+            setComposingNow(true);
+          }}
+          onCompositionEnd={(event) => {
+            composing.current = false;
+            setComposingNow(false);
+            // 組字結束才輪到我們：這一刻起選單與分隔符才開始作用。
+            onChange(event.currentTarget.value);
+          }}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={() => {
+            // 離開欄位時把還沒 chip 化的字定案（與 CjkField 的 blur 回寫同一個理由：
+            // 打完就走是常態，不該把字吃掉）。
+            // 待確認的字**不在 blur 時定案** —— 它正等著編劇回答，離開欄位不是答案。
+            if (!composing.current && !needsConfirm) void commitText();
+            // 空著離開 ＝ 放手。`commitText` 沒字時直接 return，不清任何東西 —— 少了這一句，
+            // 抬頭會跟著欄位一路掛在畫面上（2026-09-11 驗收回饋）。
+            if (query === "") letGo();
+            setStage({ name: "suggest" });
+            setShowNamingHint(false); // 他移開就是決定了（見 `showNamingHint`）
+          }}
+        />
+      </span>
 
       {inputAt < refs.length && (
         <span className="entity-field__chips">{chipNodes.slice(inputAt)}</span>

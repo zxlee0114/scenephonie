@@ -1189,6 +1189,17 @@ describe("編輯中的那一筆也留在原位（票券 39 收票）", () => {
     expect(input.className).not.toContain("entity-field__input--inline");
   });
 
+  it("編輯中的那一筆看起來還是一顆 chip —— 記號與邊框都留著，整排不位移", () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+
+    const shell = container.querySelector(".entity-field__input-chip")!;
+    expect(shell.querySelector(".entity-chip__mark")?.textContent).toBe("📍"); // Host 是地點欄
+    expect(shell.querySelector("input")).not.toBeNull();
+    // 那層外殼**不算一顆 chip** —— `.entity-chip` 數的是已經定案的引用。
+    expect(chips(container)).toHaveLength(2);
+  });
+
   it("沒在編輯時輸入框照樣在最後", () => {
     const { container } = three();
 
@@ -1196,7 +1207,7 @@ describe("編輯中的那一筆也留在原位（票券 39 收票）", () => {
   });
 });
 
-describe("一次只編輯一筆（票券 39 收票）", () => {
+describe("接力：點別的 chip 時手上那一筆先定案（票券 39 收票）", () => {
   const two = () =>
     render(
       <Host
@@ -1212,40 +1223,41 @@ describe("一次只編輯一筆（票券 39 收票）", () => {
       />,
     );
 
-  it("正在改一筆時點別的 chip 不接手 —— 接手那一下會把手上那一筆弄丟", () => {
+  it("正在改一筆時點別的 chip：前一筆回到原位，後一筆進編輯", async () => {
     const { container } = two();
     fireEvent.mouseDown(chips(container)[0]!); // 拿起「阿盈」
     fireEvent.mouseDown(chips(container)[0]!); // 畫面上只剩「建鳴」，點它
 
-    const input = container.querySelector("input")!;
-    expect(input.value).toBe("阿盈"); // 手上還是原來那一筆
-    expect(chipTexts(container)).toEqual(["建鳴"]); // 「建鳴」也還在
+    await waitFor(() => expect(container.querySelector("input")!.value).toBe("建鳴"));
+    expect(chipTexts(container)).toEqual(["阿盈"]); // 阿盈回到第一格，沒有消失
   });
 
-  it("動不得的 chip 標得出來 —— 指標不該還說它可以點", () => {
+  it("接力時改過的字也一起定案 —— 跟移開欄位是同一件事", async () => {
     const { container } = two();
-    expect(chips(container)[0]!.className).not.toContain("entity-chip--locked");
-
     fireEvent.mouseDown(chips(container)[0]!);
-    expect(chips(container)[0]!.className).toContain("entity-chip--locked");
+    fireEvent.change(container.querySelector("input")!, { target: { value: "小華" } });
+    fireEvent.mouseDown(chips(container)[0]!); // 點「建鳴」
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["小華"]));
+    expect(container.querySelector("input")!.value).toBe("建鳴");
   });
 
-  it("正在改一筆時別的 chip 的 × 也不動 —— 同一條線", () => {
+  it("點別的 chip 的 × 也先接力：前一筆回到原位，後一筆被刪掉", async () => {
     const { container } = two();
     fireEvent.mouseDown(chips(container)[0]!);
     fireEvent.mouseDown(container.querySelector(".entity-chip__remove")!);
 
-    expect(chipTexts(container)).toEqual(["建鳴"]);
-    expect(container.querySelector("input")!.value).toBe("阿盈");
+    await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈"]));
+    expect(container.querySelector("input")!.value).toBe("");
   });
 
-  it("定案之後就換得了 —— 兩筆都在，次序也沒變", async () => {
+  it("框裡空著時接力就是放手 —— 那一筆本來就已經被清掉了", async () => {
     const { container } = two();
     fireEvent.mouseDown(chips(container)[0]!);
-    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" });
+    fireEvent.change(container.querySelector("input")!, { target: { value: "" } });
+    fireEvent.mouseDown(chips(container)[0]!); // 點「建鳴」
 
-    await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "建鳴"]));
-    fireEvent.mouseDown(chips(container)[1]!);
-    expect(container.querySelector("input")!.value).toBe("建鳴");
+    await waitFor(() => expect(container.querySelector("input")!.value).toBe("建鳴"));
+    expect(chipTexts(container)).toEqual([]); // 阿盈沒有放回去
   });
 });

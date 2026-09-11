@@ -533,7 +533,11 @@
 
 /* 命中既有實體與新建**視覺可辨**（`📍`／`👤` vs `＋`）——地點是實體，編劇必須立刻看到
  * 自己是接上了既有的那一筆，還是又開了一筆新的（兩套陳設 vs 一套）。 */
-.entity-chip {
+/* `--input-chip` ＝ 正在編輯的那一筆（輸入框住在裡面），外觀與一顆 chip 完全一樣。
+   它刻意**不掛 `.entity-chip`**：那個 class 是「一筆已經定案的引用」，選它的程式與測試
+   數的就是這個。 */
+.entity-chip,
+.entity-field__input-chip {
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -682,15 +686,20 @@
   background: var(--selection-bg);
 }
 
-/* 手上正握著一筆時，**其餘的 chip 動不得**（一次只編輯一筆，票券 39 收票）—— 指標要說出
-   這件事，不然它看起來仍然可點。 */
-.entity-chip--locked,
-.entity-chip--locked .entity-chip__remove {
-  cursor: default;
+/* 沒在編輯時，包住輸入框的那層 span 完全透明 —— 輸入框照樣是 `.entity-field` 的 flex 項。 */
+.entity-field__input-wrap {
+  display: contents;
 }
 
-/* 輸入框夾在 chip 中間時（正在改中間那一筆，票券 39 收票）—— 它平常是彈性的，會吃掉整行
-   剩下的空間；夾在中間那就成了一道把後半排 chip 推開的空白。這裡改成依內容決定寬度。 */
+/* 編輯中的那一筆看起來還是一顆 chip（票券 39 收票）：記號與邊框都留著，只有裡面那段字
+   換成可以打的。點下去只換掉字的呈現，整排不位移。 */
+.entity-field__input-chip {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* 編輯中的輸入框寬度依內容而定 —— 它平常是彈性的（吃掉整行剩下的空間），在 chip 裡那就成了
+   一道把後半排推開的空白。 */
 .entity-field .entity-field__input--inline {
   flex: 0 1 auto;
   field-sizing: content;
