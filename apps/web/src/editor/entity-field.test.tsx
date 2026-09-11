@@ -664,7 +664,7 @@ describe("編輯中的那一筆：別名與人物欄（票券 38 code review）"
 
     fireEvent.keyDown(input, { key: "Backspace" });
     // 主體是實體名，括號裡是這一場的叫法（票券 38 驗收回饋那一節）。
-    expect(rows(container)[0]).toBe("📍 海豚公寓房間（這一場叫 未知大樓房間）");
+    expect(rows(container)[0]).toBe("📍 海豚公寓房間（這場顯示為 未知大樓房間）");
 
     fireEvent.keyDown(input, { key: "Enter" }); // 第一列就是預設那一列
     await waitFor(() => expect(commits.at(-1)).toHaveLength(1));
@@ -741,7 +741,7 @@ describe("命中列標出這一場的叫法（票券 38 驗收回饋）", () => 
     // 沿用場次表那條慣例：印 `實體名（這一場的顯示名）`，只在兩者不同時才印括號
     // （CONTEXT.md 的地點詞條）。選單與場次表回答同一個問題，形狀就該是同一個。
     expect(heldAlias([{ id: "lo_1", name: "test1" }], "test")[0]).toBe(
-      "📍 test1（這一場叫 test，1 場）",
+      "📍 test1（這場顯示為 test，1 場）",
     );
   });
 

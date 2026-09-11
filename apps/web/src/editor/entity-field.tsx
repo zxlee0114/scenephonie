@@ -407,7 +407,7 @@ export function EntityField({
         // （CONTEXT.md 地點詞條：印 `實體名（這一場的顯示名）`，只在兩者不同時才印）。
         // 主體是實體名而不是編劇打的字：他打的字他自己知道，不知道的是它會綁到誰。
         const alias = option === exact && query !== option.name ? query : null;
-        const note = [alias && `這一場叫 ${alias}`, count && `${count} 場`]
+        const note = [alias && `這場顯示為 ${alias}`, count && `${count} 場`]
           .filter(Boolean)
           .join("，");
         rows.push({
