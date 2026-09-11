@@ -240,6 +240,14 @@ export function EntityField({
    * 舊的那筆變成真的孤兒。拿下來的東西放回去就該是原來那一個。
    */
   const editing = useRef<EntityRef | null>(null);
+  /**
+   * 拿起來**那一刻**，手上那一筆實體用在幾場 —— **含編劇正站著的這一場**。
+   *
+   * 為什麼要快照：`editRef` 第一件事就是把引用從 doc 上拿掉，`usage()` 從那之後就少算這一場
+   * （除非同一場的別欄也引用它）。但編劇要判斷的是「這筆實體有多大」，那個數字不該因為他把
+   * chip 拿起來就少一 —— 判準與 ADR-0005 那條邊界同一條：**手上那一筆不是孤兒**。
+   */
+  const heldScenes = useRef<number | null>(null);
   /** 下一次重繪之後把輸入框整串反白（值要先進 DOM 才選得到）。 */
   const selectNext = useRef(false);
   /** 呼叫端也可能要這個 input（焦點串接），所以自己留一份再轉交出去。 */
@@ -364,6 +372,8 @@ export function EntityField({
    * （原地改分不出「這一場叫別的名字」與「這個實體改名了」，而那正是 §4.7 要編劇說清楚的事）。
    */
   const editRef = (ref: EntityRef, selectAll = false) => {
+    // ⚠️ 在 `onCommit` 之前問 —— 引用一從 doc 上拿掉，這一場就從場次數裡消失了。
+    heldScenes.current = ref.id == null ? null : (usage?.().get(ref.id) ?? null);
     editing.current = ref;
     onCommit(refs.filter((r) => r !== ref));
     setText(ref.displayName);
@@ -394,6 +404,7 @@ export function EntityField({
 
   const reset = () => {
     editing.current = null;
+    heldScenes.current = null;
     setText("");
     setStage({ name: "suggest" });
     setActive(0);
@@ -435,6 +446,9 @@ export function EntityField({
     // 看得見的地方。目錄是 append-only 的，裡面一定會累積 ⌘Z 留下的孤兒；「v1 永不清理」
     // 指的是**不刪資料列**，不是「照樣顯示」。
     const counts = usage?.();
+    /** 選單印的場次數 —— 手上那一筆用拿起來之前的快照（見 `heldScenes`）。 */
+    const scenesOf = (id: string) =>
+      (id === editing.current?.id ? heldScenes.current : null) ?? counts?.get(id);
     const known = existing();
     // 手上那一筆也算命中 —— 少了它，把自己拿回來改會看到「建立新實體『它自己』」（票券 38）。
     const exact = known.find((o) => o.name === query) ?? editingMatch(query);
@@ -445,7 +459,7 @@ export function EntityField({
 
     if (stage.name === "suggest") {
       for (const option of [...(exact ? [exact] : []), ...hits]) {
-        const count = counts?.get(option.id);
+        const count = scenesOf(option.id);
         // 手上那一筆的顯示名可能不是它在目錄裡的名字（別名，或實體改名後舊引用留著舊字）
         // —— 那時標籤主體印**實體名**、括號裡補這一場的叫法，沿用場次表那條慣例
         // （CONTEXT.md 地點詞條：印 `實體名（這一場的顯示名）`，只在兩者不同時才印）。
@@ -483,7 +497,7 @@ export function EntityField({
       if (onPromoteFromExtra) {
         // 命中的是同一個 query，所以在迴圈外問一次就好。
         const hit = byName(query);
-        const scenesUsing = hit ? counts?.get(hit.id) : undefined;
+        const scenesUsing = hit ? scenesOf(hit.id) : undefined;
         // 命中既有存在人物時講明白它會指向誰 —— 系統不替人物取名，也就不靠取名擋住「兩位
         // 特約被靜靜併成同一個人」；擋它的是編劇按下去之前讀到的這一行字（票券 35）。
         const who = hit
@@ -637,6 +651,37 @@ export function EntityField({
           .filter((o) => o.name.includes(query))
           .slice(0, 5)
       : [];
+
+  /**
+   * 手上握著一筆實體時，選單頂端那一行**唯讀**的抬頭（票券 39 收票）。
+   *
+   * 它補的是兩個沒有回饋的時刻：
+   *
+   * **① 字全刪光。** `menuOpen` 的條件是框裡有字，所以刪到空的那一刻選單整個收掉 —— 畫面上
+   * 沒有任何東西說「你手上還握著『派出所』」，看起來跟從沒填過一模一樣。但下一次 Backspace
+   * 的後果完全不同（那一下才是把引用拿掉）。代價寫在按下去之前（ADR-0006 那條方法論）。
+   *
+   * **② 字還沒改。** 那時沒有任何一列提到改名（沒東西可改），於是「改這裡的字就能改名」這條
+   * 路**完全不可見** —— 編劇不會去試一個他不知道存在的東西。
+   *
+   * 它**不是一列選項**：不進 `rows`、選不到、Enter 碰不到它。標籤放結果、說明另外放，這條
+   * 分工是票券 36 立的；等 36 的側邊說明欄落地，這一行可以搬進去。
+   */
+  const heldNote = ((): string | null => {
+    if (!onRenameEntity || pending || dismissed || composingNow || stage.name !== "suggest") {
+      return null;
+    }
+    const held = editing.current;
+    const entity = heldEntity();
+    if (!held || !entity) return null;
+    if (query === "") {
+      // 措辭說的是**狀態**不是下一顆鍵：引用在 chip 被拿起來那一刻就從 doc 上撤掉了，所以
+      // 「再按一次 Backspace 會拿掉」並不準確 —— 真正決定它去留的是離開欄位時框裡有沒有字。
+      return `${RENAME_MARK} 手上是「${entity.name}」—— 打字可改名，空著離開就是拿掉它`;
+    }
+    // 字改過了就不必再提示 —— 那時真正可按的那一列已經在選單裡。
+    return query === entity.name ? `${RENAME_MARK} 改這裡的字，就能把這筆實體改名` : null;
+  })();
 
   const activeRow = rows[Math.min(active, rows.length - 1)];
 
@@ -874,7 +919,7 @@ export function EntityField({
         aria-label={placeholder}
         aria-describedby={describedBy}
         aria-keyshortcuts={describedBy ? HELP_KEY_HINT : undefined}
-        aria-expanded={rows.length > 0}
+        aria-expanded={rows.length > 0 || heldNote != null}
         aria-haspopup="listbox"
         role="combobox"
         value={text}
@@ -950,8 +995,13 @@ export function EntityField({
         </p>
       )}
 
-      {rows.length > 0 && !pending && (
+      {(rows.length > 0 || heldNote) && !pending && (
         <ul className="entity-field__menu" role="listbox" aria-label={`${placeholder}建議`}>
+          {heldNote && (
+            <li role="presentation" className="entity-field__menu-hint">
+              {heldNote}
+            </li>
+          )}
           {rows.map((row, i) => (
             <li
               key={row.key}

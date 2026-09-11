@@ -30,8 +30,13 @@ function Host({
     run: (id: string, from: string, to: string) => boolean;
   };
   multiple?: boolean;
-  /** 給要模擬「孤兒不算存在」的測試用；不給就是整份目錄都算存在（見 EntityField）。 */
-  usage?: () => ReadonlyMap<string, number>;
+  /**
+   * 給要模擬「孤兒不算存在」的測試用；不給就是整份目錄都算存在（見 EntityField）。
+   *
+   * 收得到**現在還在欄位上的引用** —— 真實環境的 `usage` 走 doc，chip 一拿起來那一場就從
+   * 計數裡消失了。要釘住這件事的測試得拿得到那個變化。
+   */
+  usage?: (refs: readonly EntityRef[]) => ReadonlyMap<string, number>;
 }) {
   const [refs, setRefs] = useState<EntityRef[]>(initial);
   const [catalog, setCatalog] = useState<EntityOption[]>(options);
@@ -41,7 +46,7 @@ function Host({
       placeholder="地點"
       refs={refs}
       options={catalog}
-      usage={usage}
+      usage={usage && (() => usage(refs))}
       multiple={multiple}
       onCommit={setRefs}
       onCreate={
@@ -62,11 +67,16 @@ function Host({
 const chips = (root: HTMLElement) => [...root.querySelectorAll(".entity-chip")];
 const chipTexts = (root: HTMLElement) =>
   chips(root).map((c) => c.textContent?.replace(/[×＋📍👤]/gu, "") ?? "");
-/** 可以操作的那份選單（預覽不算 —— 它按不到，見下面那個 describe）。 */
+/** 可以操作的那份選單（預覽與唯讀抬頭都不算 —— 它們按不到）。 */
 const rows = (root: HTMLElement) =>
-  [...root.querySelectorAll(".entity-field__menu:not(.entity-field__menu--preview) li")].map(
-    (li) => li.textContent ?? "",
-  );
+  [
+    ...root.querySelectorAll(
+      ".entity-field__menu:not(.entity-field__menu--preview) li:not(.entity-field__menu-hint)",
+    ),
+  ].map((li) => li.textContent ?? "");
+/** 選單頂端那一行唯讀抬頭（票券 39 收票）；沒有就是 null。 */
+const heldNote = (root: HTMLElement) =>
+  root.querySelector(".entity-field__menu-hint")?.textContent ?? null;
 /** 組字中浮出來的唯讀預覽。 */
 const previewRows = (root: HTMLElement) =>
   [...root.querySelectorAll(".entity-field__menu--preview li")].map((li) => li.textContent ?? "");
@@ -758,12 +768,14 @@ describe("命中列標出這一場的叫法（票券 38 驗收回饋）", () => 
 
 
 describe("✏️ 把實體改名（票券 39）", () => {
-  /** 派出所被三場引用，其中這一場正被拿回來改 —— 所以 usage 只數得到別的兩場。 */
+  /** 派出所被三場引用，其中這一場就是這個欄位 —— chip 拿起來的那一刻 doc 只剩另外兩場。 */
+  const scenesInDoc = (refs: readonly EntityRef[]) =>
+    new Map([[policeStation.id, 2 + refs.filter((r) => r.id === policeStation.id).length]]);
   const held = () =>
     render(
       <Host
         initial={[{ id: policeStation.id, displayName: "派出所" }]}
-        usage={() => new Map([[policeStation.id, 2]])}
+        usage={scenesInDoc}
         onRenameEntity={() => {}}
       />,
     );
@@ -780,7 +792,6 @@ describe("✏️ 把實體改名（票券 39）", () => {
     const { container } = held();
     retype(container, "派出所後門");
 
-    // 場數是 usage ＋ 手上這一筆（它已經從 doc 拿掉了）。
     // **排在建立新實體後面**：第一列是 Enter 會做的事，而改名 ⌘Z 回不來，不該順手發生。
     expect(rows(container)).toEqual([
       "＋ 建立新實體「派出所後門」",
@@ -793,14 +804,14 @@ describe("✏️ 把實體改名（票券 39）", () => {
     const { container } = render(
       <Host
         initial={[{ id: policeStation.id, displayName: "分局" }]}
-        usage={() => new Map([[policeStation.id, 2]])}
+        usage={scenesInDoc}
         onRenameEntity={() => {}}
       />,
     );
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
 
     expect(rows(container)).toEqual([
-      "📍 派出所（這場顯示為 分局，2 場）",
+      "📍 派出所（這場顯示為 分局，3 場）",
       "✏️ 把實體改名為「分局」",
       "🔗 作為既有實體的另一個名字…",
     ]);
@@ -810,7 +821,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
     const { container } = held();
     retype(container, "派出所");
 
-    expect(rows(container)).toEqual(["📍 派出所（2 場）", "🔗 作為既有實體的另一個名字…"]);
+    expect(rows(container)).toEqual(["📍 派出所（3 場）", "🔗 作為既有實體的另一個名字…"]);
   });
 
   it("沒有改名能力時就不出現那一列（不給做不到的選項）", () => {
@@ -950,5 +961,69 @@ describe("✏️ 把實體改名（票券 39）", () => {
       expect(container.querySelector("input")!.value).toBe("派出所後門");
       expect(rows(container).some((r) => r.includes("把實體改名為"))).toBe(true);
     });
+  });
+});
+
+describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
+  /** 派出所被三場引用，其中這一場就是這個欄位 —— 拿起來那一刻 doc 只剩另外兩場。 */
+  const held = () =>
+    render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={(refs) =>
+          new Map([[policeStation.id, 2 + refs.filter((r) => r.id === policeStation.id).length]])
+        }
+        onRenameEntity={() => {}}
+      />,
+    );
+
+  it("命中列的場次數含編劇正站著的這一場 —— 拿起來不該讓一筆實體看起來變小", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+
+    // doc 裡剩下兩場，加上被拿在手上的這一場 → 3。
+    expect(rows(container)[0]).toBe("📍 派出所（3 場）");
+  });
+
+  it("字沒改時有一行唯讀抬頭說得出改名這條路 —— 沒有它，那條路完全不可見", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+
+    expect(heldNote(container)).toBe("✏️ 改這裡的字，就能把這筆實體改名");
+    // 它不是選項：選不到、Enter 碰不到。
+    expect(rows(container)).toEqual(["📍 派出所（3 場）", "🔗 作為既有實體的另一個名字…"]);
+  });
+
+  it("字全刪光時選單不收 —— 手上還握著那一筆，而空著離開就是把它拿掉", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "" } });
+
+    expect(heldNote(container)).toBe("✏️ 手上是「派出所」—— 打字可改名，空著離開就是拿掉它");
+    expect(rows(container)).toEqual([]);
+  });
+
+  it("字一改，抬頭就換成真正可按的那一列", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "派出所後門" } });
+
+    expect(heldNote(container)).toBeNull();
+    expect(rows(container)).toContain("✏️ 把實體改名為「派出所後門」");
+  });
+
+  it("Esc 之後抬頭跟著收 —— 「現在別煩我」是整份選單的事", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Escape" });
+
+    expect(heldNote(container)).toBeNull();
+  });
+
+  it("手上沒握著東西就沒有抬頭（空欄位打字不是在編輯任何一筆）", () => {
+    const { container } = render(<Host onRenameEntity={() => {}} />);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "派出" } });
+
+    expect(heldNote(container)).toBeNull();
   });
 });
