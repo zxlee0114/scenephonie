@@ -230,7 +230,12 @@ export function ExtrasField({
   const parsed = readText(text);
   const menuOpen = !composingNow && !dismissed && query.length > 0;
 
-  /** 命中的別場描述 —— 拿**描述那一段**去比對，人數不參與（`咖啡廳客 x8` 也要命中）。 */
+  /**
+   * 命中的別場描述 —— 拿**描述那一段**去比對，人數不參與（`咖啡廳客 x8` 也要命中）。
+   *
+   * 「剝掉尾綴再比對」只發生在**新增**那一側：握著一批時框裡本來就只有名稱（票券 47），
+   * 那一整串就是要比對的東西。
+   */
   const hits = (): string[] => {
     const needle = parsed?.description ?? query;
     // 這一場已經有的描述不列 —— 它就在旁邊當 chip，補它一次只是雜訊。

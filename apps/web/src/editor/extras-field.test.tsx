@@ -518,6 +518,22 @@ describe("編輯框裡只有名稱，人數自動保留（票券 47）", () => {
     expect(committed.at(-1)![0]).toMatchObject({ description: "保全 x3", count: 8 });
   });
 
+  it("框裡只剩 `x8`（連描述都沒有）—— 那也是名稱，不是人數", async () => {
+    const committed: ExtraRef[][] = [];
+    const { container } = one({}, (e) => committed.push(e));
+    const input = container.querySelector("input")!;
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(input, { target: { value: "x8" } });
+
+    // 沒握著的那一側這一串讀不出一筆群演（沒有描述的人數不知道在數什麼）；
+    // 握著時它是一個名稱，而且人數照樣留著。
+    expect(rows(container)[0]).toBe("✏️ 把「路人（8）」改成「x8（8）」");
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["x8（8）"]));
+    expect(committed.at(-1)![0]!.extraId).toBe("ex_held");
+  });
+
   it("字刪光再重打 —— 還握在手上，所以仍是修改（`extraId` 不變）", async () => {
     const committed: ExtraRef[][] = [];
     const { container } = one({}, (e) => committed.push(e));
