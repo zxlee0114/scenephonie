@@ -39,6 +39,7 @@ import { Action, Dialogue, InsertShot } from "../schema";
 import { useEntityCatalog } from "../entity-catalog";
 import { EntityField, type EntityOption, type EntityRef } from "../entity-field";
 import { entityUsage } from "../entity-usage";
+import { retitleOthersIn } from "../retitle-others";
 import { claimFocus, requestFocus, subscribeFocusRequest } from "../focus";
 
 /** 從 node view 反推它所在場次的 id 與自己在場次裡的序（給 pending-focus 比對用）。 */
@@ -341,6 +342,9 @@ function DialogueView(props: NodeViewProps) {
           return created;
         }}
         onRenameEntity={(id, name) => catalog.rename("character", id, name)}
+        // 改名之後，**還印著舊名的那幾場**要不要跟上，由編劇當場裁（票券 39）。三個實體欄位
+        // 共用同一份接線，「什麼算還印著舊名」才只有一個答案。
+        retitleOthers={retitleOthersIn(editor)}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing) return;
           // ⌘Z 在這個 input 裡到不了 ProseMirror（Tiptap 的 stopEvent）—— 見 `history-keys.ts`。

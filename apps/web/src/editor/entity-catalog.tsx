@@ -43,7 +43,12 @@ export type EntityCatalog = {
   directory: EntityDirectory;
   /** 建立一筆實體。**先落地，再讓呼叫端寫 doc**。失敗回 `null`。 */
   create: (kind: EntityKind, name: string) => Promise<EntityOption | null>;
-  /** 把實體改名（不代換全文，也不動各引用上的顯示名）。 */
+  /**
+   * 把實體改名。**只改目錄那一筆** —— 各引用上的顯示名一個字都不動。
+   *
+   * 別場的舊稱呼要不要跟上是 doc 的事（`retitleEntityRefs`），而且由編劇當場裁 ——
+   * 見 `entity-field.tsx` 的 `retitleOthers`（票券 39）。
+   */
   rename: (kind: EntityKind, entityId: string, name: string) => void;
 };
 

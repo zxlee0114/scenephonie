@@ -17,6 +17,7 @@ function Host({
   options = [dolphinApartment, policeStation],
   onCreate,
   onRenameEntity,
+  retitleOthers,
   multiple = true,
   usage,
 }: {
@@ -24,9 +25,18 @@ function Host({
   options?: EntityOption[];
   onCreate?: (name: string) => Promise<EntityOption | null>;
   onRenameEntity?: (id: string, name: string) => void;
+  retitleOthers?: {
+    count: (id: string, name: string) => number;
+    run: (id: string, from: string, to: string) => boolean;
+  };
   multiple?: boolean;
-  /** 給要模擬「孤兒不算存在」的測試用；不給就是整份目錄都算存在（見 EntityField）。 */
-  usage?: () => ReadonlyMap<string, number>;
+  /**
+   * 給要模擬「孤兒不算存在」的測試用；不給就是整份目錄都算存在（見 EntityField）。
+   *
+   * 收得到**現在還在欄位上的引用** —— 真實環境的 `usage` 走 doc，chip 一拿起來那一場就從
+   * 計數裡消失了。要釘住這件事的測試得拿得到那個變化。
+   */
+  usage?: (refs: readonly EntityRef[]) => ReadonlyMap<string, number>;
 }) {
   const [refs, setRefs] = useState<EntityRef[]>(initial);
   const [catalog, setCatalog] = useState<EntityOption[]>(options);
@@ -36,7 +46,7 @@ function Host({
       placeholder="地點"
       refs={refs}
       options={catalog}
-      usage={usage}
+      usage={usage && (() => usage(refs))}
       multiple={multiple}
       onCommit={setRefs}
       onCreate={
@@ -49,6 +59,7 @@ function Host({
         })
       }
       onRenameEntity={onRenameEntity}
+      retitleOthers={retitleOthers}
     />
   );
 }
@@ -56,11 +67,16 @@ function Host({
 const chips = (root: HTMLElement) => [...root.querySelectorAll(".entity-chip")];
 const chipTexts = (root: HTMLElement) =>
   chips(root).map((c) => c.textContent?.replace(/[×＋📍👤]/gu, "") ?? "");
-/** 可以操作的那份選單（預覽不算 —— 它按不到，見下面那個 describe）。 */
+/** 可以操作的那份選單（預覽與唯讀抬頭都不算 —— 它們按不到）。 */
 const rows = (root: HTMLElement) =>
-  [...root.querySelectorAll(".entity-field__menu:not(.entity-field__menu--preview) li")].map(
-    (li) => li.textContent ?? "",
-  );
+  [
+    ...root.querySelectorAll(
+      ".entity-field__menu:not(.entity-field__menu--preview) li:not(.entity-field__menu-hint)",
+    ),
+  ].map((li) => li.textContent ?? "");
+/** 選單頂端那一行唯讀抬頭（票券 39 收票）；沒有就是 null。 */
+const heldNote = (root: HTMLElement) =>
+  root.querySelector(".entity-field__menu-hint")?.textContent ?? null;
 /** 組字中浮出來的唯讀預覽。 */
 const previewRows = (root: HTMLElement) =>
   [...root.querySelectorAll(".entity-field__menu--preview li")].map((li) => li.textContent ?? "");
@@ -100,7 +116,9 @@ describe("多值欄位：頓號分隔、空白留在名字裡", () => {
   });
 
   it("Backspace 把最後一個 chip 還原成可編輯文字（不是直接刪掉）", async () => {
-    const { container } = render(<Host initial={[{ id: dolphinApartment.id, displayName: "未知大樓房間" }]} />);
+    const { container } = render(
+      <Host initial={[{ id: dolphinApartment.id, displayName: "未知大樓房間" }]} />,
+    );
     const input = container.querySelector("input")!;
 
     fireEvent.keyDown(input, { key: "Backspace" });
@@ -155,24 +173,27 @@ describe("孤兒不出現在自動補全（ADR-0005）", () => {
 
   it("沒有任何引用指向的實體不出現在建議列", () => {
     const { container } = orphanHost();
-    fireEvent.change(container.querySelector("input")!, { target: { value: "海豚" } });
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "海豚" },
+    });
 
-    expect(rows(container)).toEqual([
-      "＋ 建立新實體「海豚」",
-      "🔗 作為既有實體的另一個名字…",
-    ]);
+    expect(rows(container)).toEqual(["＋ 建立新實體「海豚」", "🔗 作為既有實體的另一個名字…"]);
   });
 
   it("打出孤兒的全名 → 仍然是「建立新實體」，不是命中", () => {
     const { container } = orphanHost();
-    fireEvent.change(container.querySelector("input")!, { target: { value: "海豚公寓房間" } });
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "海豚公寓房間" },
+    });
 
     expect(rows(container)[0]).toBe("＋ 建立新實體「海豚公寓房間」");
   });
 
   it("第三列的清單也只列存在的實體", () => {
     const { container } = orphanHost();
-    fireEvent.change(container.querySelector("input")!, { target: { value: "未知大樓房間" } });
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "未知大樓房間" },
+    });
     fireEvent.mouseDown(
       [...container.querySelectorAll(".entity-field__menu li")].find((li) =>
         li.textContent?.includes("另一個名字"),
@@ -256,9 +277,9 @@ describe("組字中的預覽：看得見，但按不到（使用者裁決 2026-0
     fireEvent.compositionStart(input);
     fireEvent.change(input, { target: { value: "海豚" } });
 
-    expect(container.querySelector(".entity-field__menu--preview")?.getAttribute("aria-hidden")).toBe(
-      "true",
-    );
+    expect(
+      container.querySelector(".entity-field__menu--preview")?.getAttribute("aria-hidden"),
+    ).toBe("true");
     expect(input.getAttribute("aria-expanded")).toBe("false");
   });
 
@@ -323,7 +344,9 @@ describe("自動補全三列", () => {
 
   it("打字當下不問任何問題 —— 沒有任何一列在懷疑兩個名字是同一筆", () => {
     const { container } = render(<Host />);
-    fireEvent.change(container.querySelector("input")!, { target: { value: "未知大樓房間" } });
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "未知大樓房間" },
+    });
 
     // 相似名不會被積極合併：命中列一列都沒有，只剩「建立新的」與那個入口。
     expect(rows(container)).toEqual([
@@ -350,7 +373,9 @@ describe("自動補全三列", () => {
     // 還沒打字 → 沒有選單 → 一遍 doc 都不必走。
     expect(count).not.toHaveBeenCalled();
 
-    fireEvent.change(container.querySelector("input")!, { target: { value: "海豚" } });
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "海豚" },
+    });
     expect(rows(container)[0]).toBe("📍 海豚公寓房間（12 場）");
   });
 
@@ -398,7 +423,9 @@ describe("自動補全三列", () => {
     }
 
     const { container } = render(<Slow />);
-    fireEvent.change(container.querySelector("input")!, { target: { value: "海豚公寓房間、" } });
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "海豚公寓房間、" },
+    });
 
     await waitFor(() => expect(order).toEqual(["create:start"]));
     release!();
@@ -413,7 +440,9 @@ describe("新建 chip 與命中 chip 視覺可辨", () => {
     const { container } = render(<Host />);
     const input = container.querySelector("input")!;
 
-    fireEvent.change(input, { target: { value: "海豚公寓房間、未知大樓房間、" } });
+    fireEvent.change(input, {
+      target: { value: "海豚公寓房間、未知大樓房間、" },
+    });
 
     await waitFor(() => expect(chips(container)).toHaveLength(2));
     expect(chips(container)[0]!.className).toContain("entity-chip--hit");
@@ -485,7 +514,6 @@ describe("第三列：作為既有實體的另一個名字（兩步）", () => {
   });
 });
 
-
 describe("把 chip 拿回來重新編輯", () => {
   it("Backspace 拿下來的那一筆整串反白 —— 再按一次就一起刪掉", () => {
     const { container } = render(
@@ -500,7 +528,9 @@ describe("把 chip 拿回來重新編輯", () => {
     expect(chips(container)).toHaveLength(0);
   });
 
-  it("滑鼠點 chip 進來不反白 —— 那是要改字，游標留在字尾", () => {
+  it("滑鼠點 chip 進來也整串反白 —— 與 Backspace 進來同一個樣子", () => {
+    // 原本滑鼠進來游標停字尾、Backspace 進來整串反白，同一個狀態兩種樣子
+    //（使用者裁決 2026-09-11）。反白既能直接覆寫，也還是能按 → 收起來接著改。
     const { container } = render(
       <Host initial={[{ id: policeStation.id, displayName: "派出所" }]} />,
     );
@@ -509,13 +539,16 @@ describe("把 chip 拿回來重新編輯", () => {
 
     const input = container.querySelector("input")!;
     expect(input.value).toBe("派出所");
-    expect(input.selectionStart).toBe(input.selectionEnd);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, "派出所".length]);
   });
 
   it("原封放回不會憑空多建一筆實體（使用者回報：多一筆 POST）", async () => {
     // 拿下來的那一刻它就沒有引用了 —— 而孤兒不算存在（ADR-0005）。`usage` 回空 Map 就是
     // 那個狀態：沒有這條路的話，`resolve` 會把原樣放回的名字當成新東西再建一筆。
-    const onCreate = vi.fn(async (name: string) => ({ id: `lo_new_${name}`, name }));
+    const onCreate = vi.fn(async (name: string) => ({
+      id: `lo_new_${name}`,
+      name,
+    }));
     const { container } = render(
       <Host
         initial={[{ id: policeStation.id, displayName: "派出所" }]}
@@ -533,7 +566,10 @@ describe("把 chip 拿回來重新編輯", () => {
   });
 
   it("改了名字才是新東西 —— 那時才建", async () => {
-    const onCreate = vi.fn(async (name: string) => ({ id: `lo_new_${name}`, name }));
+    const onCreate = vi.fn(async (name: string) => ({
+      id: `lo_new_${name}`,
+      name,
+    }));
     const { container } = render(
       <Host
         initial={[{ id: policeStation.id, displayName: "派出所" }]}
@@ -557,10 +593,7 @@ describe("編輯中的那一筆不是孤兒（票券 38）", () => {
   // 那不是孤兒，是**暫時被拿在手上**：ADR-0005 要擋的是 ⌘Z 留下的殘骸，不是進行到一半的編輯。
   const lonely = () =>
     render(
-      <Host
-        initial={[{ id: policeStation.id, displayName: "派出所" }]}
-        usage={() => new Map()}
-      />,
+      <Host initial={[{ id: policeStation.id, displayName: "派出所" }]} usage={() => new Map()} />,
     );
 
   it("拿回來改 → 沒有「建立新實體」那一列，第一列印著它自己", () => {
@@ -572,7 +605,10 @@ describe("編輯中的那一筆不是孤兒（票券 38）", () => {
   });
 
   it("一個字都不改直接定案 → 還是同一筆實體，不多建", async () => {
-    const onCreate = vi.fn(async (name: string) => ({ id: `lo_new_${name}`, name }));
+    const onCreate = vi.fn(async (name: string) => ({
+      id: `lo_new_${name}`,
+      name,
+    }));
     const { container } = render(
       <Host
         initial={[{ id: policeStation.id, displayName: "派出所" }]}
@@ -637,7 +673,9 @@ describe("編輯中的那一筆不是孤兒（票券 38）", () => {
       <Host initial={[]} usage={() => new Map([[dolphinApartment.id, 2]])} />,
     );
 
-    fireEvent.change(container.querySelector("input")!, { target: { value: "派出所" } });
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "派出所" },
+    });
 
     expect(rows(container)[0]).toBe("＋ 建立新實體「派出所」");
   });
@@ -747,5 +785,628 @@ describe("命中列標出這一場的叫法（票券 38 驗收回饋）", () => 
 
   it("兩者相同時一個字都不多印", () => {
     expect(heldAlias([{ id: "lo_1", name: "test" }], "test")[0]).toBe("📍 test（1 場）");
+  });
+});
+
+describe("✏️ 把實體改名（票券 39）", () => {
+  /** 派出所被三場引用，其中這一場就是這個欄位 —— chip 拿起來的那一刻 doc 只剩另外兩場。 */
+  const scenesInDoc = (refs: readonly EntityRef[]) =>
+    new Map([[policeStation.id, 2 + refs.filter((r) => r.id === policeStation.id).length]]);
+  const held = () =>
+    render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={scenesInDoc}
+        onRenameEntity={() => {}}
+      />,
+    );
+
+  /** 把 chip 拿回來、改成另一個字。 */
+  const retype = (container: HTMLElement, value: string) => {
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value } });
+    return input;
+  };
+
+  it("把 chip 拿回來改字 → 多一列改名，場數寫在按下去之前", () => {
+    const { container } = held();
+    retype(container, "派出所後門");
+
+    // **排在建立新實體後面**：第一列是 Enter 會做的事，而改名 ⌘Z 回不來，不該順手發生。
+    expect(rows(container)).toEqual([
+      "＋ 建立新實體「派出所後門」",
+      "✏️ 把實體改名為「派出所後門」",
+      "🔗 作為既有實體的另一個名字…",
+    ]);
+  });
+
+  it("拿回來的是別名、字沒動時也能改名 —— 那個字本來就不是實體名", () => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "分局" }]}
+        usage={scenesInDoc}
+        onRenameEntity={() => {}}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+
+    expect(rows(container)).toEqual([
+      "📍 派出所（這場顯示為 分局，3 場）",
+      "✏️ 把實體改名為「分局」",
+      "🔗 作為既有實體的另一個名字…",
+    ]);
+  });
+
+  it("框裡的字等於實體名（沒改）時那一列不出現 —— 沒有東西要改", () => {
+    const { container } = held();
+    retype(container, "派出所");
+
+    expect(rows(container)).toEqual(["📍 派出所（3 場）", "🔗 作為既有實體的另一個名字…"]);
+  });
+
+  it("沒有改名能力時就不出現那一列（不給做不到的選項）", () => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map([[policeStation.id, 2]])}
+      />,
+    );
+    retype(container, "派出所後門");
+
+    expect(rows(container).some((r) => r.includes("把實體改名"))).toBe(false);
+  });
+
+  it("打的字是另一筆存在實體的名字時不出現 —— 那會讓目錄有兩筆同名（合併是另一件事）", () => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        onRenameEntity={() => {}}
+      />,
+    );
+    retype(container, "海豚公寓房間");
+
+    expect(rows(container).some((r) => r.includes("把實體改名"))).toBe(false);
+  });
+
+  it("孤兒不出現改名列 —— 沒拿在手上的目錄殘骸不算命中", () => {
+    const { container } = render(<Host usage={() => new Map()} onRenameEntity={() => {}} />);
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "派出所後門" },
+    });
+
+    expect(rows(container).some((r) => r.includes("把實體改名"))).toBe(false);
+  });
+
+  it("沒有別場印著舊名 → 一步就改完：目錄改名，這一場也顯示新名", async () => {
+    const rename = vi.fn();
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map()}
+        onRenameEntity={rename}
+        retitleOthers={{ count: () => 0, run: vi.fn(() => true) }}
+      />,
+    );
+    retype(container, "派出所後門");
+    fireEvent.mouseDown(
+      [...container.querySelectorAll(".entity-field__menu li")].find((li) =>
+        li.textContent?.includes("把實體改名"),
+      )!,
+    );
+
+    expect(rename).toHaveBeenCalledWith(policeStation.id, "派出所後門");
+    await waitFor(() => expect(chipTexts(container)).toEqual(["派出所後門"]));
+  });
+
+  describe("別場還印著舊名 → 按下去先問「要不要一起改」", () => {
+    const openRename = (retitle: {
+      count: () => number;
+      run: (id: string, from: string, to: string) => boolean;
+    }) => {
+      const rename = vi.fn();
+      const view = render(
+        <Host
+          initial={[{ id: policeStation.id, displayName: "派出所" }]}
+          usage={() => new Map([[policeStation.id, 2]])}
+          onRenameEntity={rename}
+          retitleOthers={retitle}
+        />,
+      );
+      retype(view.container, "派出所後門");
+      fireEvent.mouseDown(
+        [...view.container.querySelectorAll(".entity-field__menu li")].find((li) =>
+          li.textContent?.includes("把實體改名"),
+        )!,
+      );
+      return { ...view, rename };
+    };
+
+    it("第二步攤出兩條路，數字都寫在按下去之前", () => {
+      const { container } = openRename({ count: () => 2, run: () => true });
+
+      expect(rows(container)).toEqual([
+        "只改這一筆的叫法 —— 那 2 場繼續印「派出所」",
+        "連那 2 場一起改成「派出所後門」",
+      ]);
+    });
+
+    it("第一步就把代價說出來 —— 數的是「還印著舊名的場次」，不是「這筆實體用在幾場」", () => {
+      const { container } = render(
+        <Host
+          initial={[{ id: policeStation.id, displayName: "派出所" }]}
+          usage={() => new Map([[policeStation.id, 2]])}
+          onRenameEntity={() => {}}
+          retitleOthers={{ count: () => 1, run: () => true }}
+        />,
+      );
+      retype(container, "派出所後門");
+
+      expect(rows(container)).toContain("✏️ 把實體改名為「派出所後門」（還有 1 場印著「派出所」）");
+    });
+
+    it("「只改這一場」→ 別場一個字都不動", async () => {
+      const run = vi.fn(() => true);
+      const { container, rename } = openRename({ count: () => 2, run });
+      fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[0]!);
+
+      expect(rename).toHaveBeenCalledWith(policeStation.id, "派出所後門");
+      expect(run).not.toHaveBeenCalled();
+      await waitFor(() => expect(chipTexts(container)).toEqual(["派出所後門"]));
+    });
+
+    it("「連那幾場一起改」→ 舊名換成新名，真正取過別名的那些不在這個範圍裡", async () => {
+      const run = vi.fn(() => true);
+      const { container, rename } = openRename({ count: () => 2, run });
+      fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[1]!);
+
+      expect(rename).toHaveBeenCalledWith(policeStation.id, "派出所後門");
+      expect(run).toHaveBeenCalledWith(policeStation.id, "派出所", "派出所後門");
+      await waitFor(() => expect(chipTexts(container)).toEqual(["派出所後門"]));
+    });
+
+    it("寫不進 doc 時整個改名都不做 —— 不留下「目錄改了、稿沒改」的半套", async () => {
+      const { container, rename } = openRename({
+        count: () => 2,
+        run: () => false,
+      });
+      fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[1]!);
+
+      expect(rename).not.toHaveBeenCalled();
+      // 字也留在框裡 —— 他還站在那個決定上。
+      expect(container.querySelector("input")!.value).toBe("派出所後門");
+      await waitFor(() => expect(chipTexts(container)).toEqual([]));
+    });
+
+    it("Esc 退回第一步，打的字留著", () => {
+      const { container } = openRename({ count: () => 2, run: () => true });
+      fireEvent.keyDown(container.querySelector("input")!, { key: "Escape" });
+
+      expect(container.querySelector("input")!.value).toBe("派出所後門");
+      expect(rows(container).some((r) => r.includes("把實體改名為"))).toBe(true);
+    });
+  });
+});
+
+describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
+  /** 派出所被三場引用，其中這一場就是這個欄位 —— 拿起來那一刻 doc 只剩另外兩場。 */
+  const held = () =>
+    render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={(refs) =>
+          new Map([[policeStation.id, 2 + refs.filter((r) => r.id === policeStation.id).length]])
+        }
+        onRenameEntity={() => {}}
+      />,
+    );
+
+  it("命中列的場次數含編劇正站著的這一場 —— 拿起來不該讓一筆實體看起來變小", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+
+    // doc 裡剩下兩場，加上被拿在手上的這一場 → 3。
+    expect(rows(container)[0]).toBe("📍 派出所（3 場）");
+  });
+
+  it("字沒改時有一行唯讀抬頭說得出改名這條路 —— 沒有它，那條路完全不可見", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+
+    expect(heldNote(container)).toBe("✏️ 正在編輯「派出所」，修改文字可更新名稱");
+    // 它不是選項：選不到、Enter 碰不到。
+    expect(rows(container)).toEqual(["📍 派出所（3 場）", "🔗 作為既有實體的另一個名字…"]);
+  });
+
+  it("字改過之後抬頭還在 —— 框裡的字已經不是它的名字了，「我在編輯誰」得有人說", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "派出所後門" },
+    });
+
+    expect(heldNote(container)).toBe("✏️ 正在編輯「派出所」，修改文字可更新名稱");
+    expect(rows(container)).toContain("✏️ 把實體改名為「派出所後門」");
+  });
+
+  it("字清空了還握著 —— 編劇可能正要重新命名它，抬頭改說下一顆 Backspace 會做什麼", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "" },
+    });
+
+    expect(heldNote(container)).toBe("✏️ 正在編輯「派出所」，再按一次 Backspace 移除這一場的引用");
+  });
+
+  it("清空之後重打的字，改的是那一筆的名字（清空不等於放手）", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.change(input, { target: { value: "派出所後門" } });
+
+    expect(rows(container)).toContain("✏️ 把實體改名為「派出所後門」");
+  });
+
+  it("Backspace 三段：拿起來、清空、放手 —— 第三下才輪到前一個 chip", () => {
+    const { container } = render(
+      <Host
+        initial={[
+          { id: dolphinApartment.id, displayName: "海豚公寓房間" },
+          { id: policeStation.id, displayName: "派出所" },
+        ]}
+        onRenameEntity={() => {}}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    // ① 拿起來（字整串反白）。
+    fireEvent.keyDown(input, { key: "Backspace" });
+    expect(chipTexts(container)).toEqual(["海豚公寓房間"]);
+    expect(input.value).toBe("派出所");
+
+    // ② 清空 —— 還握著，所以還改得了名。
+    fireEvent.change(input, { target: { value: "" } });
+    expect(heldNote(container)).not.toBeNull();
+
+    // ③ 這一下才放手：引用沒了，游標停在前一個 chip 後面（`海豚公寓房間 |`）。
+    fireEvent.keyDown(input, { key: "Backspace" });
+    expect(heldNote(container)).toBeNull();
+    expect(chipTexts(container)).toEqual(["海豚公寓房間"]);
+    expect(input.value).toBe("");
+
+    // ④ 再一下才輪到前一個。
+    fireEvent.keyDown(input, { key: "Backspace" });
+    expect(chipTexts(container)).toEqual([]);
+    expect(input.value).toBe("海豚公寓房間");
+  });
+
+  it("空著離開欄位就是放手 —— 抬頭不會跟著欄位掛在畫面上", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+
+    expect(heldNote(container)).toBeNull();
+  });
+
+  it("Esc 之後抬頭跟著收 —— 「現在別煩我」是整份選單的事", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Escape" });
+
+    expect(heldNote(container)).toBeNull();
+  });
+
+  it("手上沒握著東西就沒有抬頭（空欄位打字不是在編輯任何一筆）", () => {
+    const { container } = render(<Host onRenameEntity={() => {}} />);
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "派出" },
+    });
+
+    expect(heldNote(container)).toBeNull();
+  });
+});
+
+describe("拿起來改的那一筆放回原位（票券 39 收票）", () => {
+  const three = () =>
+    render(
+      <Host
+        initial={[
+          { id: "ch_a", displayName: "阿盈" },
+          { id: "ch_b", displayName: "建鳴" },
+          { id: "ch_c", displayName: "小明" },
+        ]}
+        options={[
+          { id: "ch_a", name: "阿盈" },
+          { id: "ch_b", name: "建鳴" },
+          { id: "ch_c", name: "小明" },
+        ]}
+        onRenameEntity={() => {}}
+      />,
+    );
+
+  it("點中間那一筆、原封放回 —— 次序不動", async () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "建鳴", "小明"]));
+  });
+
+  it("改成另一筆既有實體，也是回到原來那一格 —— 次序是編劇排的，改字不該把誰擠到隊尾", async () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[0]!);
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "新的人" } });
+    fireEvent.keyDown(input, { key: "Enter" }); // ＋ 建立新實體
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["新的人", "建鳴", "小明"]));
+  });
+
+  it("一口氣切出好幾筆就整串插在那個位置，順序跟打的一樣", async () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "小華、阿姨、" },
+    });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "小華", "阿姨", "小明"]));
+  });
+
+  it("新打的一筆照樣排在隊尾（沒有拿起任何人）", async () => {
+    const { container } = three();
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "小華、" },
+    });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "建鳴", "小明", "小華"]));
+  });
+});
+
+describe("編輯中的那一筆也留在原位（票券 39 收票）", () => {
+  const three = () =>
+    render(
+      <Host
+        initial={[
+          { id: "ch_a", displayName: "阿盈" },
+          { id: "ch_b", displayName: "建鳴" },
+          { id: "ch_c", displayName: "小明" },
+        ]}
+        options={[
+          { id: "ch_a", name: "阿盈" },
+          { id: "ch_b", name: "建鳴" },
+          { id: "ch_c", name: "小明" },
+        ]}
+        onRenameEntity={() => {}}
+      />,
+    );
+
+  /** 看得見的順序：chip 與輸入框在這一欄裡實際排成什麼樣。 */
+  const layout = (root: HTMLElement) =>
+    [...root.querySelectorAll(".entity-chip, input")].map((el) =>
+      el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×＋📍👤]/gu, "") ?? ""),
+    );
+
+  it("拿起中間那一筆，輸入框就停在它原本那一格", () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+
+    expect(layout(container)).toEqual(["阿盈", "|", "小明"]);
+  });
+
+  it("放手之後游標留在那一格 —— 不是跳回隊尾", () => {
+    // `a b c` 裡把 b 放掉，游標就停在 `阿盈 |小明`（使用者裁決 2026-09-11）。
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.keyDown(input, { key: "Backspace" });
+
+    expect(layout(container)).toEqual(["阿盈", "|", "小明"]);
+  });
+
+  it("定案之後游標停在**那一顆之後**", async () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!); // 拿起「建鳴」
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "建鳴、" },
+    });
+
+    await waitFor(() => expect(layout(container)).toEqual(["阿盈", "建鳴", "|", "小明"]));
+  });
+
+  it("夾在 chip 中間時輸入框依內容決定寬度 —— 不然它會把後半排推開", () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+    const input = container.querySelector("input")!;
+
+    expect(input.className).toContain("entity-field__input--inline");
+    expect(input.size).toBe(4); // 「建鳴」兩個寬字元
+  });
+
+  it("回到隊尾才吃回那條彈性寬度", async () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[2]!); // 拿起最後那一筆
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "小明、" } });
+
+    await waitFor(() => expect(input.className).not.toContain("entity-field__input--inline"));
+  });
+
+  it("單字元的名字不會因為點一下就變胖", () => {
+    // `size` 的下限給到 2 的話，`a` 這種名字在編輯中會被撐得比唯讀時還寬（使用者回報）。
+    const { container } = render(
+      <Host initial={[{ id: "ch_a", displayName: "a" }]} options={[{ id: "ch_a", name: "a" }]} />,
+    );
+    fireEvent.mouseDown(chips(container)[0]!);
+
+    expect(container.querySelector("input")!.size).toBe(1);
+  });
+
+  it("編輯中的那一筆看起來還是一顆 chip —— 記號與邊框都留著，整排不位移", () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!);
+
+    const shell = container.querySelector(".entity-field__input-chip")!;
+    expect(shell.querySelector(".entity-chip__mark")?.textContent).toBe("📍"); // Host 是地點欄
+    expect(shell.querySelector("input")).not.toBeNull();
+    // 那層外殼**不算一顆 chip** —— `.entity-chip` 數的是已經定案的引用。
+    expect(chips(container)).toHaveLength(2);
+  });
+
+  it("沒在編輯時輸入框照樣在最後", () => {
+    const { container } = three();
+
+    expect(layout(container)).toEqual(["阿盈", "建鳴", "小明", "|"]);
+  });
+});
+
+describe("一次只編輯一筆：握著的時候別的 chip 動不得（票券 39 收票）", () => {
+  const two = () =>
+    render(
+      <Host
+        initial={[
+          { id: "ch_a", displayName: "阿盈" },
+          { id: "ch_b", displayName: "建鳴" },
+        ]}
+        options={[
+          { id: "ch_a", name: "阿盈" },
+          { id: "ch_b", name: "建鳴" },
+        ]}
+        onRenameEntity={() => {}}
+      />,
+    );
+
+  it("正在改一筆時點別的 chip：什麼都不發生（推翻同日的接力）", () => {
+    const { container } = two();
+    fireEvent.mouseDown(chips(container)[0]!); // 拿起「阿盈」
+    fireEvent.mouseDown(chips(container)[0]!); // 畫面上只剩「建鳴」，點它
+
+    expect(container.querySelector("input")!.value).toBe("阿盈"); // 手上還是阿盈
+    expect(chipTexts(container)).toEqual(["建鳴"]); // 建鳴沒有被拿起來
+  });
+
+  it("動不得的 chip 看得出來 —— 指標回到一般（連 × 一起）", () => {
+    const { container } = two();
+    expect(chips(container)[0]!.className).not.toContain("entity-chip--locked");
+
+    fireEvent.mouseDown(chips(container)[0]!);
+    expect(chips(container)[0]!.className).toContain("entity-chip--locked");
+  });
+
+  it("握著的時候別人的 × 也按不動 —— 不然「不小心點到」就把它刪了", () => {
+    const { container } = two();
+    fireEvent.mouseDown(chips(container)[0]!);
+    // 手上握著阿盈，畫面上剩下的那一顆是建鳴 —— 按它的 ×（不是編輯中那一顆自己的）。
+    fireEvent.mouseDown(chips(container)[0]!.querySelector(".entity-chip__remove")!);
+
+    expect(chipTexts(container)).toEqual(["建鳴"]);
+    expect(container.querySelector("input")!.value).toBe("阿盈");
+  });
+
+  it("編輯中那一顆自己的 × 還在，按下去 ＝ 移除這一場的引用", () => {
+    const { container } = two();
+    fireEvent.mouseDown(chips(container)[0]!);
+
+    const shell = container.querySelector(".entity-field__input-chip")!;
+    fireEvent.mouseDown(shell.querySelector(".entity-chip__remove")!);
+
+    expect(container.querySelector("input")!.value).toBe("");
+    expect(chipTexts(container)).toEqual(["建鳴"]); // 阿盈沒有放回去
+    expect(container.querySelector(".entity-field__input-chip")).toBeNull();
+  });
+});
+
+describe("點 chip 之間那道縫，下一筆就插在那裡（票券 39 收票）", () => {
+  const two = () =>
+    render(
+      <Host
+        initial={[
+          { id: "ch_a", displayName: "阿盈" },
+          { id: "ch_b", displayName: "建鳴" },
+        ]}
+        options={[
+          { id: "ch_a", name: "阿盈" },
+          { id: "ch_b", name: "建鳴" },
+        ]}
+      />,
+    );
+
+  const layout = (root: HTMLElement) =>
+    [...root.querySelectorAll(".entity-chip, input")].map((el) =>
+      el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×＋📍👤]/gu, "") ?? ""),
+    );
+
+  it("點兩顆之間的縫，輸入框就插進那一格", () => {
+    const { container } = two();
+    const picks = container.querySelectorAll(".entity-field__gap--pick");
+
+    fireEvent.mouseDown(picks[0]!); // 阿盈與建鳴之間
+
+    expect(layout(container)).toEqual(["阿盈", "|", "建鳴"]);
+  });
+
+  it("插在那裡打的字也落在那裡", async () => {
+    const { container } = two();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
+    fireEvent.change(container.querySelector("input")!, {
+      target: { value: "小華、" },
+    });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "小華", "建鳴"]));
+  });
+
+  it("游標站的那一格不接受點擊 —— 它就是現在的位置", () => {
+    const { container } = two();
+    // 隊尾那一格是游標現在站的地方，所以整排只有「阿盈｜建鳴」之間那一道縫可以點。
+    expect(container.querySelectorAll(".entity-field__gap--pick")).toHaveLength(1);
+  });
+
+  it("游標插進中間但還沒打字時，輸入框不佔版面 —— 整排不位移", () => {
+    // 固定一格游標的寬，再用左右各一半的負邊距還回去（淨貢獻零）。靠內容寬度的話，空輸入框
+    // 在不同瀏覽器下差零點幾像素，游標一進一出整排就微微晃動；只收兩側的縫則在第一顆 chip
+    // 左邊不成立 —— 那裡本來就沒有縫可以扣（使用者回報 2026-09-11，兩次）。
+    const { container } = two();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
+    expect(container.querySelector("input")!.className).toContain("entity-field__input--caret");
+
+    // 游標擠進來會讓原本一道縫變成兩道 —— 它後面那一道要收成零，整排才不位移。
+    expect(container.querySelectorAll(".entity-field__gap--flush")).toHaveLength(1);
+
+    // 打了字它就恢復成依內容決定寬度，把兩邊的 chip 擠開。
+    fireEvent.change(container.querySelector("input")!, { target: { value: "小" } });
+    expect(container.querySelector("input")!.className).not.toContain(
+      "entity-field__input--caret",
+    );
+    expect(container.querySelectorAll(".entity-field__gap--flush")).toHaveLength(0);
+  });
+
+  it("輸入框不在隊尾時，尾端那一塊空白還是點得到（游標回到最後）", () => {
+    const { container } = two();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
+
+    const tail = container.querySelector(".entity-field__gap--tail")!;
+    expect(tail.className).toContain("entity-field__gap--pick"); // 那一大塊不是死的
+    fireEvent.mouseDown(tail);
+
+    expect(layout(container)).toEqual(["阿盈", "建鳴", "|"]);
+  });
+
+  it("握著一筆時整排的縫都不接受點擊", () => {
+    const { container } = two();
+    fireEvent.mouseDown(chips(container)[0]!);
+
+    expect(container.querySelectorAll(".entity-field__gap--pick")).toHaveLength(0);
+  });
+
+  it("空欄位上的 Backspace 拿的是**游標左邊**那一顆", () => {
+    const { container } = two();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
+
+    expect(container.querySelector("input")!.value).toBe("阿盈"); // 不是隊尾的「建鳴」
   });
 });

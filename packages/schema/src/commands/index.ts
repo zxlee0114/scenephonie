@@ -19,12 +19,14 @@ export { moveScene } from "./move-scene";
 export type { MoveSceneOptions, MoveTarget } from "./move-scene";
 
 export {
+  retitleEntityRefs,
   setSceneLocations,
   setSceneIntExt,
   setAppearingCharacters,
   setDialogueCharacters,
 } from "./entity-refs";
 export type {
+  RetitleEntityRefsOptions,
   SetSceneLocationsOptions,
   SetSceneIntExtOptions,
   SetAppearingCharactersOptions,

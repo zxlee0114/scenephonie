@@ -105,7 +105,9 @@ describe("跨場次描述：只補字串、不建立連結", () => {
     const input = container.querySelector("input")!;
 
     fireEvent.change(input, { target: { value: "咖啡" } });
-    await waitFor(() => expect(rows(container)).toEqual(["＋ 新增群演「咖啡」1 人", "👥 咖啡廳客人"]));
+    await waitFor(() =>
+      expect(rows(container)).toEqual(["＋ 新增群演「咖啡」1 人", "👥 咖啡廳客人"]),
+    );
 
     fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[1]!);
 
@@ -226,5 +228,69 @@ describe("重新編輯", () => {
 
     await waitFor(() => expect(input.value).toBe("客人 x8"));
     expect(chipTexts(container)).toEqual([]);
+  });
+});
+
+describe("群演欄吃的是同一套 chip 手感（票券 39 收票）", () => {
+  const two = () =>
+    render(
+      <Host
+        initial={[
+          { extraId: mintExtraId(), description: "客人", count: 8 },
+          { extraId: mintExtraId(), description: "服務生", count: 2 },
+        ]}
+      />,
+    );
+
+  /** 看得見的順序：chip 與輸入框在這一欄裡實際排成什麼樣（`|` ＝ 輸入框）。 */
+  const layout = (root: HTMLElement) =>
+    [...root.querySelectorAll(".entity-chip, input")].map((el) =>
+      el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×👥]/gu, "").trim() ?? ""),
+    );
+
+  it("拿起中間那一筆，輸入框就停在它原本那一格，看起來還是一顆 chip", () => {
+    const { container } = two();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-chip")[0]!);
+
+    expect(layout(container)).toEqual(["|", "服務生 x2"]);
+    const shell = container.querySelector(".entity-field__input-chip")!;
+    expect(shell.querySelector(".entity-chip__mark")?.textContent).toBe("👥");
+    expect(shell.querySelector(".entity-chip__remove")).not.toBeNull();
+  });
+
+  it("握著一筆時別的 chip 動不得（連 × 一起）", () => {
+    const { container } = two();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-chip")[0]!);
+
+    const other = container.querySelector(".entity-chip")!;
+    expect(other.className).toContain("entity-chip--locked");
+    fireEvent.mouseDown(other.querySelector(".entity-chip__remove")!);
+    expect(chipTexts(container)).toEqual(["服務生 x2"]);
+    expect(container.querySelector("input")!.value).toBe("客人 x8");
+  });
+
+  it("清空之後再一次 Backspace 才放手 —— 不會直接跳進前一筆", () => {
+    const { container } = two();
+    const input = container.querySelector("input")!;
+    fireEvent.keyDown(input, { key: "Backspace" }); // 拿起「服務生 x2」
+    fireEvent.change(input, { target: { value: "" } });
+
+    fireEvent.keyDown(input, { key: "Backspace" }); // 放手
+    expect(chipTexts(container)).toEqual(["客人 x8"]);
+    expect(input.value).toBe("");
+
+    fireEvent.keyDown(input, { key: "Backspace" }); // 這一下才輪到前一筆
+    expect(input.value).toBe("客人 x8");
+  });
+
+  it("點兩批之間那道縫，新的一批就插在那裡", () => {
+    const { container } = two();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
+    expect(layout(container)).toEqual(["客人 x8", "|", "服務生 x2"]);
+
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "警察 x3、" } });
+
+    expect(chipTexts(container)).toEqual(["客人 x8", "警察 x3", "服務生 x2"]);
   });
 });

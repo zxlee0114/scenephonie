@@ -11,12 +11,13 @@
  * 反過來的話，每一次「編劇打了一個新地點名」的流程都會被自己的不變式擋下 —— 那正是
  * 「先建立實體、再寫入 doc」不只是建議順序的原因。
  *
- * **准入判準（§6.3）**：三支都強制執行不變式 ⑧，且以 `sceneId`／實體 id 定址。
+ * **准入判準（§6.3）**：前三支強制執行不變式 ⑧，且以 `sceneId`／實體 id 定址。第四支
+ * `retitleEntityRefs` **不碰 ⑧** —— 它只改顯示名，不建立也不移除引用；准入靠實體 id 定址。
  */
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import type { EntityDirectory } from "../entities";
-import { sceneLocations } from "../entities";
+import { dialogueCharacters, sceneAppearingCharacters, sceneLocations } from "../entities";
 import type {
   CharacterRef,
   DialogueCharacterRef,
@@ -233,4 +234,107 @@ export function setDialogueCharacters(
     refs.length === 0 ? null : refs.length === 1 ? { ...refs[0]! } : refs.map((r) => ({ ...r }));
   const nextBlock = block.type.create({ ...block.attrs, character }, block.content, block.marks);
   return rebuild(hit, replaceChild(scene, blockIndex, nextBlock), "寫入對白人物");
+}
+
+export interface RetitleEntityRefsOptions {
+  /** 被改名的那筆實體。 */
+  readonly entityId: string;
+  /** 舊的實體名 —— **只有顯示名剛好等於它的引用才跟著改**（見下）。 */
+  readonly from: string;
+  /** 新的實體名。 */
+  readonly to: string;
+}
+
+/**
+ * 實體改名之後，把**別場還印著舊名的引用**一起換成新名（票券 39）。
+ *
+ * ⚠️ 判準是 `id ＋ 顯示名`，不是 id：別名住在引用上（ADR-0005），所以「這一場叫小房間」
+ * 是編劇說出口的一個決定，改實體名不該順手吃掉它。反過來，顯示名剛好等於舊實體名的那些
+ * 引用**不是別名** —— 編劇沒特地取過名，它只是跟著實體名走。分界就落在這裡，而且**由編劇
+ * 當場裁**：改名那一列按下去之前就攤出「別 N 場繼續印舊名／連別 N 場一起改」兩條路。
+ *
+ * 不檢查不變式 ⑧：這支**不建立也不移除任何引用**，只改顯示名 —— 引用完整性一個字都沒動到。
+ *
+ * **沒改到就原封不動**：每一個 attr 只在真的有引用被換掉時才重寫。讀取正規化容忍壞形狀
+ * （§6.6），寫回去卻會把那些容忍掉的東西丟掉 —— 一支只改顯示名的 command 不該順手清掃 doc。
+ */
+export function retitleEntityRefs(
+  doc: ProseMirrorNode,
+  options: RetitleEntityRefsOptions,
+): CommandResult {
+  const { entityId, from, to } = options;
+  // 顯示名是渲染權威（`../entities.ts`）—— 空的那一格在 PDF 與場次表就是少印一個名字。
+  if (to.trim() === "") return reject("新的顯示名不能是空白");
+
+  let touched = false;
+  /**
+   * 這一批引用裡，指向這筆實體又印著舊名的換成新名。
+   *
+   * 換到了才回一個 `{ attr }` 盒子、沒換到回 `null` —— **包一層是為了把「沒換到」與「換成
+   * 了某個值」分開**：attr 本身可以是任何形狀（單值 ｜ 陣列 ｜ null），直接回值的話呼叫端
+   * 沒辦法只靠它分辨這兩件事。
+   */
+  const retitle = <T extends { displayName: string }>(
+    refs: readonly T[],
+    idOf: (ref: T) => string,
+    /** 原本的 attr 形狀：陣列 ｜ 單值（§4.3、§5.1，兩種都要原樣寫回去）。 */
+    attr: unknown,
+  ): { attr: unknown } | null => {
+    if (!refs.some((r) => idOf(r) === entityId && r.displayName === from)) return null;
+    touched = true;
+    const next = refs.map((r) =>
+      idOf(r) === entityId && r.displayName === from ? { ...r, displayName: to } : r,
+    );
+    return { attr: Array.isArray(attr) ? next : next[0]! };
+  };
+
+  const scenes = topLevelArray(doc).map((scene) => {
+    const location = retitle(
+      sceneLocations(scene.attrs.location),
+      (r) => r.locationId,
+      scene.attrs.location,
+    );
+    const appearingCharacters = retitle(
+      sceneAppearingCharacters(scene.attrs.appearingCharacters),
+      (r) => r.characterId,
+      // 登場人物欄本來就是陣列，寫回去也是陣列（單值物件的舊稿讀得出來，但不該被改形狀）。
+      scene.attrs.appearingCharacters,
+    );
+
+    const blocks: ProseMirrorNode[] = [];
+    let blockChanged = false;
+    scene.forEach((child) => {
+      const character =
+        child.type.name === "dialogue"
+          ? retitle(dialogueCharacters(child.attrs.character), (r) => r.id, child.attrs.character)
+          : null;
+      if (!character) {
+        blocks.push(child);
+        return;
+      }
+      blockChanged = true;
+      blocks.push(
+        child.type.create({ ...child.attrs, character: character.attr }, child.content, child.marks),
+      );
+    });
+
+    if (!location && !appearingCharacters && !blockChanged) return scene;
+    return scene.type.create(
+      {
+        ...scene.attrs,
+        ...(location ? { location: location.attr } : {}),
+        ...(appearingCharacters ? { appearingCharacters: appearingCharacters.attr } : {}),
+      },
+      blocks,
+      scene.marks,
+    );
+  });
+
+  if (!touched) return ok(doc);
+
+  try {
+    return ok(docFrom(scenes));
+  } catch (err) {
+    return reject(`改名後 doc 不符 schema：${(err as Error).message}`);
+  }
 }

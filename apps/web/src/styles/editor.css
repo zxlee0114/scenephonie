@@ -503,7 +503,39 @@
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
+  /* 橫向間隔由 `__gap` 自己撐 —— 那道縫同時是可以點的插入點（票券 39 收票），用 flex 的
+     column-gap 的話它兩側會再各多一道空白。折行時的縱向間隔仍然歸 flex 管。 */
+  gap: var(--space-1) 0;
+}
+
+/* chip 之間那道縫 —— **間距**與**插入點**是同一個東西：點它，游標就插進那一格，下一筆
+   實體於是落在編劇指的位置（票券 39 收票）。動不得的時候（手上正握著一筆）不掛 `--pick`，
+   游標也就不變成 text。 */
+.entity-field__gap {
+  flex: 0 0 auto;
+  inline-size: var(--space-2);
+  align-self: stretch;
+}
+
+/* 游標插進中間、但還沒打字時，它兩側的縫**各收成半寬**（使用者裁決 2026-09-11）——
+   否則原本一道縫的位置變成「縫 ＋ 空輸入框 ＋ 縫」，整排會被撐開一塊空白；而兩道都收成零，
+   那兩顆 chip 又會黏在一起，比別處更擠。合起來剛好是原本那一道。打了字它們就回來，字自然
+   把兩邊的 chip 擠開。 */
+/* 游標擠進 chip 之間時，原本一道縫變成「縫 ＋ 游標 ＋ 縫」—— 把游標後面那一道收成零，
+   它就住在原本那一道裡，整排一動也不動（使用者回報 2026-09-11，三次）。 */
+.entity-field__gap--flush {
+  inline-size: 0;
+}
+
+/* 輸入框不在隊尾時，尾端那道縫吃掉剩下的空間 —— 欄位右半邊那一大塊空白本來是死的，點下去
+   既不聚焦也進不了游標（使用者回報 2026-09-11）。輸入框自己在隊尾時吃掉那塊的是它
+   （`.scene__chip input` 的 `flex: 1 1 6ch`）。 */
+.entity-field__gap--tail {
+  flex: 1 1 auto;
+}
+
+.entity-field__gap--pick {
+  cursor: text;
 }
 
 /* chip **住在輸入框裡**（使用者回饋 2026-09-06）——框是 `.entity-field` 這個容器，
@@ -526,7 +558,11 @@
 
 /* 命中既有實體與新建**視覺可辨**（`📍`／`👤` vs `＋`）——地點是實體，編劇必須立刻看到
  * 自己是接上了既有的那一筆，還是又開了一筆新的（兩套陳設 vs 一套）。 */
-.entity-chip {
+/* `--input-chip` ＝ 正在編輯的那一筆（輸入框住在裡面），外觀與一顆 chip 完全一樣。
+   它刻意**不掛 `.entity-chip`**：那個 class 是「一筆已經定案的引用」，選它的程式與測試
+   數的就是這個。 */
+.entity-chip,
+.entity-field__input-chip {
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -555,10 +591,17 @@
   border-style: dashed;
 }
 
-/* 群演的 chip（`👥 咖啡廳客人 x8`）。與人物的 chip 同一個形狀但**不是同一種東西** ——
- * 它沒有跨場次身分，所以底色略沉、記號不同，一眼分得出這一筆只活在這一場。 */
+/* 群演的 chip（`👥 咖啡廳客人 x8`）—— 在群演欄裡，也在人物欄裡（對白可以指本場的群演）。
+ *
+ * 與人物的 chip 同一個形狀但**不是同一種東西**：它沒有跨場次身分。差別由**記號**說（`👥`），
+ * 不再另外壓一層底色：底色原本是第二道訊號，但它讓群演欄在整排四格裡看起來像另一種控制項
+ * （使用者回報 2026-09-11）。一個差別講一次就夠，而 `👥` 講得比顏色清楚。
+ *
+ * 虛線則與 `--new` 是同一句話，不是第二句：**每一批群演都是這一場開的**，目錄裡沒有它，
+ * 沒有任何一筆是接上既有的那一筆。所以虛線在這一排四個欄位裡的意思一致（使用者裁決
+ * 2026-09-11）—— 編劇看到的是同一套 chip，虛線就該讀成同一件事。 */
 .entity-chip--extra {
-  background: var(--surface-raised);
+  border-style: dashed;
 }
 
 /* 懸空引用（實體被 ⌘Z 掉、跨劇本貼上）**不是錯誤狀態**：顯示名照印，只是少一條可聚合的
@@ -570,6 +613,9 @@
 
 .entity-chip__mark {
   font-size: var(--text-sm);
+  /* 記號與名字之間要喘一口氣 —— chip 的 `gap` 只有 2px，那是給名字與 × 的距離
+     （使用者回報 2026-09-11：記號貼著字看起來很擠）。 */
+  margin-inline-end: 2px;
 }
 
 .entity-chip__remove {
@@ -583,6 +629,19 @@
 
 .entity-chip__remove:hover {
   color: var(--text-primary);
+}
+
+/* 手上正握著一筆時，其餘的 chip 動不得（見 entity-field.tsx 的 `editRef`）—— 那就不該
+   看起來可按。指標回到一般，連 × 一起。 */
+.entity-chip--locked,
+.entity-chip--locked .entity-chip__remove {
+  cursor: default;
+}
+
+/* 按不動的 × 也不該有按得動的回饋（使用者裁決 2026-09-11）。 */
+.entity-chip--locked .entity-chip__remove:hover,
+.entity-chip--locked .entity-chip__remove:active {
+  color: var(--text-faint);
 }
 
 /* 選單外觀比照 chip 下拉與 slash 選單 —— 同一種東西看起來就該是同一種東西。 */
@@ -673,6 +732,58 @@
 
 .entity-field__menu li.is-active {
   background: var(--selection-bg);
+}
+
+/* 沒在編輯時，包住輸入框的那層 span 完全透明 —— 輸入框照樣是 `.entity-field` 的 flex 項。 */
+.entity-field__input-wrap {
+  display: contents;
+}
+
+/* 編輯中的那一筆看起來還是一顆 chip（票券 39 收票）：記號、邊框、× 都留著，只有裡面那段字
+   換成可以打的。點下去只換掉字的呈現，整排不位移。
+   「正在改的是這一顆」只靠**邊框顏色**說（使用者裁決 2026-09-11，兩次）：焦點環那一圈實線
+   把一顆 chip 讀成了一個對話框，而底色用 `--selection-bg` 與**選字的反白同一個顏色** ——
+   在一個正在編輯的文字框裡，那是最容易被讀成「這幾個字被選起來了」的訊號。邊框本來就在，
+   只是換個顏色，不多畫任何東西。 */
+.entity-field__input-chip {
+  border-color: var(--focus-ring);
+}
+
+/* 輸入框**夾在 chip 中間**時寬度依內容而定 —— 它平常是彈性的（吃掉整行剩下的空間，那是欄位
+   尾端該有的可點區），夾在中間那就成了一道把後半排推開的空白。
+   `min-inline-size` 要 `0`：留一個下限的話，短名字（`a`）會被撐得比它唯讀時還寬，同一顆 chip
+   點一下就變胖（使用者回報 2026-09-11）。空的時候靠 `field-sizing` 自己留出游標的寬度。 */
+.entity-field .entity-field__input--inline {
+  flex: 0 1 auto;
+  field-sizing: content;
+  min-inline-size: 0;
+}
+
+/* 游標插在 chip 之間、還沒打字時，輸入框**寬度固定、而且不佔版面**：固定一格游標的寬
+   （靠內容寬度的話，空輸入框在不同瀏覽器下差零點幾像素，游標一進一出整排就微微晃動），
+   再用左右各一半的負邊距把那一格還回去 —— 淨貢獻是零，游標就浮在原本那一道縫上。
+   這樣連**第一顆 chip 左邊**也成立：那裡本來沒有縫可以扣，「兩側各收半寬」的做法在那一格
+   會硬生出一塊（使用者回報 2026-09-11，兩次）。
+
+   ⚠️ 必須排在 `--inline` **後面**：兩條同樣是 0-2-0，靠順序決勝。排在前面的話 `flex: 0 1 auto`
+   與 `field-sizing: content` 會蓋掉這裡的固定寬，於是又長回一小段（使用者回報 2026-09-11）。 */
+.entity-field .entity-field__input--caret {
+  flex: 0 0 var(--caret-slot);
+  inline-size: var(--caret-slot);
+  min-inline-size: 0;
+  /* 內容寬度不再參與 —— 上面那條的 `field-sizing` 要在這裡關掉。 */
+  field-sizing: fixed;
+  margin-inline: calc(var(--caret-slot) / -2);
+}
+
+/* 手上握著一筆實體時的唯讀抬頭（票券 39 收票）—— 不是選項：選不到、Enter 碰不到。
+   看起來就該不像選項，所以比其餘各列淡一階、也不吃 hover。 */
+.entity-field__menu li.entity-field__menu-hint {
+  color: var(--text-faint);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  white-space: normal;
+  cursor: default;
 }
 
 /* ─────────────────────────────────────────── 內容區塊 */

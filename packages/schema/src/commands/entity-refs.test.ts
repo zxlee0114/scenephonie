@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { entityDirectory, mintCharacterId, mintLocationId, sceneLocations } from "../entities";
+import {
+  dialogueCharacters,
+  entityDirectory,
+  mintCharacterId,
+  mintLocationId,
+  sceneAppearingCharacters,
+  sceneLocations,
+} from "../entities";
 import { block, makeDoc, makeScene, sceneWith } from "../testing";
 import {
+  retitleEntityRefs,
   setAppearingCharacters,
   setDialogueCharacters,
   setSceneIntExt,
@@ -289,6 +297,95 @@ describe("setDialogueCharacters", () => {
       ],
       directory,
     });
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("retitleEntityRefs（改名之後，別場的舊稱呼一起跟上）", () => {
+  it("只改「顯示名剛好是舊實體名」的那些引用 —— 真正取過別名的那一場不動", () => {
+    const doc = makeDoc(
+      makeScene({ location: { locationId: dolphinApartment, displayName: "海豚公寓房間" } }),
+      makeScene({ location: { locationId: dolphinApartment, displayName: "海豚公寓房間" } }),
+      makeScene({ location: { locationId: dolphinApartment, displayName: "未知大樓房間" } }),
+    );
+
+    const next = unwrap(
+      retitleEntityRefs(doc, {
+        entityId: dolphinApartment,
+        from: "海豚公寓房間",
+        to: "海豚公寓客廳",
+      }),
+    );
+
+    const shown = [0, 1, 2].map(
+      (i) => sceneLocations(next.child(i).attrs.location)[0]?.displayName,
+    );
+    expect(shown).toEqual([
+      "海豚公寓客廳",
+      "海豚公寓客廳",
+      "未知大樓房間",
+    ]);
+  });
+
+  it("地點欄、登場人物欄、對白人物欄走同一段程式碼", () => {
+    const doc = makeDoc(
+      sceneWith([block.dialogue("我回來了", { character: { id: xiaoming, displayName: "小明" } })], {
+        appearingCharacters: [{ characterId: xiaoming, displayName: "小明" }],
+      }),
+    );
+
+    const scene = unwrap(
+      retitleEntityRefs(doc, { entityId: xiaoming, from: "小明", to: "陳小明" }),
+    ).child(0);
+
+    expect(sceneAppearingCharacters(scene.attrs.appearingCharacters)).toEqual([
+      { characterId: xiaoming, displayName: "陳小明" },
+    ]);
+    expect(dialogueCharacters(scene.child(0).attrs.character)).toEqual([
+      { id: xiaoming, displayName: "陳小明" },
+    ]);
+  });
+
+  it("齊聲那一句裡只動這一位 —— 同一句的別人一個字都不改", () => {
+    const doc = makeDoc(
+      sceneWith([
+        block.dialogue("生日快樂！", {
+          character: [
+            { id: xiaoming, displayName: "小明" },
+            { id: xiaohua, displayName: "小明" },
+          ],
+        }),
+      ]),
+    );
+
+    const next = unwrap(retitleEntityRefs(doc, { entityId: xiaoming, from: "小明", to: "陳小明" }));
+
+    // 別筆實體的顯示名剛好一樣也不算 —— 判準是 id ＋ 顯示名，不是顯示名。
+    expect(dialogueCharacters(next.child(0).child(0).attrs.character)).toEqual([
+      { id: xiaoming, displayName: "陳小明" },
+      { id: xiaohua, displayName: "小明" },
+    ]);
+  });
+
+  it("沒有一筆要改時 doc 原樣回來（改名的實體只被這一場引用是常態）", () => {
+    const doc = makeDoc(makeScene());
+    const next = unwrap(
+      retitleEntityRefs(doc, { entityId: dolphinApartment, from: "海豚公寓房間", to: "客廳" }),
+    );
+
+    expect(next.toJSON()).toEqual(doc.toJSON());
+  });
+
+  it("拒絕改成空白 —— 顯示名是渲染權威，空的那一格 PDF 印不出東西", () => {
+    const doc = makeDoc(
+      makeScene({ location: { locationId: dolphinApartment, displayName: "海豚公寓房間" } }),
+    );
+    const result = retitleEntityRefs(doc, {
+      entityId: dolphinApartment,
+      from: "海豚公寓房間",
+      to: "  ",
+    });
+
     expect(result.ok).toBe(false);
   });
 });
