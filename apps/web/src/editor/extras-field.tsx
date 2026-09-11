@@ -24,7 +24,8 @@
  * 承上：那一下就是**就地改**，所以第一列印 `✏️ 把「路人 x3」改成「路人 x8」`。想留著原本
  * 那批、另外造一筆的，走 `addAnother` 那一列 —— 那是人物欄 `＋ 建立新實體` 在這一側的對應
  * 物。兩列都不寫場數：群演只影響這一場，這正是它與票券 39 那三列（實體有別場，按下去可能
- * 動到別場）的差別。
+ * 動到別場）的差別。選單頂端那一行唯讀抬頭（`heldNote`）與實體欄逐字同一套，只是這裡多說
+ * 一個字：這一格能改的是**名稱與人數**兩件事（票券 40 第二輪）。
  */
 "use client";
 
@@ -244,8 +245,9 @@ export function ExtrasField({
           ? `${NEW_MARK} 新增群演「${parsed.description}」${parsed.count} 人`
           : changed
             ? `${RENAME_MARK} 把「${before}」改成「${after}」`
-            : // 字一個都沒改 —— 這一下什麼都沒動，就照實說它只是把那一批放回去。
-              `${PUT_BACK_MARK} 放回「${after}」`,
+            : // 字一個都沒改 —— 這一下什麼都沒動。名字不必再說一次（抬頭已經印著它），
+              // 這一列要說的只有「按下去等於沒事發生」（編劇指定，票券 40 第二輪）。
+              `${PUT_BACK_MARK} 不修改，返回`,
       run: commitText,
     });
     // 另外開一批：只在**手上握著一批而且字改了**的時候有話說。沒握著東西時「新增」本來就
@@ -253,8 +255,9 @@ export function ExtrasField({
     if (changed) {
       rows.push({
         key: "another",
-        // 代價寫在按下去之前（ADR-0006）—— 這一列與上一列的差別就是「原本那批還在不在」。
-        label: `${NEW_MARK} 另外開一批「${after}」 —— 原本的「${before}」留著`,
+        // 代價寫在按下去之前（ADR-0006）—— 這一列與上一列的差別就是「原本那批還在不在」，
+        // 所以兩批都點名（編劇指定的措辭，票券 40 第二輪）。
+        label: `${NEW_MARK} 新增「${after}」群演，保留「${before}」`,
         run: addAnother,
       });
     }
@@ -274,6 +277,26 @@ export function ExtrasField({
 
   /** 組字中的唯讀預覽（同 `entity-field.tsx`）：看得見，但接不到鍵盤與滑鼠。 */
   const preview = composingNow && query.length > 0 ? hits() : [];
+
+  /**
+   * 手上握著一批時，選單頂端那一行**唯讀**的抬頭（票券 40 第二輪，與實體欄逐字同一套）。
+   *
+   * 它補的是一個沒有回饋的時刻：**字還沒改**。那時第一列只說得出「不修改，返回」，而「改這裡
+   * 的字就能改這一批」這條路完全不可見。字改過之後它仍然在，因為那時框裡的字已經不是那一批的
+   * 樣子了，**「我在編輯哪一批」得有人說**。
+   *
+   * 與實體欄的差別只有一個字：這一格能改的是**名稱與人數**兩件事（`路人 x3` 是同一列裡的兩
+   * 段）。它**不是一列選項**：不進 `rows`、選不到、Enter 碰不到（標籤放結果、說明另外放，
+   * 票券 36 立的分工）。框裡清空了它也還在 —— 那一刻那一批還握在手上，措辭換成下一顆
+   * Backspace 會做什麼：放手（見 `letGo`）。
+   */
+  const heldNow = editing.current;
+  const heldNote =
+    !heldNow || dismissed || composingNow
+      ? null
+      : query === ""
+        ? `${RENAME_MARK} 正在編輯「${formatExtra(heldNow)}」，再按一次 Backspace 移除這一批`
+        : `${RENAME_MARK} 正在編輯「${formatExtra(heldNow)}」，修改文字可更新名稱、人數`;
 
   const activeRow = rows[Math.min(active, rows.length - 1)];
 
@@ -366,7 +389,8 @@ export function ExtrasField({
     add(names);
   };
 
-  const held = editing.current;
+  // 手上那一批 —— 算抬頭時已經取過（同一次 render 裡 ref 不會自己變），這裡沿用同一個值。
+  const held = heldNow;
   /** 輸入框現在**夾在 chip 中間**嗎 —— 決定它吃不吃那條彈性寬度（見 CSS 的 `--inline`）。 */
   const inputAt = Math.min(caret.current ?? extras.length, extras.length);
   const inline = held != null || inputAt < extras.length;
@@ -436,7 +460,7 @@ export function ExtrasField({
         aria-label={placeholder}
         aria-describedby={describedBy}
         aria-keyshortcuts={describedBy ? HELP_KEY_HINT : undefined}
-        aria-expanded={rows.length > 0}
+        aria-expanded={rows.length > 0 || heldNote != null}
         aria-haspopup="listbox"
         role="combobox"
         value={text}
@@ -505,8 +529,13 @@ export function ExtrasField({
         </ul>
       )}
 
-      {rows.length > 0 && (
+      {(rows.length > 0 || heldNote) && (
         <ul className="entity-field__menu" role="listbox" aria-label={`${placeholder}建議`}>
+          {heldNote && (
+            <li role="presentation" className="entity-field__menu-hint">
+              {heldNote}
+            </li>
+          )}
           {rows.map((row, i) => (
             <li
               key={row.key}
