@@ -1222,6 +1222,14 @@ describe("一次只編輯一筆（票券 39 收票）", () => {
     expect(chipTexts(container)).toEqual(["建鳴"]); // 「建鳴」也還在
   });
 
+  it("動不得的 chip 標得出來 —— 指標不該還說它可以點", () => {
+    const { container } = two();
+    expect(chips(container)[0]!.className).not.toContain("entity-chip--locked");
+
+    fireEvent.mouseDown(chips(container)[0]!);
+    expect(chips(container)[0]!.className).toContain("entity-chip--locked");
+  });
+
   it("正在改一筆時別的 chip 的 × 也不動 —— 同一條線", () => {
     const { container } = two();
     fireEvent.mouseDown(chips(container)[0]!);

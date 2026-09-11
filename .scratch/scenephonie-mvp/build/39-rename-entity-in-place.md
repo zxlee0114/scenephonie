@@ -265,3 +265,10 @@ chip 也不在了），所以那時抬頭換一句話，說出下一顆 Backspac
 ⚠️ **另一條路沒有走**：點 B 時先把 A 定案（等同 blur 的行為）再拿起 B。它比較順手，但編劇
 這一輪明確說的是「不允許啟用其他 chip 的編輯」，所以照字面做；真要改成自動接力，把這條
 註記翻出來即可。測試 3 條。
+
+**（同日追加）動不得的 chip 要看得出來，chip 之間也太擠。** 鎖住之後指標仍是 `pointer`，
+× 看起來照樣可按 —— 加 `.entity-chip--locked`（chip 與它的 × 都改回一般指標）。
+間距那條是 `display: contents` 的缺口：chip 都包在 `.entity-field__chips` 這個純結構 span
+裡，那個 span 不是 flex 容器，所以 chip 之間**一條 gap 都沒有**（只有 span 與輸入框之間有）。
+改成 `display: contents` 讓每個 chip 直接成為 `.entity-field` 的 flex 項，整排吃同一條 gap，
+順手把 gap 從 4px 調到 8px。輸入框夾在中間時同一排有兩個這種容器，這條也讓間隔不會分成兩種。

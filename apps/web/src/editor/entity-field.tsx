@@ -966,7 +966,11 @@ export function EntityField({
                 : entity
                   ? "entity-chip--hit"
                   : "entity-chip--dangling",
-          ].join(" ")}
+            // 手上握著一筆時其餘的 chip 動不得（見 `editRef`）—— 指標得說出這件事。
+            editing.current ? "entity-chip--locked" : null,
+          ]
+            .filter(Boolean)
+            .join(" ")}
           // 懸空引用（實體被 ⌘Z 掉）不跳警告、不少印 —— 只是少一條可聚合的連結。
           title={
             entity && entity.name !== ref.displayName ? entity.name : undefined

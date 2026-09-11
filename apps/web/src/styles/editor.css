@@ -503,7 +503,14 @@
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
+}
+
+/* 純結構容器 —— `display: contents` 讓每一個 chip 直接成為 `.entity-field` 的 flex 項，
+   於是 chip 之間、chip 與輸入框之間吃的是同一條 gap。輸入框正在改中間那一筆時會夾在兩個
+   這種容器之間（票券 39 收票），少了這一條，同一排的間隔會分成兩種。 */
+.entity-field__chips {
+  display: contents;
 }
 
 /* chip **住在輸入框裡**（使用者回饋 2026-09-06）——框是 `.entity-field` 這個容器，
@@ -673,6 +680,13 @@
 
 .entity-field__menu li.is-active {
   background: var(--selection-bg);
+}
+
+/* 手上正握著一筆時，**其餘的 chip 動不得**（一次只編輯一筆，票券 39 收票）—— 指標要說出
+   這件事，不然它看起來仍然可點。 */
+.entity-chip--locked,
+.entity-chip--locked .entity-chip__remove {
+  cursor: default;
 }
 
 /* 輸入框夾在 chip 中間時（正在改中間那一筆，票券 39 收票）—— 它平常是彈性的，會吃掉整行
