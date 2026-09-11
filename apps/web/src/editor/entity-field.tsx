@@ -655,33 +655,21 @@ export function EntityField({
   /**
    * 手上握著一筆實體時，選單頂端那一行**唯讀**的抬頭（票券 39 收票）。
    *
-   * 它補的是兩個沒有回饋的時刻：
-   *
-   * **① 字全刪光。** `menuOpen` 的條件是框裡有字，所以刪到空的那一刻選單整個收掉 —— 畫面上
-   * 沒有任何東西說「你手上還握著『派出所』」，看起來跟從沒填過一模一樣。但下一次 Backspace
-   * 的後果完全不同（那一下才是把引用拿掉）。代價寫在按下去之前（ADR-0006 那條方法論）。
-   *
-   * **② 字還沒改。** 那時沒有任何一列提到改名（沒東西可改），於是「改這裡的字就能改名」這條
-   * 路**完全不可見** —— 編劇不會去試一個他不知道存在的東西。
+   * 它補的是一個沒有回饋的時刻：**字還沒改**。那時沒有任何一列提到改名（確實沒東西可改），
+   * 於是「改這裡的字就能改名」這條路完全不可見 —— 編劇不會去試一個他不知道存在的東西。
+   * 字改過之後它仍然在，因為那時框裡的字已經不是那筆實體的名字了，**「我在編輯誰」得有人說**。
    *
    * 它**不是一列選項**：不進 `rows`、選不到、Enter 碰不到它。標籤放結果、說明另外放，這條
    * 分工是票券 36 立的；等 36 的側邊說明欄落地，這一行可以搬進去。
+   *
+   * 框裡空著時沒有抬頭 —— 那一刻手上已經放開了（見 `onChange`），沒有誰正在被編輯。
    */
-  const heldNote = ((): string | null => {
-    if (!onRenameEntity || pending || dismissed || composingNow || stage.name !== "suggest") {
-      return null;
-    }
-    const held = editing.current;
-    const entity = heldEntity();
-    if (!held || !entity) return null;
-    if (query === "") {
-      // 措辭說的是**狀態**不是下一顆鍵：引用在 chip 被拿起來那一刻就從 doc 上撤掉了，所以
-      // 「再按一次 Backspace 會拿掉」並不準確 —— 真正決定它去留的是離開欄位時框裡有沒有字。
-      return `${RENAME_MARK} 手上是「${entity.name}」—— 打字可改名，空著離開就是拿掉它`;
-    }
-    // 字改過了就不必再提示 —— 那時真正可按的那一列已經在選單裡。
-    return query === entity.name ? `${RENAME_MARK} 改這裡的字，就能把這筆實體改名` : null;
-  })();
+  const heldEntityNow = heldEntity();
+  const heldNote =
+    onRenameEntity && heldEntityNow && query !== "" && !pending && !dismissed && !composingNow &&
+    stage.name === "suggest"
+      ? `${RENAME_MARK} 正在編輯「${heldEntityNow.name}」，修改文字可更新名稱`
+      : null;
 
   const activeRow = rows[Math.min(active, rows.length - 1)];
 
@@ -836,6 +824,15 @@ export function EntityField({
   };
 
   const onChange = (value: string) => {
+    // **刪到空的那一刻就放手**（2026-09-11 驗收回饋）。引用在 chip 被拿起來時就從 doc 上撤掉了，
+    // 字再刪光，編劇看到的就是「這一場的它沒了」—— 那時還握著它只會製造一個看不見的狀態：
+    // 抬頭說手上是 B、畫面上 B 早就不在，而下一個字打下去會變成「把 B 改名」。
+    // 放手之後這一步成為一個乾淨的落點：B 消失、游標停在前一個 chip 後面，再一次 Backspace
+    // 才輪到它（票券 34 那條「空欄位的 Backspace」原封不動）。
+    if (value === "") {
+      editing.current = null;
+      heldScenes.current = null;
+    }
     setText(value);
     setDismissed(false);
     setActive(0);

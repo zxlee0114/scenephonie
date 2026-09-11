@@ -989,27 +989,63 @@ describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
     const { container } = held();
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
 
-    expect(heldNote(container)).toBe("✏️ 改這裡的字，就能把這筆實體改名");
+    expect(heldNote(container)).toBe("✏️ 正在編輯「派出所」，修改文字可更新名稱");
     // 它不是選項：選不到、Enter 碰不到。
     expect(rows(container)).toEqual(["📍 派出所（3 場）", "🔗 作為既有實體的另一個名字…"]);
   });
 
-  it("字全刪光時選單不收 —— 手上還握著那一筆，而空著離開就是把它拿掉", () => {
-    const { container } = held();
-    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
-    fireEvent.change(container.querySelector("input")!, { target: { value: "" } });
-
-    expect(heldNote(container)).toBe("✏️ 手上是「派出所」—— 打字可改名，空著離開就是拿掉它");
-    expect(rows(container)).toEqual([]);
-  });
-
-  it("字一改，抬頭就換成真正可按的那一列", () => {
+  it("字改過之後抬頭還在 —— 框裡的字已經不是它的名字了，「我在編輯誰」得有人說", () => {
     const { container } = held();
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
     fireEvent.change(container.querySelector("input")!, { target: { value: "派出所後門" } });
 
-    expect(heldNote(container)).toBeNull();
+    expect(heldNote(container)).toBe("✏️ 正在編輯「派出所」，修改文字可更新名稱");
     expect(rows(container)).toContain("✏️ 把實體改名為「派出所後門」");
+  });
+
+  it("字刪到空的那一刻就放手 —— 抬頭收掉，因為已經沒有誰正在被編輯", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "" } });
+
+    expect(heldNote(container)).toBeNull();
+    expect(rows(container)).toEqual([]);
+  });
+
+  it("放手之後重打的字是一個新的字，不是在改那一筆的名字", () => {
+    const { container } = held();
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.change(input, { target: { value: "hff" } });
+
+    // 沒有 ✏️：手上早就放開了，這是在打一個新名字。
+    expect(rows(container)).toEqual(["＋ 建立新實體「hff」", "🔗 作為既有實體的另一個名字…"]);
+  });
+
+  it("刪光是一個乾淨的落點 —— 前一個 chip 還在，再一次 Backspace 才輪到它", () => {
+    const { container } = render(
+      <Host
+        initial={[
+          { id: dolphinApartment.id, displayName: "海豚公寓房間" },
+          { id: policeStation.id, displayName: "派出所" },
+        ]}
+        onRenameEntity={() => {}}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    // ① 空欄位 Backspace 把最後一個拿下來（整串反白），② 刪光它。
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "" } });
+
+    expect(chipTexts(container)).toEqual(["海豚公寓房間"]);
+    expect(heldNote(container)).toBeNull();
+
+    // ③ 這一下才輪到前一個。
+    fireEvent.keyDown(input, { key: "Backspace" });
+    expect(chipTexts(container)).toEqual([]);
+    expect(input.value).toBe("海豚公寓房間");
   });
 
   it("Esc 之後抬頭跟著收 —— 「現在別煩我」是整份選單的事", () => {
