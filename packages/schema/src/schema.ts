@@ -27,6 +27,8 @@
  */
 import { Schema } from "prosemirror-model";
 
+import type { CountValue } from "./count";
+
 /** `time` 欄位（時間，業界順場表稱「光」）的合法值。可為 null —— null ＝ 尚未填。 */
 export const TIME_VALUES = ["日", "夜", "晨", "昏"] as const;
 export type SceneTime = (typeof TIME_VALUES)[number];
@@ -57,11 +59,25 @@ export interface CharacterRef {
   displayName: string;
 }
 
-/** 場次 `extras` 欄的形狀（群演）。場次限定實體，id 只在該場次內有意義。 */
+/**
+ * 場次 `extras` 欄的形狀（群演）。場次限定實體，id 只在該場次內有意義。
+ *
+ * ⚠️ **人數在遷移窗口裡有兩個形態**（expand–contract，票券 44）：`count` 是舊的那一個，
+ * `countValue` 是四種樣子的那一個（確切／區間／下限／若干）。讀取路徑（`sceneExtras`）
+ * 兩邊都填得出來，所以既有呼叫點繼續讀 `count`，新的路一批一批搬到 `countValue`
+ * （票券 45–49），最後票券 50 把 `count` 整個刪掉。
+ *
+ * 那個窗口裡 **`count` 會說謊**：`路人（3-5）` 的 `count` 是 3、`路人（若干）` 的是 1。
+ * 可以接受的條件是**沒有人再讀它** —— 所以這一串票不要停在中間。
+ *
+ * `countValue` 現在是可選的，只為了讓既有的建構點（command、測試 fixture）不必同時改；
+ * 票券 50 會把它變成必填。**它自己沒有可選欄位**，因為 attr 不允許 undefined（§6.6）。
+ */
 export interface ExtraRef {
   extraId: string;
   description: string;
   count: number;
+  countValue?: CountValue;
 }
 
 /** `dialogue` 節點 `character` attr 的引用形狀（§5.1：`{ id, displayName }`）。合法目標是人物或本場次的群演。 */

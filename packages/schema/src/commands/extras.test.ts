@@ -10,6 +10,18 @@ import { block, makeDoc, makeScene, sceneWith } from "../testing";
 import { setDialogueCharacters } from "./entity-refs";
 import { addSceneExtras, setSceneExtras, takeOneFromExtra } from "./extras";
 
+/**
+ * 讀回來的一筆。`countValue` 是人數的新形態（票券 44 的遷移窗口）—— 這裡的資料都只有舊
+ * 的數字，於是新形態一律是「確切 N」。命令那一層還沒搬（票券 46），這個 helper 只是讓
+ * 下面幾條期望值不必為了多一個欄位而重寫一遍。
+ */
+const read = (extraId: string, description: string, count: number) => ({
+  extraId,
+  description,
+  count,
+  countValue: { kind: "exact", count },
+});
+
 const guests = mintExtraId();
 const waiters = mintExtraId();
 
@@ -33,8 +45,8 @@ describe("setSceneExtras", () => {
     );
 
     expect(sceneExtras(next.child(0).attrs.extras)).toEqual([
-      { extraId: guests, description: "咖啡廳客人", count: 8 },
-      { extraId: waiters, description: "服務生", count: 2 },
+      read(guests, "咖啡廳客人", 8),
+      read(waiters, "服務生", 2),
     ]);
   });
 
@@ -97,8 +109,8 @@ describe("addSceneExtras", () => {
     );
 
     expect(sceneExtras(next.child(0).attrs.extras)).toEqual([
-      { extraId: guests, description: "咖啡廳客人", count: 8 },
-      { extraId: waiters, description: "服務生", count: 2 },
+      read(guests, "咖啡廳客人", 8),
+      read(waiters, "服務生", 2),
     ]);
   });
 
@@ -129,8 +141,8 @@ describe("takeOneFromExtra —— 升格的群演那一半（票券 35）", () =
     const next = unwrap(takeOneFromExtra(doc, { sceneId: sceneIdOf(doc), extraId: waiters }));
 
     expect(sceneExtras(next.child(0).attrs.extras)).toEqual([
-      { extraId: guests, description: "咖啡廳客人", count: 8 },
-      { extraId: waiters, description: "服務生", count: 1 },
+      read(guests, "咖啡廳客人", 8),
+      read(waiters, "服務生", 1),
     ]);
   });
 
@@ -146,9 +158,7 @@ describe("takeOneFromExtra —— 升格的群演那一半（票券 35）", () =
     const next = unwrap(takeOneFromExtra(doc, { sceneId: sceneIdOf(doc), extraId: waiters }));
 
     // `x0` 不算人數（票券 09 已裁決）—— 0 個群演等於沒有這一筆。
-    expect(sceneExtras(next.child(0).attrs.extras)).toEqual([
-      { extraId: guests, description: "咖啡廳客人", count: 8 },
-    ]);
+    expect(sceneExtras(next.child(0).attrs.extras)).toEqual([read(guests, "咖啡廳客人", 8)]);
   });
 
   it("別場的群演拉不走 —— 群演是場次限定實體", () => {
