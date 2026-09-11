@@ -186,10 +186,11 @@ type Row = {
  * 一串字大概佔幾格 —— `<input size>` 的退路值（`field-sizing: content` 沒生效時才看得到）。
  *
  * `size` 以**平均字寬**計，中日文字元會因此排得太窄，所以拉丁字母與標點之外一律算兩格。
+ * 下限是 `1`（`size=0` 不合法）：給到 `2` 的話，單字元的名字（`a`）會被撐得比它唯讀時還寬。
  */
 const columns = (text: string) =>
   Math.max(
-    2,
+    1,
     [...text].reduce(
       (n, c) => n + ((c.codePointAt(0) ?? 0) > 0x2ff ? 2 : 1),
       0,
@@ -404,6 +405,11 @@ export function EntityField({
       if (ref) resolved.push(ref);
     }
     merge(resolved);
+    // 那串字已經變成 chip 了 —— 手上不再握著任何一筆。Enter／離開欄位那條路走的是
+    // `reset`，打頓號切出 chip 這條路少了這一句，手會一直握著一筆放不下來。
+    editing.current = null;
+    heldScenes.current = null;
+    redraw();
   };
 
   /**
@@ -964,6 +970,12 @@ export function EntityField({
   };
 
   const held = editing.current;
+  /**
+   * 輸入框現在**夾在 chip 中間**嗎 —— 決定它吃不吃那條彈性寬度（見 CSS 的 `--inline`）。
+   *
+   * 正在改一筆時是（輸入框停在那一筆原本那一格），只是把游標插進去也是。
+   */
+  const inline = held != null || inputAt < refs.length;
 
   /** 一顆已經定案的引用。手上握著一筆時整排 chip 都是動不得的（見 `editRef`）。 */
   const chipNode = (ref: EntityRef, i: number): ReactNode => {
@@ -1054,16 +1066,14 @@ export function EntityField({
       )}
       <input
         ref={takeInput}
-        // 編輯中**寬度依內容而定** —— 平常那條 `flex` 會吃掉整行剩下的空間，在 chip 裡就成了
-        // 一道把後半排推開的空白（2026-09-11 驗收回饋）。
-        className={[
-          inputClassName,
-          editing.current && "entity-field__input--inline",
-        ]
+        // 夾在 chip 中間時**寬度依內容而定** —— 平常那條 `flex` 會吃掉整行剩下的空間（欄位
+        // 尾端該有的可點區），夾在中間那就成了一道把後半排推開的空白（2026-09-11 驗收回饋）。
+        // 正在改一筆是這樣，只是把游標插進去也是 —— 空的輸入框不該自己長出一塊空間。
+        className={[inputClassName, inline && "entity-field__input--inline"]
           .filter(Boolean)
           .join(" ")}
         // `field-sizing: content` 沒生效時的退路（見 `columns`）。
-        size={editing.current ? columns(text) : undefined}
+        size={inline ? columns(text) : undefined}
         // 已經有 chip 就不必再留提示字 —— chip 自己就說明了這一欄是什麼。
         placeholder={refs.length > 0 ? "" : placeholder}
         aria-label={placeholder}
@@ -1126,10 +1136,16 @@ export function EntityField({
    * `at` 為 `null` ＝ 這道縫不接受點擊：游標已經在那（縫的一側就是輸入框），或者手上正握著
    * 一筆（那時整排都動不得）。
    */
-  const gap = (key: string, at: number | null) => (
+  const gap = (key: string, at: number | null, flush = false) => (
     <span
       key={key}
-      className={`entity-field__gap${at == null ? "" : " entity-field__gap--pick"}`}
+      className={[
+        "entity-field__gap",
+        flush && "entity-field__gap--flush",
+        at != null && "entity-field__gap--pick",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       onMouseDown={
         at == null
           ? undefined
@@ -1147,19 +1163,32 @@ export function EntityField({
    * 整排：chip 與輸入框照**看得見的順序**排好，每兩個之間夾一道縫。
    *
    * `i` 走的是**插入位置**（`0`…`refs.length`）而不是 chip 的索引 —— 輸入框佔的就是其中一格。
+   *
+   * 游標只是插進中間、還沒打字時，它兩側的縫**收成零寬**（`flush`）—— 否則原本一道縫的
+   * 地方變成「縫 ＋ 空輸入框 ＋ 縫」，整排憑空撐開一塊（2026-09-11 驗收回饋）。打了字那兩道
+   * 縫就回來，字自然把兩邊的 chip 擠開。
    */
   const row: ReactNode[] = [];
   {
-    const units: { node: ReactNode; at: number }[] = [];
+    const units: { node: ReactNode; at: number; isInput: boolean }[] = [];
     for (let i = 0; i <= refs.length; i += 1) {
-      if (i === inputAt) units.push({ node: inputNode, at: i });
+      if (i === inputAt) units.push({ node: inputNode, at: i, isInput: true });
       const ref = refs[i];
-      if (ref) units.push({ node: chipNode(ref, i), at: i });
+      if (ref) units.push({ node: chipNode(ref, i), at: i, isInput: false });
     }
+    // 空的輸入框插在中間 ＝ 它只是一個游標，不該佔位（見上面那段）。
+    const bare = !held && inputAt < refs.length && text === "";
     units.forEach((unit, k) => {
+      const prev = units[k - 1];
       // 縫的插入位置就是它**右邊**那個東西的位置；等於游標現在站的那一格就沒得點。
-      if (k > 0)
-        row.push(gap(`gap${k}`, unit.at === inputAt || held ? null : unit.at));
+      if (prev)
+        row.push(
+          gap(
+            `gap${k}`,
+            unit.at === inputAt || held ? null : unit.at,
+            bare && (unit.isInput || prev.isInput),
+          ),
+        );
       row.push(unit.node);
     });
     // 輸入框不在隊尾時，尾端也要留一道縫 —— 否則游標回不到最後面。

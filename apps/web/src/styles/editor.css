@@ -517,6 +517,13 @@
   align-self: stretch;
 }
 
+/* 游標插進中間、但還沒打字時，它兩側的縫**收成零寬**（使用者裁決 2026-09-11）——
+   否則原本一道縫的位置變成「縫 ＋ 空輸入框 ＋ 縫」，整排會被撐開一塊空白。打了字它們就
+   回來，字自然把兩邊的 chip 擠開。 */
+.entity-field__gap--flush {
+  inline-size: 0;
+}
+
 .entity-field__gap--pick {
   cursor: text;
 }
@@ -609,6 +616,12 @@
 .entity-chip--locked,
 .entity-chip--locked .entity-chip__remove {
   cursor: default;
+}
+
+/* 按不動的 × 也不該有按得動的回饋（使用者裁決 2026-09-11）。 */
+.entity-chip--locked .entity-chip__remove:hover,
+.entity-chip--locked .entity-chip__remove:active {
+  color: var(--text-faint);
 }
 
 /* 選單外觀比照 chip 下拉與 slash 選單 —— 同一種東西看起來就該是同一種東西。 */
@@ -708,18 +721,22 @@
 
 /* 編輯中的那一筆看起來還是一顆 chip（票券 39 收票）：記號、邊框、× 都留著，只有裡面那段字
    換成可以打的。點下去只換掉字的呈現，整排不位移。
-   「正在改的是這一顆」只靠**底色**說 —— 焦點環在這裡太重，那一圈實線會把一顆 chip 讀成一個
-   對話框（使用者裁決 2026-09-11）。游標本來就在框裡閃，底色只是指出它在哪一顆裡面。 */
+   「正在改的是這一顆」只靠**邊框顏色**說（使用者裁決 2026-09-11，兩次）：焦點環那一圈實線
+   把一顆 chip 讀成了一個對話框，而底色用 `--selection-bg` 與**選字的反白同一個顏色** ——
+   在一個正在編輯的文字框裡，那是最容易被讀成「這幾個字被選起來了」的訊號。邊框本來就在，
+   只是換個顏色，不多畫任何東西。 */
 .entity-field__input-chip {
-  background: var(--selection-bg);
+  border-color: var(--focus-ring);
 }
 
-/* 編輯中的輸入框寬度依內容而定 —— 它平常是彈性的（吃掉整行剩下的空間），在 chip 裡那就成了
-   一道把後半排推開的空白。 */
+/* 輸入框**夾在 chip 中間**時寬度依內容而定 —— 它平常是彈性的（吃掉整行剩下的空間，那是欄位
+   尾端該有的可點區），夾在中間那就成了一道把後半排推開的空白。
+   `min-inline-size` 要 `0`：留一個下限的話，短名字（`a`）會被撐得比它唯讀時還寬，同一顆 chip
+   點一下就變胖（使用者回報 2026-09-11）。空的時候靠 `field-sizing` 自己留出游標的寬度。 */
 .entity-field .entity-field__input--inline {
   flex: 0 1 auto;
   field-sizing: content;
-  min-inline-size: 2ch;
+  min-inline-size: 0;
 }
 
 /* 手上握著一筆實體時的唯讀抬頭（票券 39 收票）—— 不是選項：選不到、Enter 碰不到。

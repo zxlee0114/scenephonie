@@ -1225,11 +1225,25 @@ describe("編輯中的那一筆也留在原位（票券 39 收票）", () => {
 
     expect(input.className).toContain("entity-field__input--inline");
     expect(input.size).toBe(4); // 「建鳴」兩個寬字元
+  });
 
-    // 放手之後回到隊尾，也就回到那條彈性寬度。
-    fireEvent.change(input, { target: { value: "" } });
-    fireEvent.keyDown(input, { key: "Backspace" });
-    expect(input.className).not.toContain("entity-field__input--inline");
+  it("回到隊尾才吃回那條彈性寬度", async () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[2]!); // 拿起最後那一筆
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "小明、" } });
+
+    await waitFor(() => expect(input.className).not.toContain("entity-field__input--inline"));
+  });
+
+  it("單字元的名字不會因為點一下就變胖", () => {
+    // `size` 的下限給到 2 的話，`a` 這種名字在編輯中會被撐得比唯讀時還寬（使用者回報）。
+    const { container } = render(
+      <Host initial={[{ id: "ch_a", displayName: "a" }]} options={[{ id: "ch_a", name: "a" }]} />,
+    );
+    fireEvent.mouseDown(chips(container)[0]!);
+
+    expect(container.querySelector("input")!.size).toBe(1);
   });
 
   it("編輯中的那一筆看起來還是一顆 chip —— 記號與邊框都留著，整排不位移", () => {
@@ -1349,6 +1363,16 @@ describe("點 chip 之間那道縫，下一筆就插在那裡（票券 39 收票
     const { container } = two();
     // 隊尾那一格是游標現在站的地方，所以整排只有「阿盈｜建鳴」之間那一道縫可以點。
     expect(container.querySelectorAll(".entity-field__gap--pick")).toHaveLength(1);
+  });
+
+  it("游標插進中間但還沒打字時，兩側的縫收成零寬 —— 不憑空撐開一塊", () => {
+    const { container } = two();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
+    expect(container.querySelectorAll(".entity-field__gap--flush")).toHaveLength(2);
+
+    // 打了字那兩道縫就回來 —— 字自然把兩邊的 chip 擠開。
+    fireEvent.change(container.querySelector("input")!, { target: { value: "小" } });
+    expect(container.querySelectorAll(".entity-field__gap--flush")).toHaveLength(0);
   });
 
   it("握著一筆時整排的縫都不接受點擊", () => {
