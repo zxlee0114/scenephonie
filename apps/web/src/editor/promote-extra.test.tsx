@@ -12,7 +12,7 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import {
   mintExtraId,
   mintSceneId,
@@ -94,7 +94,7 @@ const waiterScene = (count = 2, extraId = mintExtraId()) =>
   ]);
 
 afterEach(() => {
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("升格那一列：與「齊聲」並排，語意分得清楚", () => {

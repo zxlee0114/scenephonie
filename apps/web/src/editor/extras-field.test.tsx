@@ -3,7 +3,7 @@
  * 群演欄的驗收（票券 09）：多組「描述 x 人數」、跨場次描述**只補字串**、
  * 注音組字期間不動作、重新編輯保住 `extraId`。
  */
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -51,7 +51,7 @@ const previewRows = (root: HTMLElement) =>
   [...root.querySelectorAll(".entity-field__menu--preview li")].map((li) => li.textContent ?? "");
 
 afterEach(() => {
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("多組「描述 x 人數」", () => {

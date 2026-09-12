@@ -26,7 +26,7 @@
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -103,7 +103,7 @@ const extrasInput = (root: HTMLElement) =>
   root.querySelector<HTMLInputElement>(".scene__chip--extras input")!;
 
 afterEach(() => {
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 async function mount(doc: object) {
@@ -333,7 +333,7 @@ describe("chip row ↔ 本場內文", () => {
       fireEvent.keyDown(input, { key });
 
       await waitFor(() => expect(caretInBodyOf(editor(), "門開了")).toBe(true));
-      document.body.innerHTML = "";
+      cleanup();
     }
   });
 

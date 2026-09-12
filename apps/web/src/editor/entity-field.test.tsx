@@ -3,7 +3,7 @@
  * 實體欄位的驗收（票券 08）：多值輸入規則、三列自動補全、注音組字期間不動作、
  * 新建與命中 chip 視覺可辨、第三列的兩步別名流程。
  */
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -82,7 +82,7 @@ const previewRows = (root: HTMLElement) =>
   [...root.querySelectorAll(".entity-field__menu--preview li")].map((li) => li.textContent ?? "");
 
 afterEach(() => {
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("多值欄位：頓號分隔、空白留在名字裡", () => {

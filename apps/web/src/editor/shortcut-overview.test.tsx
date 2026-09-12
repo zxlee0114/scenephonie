@@ -6,14 +6,14 @@
  * 手寫的 `event.key` 比對，兩邊對不起來）。所以這裡釘住的是「面板本身沒壞」與**幾條最容易
  * 走散的鍵**——改了鍵而忘了改表時，至少這幾條會紅。
  */
-import { fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ShortcutOverview } from "./shortcut-overview";
 import { SHORTCUTS, isShortcutOverviewKey } from "./shortcuts";
 
 afterEach(() => {
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 /**

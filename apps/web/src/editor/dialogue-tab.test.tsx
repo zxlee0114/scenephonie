@@ -10,7 +10,7 @@
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -50,7 +50,7 @@ function Harness({ onEditor }: { onEditor: (e: Editor) => void }) {
 
 describe("人物欄的 Tab 不冒泡到 BlockCycle", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("Shift+Tab 在人物欄不會把對白轉回動作", async () => {
@@ -72,7 +72,7 @@ describe("人物欄的 Tab 不冒泡到 BlockCycle", () => {
 
 describe("人物欄按 Enter 直接進台詞", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("Enter 把游標送進對白內文（不再是按了沒反應）", async () => {
@@ -139,7 +139,7 @@ describe("人物欄按 Enter 直接進台詞", () => {
  */
 describe("人物欄與台詞之間的上下導航", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("人物欄按 ↓：回到自己的台詞，游標在文字末端", async () => {
@@ -237,7 +237,7 @@ describe("人物欄與台詞之間的上下導航", () => {
 
 describe("空的對白在人物欄按 Enter：取消區塊，變回描述", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("人名與台詞都空 → Enter 把對白換成 action", async () => {

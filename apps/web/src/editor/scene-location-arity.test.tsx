@@ -11,7 +11,7 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { mintSceneId, schema as kernelSchema, type SceneIntExt } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -77,7 +77,7 @@ async function typeInto(container: HTMLElement, selector: string, value: string,
 
 describe("地點欄能收幾個值", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("非雜景場次：頓號是名字裡的字，打「派出所、警局」得到一個地點", async () => {
@@ -115,7 +115,7 @@ describe("地點欄能收幾個值", () => {
  */
 describe("非雜景場次的第二個地點", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   /** 先填好第一個地點，回傳地點欄的 input。 */
@@ -184,7 +184,7 @@ describe("非雜景場次的第二個地點", () => {
 // 只是「下拉沒有變」—— 沒有比「按了沒反應」更糟的回答。
 describe("離開雜景時，多出來的地點要有人說一聲", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   /** 雜景場次 ＋ 兩個地點，就是那個擋著的狀態。 */

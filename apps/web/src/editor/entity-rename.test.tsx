@@ -8,7 +8,7 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import {
   mintSceneId,
   sceneAppearingCharacters,
@@ -97,7 +97,7 @@ const openRename = (container: HTMLElement) => {
 };
 
 afterEach(() => {
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("「那 N 場」包含編劇正站著的這一場 —— 改的是一筆引用，不是一整場", () => {

@@ -16,7 +16,7 @@
  * mount()）——用這個指紋分辨某個節點是不是走 React。`.block--action` 本來就住在 SceneView 這個
  * React node view 底下，所以只能查「有沒有專屬 action 的那層殼」，不能查有沒有 react-renderer 祖先。
  */
-import { render, waitFor } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -36,7 +36,7 @@ function docWithEveryBlock() {
 
 describe("票券 04 #7：純結構區塊不掛 React node view", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("action：無專屬 React 殼，.block--action 直接住在 .scene__body 裡", async () => {
