@@ -786,23 +786,27 @@
   cursor: default;
 }
 
-/* 人數子選單裡的自由輸入格（票券 48）。它**不是一列選項** —— 選不到、Enter 碰不到，所以
-   不吃 hover、不用手指游標；整格就是一個框加底下一行唯讀的話。 */
+/* 人數子選單裡的自由輸入格（票券 48）。它在 a11y 樹上不是一列選項（`role="presentation"`，
+   真正被聚焦的是裡面那個 `<input>`），所以不吃 hover、不用手指游標 —— 但它**是選單裡的一
+   格**：↑↓ 走得進來、Enter 打在它身上，於是「現在停在哪」與其餘各列用同一條 `.is-active`
+   反白（編劇裁決 2026-09-12）。反白蓋住整格，底下那一行提示也在裡面 —— 那一行講的就是這
+   一格，一起亮起來讀得出「這是同一件事」。 */
 .entity-field__menu li.entity-field__menu-box {
   white-space: normal;
   cursor: default;
 }
 
-/* 它是一格**輸入**，不是一列選項 —— 所以要看得出來是個框：底色與選單分開、框線比選單的
-   分隔線重、聚焦時吃同一條 `--focus-ring`（與欄位其餘各處的聚焦一致）。原本透明無底色時
-   讀起來像「這一列空缺了」（使用者回報 2026-09-12）。 */
+/* 「現在停在哪」整份選單只有**一種**說法：那一列整條反白（`.is-active`，見上）。格子那一列
+   也吃它 —— 它是選單裡的一格，↑↓ 走得進來、Enter 打在它身上（使用者裁決 2026-09-12）。
+   所以格子**自己不畫框**：一條細框擺在一列反白旁邊，同一件事會有兩種講法，而細框在淺色
+   底上幾乎看不見（使用者回報 2026-09-12）。它只留 placeholder 說「這一格要填什麼」。 */
 .entity-field__count-input {
   inline-size: 100%;
   padding: var(--space-1) var(--space-2);
   font: inherit;
   color: var(--text-primary);
-  background: var(--surface-page);
-  border: 1px solid var(--rule-strong);
+  background: transparent;
+  border: 0;
   border-radius: var(--space-1);
 }
 
@@ -810,11 +814,11 @@
   color: var(--text-faint);
 }
 
-.entity-field__count-input:focus-visible,
-.entity-field__count-input:focus {
-  border-color: var(--focus-ring);
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -1px;
+/* 反白已經說完「停在這裡」了，瀏覽器預設的 focus ring 再畫一圈只是噪音 —— 而它不會在
+   鍵盤使用者手上消失：格子被聚焦時 `active` 就是它，那一列一定是反白的。 */
+.entity-field__count-input:focus,
+.entity-field__count-input:focus-visible {
+  outline: none;
 }
 
 /* 那一行提示與唯讀抬頭同一階：兩者都是**說明**，不是選項（票券 36 的分工）。

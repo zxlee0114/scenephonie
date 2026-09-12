@@ -793,6 +793,24 @@ describe("人數子選單（票券 48）", () => {
     expect(all[2]?.textContent).toBe("若干");
   });
 
+  /**
+   * 「現在停在哪」整份選單只有一種說法（編劇裁決 2026-09-12）。格子那一列原本靠自己的框線
+   * 說，在淺色底上幾乎看不見，而且與別列的反白是兩種語言。
+   */
+  it("停在格子上時那一列也反白 —— 與其餘各列同一條（票券 48 第二輪）", () => {
+    const container = openCount(held());
+    const boxRow = container.querySelector(".entity-field__menu-box")!;
+
+    // 進來就停在格子上。
+    expect(boxRow.classList.contains("is-active")).toBe(true);
+
+    // ↓ 走開，反白跟著走 —— 它不是永遠亮著的裝飾。
+    fireEvent.keyDown(countBox(container)!, { key: "ArrowDown" });
+    expect(
+      container.querySelector(".entity-field__menu-box")!.classList.contains("is-active"),
+    ).toBe(false);
+  });
+
   it("空格子有 placeholder —— 不會讀成「這一列空缺了」（票券 48 第二輪）", () => {
     const container = openCount(held());
 

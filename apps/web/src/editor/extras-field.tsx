@@ -924,7 +924,14 @@ export function ExtrasField({
               <li
                 key={row.key}
                 role="presentation"
-                className="entity-field__menu-box"
+                // 它停著的時候要吃**與其他列同一條反白**（編劇裁決 2026-09-12）：它是選單裡
+                // 的一格，`↑↓` 走得進來、Enter 打在它身上，所以「現在停在哪」必須與別列用
+                // 同一種說法。框線自己說不清楚 —— 一條細框在一列反白旁邊讀起來是兩種語言。
+                className={
+                  i === activeIndex
+                    ? "entity-field__menu-box is-active"
+                    : "entity-field__menu-box"
+                }
                 // 點在**格子以外**的地方（那一行提示、這一列的內距）不該把框 blur 掉 ——
                 // 那一行提示就貼在框底下一格，點它多半只是想把它讀清楚。少了這一句，那一下
                 // 會被 `leaveCountBox` 當成「人走了」而把整輪編輯定案（code review 2026-09-12）。
