@@ -786,6 +786,34 @@
   cursor: default;
 }
 
+/* 人數子選單裡的自由輸入格（票券 48）。它**不是一列選項** —— 選不到、Enter 碰不到，所以
+   不吃 hover、不用手指游標；整格就是一個框加底下一行唯讀的話。 */
+.entity-field__menu li.entity-field__menu-box {
+  white-space: normal;
+  cursor: default;
+}
+
+.entity-field__count-input {
+  inline-size: 100%;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  color: var(--text-primary);
+  background: transparent;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-1);
+}
+
+/* 那一行提示與唯讀抬頭同一階：兩者都是**說明**，不是選項（票券 36 的分工）。
+   它永遠有話說（空著是格式說明、讀得出來是預覽、讀不出來是警告），所以版面上一直留著
+   這一行的高度 —— 會消失的提示比沒有提示更難讀。 */
+.entity-field__count-hint {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-faint);
+  white-space: normal;
+}
+
 /* ─────────────────────────────────────────── 內容區塊 */
 /* 三種區塊型別不用顏色區分（它們是內容不是 decoration）。改以縮排、欄寬、spacing、rhythm。 */
 

@@ -19,3 +19,11 @@ export const NEW_MARK = "＋";
 export const EXTRA_MARK = "👥";
 export const RENAME_MARK = "✏️";
 export const PUT_BACK_MARK = "↩︎";
+/**
+ * `↰` ＝ **退一階**（票券 48 的人數子選單第一列）。
+ *
+ * 它與 `↩︎` 刻意是兩個記號，即使在人數那一層按下去的結果看起來一樣：`↰` 說的是「這一階
+ * 不改，回上一階」（名稱那一側的待定改動留著），`↩︎` 說的是「整輪編輯作廢」。導航語意
+ * 不因為某一階段的結果重疊就合併（使用者裁決 2026-09-12）。
+ */
+export const BACK_MARK = "↰";

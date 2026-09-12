@@ -4,7 +4,15 @@
 import { describe, expect, it } from "vitest";
 
 import { countLowerBound, type CountValue } from "./count";
-import { extrasLabel, formatExtra, isExtraId, mintExtraId, parseExtra, sceneExtras } from "./extras";
+import {
+  extraCount,
+  extrasLabel,
+  formatExtra,
+  isExtraId,
+  mintExtraId,
+  parseExtra,
+  sceneExtras,
+} from "./extras";
 
 const some: CountValue = { kind: "some" };
 
@@ -274,5 +282,32 @@ describe("extraId", () => {
     expect(isExtraId(id)).toBe(true);
     expect(isExtraId("ch_1")).toBe(false);
     expect(isExtraId("ex_")).toBe(false);
+  });
+});
+
+describe("extraCount —— 一筆群演現在算什麼人數（票券 48）", () => {
+  it("有新形態就用它", () => {
+    expect(extraCount({ count: 3, countValue: { kind: "range", from: 3, to: 5 } })).toEqual({
+      kind: "range",
+      from: 3,
+      to: 5,
+    });
+  });
+
+  it("只有舊欄位時推出「確切 N」（遷移窗口裡手寫的 `ExtraRef`）", () => {
+    expect(extraCount({ count: 8 })).toEqual({ kind: "exact", count: 8 });
+  });
+
+  it("⚠️ 兩個形態矛盾時**新的那個贏** —— 與 `sceneExtras` 的 tie-break 相反", () => {
+    // 這一條釘的是一個**已知的分岔**，不是一條好規則：`formatExtra` 從票券 44 第一天就這麼
+    // 讀，而 `bothShapes`（讀取路徑）讓舊欄位贏。走得到的路上兩者一致 —— 餵進來的每一筆都
+    // 經過 `sceneExtras`，正規化過的資料不可能矛盾。票券 50 刪掉 `count` 時分岔一起消失。
+    expect(extraCount({ count: 1, countValue: { kind: "exact", count: 2 } })).toEqual({
+      kind: "exact",
+      count: 2,
+    });
+    expect(sceneExtras([{ extraId: "ex_a", description: "路人", count: 1, countValue: { kind: "exact", count: 2 } }])[0]!.countValue).toEqual(
+      { kind: "exact", count: 1 },
+    );
   });
 });

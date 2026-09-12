@@ -56,13 +56,24 @@ export {
   sceneExtras,
   parseExtra,
   formatExtra,
+  extraCount,
 } from "./extras";
 
-// 人數的四種樣子（票券 44）。型別要出得去，因為 `ExtraRef.countValue` 是公開形狀的一部分；
-// `resolveCountInput`／`countHintText`／`countLowerBound`／`countAfterTakingOne`（票券 46 的
-// 「升格減一」，第一個套件外呼叫端是票券 49 的措辭）還沒有呼叫端，
-// 照這個檔案既有的規矩留在模組裡 —— 沒有讀者的公開介面是一種債。
-export type { CountValue } from "./count";
+// 人數的四種樣子（票券 44）。型別要出得去，因為 `ExtraRef.countValue` 是公開形狀的一部分。
+//
+// 人數子選單（票券 48）是那幾支純函式的第一個套件外呼叫端：輸入格的解析（`resolveCountInput`）、
+// 底下那一行提示（`countHintText`）、列印括號裡那一段（`formatCount`／`SOME_LABEL`），以及
+// 遷移窗口裡舊欄位該填什麼（`legacyCount`）。
+// `countLowerBound`／`countAfterTakingOne`／`countValueOf` 仍然沒有套件外的讀者，照這個檔案
+// 既有的規矩留在模組裡 —— 沒有讀者的公開介面是一種債。
+export {
+  SOME_LABEL,
+  countHintText,
+  formatCount,
+  legacyCount,
+  resolveCountInput,
+} from "./count";
+export type { CountInputResult, CountValue } from "./count";
 
 // 多值欄位的輸入規則（地點欄與登場人物欄共用同一份；貼上走同一條路）。
 export { splitNamesLive } from "./names";
