@@ -352,10 +352,18 @@ describe("⌘Z 撤銷一筆定案 → 那串字回到輸入框（票券 37）", 
         1,
       ),
     );
+    // 升格成功之後那一行命名提示（票券 35）。
+    expect(
+      container.querySelector(`${SPEAKER} .entity-field__note--naming`),
+    ).not.toBeNull();
 
     fireEvent.keyDown(input, undoKey);
 
     await waitFor(() => expect(input.value).toBe("服務生"));
+    // 升格被撤銷了，那一行跟著收 —— 留著就是在講一個不存在的人物（2026-09-12 驗收回饋）。
+    expect(
+      container.querySelector(`${SPEAKER} .entity-field__note--naming`),
+    ).toBeNull();
     expect(sceneExtras(editor.state.doc.child(0).attrs.extras)[0]!.count).toBe(
       2,
     );

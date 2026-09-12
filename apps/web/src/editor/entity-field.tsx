@@ -564,6 +564,9 @@ export function EntityField({
     caret.current = at;
     // 這串字是欄位塞回去的，不是編劇打的 —— 下一顆 ⌘Z 歸欄位（見 `restored`）。
     restored.current = true;
+    // 升格那一行提示跟著收（2026-09-12 驗收回饋）：那件事剛剛被撤銷了，它再說「給他一個
+    // 有辨識度的名字」就是在講一個不存在的人物 —— 標籤說謊的同一種錯。
+    setShowNamingHint(false);
     setText(name);
     setStage({ name: "suggest" });
     setActive(0);
