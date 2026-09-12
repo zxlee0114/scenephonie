@@ -35,6 +35,7 @@ import { isExtraId, parseExtra, splitNamesLive } from "@scenephonie/schema";
 
 import { useChipCaret } from "./chip-caret";
 import { chipRow, columns } from "./chip-row";
+import { claimHistoryKey, historyKey } from "./history-keys";
 import { EXTRA_MARK, HIT_MARK, NEW_MARK, RENAME_MARK } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
 
@@ -183,6 +184,30 @@ type Row = {
   run: () => void;
 };
 
+/**
+ * 剛剛定案的那一筆 —— **⌘Z 要把它還回來的東西**（票券 37）。
+ *
+ * 那串字從來不在 doc 裡：定案的最後一步 `reset()` 把 `text` 清成 `""`，⌘Z 之後 ProseMirror
+ * 退得回 chip，退不回那串字 —— 沒有人替欄位留過它。這就是那個人。
+ *
+ * 它同時是那一步的**形狀**：這一欄從 `before` 變成 `after`。欄位靠它認出「⌘Z 撤掉的正好
+ * 是我那一步」—— 見 `whenFieldBecomes`。
+ */
+type Committed = {
+  ref: EntityRef;
+  /** 它站在第幾格（`caret` 的值，`null` ＝ 隊尾／單值欄）。放回去要回原位，不是跳到隊尾。 */
+  at: number | null;
+  /** 定案之前這一欄的樣子（⌘Z 要退回的那一個）。 */
+  before: readonly EntityRef[];
+  /** 定案之後這一欄的樣子（⌘⇧Z 要做回的那一個）。 */
+  after: readonly EntityRef[];
+};
+
+/** 兩排引用是不是同一個樣子（同一批、同樣的次序、同樣的顯示名）。 */
+const sameRefs = (a: readonly EntityRef[], b: readonly EntityRef[]) =>
+  a.length === b.length &&
+  a.every((r, i) => r.id === b[i]!.id && r.displayName === b[i]!.displayName);
+
 export function EntityField({
   kind,
   placeholder,
@@ -253,6 +278,44 @@ export function EntityField({
    */
   const heldScenes = useRef<number | null>(null);
   /**
+   * 按下 ⌘Z／⌘⇧Z 之後**在等的那一次重繪** —— 見 `whenFieldBecomes`。
+   */
+  const awaiting = useRef<{
+    shape: readonly EntityRef[];
+    run: () => void;
+  } | null>(null);
+  /**
+   * 這一欄最近定案的那一筆（見 `Committed`）—— ⌘Z 撤掉它時要把字放回輸入框。
+   *
+   * **只記一筆，而且只記在這個元件裡**：⌘Z 是全域的，但「把字接回來」只有還站在這一欄的
+   * 編劇要得起 —— 焦點一離開，這一顆鍵根本到不了 `handleKeyDown`，欄位也就不插手（票券 37）。
+   *
+   * 它**不必有人負責作廢**：這一筆算不算數，是按下 ⌘Z 之後看文件退成什麼樣子當場判的
+   * （見 `whenFieldBecomes`）—— 不是靠在每一條會動到 `refs` 的路上記得清掉它。
+   */
+  const lastCommit = useRef<Committed | null>(null);
+  /**
+   * 剛被 ⌘Z 撤回來、還原封擺在框裡的那一筆 —— **⌘⇧Z 要做回去的東西**。
+   *
+   * 少了它，⌘Z 之後那一筆就再也做不回來了：字回到框裡，而「框裡有字就不接手」會把 ⌘⇧Z
+   * 判給原生 redo（見 `history-keys` 的 `claimHistoryKey`）。編劇改了那串字就作廢 —— 他
+   * 已經在做別的事，那一刻的 ⌘⇧Z 是他自己那幾個字的。
+   */
+  const undoneCommit = useRef<Committed | null>(null);
+  /**
+   * 框裡這串字是**欄位塞回去的**（⌘Z），不是編劇打進去的 —— 下一顆 ⌘Z 因此歸欄位，它把框
+   * 清空（2026-09-12 驗收回饋）。
+   *
+   * 平常「框裡有字時 ⌘Z 歸原生 undo」是對的：那幾個字是編劇一顆一顆打的，瀏覽器替那個
+   * `<input>` 記著他打字的每一步。但欄位塞回去的字**不在那個堆疊裡**，而整排 chip 共用的
+   * 又是同一個 `<input>` 節點 —— 它的 undo 堆疊裡躺著先前別顆 chip 留下的字。於是原生 undo
+   * 會把那些舊字翻出來接到現在這串的後面（驗收時撈到的 `abcd` → `abcdprev`），游標還會先
+   * 跳到字首。那不是「撤銷我剛打的字」，那是拿別人的字污染這一欄。
+   *
+   * 改過之後仍算數：那串字的出身沒變，堆疊裡照樣沒有它。清空是唯一說得出口的結果。
+   */
+  const restored = useRef(false);
+  /**
    * **輸入框排在第幾格** —— `0` ＝ 所有 chip 之前，`null` ＝ 全部之後（平常的樣子）。
    *
    * 一個 ref 扛三件事，因為它們本來就是同一件事「游標停在哪」：
@@ -280,6 +343,14 @@ export function EntityField({
     if (!selectNext.current) return;
     selectNext.current = false;
     input.current?.select();
+  });
+
+  /** ⌘Z／⌘⇧Z 在等的那一次重繪來了 —— 對得上才接手，對不上就丟掉（見 `whenFieldBecomes`）。 */
+  useEffect(() => {
+    const wait = awaiting.current;
+    if (!wait) return;
+    awaiting.current = null;
+    if (sameRefs(refs, wait.shape)) wait.run();
   });
 
   /**
@@ -331,8 +402,24 @@ export function EntityField({
   /** 把幾筆引用併進現有的（單值欄就是取代成最後一筆）。 */
   const merge = (added: EntityRef[]) => {
     if (added.length === 0) return;
+    // 定案是 ⌘Z 撤得掉的一步，而它的反面是**字回來**（票券 37）—— 所以寫下去的同時留一份
+    // 那一步的形狀（這一欄從 `refs` 變成 `next`）。⚠️ 一次切出好幾筆（貼上、連打頓號）不留：
+    // 那一下 ⌘Z 退掉的是一整串，把其中一個名字塞回框裡會讓其餘幾筆無聲消失。
+    const only = added.length === 1 ? added[0]! : null;
+    const commit = (next: EntityRef[], at: number | null) => {
+      undoneCommit.current = null; // 又定案了一筆 —— 上一次撤銷的不再是 ⌘⇧Z 的目標
+      lastCommit.current = only
+        ? {
+            ref: only,
+            at,
+            before: refs,
+            after: next,
+          }
+        : null;
+      onCommit(next);
+    };
     if (!multiple) {
-      onCommit([added[added.length - 1]!]);
+      commit([added[added.length - 1]!], null);
       return;
     }
     const kept = refs.filter((r) => !added.some((a) => a.id === r.id));
@@ -342,11 +429,11 @@ export function EntityField({
     const at = caret.current;
     if (at != null && at <= kept.length) {
       caret.current = at + added.length; // 定案之後游標停在**這一串之後**
-      onCommit([...kept.slice(0, at), ...added, ...kept.slice(at)]);
+      commit([...kept.slice(0, at), ...added, ...kept.slice(at)], at);
       return;
     }
     caret.current = null;
-    onCommit([...kept, ...added]);
+    commit([...kept, ...added], kept.length);
   };
 
   /**
@@ -416,18 +503,75 @@ export function EntityField({
   const editRef = (ref: EntityRef) => {
     if (editing.current) return;
     // ⚠️ 在 `onCommit` 之前問 —— 引用一從 doc 上拿掉，這一場就從場次數裡消失了。
-    heldScenes.current =
-      ref.id == null ? null : (usage?.().get(ref.id) ?? null);
-    caret.current = refs.indexOf(ref);
-    editing.current = ref;
-    onCommit(refs.filter((r) => r !== ref));
-    setText(ref.displayName);
-    setDismissed(false);
-    setActive(0);
+    const scenes = ref.id == null ? null : (usage?.().get(ref.id) ?? null);
+    // ⚠️ 先把手握上再 `onCommit`：反過來的話，那一次重繪會看到「chip 沒了、手上也沒有」。
     // 拿起來的那一筆**整串反白**：再一顆 Backspace 就整串清掉，也可以直接覆寫。滑鼠點進來
     // 原本游標停在字尾，與 Backspace 進來兩種樣子 —— 統一成這一種（2026-09-11 驗收回饋）。
-    selectNext.current = true;
+    enterEditing(ref, { at: refs.indexOf(ref), scenes, select: true });
+    onCommit(refs.filter((r) => r !== ref));
     input.current?.focus();
+  };
+
+  /**
+   * 把一筆引用**還原成可編輯的文字**（點 chip、空欄位上的 Backspace）。
+   *
+   * ⚠️ 這**不是** ⌘Z 的終點，兩者一度共用過（見 `returnToSuggest` 的 2026-09-12 驗收回饋）。
+   */
+  const enterEditing = (
+    ref: EntityRef,
+    {
+      at,
+      scenes,
+      select,
+    }: { at: number | null; scenes: number | null; select: boolean },
+  ) => {
+    heldScenes.current = scenes;
+    caret.current = at;
+    editing.current = ref;
+    restored.current = false; // 這串字來自 chip，不是 ⌘Z 塞回來的那一串
+    setText(ref.displayName);
+    setStage({ name: "suggest" });
+    setActive(0);
+    setDismissed(false);
+    selectNext.current = select;
+    redraw(); // 手上那一筆住在 ref 裡（見 `editing`），接回來不會自己觸發一次渲染
+  };
+
+  /**
+   * ⌘Z 撤掉一筆定案之後的終點：那串字回到框裡，**而且什麼都不握**（票券 37）。
+   *
+   * ── 為什麼不是 `enterEditing` ──────────────────────────────────────────
+   * 第一版讓 ⌘Z 走 `enterEditing`，理由是「原封再定案一次要用回原來那個 id，否則目錄多一筆」。
+   * 2026-09-12 的人工驗收否掉了它，而且否得對：那樣畫出來的是**正在編輯一筆既有引用**
+   * （chip 外框、✚／✓ 記號、「正在編輯「X」」那行字），不是編劇要的「退回原來打的名字
+   * （待選階段）」。開票的原話就是待選。
+   *
+   * 而那個理由本身是錯的 —— **ADR-0005 早就裁決過這一題**（`db/schema.ts` 的實體表那段）：
+   * doc 與實體表沒有共同的交易邊界與 undo 堆疊，於是「存在＝被引用」，⌘Z 留在目錄裡的那筆
+   * 成為孤兒，而孤兒「不出現在自動補全、不出現在場次表、不出現在任何地方，v1 永不清理」。
+   * 所以不握那一筆、重打一次 Enter 重新建一筆，編劇看得到的地方**一列都不會多**；多出來的
+   * 只有一筆誰也看不到的孤兒，那正是 ADR 說它願意付的代價。
+   *
+   * 於是三件事在這裡收在一起：待選的外觀、「⌘Z 撤銷的是建立那一步」的直覺、以及 ADR-0005
+   * 的「⌘Z 只作用在 doc 上」。
+   *
+   * 不反白（`selectNext` 不動）：⌘Z 回來的是編劇**上一秒剛打完**的字，他要的是接著改它 ——
+   * 整串反白的話下一顆鍵就把它清光，等於白撤銷一次。
+   */
+  const returnToSuggest = (name: string, at: number | null) => {
+    editing.current = null;
+    heldScenes.current = null;
+    caret.current = at;
+    // 這串字是欄位塞回去的，不是編劇打的 —— 下一顆 ⌘Z 歸欄位（見 `restored`）。
+    restored.current = true;
+    // 升格那一行提示跟著收（2026-09-12 驗收回饋）：那件事剛剛被撤銷了，它再說「給他一個
+    // 有辨識度的名字」就是在講一個不存在的人物 —— 標籤說謊的同一種錯。
+    setShowNamingHint(false);
+    setText(name);
+    setStage({ name: "suggest" });
+    setActive(0);
+    setDismissed(false);
+    redraw();
   };
 
   /**
@@ -473,6 +617,35 @@ export function EntityField({
     redraw(); // 手上那一筆住在 ref 裡，放手不會自己觸發一次渲染（抬頭要跟著收）。
   };
 
+  /**
+   * ⌘Z／⌘⇧Z 的**判準**：**下一次重繪**時這一欄正好是 `shape`，才接手（票券 37）。
+   *
+   * 兩件事一起解決：
+   *
+   * **① 時機。** 接歷史的是 chip row（`forwardHistoryKey` 掛在那一層），欄位的鍵盤處理排在
+   * 它**前面** —— 按下去的當下文件還沒退，`refs` 也還是舊的那一份。文件退回來會經過 node
+   * view 再變成新的 `refs`，那一次重繪就是答案送達的時候（量過：微任務還太早，那時 `refs`
+   * 仍是舊的）。
+   *
+   * **② 那一下撤掉的到底是不是我那一步。** 唯一誠實的答案是看文件退成什麼樣子：退成定案
+   * 之前這一欄的樣子，才是撤掉了那一步。「有人接手了這顆鍵」（`defaultPrevented`）答不出
+   * 這件事 —— 它只說有人把按鍵收走了。
+   *
+   * 這條線順手擋掉三種會把字塞回一個沒人要的地方的情況：
+   * - 中途去動了別的東西（改別欄、拿掉一顆 chip、離開又回來），那一下 ⌘Z 退的是別的動作；
+   * - ProseMirror 把 500ms 內的兩次定案**併成一次 undo**（量過，確實會）—— 一次退掉兩顆
+   *   chip，而欄位只記得最後一筆。退出來的樣子對不上，於是不接手，不會「回來一個、另一個
+   *   無聲消失」；
+   * - 歷史裡根本沒東西可退，文件一動也不動。
+   *
+   * **下一次重繪就是裁決**，對不上就丟掉（不留著等下一次）—— 那一下要嘛撤到了、要嘛沒有，
+   * 沒有「等一等再看」這回事。不接手的代價只是回到這張票之前的樣子（文件照退、欄位不插手），
+   * 所以**寧可少接一次**。
+   */
+  const whenFieldBecomes = (shape: readonly EntityRef[], run: () => void) => {
+    awaiting.current = { shape, run };
+  };
+
   const closeMenu = () => {
     setStage({ name: "suggest" });
     setDismissed(true);
@@ -481,6 +654,7 @@ export function EntityField({
   const reset = () => {
     editing.current = null;
     heldScenes.current = null;
+    restored.current = false;
     // `caret` 不清 —— `merge` 剛把它挪到新 chip 之後，那就是游標該在的地方。
     setText("");
     setStage({ name: "suggest" });
@@ -857,6 +1031,8 @@ export function EntityField({
     const name = pending!;
     setPending(null);
     const ref = await resolve(name);
+    // 不走 `merge` ＝ 沒有留下那一份快照（票券 37 的範圍是打字／命中／齊聲／升格四條），
+    // 於是這一步的 ⌘Z 就只退文件、欄位不插手 —— 舊的快照也不會誤接（見 `whenFieldBecomes`）。
     if (ref) onCommit([ref]);
     reset();
   };
@@ -936,6 +1112,63 @@ export function EntityField({
         editRef(left);
         return;
       }
+    }
+
+    // ⌘Z —— **文件那一半不在這裡做**：接歷史的是呼叫端（`forwardHistoryKey`），這一下照舊
+    // 交給它。⚠️ 交的方式**必須是 `onKeyDown?.(event)`**，不能只靠 DOM 冒泡：地點欄那一側
+    // 掛在 `.scene__chips` 上（冒泡收得到），但對白人物欄是掛在**這個 prop** 上
+    // （`blocks.tsx`）—— 少了這一句，那一欄的 ⌘Z 會整顆消失。
+    //
+    // 這裡補的是文件退回去之後，欄位要把字接回來的那一半（票券 37）：
+    //
+    // > ⌘Z 撤銷的是「把字定案」這個動作，而那個動作的反面是字回來，不是字消失。
+    //
+    // 終點就是 `editRef` 的終點（見 `enterEditing`）。`editing` 尤其不能少 —— 少了它，原封
+    // 不動再定案一次會被 `resolve` 當成一個新名字，人物表憑空多一列。
+    //
+    // **框裡還有字時不接手**（與 `forwardHistoryKey` 同一條線）：那一刻的 ⌘Z 是「撤銷我剛
+    // 打的那幾個字」。字回來之後框裡非空，再按一次就照舊歸原生 undo —— 兩條規則自己接起來。
+    const history = historyKey(event);
+    if (history === "undo" && text === "" && lastCommit.current) {
+      const snapshot = lastCommit.current;
+      whenFieldBecomes(snapshot.before, () => {
+        lastCommit.current = null;
+        undoneCommit.current = snapshot;
+        returnToSuggest(snapshot.ref.displayName, snapshot.at);
+      });
+      onKeyDown?.(event); // 文件那一半（見上）—— 對白人物欄靠的就是這一句
+      return;
+    }
+    // 第二下 ⌘Z：把欄位塞回去的那串字收掉。**不交給原生 undo**，理由見 `restored`。
+    // 收掉之後框是空的，第三下就照舊歸文件了。
+    if (history === "undo" && restored.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      restored.current = false;
+      undoneCommit.current = null; // 字沒了，⌘⇧Z 的目標換成文件那一步（框空著＝歸文件）
+      setText("");
+      setActive(0);
+      setDismissed(false);
+      return;
+    }
+    if (
+      history === "redo" &&
+      undoneCommit.current &&
+      // 字被改過就作廢 —— 編劇已經在做別的事，那一刻的 ⌘⇧Z 是他自己那幾個字的。
+      text === undoneCommit.current.ref.displayName
+    ) {
+      const snapshot = undoneCommit.current;
+      // 框裡這串字是欄位剛塞回去的，不是「沒定案的字」（見 `claimHistoryKey`）。
+      claimHistoryKey(event);
+      whenFieldBecomes(snapshot.after, () => {
+        undoneCommit.current = null;
+        lastCommit.current = snapshot;
+        // 那一筆又回到 doc 上了 —— 欄位跟著回到定案之後的樣子（游標停在那一顆之後，見 `merge`）。
+        caret.current = snapshot.at == null ? null : snapshot.at + 1;
+        reset();
+      });
+      onKeyDown?.(event);
+      return;
     }
 
     // ← 從字首退進 chip（空欄位才算）—— 沒退成才輪到 chip row 的格線導航。

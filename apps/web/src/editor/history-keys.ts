@@ -13,17 +13,49 @@
 import type { Editor } from "@tiptap/core";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
-export function forwardHistoryKey(editor: Editor, event: ReactKeyboardEvent): boolean {
-  if (event.nativeEvent.isComposing) return false; // 組字中的每一顆鍵都還給 IME（§7.6）
-  if (!(event.metaKey || event.ctrlKey) || event.altKey) return false;
-  if (event.key.toLowerCase() !== "z") return false;
+/**
+ * 欄位說「這一下歸文件，別看框裡有沒有字」的那些事件（票券 37）。
+ *
+ * 只有一種情況用得到：⌘Z 把一筆定案撤回來之後，那個名字**是欄位自己塞回框裡的**，不是
+ * 編劇打的 —— 那一刻的 ⌘⇧Z 要把那一筆做回去，而「框裡有字就不接手」那條線會擋住它。
+ * 判準一步都沒退（沒定案的字歸原生 undo），退的是那串字：它這一刻不是「編劇打了還沒定案
+ * 的字」，而是一筆已經撤掉的定案留在框裡的樣子。
+ *
+ * 標在**原生事件**上而不是 DOM 上：這件事只對這一顆按鍵成立，不是輸入框的一種狀態 ——
+ * 寫成狀態就得有人負責清掉它，而那正是 §7.3 否決過的那種看不見的狀態。
+ */
+const claimed = new WeakSet<KeyboardEvent>();
+
+export function claimHistoryKey(event: ReactKeyboardEvent): void {
+  claimed.add(event.nativeEvent);
+}
+
+/** 這一顆鍵是在叫歷史嗎（`null` ＝ 不是；組字中的每一顆鍵都還給 IME，§7.6）。 */
+export function historyKey(event: ReactKeyboardEvent): "undo" | "redo" | null {
+  if (event.nativeEvent.isComposing) return null;
+  if (!(event.metaKey || event.ctrlKey) || event.altKey) return null;
+  if (event.key.toLowerCase() !== "z") return null;
+  return event.shiftKey ? "redo" : "undo";
+}
+
+export function forwardHistoryKey(
+  editor: Editor,
+  event: ReactKeyboardEvent,
+): boolean {
+  const which = historyKey(event);
+  if (!which) return false;
 
   const target = event.target as HTMLElement | null;
-  if (target?.tagName === "INPUT" && (target as HTMLInputElement).value !== "") return false;
+  if (
+    target?.tagName === "INPUT" &&
+    (target as HTMLInputElement).value !== "" &&
+    !claimed.has(event.nativeEvent)
+  )
+    return false;
 
   event.preventDefault();
   event.stopPropagation();
-  if (event.shiftKey) editor.commands.redo();
+  if (which === "redo") editor.commands.redo();
   else editor.commands.undo();
   return true;
 }
