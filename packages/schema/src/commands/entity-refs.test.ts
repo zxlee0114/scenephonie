@@ -213,7 +213,7 @@ describe("setDialogueCharacters", () => {
   it("本場次的群演也是合法目標（場次限定實體，問的是這一場的 extras）", () => {
     const doc = makeDoc(
       sceneWith([block.dialogue("兩碗麵")], {
-        extras: [{ extraId: "ex_1", description: "咖啡廳客人", count: 8 }],
+        extras: [{ extraId: "ex_1", description: "咖啡廳客人", countValue: { kind: "exact", count: 8 } }],
       }),
     );
 
@@ -232,7 +232,7 @@ describe("setDialogueCharacters", () => {
     const doc = makeDoc(
       sceneWith([block.dialogue("兩碗麵")], { extras: [] }),
       sceneWith([block.action("別場")], {
-        extras: [{ extraId: "ex_1", description: "咖啡廳客人", count: 8 }],
+        extras: [{ extraId: "ex_1", description: "咖啡廳客人", countValue: { kind: "exact", count: 8 } }],
       }),
     );
 

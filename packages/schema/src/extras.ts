@@ -15,7 +15,6 @@
  * 這裡命中的只是幾個字。
  */
 import {
-  countLowerBound,
   countValueOf,
   formatCount,
   resolveCountInput,
@@ -50,71 +49,41 @@ export function isExtraId(value: unknown): value is string {
  * 人數說的是「這裡不知道」—— 補 1 會讓系統自己宣告一個數字，那正是票券 41 要消滅的東西。
  * 沒有 `extraId` 的才丟 —— 那一筆沒有身分，對白的人物欄指不到它，留著也沒有人用得上。
  *
- * 人數在遷移窗口裡有兩個形態，這裡**兩邊都填**（票券 44）—— 規則見底下的 `bothShapes`。
+ * 人數只有一種形態了（票券 50 的 contract）：`countValue`，四種樣子之一。怎麼讀見 `readCount`。
  */
 export function sceneExtras(value: unknown): ExtraRef[] {
   if (!Array.isArray(value)) return [];
   const out: ExtraRef[] = [];
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) continue;
-    const { extraId, description, count, countValue } = raw as Record<string, unknown>;
+    const { extraId, description, countValue } = raw as Record<string, unknown>;
     if (!isExtraId(extraId) || typeof description !== "string") continue;
-    out.push({ extraId, description, ...bothShapes(count, countValue) });
+    out.push({ extraId, description, countValue: readCount(countValue) });
   }
   return out;
 }
 
 /**
- * 舊欄位自己推得出來的那一種樣子：正整數是「確切 N」，其餘是「若干」。
+ * 一團未知的東西讀成四種樣子裡的一種 —— 讀取路徑上「人數是什麼」的唯一答案。
  *
- * 一份、兩個呼叫端（`bothShapes` 與 `formatExtra`）—— 遷移窗口裡「舊資料怎麼讀」只能有
- * 一個答案，而票券 50 刪掉 `count` 時要刪的也就是這一個地方。
+ * ⚠️ **裸數字讀成「確切 N」是容錯，不是遷移**（票券 45 立、票券 50 留）。**不要順手刪掉它**，
+ * 它不是票券 50 沒清乾淨的遺留債務：
+ *
+ * - 它**不拿版本號、不寫遷移鏈、不對外承諾**。版本與遷移那一套整個住在 persistence 那一側
+ *   （那個模組的檔頭寫了為什麼），而且它管的是「PM node schema 讀不讀得出來」，不是值語意
+ *   —— 值語意的守門人就是這裡。
+ * - 它在的理由是**寫入端繞得過**：複製貼上、匯入、手寫的測試 fixture 都生得出一個光禿禿的
+ *   `8`，而那個 `8` 有一個**唯一誠實的讀法**。刪掉它，那些路徑會靜靜掉成「若干」—— 不報錯，
+ *   只是把編劇寫的數字弄丟。
+ *
+ * 反過來，**讀不出來的補「若干」**（`countValueOf` 回 `null` 的那些）：那裡沒有一個誠實的
+ * 讀法可以推，而「若干」說的正是「這裡不知道」。
  */
-function legacyCountValue(count: unknown): CountValue {
-  return Number.isInteger(count) && (count as number) >= 1
-    ? { kind: "exact", count: count as number }
-    : { kind: "some" };
-}
-
-/**
- * 遷移窗口裡的人數：**兩個形態都填得出來**（票券 44 的 expand）。
- *
- * - 舊資料只有數字 → 新形態由它推出「確切 N」
- * - 新形態在 → 舊欄位填它的下限（若干沒有下限，只好填 1 —— ⚠️ 那個 1 就是會說謊的那一個）
- *
- * **兩個數字打架時舊的那個贏。** 這個窗口裡寫入端只有舊的那一批（command 要到票券 46
- * 才搬），它們動的是 `count`、把 `countValue` 原封不動抄回去 —— 所以一筆
- * `{ count: 1, countValue: 確切 2 }` 說的是「升格拉走了一個人」，不是「有兩個人」。
- * 舊寫入端在這個窗口裡仍然是權威，這條讓它繼續是。
- *
- * ⚠️ **所以票券 45–49 的每一個寫入端都必須兩邊一起寫**：改了 `countValue` 卻讓 `count`
- * 停在原地，讀回來會是舊的那個數字 —— 編劇挑的「若干」「3-5」就這麼不見了，而且不會報錯，
- * 型別也擋不住（`count` 在票券 50 之前是必填的）。寫入端的規矩是
- * `count: countLowerBound(v) ?? 1`，與這裡的填法同一句話。
- *
- * **裸數字讀成「確切 N」是容錯，不是遷移**（票券 45）：它不拿版本號、不寫遷移鏈、不對外
- * 承諾 —— 那一套住在 persistence 裡，而且它管的是「PM node schema 讀不讀得出來」，不是
- * 值語意（票券 50 會把這個分界寫在那一側）。
- * 複製貼上、匯入、測試 fixture 這些路徑繞得過寫入端，而裸數字有一個唯一誠實的讀法，
- * 所以這條在票券 50 把 `count` 刪掉之後仍然留著。反過來，**壞掉的數字補「若干」** ——
- * 那裡沒有一個誠實的讀法可以推。
- *
- * **「若干」不參加打架**：它沒有數字，所以任何 `count` 都不構成矛盾（那個 `?? 1` 只是
- * 舊欄位填得出來的唯一值，不是「一個人」的意思）。票券 50 把 `count` 刪掉之後，
- * 這整個 tie-break 一起消失。
- */
-function bothShapes(
-  count: unknown,
-  countValue: unknown,
-): { count: number; countValue: CountValue } {
-  const legacyShape = legacyCountValue(count);
-  const hasLegacy = legacyShape.kind === "exact";
-  const legacy = hasLegacy ? legacyShape.count : 1;
-  const stored = countValueOf(countValue);
-  const contradicts =
-    stored !== null && hasLegacy && stored.kind !== "some" && countLowerBound(stored) !== legacy;
-  const shape: CountValue = stored !== null && !contradicts ? stored : legacyShape;
-  return { count: countLowerBound(shape) ?? 1, countValue: shape };
+function readCount(raw: unknown): CountValue {
+  if (Number.isInteger(raw) && (raw as number) >= 1) {
+    return { kind: "exact", count: raw as number };
+  }
+  return countValueOf(raw) ?? { kind: "some" };
 }
 
 /** 結尾的一對括號（全形半形都認）。裡面不再有括號 —— `路人（8）（若干）` 只讀最後那一對。 */
@@ -188,15 +157,10 @@ function splitCount(text: string): { value: CountValue; end: number } | null {
  *
  * 描述空白（只打了 `x8`）回 `null`：沒有描述的人數不知道是在數什麼。
  *
- * ⚠️ 回傳值在遷移窗口裡**兩個形態都帶**（票券 44）：`count` 是舊的那一個、會說謊
- * （若干是 1、區間是下限），呼叫端一批一批搬到 `countValue`，票券 50 把它刪掉。
- *
  * 描述那一段**不做正規化**（只去頭尾空白）—— 全形數字只在尾綴那一段打回半形。名字裡的
  * `三年二班３` 不該被系統改寫，而且那會讓往返在描述帶數字時壞掉。
  */
-export function parseExtra(
-  text: string,
-): { description: string; count: number; countValue: CountValue } | null {
+export function parseExtra(text: string): { description: string; countValue: CountValue } | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
 
@@ -204,7 +168,7 @@ export function parseExtra(
   const countValue: CountValue = split?.value ?? { kind: "some" };
   const description = (split ? trimmed.slice(0, split.end) : trimmed).trim();
   if (!description) return null;
-  return { description, count: countLowerBound(countValue) ?? 1, countValue };
+  return { description, countValue };
 }
 
 /**
@@ -239,33 +203,9 @@ export function statesCount(text: string): boolean {
  * 人數一律印出來（包含「若干」）—— 這一欄的形狀就是「描述 ＋ 人數」，藏起來會讓 chip 與
  * 編劇打進去的字對不上，也讓副導少看到一個數字。
  *
- * `countValue` 缺席時（遷移窗口裡手寫的 `ExtraRef`）由舊欄位推出「確切 N」，同 `sceneExtras`。
  */
-export function formatExtra(extra: {
-  description: string;
-  count: number;
-  countValue?: CountValue;
-}): string {
-  return `${extra.description}（${formatCount(extraCount(extra))}）`;
-}
-
-/**
- * 一筆群演**現在的人數值**（票券 48）—— `formatExtra` 印出來的就是它。
- *
- * 畫面上需要這個值本身、而不只是它印出來的樣子：人數子選單第一列說的是「不修改數量（8）」，
- * 底下那一行提示要拿它當「現在離開會記成什麼」的 `fallback`。抽出來是為了讓那兩處與
- * `formatExtra` **不會各寫各的**。
- *
- * ⚠️ **前提：這一筆是正規化過的**（經 `sceneExtras`，也就是所有從 doc 讀出來的路徑）。
- * 它與 `bothShapes` 在**一格上不同**：兩個形態互相矛盾時（`{ count: 1, countValue: 確切 2 }`
- * ＝ 升格拉走了一個人）`bothShapes` 讓舊欄位贏，這裡讓 `countValue` 贏。這個分岔是票券 44
- * 留下來的（`formatExtra` 從第一天就這麼讀），這張票原封沿用 —— 改掉它會動到場次表那一格
- * 的既有行為，不在這一批的範圍。正規化過的資料不可能矛盾，所以走得到的路上兩者一致；
- * ⚠️ 拿一筆**沒正規化過**的 `ExtraRef` 餵進來則會讀出「多一個人」（code review 2026-09-12）。
- * 票券 50 刪掉 `count` 時這整個分岔一起消失。
- */
-export function extraCount(extra: { count: number; countValue?: CountValue }): CountValue {
-  return extra.countValue ?? legacyCountValue(extra.count);
+export function formatExtra(extra: { description: string; countValue: CountValue }): string {
+  return `${extra.description}（${formatCount(extra.countValue)}）`;
 }
 
 /**

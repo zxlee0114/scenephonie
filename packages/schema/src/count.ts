@@ -190,17 +190,6 @@ export function countValueOf(raw: unknown): CountValue | null {
 }
 
 /**
- * 遷移窗口裡那個**舊欄位**該填什麼：一種樣子算得出的下限，若干沒有下限只好填 1（票券 44）。
- *
- * 這條規則原本以 `countLowerBound(v) ?? 1` 的樣子散在好幾個寫入端與讀取端 —— 同一句話沒有
- * 名字，就會有人只改其中一處。⚠️ 那個 1 就是**會說謊的那一個**（`路人（若干）` 的舊欄位是 1，
- * 不是「一個人」的意思）；票券 50 刪掉 `count` 時，要刪的就是這個函式與它的呼叫端。
- */
-export function legacyCount(value: CountValue): number {
-  return countLowerBound(value) ?? 1;
-}
-
-/**
  * 拉走一個人之後，那批人**剩下的樣子**；`null` ＝ 這一批就沒有了（票券 46）。
  *
  * 升格（票券 35）把一個人從背景演員裡拉出來變成人物，那批人因此少一個。這個函式是

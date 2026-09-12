@@ -14,7 +14,6 @@ import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import {
-  legacyCount,
   mintExtraId,
   mintSceneId,
   sceneExtras,
@@ -91,7 +90,7 @@ const speakerOf = (editor: Editor, index = 0) =>
 
 /** 本場有 `服務生（2）`，一句台詞等著人講。 */
 const waiterScene = (count = 2, extraId = mintExtraId()) =>
-  scene({ extras: [{ extraId, description: "服務生", count }] }, [
+  scene({ extras: [{ extraId, description: "服務生", countValue: { kind: "exact", count } }] }, [
     kernelSchema.node("dialogue", null, [kernelSchema.text("歡迎光臨")]),
   ]);
 
@@ -100,7 +99,7 @@ const waiterSceneOf = (countValue: CountValue, extraId = mintExtraId()) =>
   scene(
     {
       // 遷移窗口裡兩個形態一起寫（票券 44）—— 只寫一邊的話讀回來會是舊的那個數字。
-      extras: [{ extraId, description: "服務生", count: legacyCount(countValue), countValue }],
+      extras: [{ extraId, description: "服務生", countValue }],
     },
     [kernelSchema.node("dialogue", null, [kernelSchema.text("歡迎光臨")])],
   );
@@ -185,7 +184,7 @@ describe("升格那一列：與「齊聲」並排，語意分得清楚", () => {
     const here = scene({}, [
       kernelSchema.node("dialogue", null, [kernelSchema.text("歡迎光臨")]),
     ]);
-    const elsewhere = scene({ extras: [{ extraId: mintExtraId(), description: "服務生", count: 2 }] }, [
+    const elsewhere = scene({ extras: [{ extraId: mintExtraId(), description: "服務生", countValue: { kind: "exact", count: 2 } }] }, [
       kernelSchema.node("action", null, [kernelSchema.text("別場")]),
     ]);
     const { container } = render(<Harness doc={docJSON(here, elsewhere)} />);
@@ -213,7 +212,7 @@ describe("升格 ＝ resolve(打的字) ＋ 那批人減一，同一個 transact
     fireEvent.mouseDown(promoteRow(container)!);
 
     await waitFor(() =>
-      expect(extrasOf(editor)).toEqual([expect.objectContaining({ count: 1 })]),
+      expect(extrasOf(editor)).toEqual([expect.objectContaining({ countValue: { kind: "exact", count: 1 } })]),
     );
     expect(extrasOf(editor)[0]!.description).toBe("服務生");
     // 那個人是**人物**（ch_），不是群演 —— 他有跨場次的身分，副導要單獨試戲。
@@ -248,11 +247,11 @@ describe("升格 ＝ resolve(打的字) ＋ 那批人減一，同一個 transact
     fireEvent.change(input, { target: { value: "服務生" } });
     await waitFor(() => expect(promoteRow(container)).toBeDefined());
     fireEvent.mouseDown(promoteRow(container)!);
-    await waitFor(() => expect(extrasOf(editor)[0]!.count).toBe(1));
+    await waitFor(() => expect(extrasOf(editor)[0]!.countValue).toEqual({ kind: "exact", count: 1 }));
 
     editor.commands.undo();
 
-    await waitFor(() => expect(extrasOf(editor)[0]!.count).toBe(2));
+    await waitFor(() => expect(extrasOf(editor)[0]!.countValue).toEqual({ kind: "exact", count: 2 }));
     expect(editor.state.doc.child(0).child(0).attrs.character).toBeNull();
   });
 
@@ -267,7 +266,7 @@ describe("升格 ＝ resolve(打的字) ＋ 那批人減一，同一個 transact
     await waitFor(() => expect(promoteRow(container)).toBeDefined());
     fireEvent.mouseDown(promoteRow(container)!);
 
-    await waitFor(() => expect(extrasOf(editor)[0]!.count).toBe(1));
+    await waitFor(() => expect(extrasOf(editor)[0]!.countValue).toEqual({ kind: "exact", count: 1 }));
     expect(editor.state.doc.child(0).attrs.appearingCharacters).toBeNull();
   });
 });
@@ -294,7 +293,7 @@ describe("名字就是編劇打的字", () => {
     await waitFor(() =>
       expect(speakerOf(editor).displayName).toBe("服務生小李"),
     );
-    expect(extrasOf(editor)[0]!.count).toBe(1);
+    expect(extrasOf(editor)[0]!.countValue).toEqual({ kind: "exact", count: 1 });
   });
 
   it("打的字命中一筆既有**存在**人物 → 先講明白會指向那一位，不憑空鑄新的", async () => {
@@ -328,12 +327,12 @@ describe("名字就是編劇打的字", () => {
     fireEvent.mouseDown(promoteRow(container)!);
 
     // 同一筆人物，不是第二個服務生小李 —— 人物表不多一列。
-    await waitFor(() => expect(extrasOf(editor, 1)[0]!.count).toBe(1));
+    await waitFor(() => expect(extrasOf(editor, 1)[0]!.countValue).toEqual({ kind: "exact", count: 1 }));
     expect(speakerOf(editor, 1).id).toBe("ch_xiaoli");
 
     // 命中既有那條路也是一次 ⌘Z —— 新鑄與命中不是兩種 undo 行為。
     editor.commands.undo();
-    await waitFor(() => expect(extrasOf(editor, 1)[0]!.count).toBe(2));
+    await waitFor(() => expect(extrasOf(editor, 1)[0]!.countValue).toEqual({ kind: "exact", count: 2 }));
     expect(editor.state.doc.child(1).child(0).attrs.character).toBeNull();
   });
 });
@@ -353,7 +352,7 @@ describe("這一列走的是選單本來那套規矩", () => {
     await waitFor(() => expect(promoteRow(container)!.className).toContain("is-active"));
     fireEvent.keyDown(input, { key: "Enter" });
 
-    await waitFor(() => expect(extrasOf(editor)[0]!.count).toBe(1));
+    await waitFor(() => expect(extrasOf(editor)[0]!.countValue).toEqual({ kind: "exact", count: 1 }));
     expect(speakerOf(editor).id.startsWith("ch_")).toBe(true);
   });
 
@@ -386,7 +385,7 @@ describe("同一批人升格兩次", () => {
     fireEvent.change(input, { target: { value: "服務生" } });
     await waitFor(() => expect(promoteRow(container)).toBeDefined());
     fireEvent.mouseDown(promoteRow(container)!);
-    await waitFor(() => expect(extrasOf(editor)[0]!.count).toBe(1));
+    await waitFor(() => expect(extrasOf(editor)[0]!.countValue).toEqual({ kind: "exact", count: 1 }));
 
     // 第二個人：他是另一位特約，所以編劇打的是另一個名字。
     fireEvent.change(input, { target: { value: "服務生小李" } });

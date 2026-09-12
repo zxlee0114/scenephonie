@@ -61,14 +61,12 @@ export {
   parseExtra,
   statesCount,
   formatExtra,
-  extraCount,
 } from "./extras";
 
 // 人數的四種樣子（票券 44）。型別要出得去，因為 `ExtraRef.countValue` 是公開形狀的一部分。
 //
 // 人數子選單（票券 48）是那幾支純函式的第一個套件外呼叫端：輸入格的解析（`resolveCountInput`）、
-// 底下那一行提示（`countHintText`）、列印括號裡那一段（`formatCount`／`SOME_LABEL`），以及
-// 遷移窗口裡舊欄位該填什麼（`legacyCount`）。
+// 底下那一行提示（`countHintText`）、列印括號裡那一段（`formatCount`／`SOME_LABEL`）。
 // 升格那一列的措辭（票券 49）是 `remainingExtraText` 的第一個呼叫端 —— 「`3-5` 減一是多少」
 // 仍然只有 `countAfterTakingOne` 一個答案，畫面拿到的是**翻成話之後**的那一份。
 // `countLowerBound`／`countAfterTakingOne`／`countValueOf` 仍然沒有套件外的讀者，照這個檔案
@@ -77,7 +75,6 @@ export {
   SOME_LABEL,
   countHintText,
   formatCount,
-  legacyCount,
   remainingExtraText,
   resolveCountInput,
 } from "./count";

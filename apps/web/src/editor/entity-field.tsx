@@ -34,7 +34,6 @@ import {
 import {
   formatExtra,
   isExtraId,
-  legacyCount,
   parseExtra,
   remainingExtraText,
   splitNamesLive,
@@ -68,8 +67,7 @@ export type SceneExtraOption = EntityOption & { count: CountValue };
  * 那一處（票券 49）。`name`／`description` 只是同一個欄位在兩邊的名字。
  */
 const extraLabel = (extra: SceneExtraOption): string =>
-  // 遷移窗口裡 `formatExtra` 的舊欄位仍是必填，由新形態推（票券 44 的規矩，票券 50 一起刪）。
-  formatExtra({ description: extra.name, count: legacyCount(extra.count), countValue: extra.count });
+  formatExtra({ description: extra.name, countValue: extra.count });
 /**
  * 一個引用：實體 id ＋ **這一場顯示的名字**（別名不存在實體上，就是這個欄位）。
  *

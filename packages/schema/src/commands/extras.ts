@@ -11,7 +11,7 @@
  */
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
-import { countAfterTakingOne, countValueOf, legacyCount, type CountValue } from "../count";
+import { countAfterTakingOne, countValueOf } from "../count";
 import { isExtraId, sceneExtras } from "../extras";
 import type { ExtraRef } from "../schema";
 import { type CommandResult, ok, reject } from "./result";
@@ -34,9 +34,6 @@ export interface SetSceneExtrasOptions {
  * 根本不是一個值 —— 而不是「非正整數」，因為區間與若干本來就不是一個整數。
  * 描述空白的那一筆照樣擋下來 —— 沒有描述的人數不知道是在數什麼。
  *
- * ⚠️ 遷移窗口裡**兩個形態一起寫**（票券 44 的 `bothShapes` 那條規矩）：新形態是權威，舊欄位
- * 由它推（`legacyCount`），呼叫端給的 `count` 直接被蓋掉。兩邊一起寫是硬性的
- * —— 只改一邊，讀回來會是另一邊那個數字，而且不會報錯（票券 50 刪掉 `count` 之後這條消失）。
  */
 export function setSceneExtras(
   doc: ProseMirrorNode,
@@ -57,14 +54,16 @@ export function setSceneExtras(
     if (seen.has(extra.extraId)) return reject(`群演「${extra.extraId}」在同一場出現兩次`);
     seen.add(extra.extraId);
     if (extra.description.trim() === "") return reject("群演要有描述 —— 只有人數不知道是在數什麼");
-    const countValue = writtenCount(extra);
+    // ⚠️ 寫入端**不學讀取路徑補「若干」**（`sceneExtras` 的 `readCount` 補得起，是因為它面對的
+    // 是已經躺在 doc 裡的資料，少讀一筆不如讀歪一筆）。這裡手上那一筆還沒落地，一個推不出
+    // 樣子的人數是呼叫端的 bug，靜靜補一個值等於把它藏起來 —— 所以走嚴格的 `countValueOf`。
+    const countValue = countValueOf(extra.countValue);
     if (!countValue) {
       return reject(`群演「${extra.description}」的人數不是四種樣子裡的任何一種`);
     }
     normalized.push({
       extraId: extra.extraId,
       description: extra.description,
-      count: legacyCount(countValue),
       countValue,
     });
   }
@@ -81,21 +80,6 @@ export function setSceneExtras(
   } catch (err) {
     return reject(`寫入群演後 doc 不符 schema：${(err as Error).message}`);
   }
-}
-
-/**
- * 這一筆要寫進去的人數。讀不出一種樣子就回 `null`（＝拒收）。
- *
- * 新形態在就以它為準；只帶舊數字的呼叫端（票券 47–49 還沒搬過來的那幾個）由正整數推出
- * 「確切 N」。⚠️ 這裡**不學讀取路徑補「若干」**：`sceneExtras` 補得起，是因為它面對的是
- * 已經躺在 doc 裡的資料，少讀一筆不如讀歪一筆；而寫入端手上那一筆還沒落地，一個推不出
- * 樣子的人數是呼叫端的 bug，靜靜補一個值等於把它藏起來。
- */
-function writtenCount(extra: ExtraRef): CountValue | null {
-  if (extra.countValue !== undefined) return countValueOf(extra.countValue);
-  return Number.isInteger(extra.count) && extra.count >= 1
-    ? { kind: "exact", count: extra.count }
-    : null;
 }
 
 export interface AddSceneExtrasOptions {
@@ -174,9 +158,7 @@ export function takeOneFromExtra(
 
   const next = current.flatMap((e) => {
     if (e.extraId !== extraId) return [e];
-    // `sceneExtras` 讀回來的每一筆都帶得出新形態（票券 44），`??` 那一半只是遷移窗口裡
-    // `countValue` 還是可選欄位 —— 票券 50 之後連同這個 fallback 一起消失。
-    const left = countAfterTakingOne(e.countValue ?? { kind: "exact", count: e.count });
+    const left = countAfterTakingOne(e.countValue);
     return left ? [{ ...e, countValue: left }] : [];
   });
   return setSceneExtras(doc, { sceneId, extras: next });

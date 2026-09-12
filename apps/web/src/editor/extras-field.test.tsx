@@ -103,7 +103,7 @@ describe("多組「描述 x 人數」", () => {
 
   it("× 拿掉一筆", async () => {
     const { container } = render(
-      <Host initial={[{ extraId: mintExtraId(), description: "客人", count: 8 }]} />,
+      <Host initial={[{ extraId: mintExtraId(), description: "客人", countValue: { kind: "exact", count: 8 } }]} />,
     );
 
     fireEvent.mouseDown(container.querySelector(".entity-chip__remove")!);
@@ -141,13 +141,13 @@ describe("跨場次描述：只補字串、不建立連結", () => {
     await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳客人（8）"]));
     const [written] = committed.at(-1)!;
     expect(written!.extraId.startsWith("ex_")).toBe(true);
-    expect(written).toMatchObject({ description: "咖啡廳客人", count: 8 });
+    expect(written).toMatchObject({ description: "咖啡廳客人", countValue: { kind: "exact", count: 8 } });
   });
 
   it("這一場已經有的描述不列 —— 它就在旁邊當 chip", async () => {
     const { container } = render(
       <Host
-        initial={[{ extraId: mintExtraId(), description: "咖啡廳客人", count: 8 }]}
+        initial={[{ extraId: mintExtraId(), description: "咖啡廳客人", countValue: { kind: "exact", count: 8 } }]}
         suggestions={["咖啡廳客人", "咖啡廳服務生"]}
       />,
     );
@@ -198,7 +198,7 @@ describe("重新編輯", () => {
     const committed: ExtraRef[][] = [];
     const { container } = render(
       <Host
-        initial={[{ extraId, description: "咖啡廳客人", count: 8 }]}
+        initial={[{ extraId, description: "咖啡廳客人", countValue: { kind: "exact", count: 8 } }]}
         onChangeExtras={(e) => committed.push(e)}
       />,
     );
@@ -215,14 +215,14 @@ describe("重新編輯", () => {
     // 兩個形態一起寫（票券 44 的 ⚠️、票券 48 落實）—— 舊欄位單獨存在時會說謊。
     await waitFor(() =>
       expect(committed.at(-1)).toEqual([
-        { extraId, description: "咖啡廳常客", count: 8, countValue: { kind: "exact", count: 8 } },
+        { extraId, description: "咖啡廳常客", countValue: { kind: "exact", count: 8 } },
       ]),
     );
   });
 
   it("空欄位上 Backspace 把最後一筆還原成可編輯文字", async () => {
     const { container } = render(
-      <Host initial={[{ extraId: mintExtraId(), description: "客人", count: 8 }]} />,
+      <Host initial={[{ extraId: mintExtraId(), description: "客人", countValue: { kind: "exact", count: 8 } }]} />,
     );
     const input = container.querySelector("input")!;
 
@@ -238,8 +238,8 @@ describe("群演欄吃的是同一套 chip 手感（票券 39 收票）", () => 
     render(
       <Host
         initial={[
-          { extraId: mintExtraId(), description: "客人", count: 8 },
-          { extraId: mintExtraId(), description: "服務生", count: 2 },
+          { extraId: mintExtraId(), description: "客人", countValue: { kind: "exact", count: 8 } },
+          { extraId: mintExtraId(), description: "服務生", countValue: { kind: "exact", count: 2 } },
         ]}
       />,
     );
@@ -300,7 +300,7 @@ describe("群演欄吃的是同一套 chip 手感（票券 39 收票）", () => 
 describe("改一批群演，選單要說它真的在做的事（票券 40）", () => {
   const one = (onChangeExtras?: (extras: ExtraRef[]) => void) =>
     render(
-      <Host initial={[{ extraId: "ex_held", description: "路人", count: 3 }]} onChangeExtras={onChangeExtras} />,
+      <Host initial={[{ extraId: "ex_held", description: "路人", countValue: { kind: "exact", count: 3 } }]} onChangeExtras={onChangeExtras} />,
     );
 
   it("握著一批、字改掉了 —— 第一列說的是「改」，不是「新增」", () => {
@@ -321,7 +321,7 @@ describe("改一批群演，選單要說它真的在做的事（票券 40）", (
 
     await waitFor(() =>
       expect(committed.at(-1)).toEqual([
-        { extraId: "ex_held", description: "保全", count: 3, countValue: { kind: "exact", count: 3 } },
+        { extraId: "ex_held", description: "保全", countValue: { kind: "exact", count: 3 } },
       ]),
     );
   });
@@ -348,18 +348,18 @@ describe("改一批群演，選單要說它真的在做的事（票券 40）", (
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["路人（3）", "保全（3）"]));
     const [kept, minted] = committed.at(-1)!;
-    expect(kept).toEqual({ extraId: "ex_held", description: "路人", count: 3 });
+    expect(kept).toEqual({ extraId: "ex_held", description: "路人", countValue: { kind: "exact", count: 3 } });
     expect(minted!.extraId).not.toBe("ex_held");
     // 框裡只有名稱，所以另外那一批沿用手上這一批的人數（票券 47）。
-    expect(minted).toMatchObject({ description: "保全", count: 3 });
+    expect(minted).toMatchObject({ description: "保全", countValue: { kind: "exact", count: 3 } });
   });
 
   it("另外開一批：放回原本那一格，新的一批緊接在後，游標停在兩顆之後", () => {
     const { container } = render(
       <Host
         initial={[
-          { extraId: "ex_a", description: "客人", count: 8 },
-          { extraId: "ex_b", description: "服務生", count: 2 },
+          { extraId: "ex_a", description: "客人", countValue: { kind: "exact", count: 8 } },
+          { extraId: "ex_b", description: "服務生", countValue: { kind: "exact", count: 2 } },
         ]}
       />,
     );
@@ -451,7 +451,6 @@ describe("編輯框裡只有名稱，人數自動保留（票券 47）", () => {
           {
             extraId: "ex_held",
             description: "路人",
-            count: 8,
             countValue: { kind: "exact", count: 8 },
             ...extra,
           },
@@ -498,13 +497,13 @@ describe("編輯框裡只有名稱，人數自動保留（票券 47）", () => {
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["保全（8）"]));
     expect(committed.at(-1)).toEqual([
-      { extraId: "ex_held", description: "保全", count: 8, countValue: { kind: "exact", count: 8 } },
+      { extraId: "ex_held", description: "保全", countValue: { kind: "exact", count: 8 } },
     ]);
   });
 
   it("人數不是一個數字時照樣留著 —— 區間不必手動重寫", async () => {
     const committed: ExtraRef[][] = [];
-    const { container } = one({ count: 3, countValue: { kind: "range", from: 3, to: 5 } }, (e) =>
+    const { container } = one({ countValue: { kind: "range", from: 3, to: 5 } }, (e) =>
       committed.push(e),
     );
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
@@ -526,7 +525,7 @@ describe("編輯框裡只有名稱，人數自動保留（票券 47）", () => {
     fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" });
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["保全 x3（8）"]));
-    expect(committed.at(-1)![0]).toMatchObject({ description: "保全 x3", count: 8 });
+    expect(committed.at(-1)![0]).toMatchObject({ description: "保全 x3", countValue: { kind: "exact", count: 8 } });
   });
 
   it("框裡只剩 `x8`（連描述都沒有）—— 那也是名稱，不是人數", async () => {
@@ -576,7 +575,7 @@ describe("「不修改，返回」每一階段都在（票券 42 第 2 條的通
   const one = (onChangeExtras?: (extras: ExtraRef[]) => void) =>
     render(
       <Host
-        initial={[{ extraId: "ex_held", description: "路人", count: 8 }]}
+        initial={[{ extraId: "ex_held", description: "路人", countValue: { kind: "exact", count: 8 } }]}
         onChangeExtras={onChangeExtras}
       />,
     );
@@ -604,7 +603,7 @@ describe("「不修改，返回」每一階段都在（票券 42 第 2 條的通
     fireEvent.mouseDown(menuItems(container)[back]!);
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["路人（8）"]));
-    expect(committed.at(-1)).toEqual([{ extraId: "ex_held", description: "路人", count: 8 }]);
+    expect(committed.at(-1)).toEqual([{ extraId: "ex_held", description: "路人", countValue: { kind: "exact", count: 8 } }]);
     expect(container.querySelector("input")!.value).toBe("");
   });
 
@@ -628,7 +627,7 @@ describe("框裡空著時「不修改，返回」也在（使用者回報 2026-0
   const one = (onChangeExtras?: (extras: ExtraRef[]) => void) =>
     render(
       <Host
-        initial={[{ extraId: "ex_held", description: "路人", count: 8 }]}
+        initial={[{ extraId: "ex_held", description: "路人", countValue: { kind: "exact", count: 8 } }]}
         onChangeExtras={onChangeExtras}
       />,
     );
@@ -653,7 +652,7 @@ describe("框裡空著時「不修改，返回」也在（使用者回報 2026-0
     );
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["路人（8）"]));
-    expect(committed.at(-1)).toEqual([{ extraId: "ex_held", description: "路人", count: 8 }]);
+    expect(committed.at(-1)).toEqual([{ extraId: "ex_held", description: "路人", countValue: { kind: "exact", count: 8 } }]);
   });
 
   it("抬頭照舊說下一顆 Backspace 會做什麼 —— 兩條路都看得見", () => {
@@ -670,7 +669,7 @@ describe("框裡空著時「不修改，返回」也在（使用者回報 2026-0
   });
 
   it("沒握著東西、框又是空的 —— 選單整個不出現", () => {
-    const { container } = render(<Host initial={[{ extraId: "ex_a", description: "路人", count: 8 }]} />);
+    const { container } = render(<Host initial={[{ extraId: "ex_a", description: "路人", countValue: { kind: "exact", count: 8 } }]} />);
     expect(rows(container)).toEqual([]);
     expect(heldNote(container)).toBeNull();
   });
@@ -680,7 +679,7 @@ describe("空框上 Enter 與 blur 是兩件事（票券 47 驗收追加）", ()
   const emptied = (onChangeExtras?: (extras: ExtraRef[]) => void) => {
     const { container } = render(
       <Host
-        initial={[{ extraId: "ex_held", description: "路人", count: 8 }]}
+        initial={[{ extraId: "ex_held", description: "路人", countValue: { kind: "exact", count: 8 } }]}
         onChangeExtras={onChangeExtras}
       />,
     );
@@ -739,7 +738,7 @@ describe("人數子選單（票券 48）", () => {
   const held = (extra: Partial<ExtraRef> = {}, onChangeExtras?: (e: ExtraRef[]) => void) => {
     const { container } = render(
       <Host
-        initial={[{ extraId: "ex_held", description: "路人", count: 8, ...extra }]}
+        initial={[{ extraId: "ex_held", description: "路人", countValue: { kind: "exact", count: 8 }, ...extra }]}
         onChangeExtras={onChangeExtras}
       />,
     );
@@ -831,7 +830,7 @@ describe("人數子選單（票券 48）", () => {
   it("沒有 `1` 那一列 —— 它與格子裡打一個 `1` 完全重複", () => {
     expect(options(openCount(held()))).not.toContain("1");
     // 原本就是 1 的那一批也一樣（那一列從前在這裡會被判定成重複而不印）。
-    expect(options(openCount(held({ count: 1 })))).not.toContain("1");
+    expect(options(openCount(held({ countValue: { kind: "exact", count: 1 } })))).not.toContain("1");
   });
 
   it("沒有猜出來的數字階梯 —— `10+／20+／30+／40+` 拿掉了", () => {
@@ -842,7 +841,7 @@ describe("人數子選單（票券 48）", () => {
   describe("自由輸入格", () => {
     /** 打一串字、Enter 離開 —— 回傳待定值那一段（抬頭說的就是「數量已更新為什麼」）。 */
     const typed = (value: string) => {
-      const container = openCount(held({ count: 1 }));
+      const container = openCount(held({ countValue: { kind: "exact", count: 1 } }));
       fireEvent.change(countBox(container)!, { target: { value } });
       fireEvent.keyDown(countBox(container)!, { key: "Enter" });
       return /數量已更新：(.+)$/.exec(heldNote(container) ?? "")?.[1] ?? null;
@@ -1003,7 +1002,7 @@ describe("人數子選單（票券 48）", () => {
       pick(container, "↩︎");
 
       await waitFor(() => expect(chipTexts(container)).toEqual(["路人（8）"]));
-      expect(committed.at(-1)).toEqual([{ extraId: "ex_held", description: "路人", count: 8 }]);
+      expect(committed.at(-1)).toEqual([{ extraId: "ex_held", description: "路人", countValue: { kind: "exact", count: 8 } }]);
       expect(nameBox(container).value).toBe("");
     });
 
@@ -1280,7 +1279,7 @@ describe("新增：沒說人數就問一次（票券 49）", () => {
 
   it("放手之後打字，兩階段就回來了 —— 那時沒有握著任何一批", async () => {
     const { container } = render(
-      <Host initial={[{ extraId: "ex_held", description: "路人", count: 8 }]} />,
+      <Host initial={[{ extraId: "ex_held", description: "路人", countValue: { kind: "exact", count: 8 } }]} />,
     );
     // 拿起來、放手（空框上的 Backspace）—— 這一場從此沒有這一批。
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
@@ -1302,7 +1301,7 @@ describe("新增：沒說人數就問一次（票券 49）", () => {
 
   it("握著一批時走的仍然是編輯那一套 —— 第一列印的是原數量", () => {
     const { container } = render(
-      <Host initial={[{ extraId: "ex_held", description: "路人", count: 8 }]} />,
+      <Host initial={[{ extraId: "ex_held", description: "路人", countValue: { kind: "exact", count: 8 } }]} />,
     );
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
     fireEvent.change(nameBox(container), { target: { value: "保全" } });

@@ -4,21 +4,17 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { type CountValue, legacyCount } from "../count";
+import type { CountValue } from "../count";
 import { mintExtraId, sceneExtras } from "../extras";
 import { entityDirectory, mintCharacterId } from "../entities";
 import { block, makeDoc, makeScene, sceneWith } from "../testing";
 import { setDialogueCharacters } from "./entity-refs";
 import { addSceneExtras, setSceneExtras, takeOneFromExtra } from "./extras";
 
-/**
- * 讀回來的一筆。舊欄位 `count` 在遷移窗口裡仍然填得出來（票券 44），而寫入端一律由新形態
- * 推它（`legacyCount`，票券 46）—— 所以期望值也從新形態推，兩邊不會各寫各的。
- */
+/** 讀回來的一筆 —— 人數只有 `countValue` 那一個形態了（票券 50）。 */
 const read = (extraId: string, description: string, countValue: CountValue) => ({
   extraId,
   description,
-  count: legacyCount(countValue),
   countValue,
 });
 
@@ -44,8 +40,8 @@ describe("setSceneExtras", () => {
       setSceneExtras(doc, {
         sceneId: sceneIdOf(doc),
         extras: [
-          { extraId: guests, description: "咖啡廳客人", count: 8 },
-          { extraId: waiters, description: "服務生", count: 2 },
+          { extraId: guests, description: "咖啡廳客人", countValue: exact(8) },
+          { extraId: waiters, description: "服務生", countValue: exact(2) },
         ],
       }),
     );
@@ -57,7 +53,7 @@ describe("setSceneExtras", () => {
   });
 
   it("清空寫回空陣列（不是 null）—— 群演沒有「未填」這個狀態", () => {
-    const doc = makeDoc(makeScene({ extras: [{ extraId: guests, description: "客人", count: 8 }] }));
+    const doc = makeDoc(makeScene({ extras: [{ extraId: guests, description: "客人", countValue: exact(8) }] }));
     const next = unwrap(setSceneExtras(doc, { sceneId: sceneIdOf(doc), extras: [] }));
 
     expect(next.child(0).attrs.extras).toEqual([]);
@@ -72,40 +68,21 @@ describe("setSceneExtras", () => {
         setSceneExtras(doc, {
           sceneId: sceneIdOf(doc),
           // `count` 故意給一個對不上的數字：新形態才是權威，寫入端把它蓋掉（票券 46）。
-          extras: [{ extraId: guests, description: "客人", count: 99, countValue }],
+          extras: [{ extraId: guests, description: "客人", countValue }],
         }),
       );
       expect(sceneExtras(next.child(0).attrs.extras)).toEqual([read(guests, "客人", countValue)]);
     }
   });
 
-  it("舊欄位填的是下限（若干填 1）—— 這幾個數字寫死，不照著實作算一遍", () => {
-    const doc = makeDoc(makeScene());
-    const written = (countValue: CountValue) => {
-      const next = unwrap(
-        setSceneExtras(doc, {
-          sceneId: sceneIdOf(doc),
-          extras: [{ extraId: guests, description: "客人", count: 99, countValue }],
-        }),
-      );
-      return sceneExtras(next.child(0).attrs.extras)[0]!.count;
-    };
-
-    expect(written(exact(8))).toBe(8);
-    expect(written(range(3, 5))).toBe(3);
-    expect(written(atLeast(10))).toBe(10);
-    // ⚠️ 這個 1 就是遷移窗口裡會說謊的那一個 —— 它不是「一個人」的意思（票券 44、50）。
-    expect(written(some)).toBe(1);
-  });
-
   it("拒收的是**壞形狀**，不是「非正整數」", () => {
     const doc = makeDoc(makeScene());
     const broken = [
-      { kind: "exact", count: 0 },
+      { kind: "exact", countValue: exact(0) },
       { kind: "exact", count: 2.5 },
       { kind: "range", from: 5, to: 3 },
       { kind: "atLeast", count: Number.NaN },
-      { kind: "手寫", count: 3 },
+      { kind: "手寫", countValue: exact(3) },
       "8",
     ];
 
@@ -113,32 +90,26 @@ describe("setSceneExtras", () => {
       const result = setSceneExtras(doc, {
         sceneId: sceneIdOf(doc),
         extras: [
-          { extraId: guests, description: "客人", count: 3, countValue: countValue as CountValue },
+          { extraId: guests, description: "客人", countValue: countValue as CountValue },
         ],
       });
       expect(result.ok).toBe(false);
     }
   });
 
-  it("只帶舊數字的呼叫端（票券 47–49 還沒搬的那些）照樣寫得進去，讀成確切 N", () => {
+  it("⚠️ 寫入端**不學讀取路徑的裸數字容錯** —— 一個光禿禿的 8 進不來", () => {
+    // `sceneExtras` 的 `readCount` 讀得動它（複製貼上、匯入、fixture 繞得過寫入端）；
+    // 這裡手上那一筆還沒落地，一個不是四種樣子的人數是呼叫端的 bug，不該被靜靜補起來。
     const doc = makeDoc(makeScene());
-    const next = unwrap(
-      setSceneExtras(doc, {
-        sceneId: sceneIdOf(doc),
-        extras: [{ extraId: guests, description: "客人", count: 8 }],
-      }),
-    );
-    expect(sceneExtras(next.child(0).attrs.extras)).toEqual([read(guests, "客人", exact(8))]);
-  });
-
-  it("只帶舊數字、而那個數字推不出一種樣子時拒絕 —— 寫入端不替編劇補「若干」", () => {
-    const doc = makeDoc(makeScene());
-    for (const count of [0, -3, 2.5, Number.NaN]) {
-      const result = setSceneExtras(doc, {
-        sceneId: sceneIdOf(doc),
-        extras: [{ extraId: guests, description: "客人", count }],
-      });
-      expect(result.ok).toBe(false);
+    for (const bare of [8, 0, "8"]) {
+      expect(
+        setSceneExtras(doc, {
+          sceneId: sceneIdOf(doc),
+          extras: [
+            { extraId: guests, description: "客人", countValue: bare as unknown as CountValue },
+          ],
+        }).ok,
+      ).toBe(false);
     }
   });
 
@@ -147,18 +118,18 @@ describe("setSceneExtras", () => {
     const sceneId = sceneIdOf(doc);
 
     expect(
-      setSceneExtras(doc, { sceneId, extras: [{ extraId: guests, description: "  ", count: 3 }] }).ok,
+      setSceneExtras(doc, { sceneId, extras: [{ extraId: guests, description: "  ", countValue: exact(3) }] }).ok,
     ).toBe(false);
     expect(
-      setSceneExtras(doc, { sceneId, extras: [{ extraId: "ch_1", description: "客人", count: 3 }] })
+      setSceneExtras(doc, { sceneId, extras: [{ extraId: "ch_1", description: "客人", countValue: exact(3) }] })
         .ok,
     ).toBe(false);
     expect(
       setSceneExtras(doc, {
         sceneId,
         extras: [
-          { extraId: guests, description: "客人", count: 3 },
-          { extraId: guests, description: "服務生", count: 1 },
+          { extraId: guests, description: "客人", countValue: exact(3) },
+          { extraId: guests, description: "服務生", countValue: exact(1) },
         ],
       }).ok,
     ).toBe(false);
@@ -173,12 +144,12 @@ describe("setSceneExtras", () => {
 describe("addSceneExtras", () => {
   it("接在既有的後面，原本那幾筆原封不動", () => {
     const doc = makeDoc(
-      makeScene({ extras: [{ extraId: guests, description: "咖啡廳客人", count: 8 }] }),
+      makeScene({ extras: [{ extraId: guests, description: "咖啡廳客人", countValue: exact(8) }] }),
     );
     const next = unwrap(
       addSceneExtras(doc, {
         sceneId: sceneIdOf(doc),
-        extras: [{ extraId: waiters, description: "服務生", count: 2 }],
+        extras: [{ extraId: waiters, description: "服務生", countValue: exact(2) }],
       }),
     );
 
@@ -190,12 +161,12 @@ describe("addSceneExtras", () => {
 
   it("值的把關與 setSceneExtras 是同一套（同一場重複的 id 進不來）", () => {
     const doc = makeDoc(
-      makeScene({ extras: [{ extraId: guests, description: "咖啡廳客人", count: 8 }] }),
+      makeScene({ extras: [{ extraId: guests, description: "咖啡廳客人", countValue: exact(8) }] }),
     );
     expect(
       addSceneExtras(doc, {
         sceneId: sceneIdOf(doc),
-        extras: [{ extraId: guests, description: "客人", count: 1 }],
+        extras: [{ extraId: guests, description: "客人", countValue: exact(1) }],
       }).ok,
     ).toBe(false);
     expect(addSceneExtras(doc, { sceneId: "sc_不存在", extras: [] }).ok).toBe(false);
@@ -207,8 +178,8 @@ describe("takeOneFromExtra —— 升格的群演那一半（票券 35）", () =
     const doc = makeDoc(
       makeScene({
         extras: [
-          { extraId: guests, description: "咖啡廳客人", count: 8 },
-          { extraId: waiters, description: "服務生", count: 2 },
+          { extraId: guests, description: "咖啡廳客人", countValue: exact(8) },
+          { extraId: waiters, description: "服務生", countValue: exact(2) },
         ],
       }),
     );
@@ -224,8 +195,8 @@ describe("takeOneFromExtra —— 升格的群演那一半（票券 35）", () =
     const doc = makeDoc(
       makeScene({
         extras: [
-          { extraId: guests, description: "咖啡廳客人", count: 8 },
-          { extraId: waiters, description: "服務生", count: 1 },
+          { extraId: guests, description: "咖啡廳客人", countValue: exact(8) },
+          { extraId: waiters, description: "服務生", countValue: exact(1) },
         ],
       }),
     );
@@ -235,8 +206,6 @@ describe("takeOneFromExtra —— 升格的群演那一半（票券 35）", () =
     expect(sceneExtras(next.child(0).attrs.extras)).toEqual([read(guests, "咖啡廳客人", exact(8))]);
   });
 
-  // ⚠️ fixture 的舊欄位一律跟著新形態填（`legacyCount`）—— 讀取路徑在兩個數字
-  // 打架時是舊的那個贏（票券 44 的 `bothShapes`），亂填會讓這幾條測到的是 tie-break 而不是減一。
   it.each([
     { before: exact(8), after: exact(7) },
     { before: range(3, 5), after: range(2, 4) },
@@ -245,14 +214,7 @@ describe("takeOneFromExtra —— 升格的群演那一半（票券 35）", () =
   ])("四種樣子各自減一（票券 46）：$before.kind", ({ before, after }) => {
     const doc = makeDoc(
       makeScene({
-        extras: [
-          {
-            extraId: waiters,
-            description: "服務生",
-            count: legacyCount(before),
-            countValue: before,
-          },
-        ],
+        extras: [{ extraId: waiters, description: "服務生", countValue: before }],
       }),
     );
     const next = unwrap(takeOneFromExtra(doc, { sceneId: sceneIdOf(doc), extraId: waiters }));
@@ -266,7 +228,7 @@ describe("takeOneFromExtra —— 升格的群演那一半（票券 35）", () =
     for (const countValue of survivors) {
       const doc = makeDoc(
         makeScene({
-          extras: [{ extraId: waiters, description: "服務生", count: 1, countValue }],
+          extras: [{ extraId: waiters, description: "服務生", countValue }],
         }),
       );
       const next = unwrap(takeOneFromExtra(doc, { sceneId: sceneIdOf(doc), extraId: waiters }));
@@ -278,10 +240,10 @@ describe("takeOneFromExtra —— 升格的群演那一半（票券 35）", () =
 
   it("別場的群演拉不走 —— 群演是場次限定實體", () => {
     const here = sceneWith([block.dialogue("歡迎光臨")], {
-      extras: [{ extraId: guests, description: "咖啡廳客人", count: 8 }],
+      extras: [{ extraId: guests, description: "咖啡廳客人", countValue: exact(8) }],
     });
     const elsewhere = sceneWith([block.dialogue("喔——")], {
-      extras: [{ extraId: waiters, description: "服務生", count: 2 }],
+      extras: [{ extraId: waiters, description: "服務生", countValue: exact(2) }],
     });
     const doc = makeDoc(here, elsewhere);
 
@@ -292,7 +254,7 @@ describe("takeOneFromExtra —— 升格的群演那一半（票券 35）", () =
   });
 
   it("找不到場次、找不到那筆群演都拒絕", () => {
-    const doc = makeDoc(makeScene({ extras: [{ extraId: guests, description: "客人", count: 8 }] }));
+    const doc = makeDoc(makeScene({ extras: [{ extraId: guests, description: "客人", countValue: exact(8) }] }));
 
     expect(takeOneFromExtra(doc, { sceneId: "sc_不存在", extraId: guests }).ok).toBe(false);
     expect(takeOneFromExtra(doc, { sceneId: sceneIdOf(doc), extraId: waiters }).ok).toBe(false);
@@ -305,10 +267,10 @@ describe("對白的人物欄：合法目標是人物或**本場次的**群演（
 
   it("指向本場群演 → 放行；指向別場的群演 → 拒絕（id 只在該場次內有意義）", () => {
     const here = sceneWith([block.dialogue("喔——")], {
-      extras: [{ extraId: guests, description: "咖啡廳客人", count: 8 }],
+      extras: [{ extraId: guests, description: "咖啡廳客人", countValue: exact(8) }],
     });
     const elsewhere = sceneWith([block.dialogue("喔——")], {
-      extras: [{ extraId: waiters, description: "服務生", count: 2 }],
+      extras: [{ extraId: waiters, description: "服務生", countValue: exact(2) }],
     });
     const doc = makeDoc(here, elsewhere);
 
@@ -331,7 +293,7 @@ describe("對白的人物欄：合法目標是人物或**本場次的**群演（
 
   it("拿掉那一筆群演不回頭改對白 —— 懸空引用是合法的讀取狀態（§6.6）", () => {
     const scene = sceneWith([block.dialogue("喔——")], {
-      extras: [{ extraId: guests, description: "咖啡廳客人", count: 8 }],
+      extras: [{ extraId: guests, description: "咖啡廳客人", countValue: exact(8) }],
     });
     const sceneId = scene.attrs.sceneId as string;
     const withSpeaker = unwrapAny(

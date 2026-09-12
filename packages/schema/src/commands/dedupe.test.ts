@@ -128,7 +128,7 @@ describe("dedupeIdsPlugin（appendTransaction，Node 裡跑 EditorState、不需
 describe("群演不去重（§6.5 的適用範圍只有 sceneId）", () => {
   it("複製一場 → 換的是 sceneId，群演原封跟著複製過去", () => {
     const guests = mintExtraId();
-    const extras = [{ extraId: guests, description: "咖啡廳客人", count: 8 }];
+    const extras = [{ extraId: guests, description: "咖啡廳客人", countValue: { kind: "exact", count: 8 } }];
     const original = makeScene({ extras });
     const dupId = original.attrs.sceneId as string;
     const copy = schema.node(

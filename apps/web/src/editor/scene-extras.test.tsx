@@ -79,9 +79,9 @@ describe("簡表的群演欄", () => {
     fireEvent.change(input, { target: { value: "咖啡廳客人 x8、服務生 x2、" } });
 
     await waitFor(() => expect(extrasChips(container)).toEqual(["咖啡廳客人（8）", "服務生（2）"]));
-    expect(extrasOf(editor).map((e) => [e.description, e.count])).toEqual([
-      ["咖啡廳客人", 8],
-      ["服務生", 2],
+    expect(extrasOf(editor).map((e) => [e.description, e.countValue])).toEqual([
+      ["咖啡廳客人", { kind: "exact", count: 8 }],
+      ["服務生", { kind: "exact", count: 2 }],
     ]);
     // 群演不進登場人物欄 —— 那一欄的判準是入鏡的**人物**。
     expect(appearingChips(container)).toEqual([]);
@@ -89,7 +89,7 @@ describe("簡表的群演欄", () => {
 
   it("別場用過的描述**只補字串**：選它只是把字填進框裡，沒有任何 id 被共用", async () => {
     let editor!: Editor;
-    const elsewhere = scene({ extras: [{ extraId: mintExtraId(), description: "咖啡廳客人", count: 8 }] }, [
+    const elsewhere = scene({ extras: [{ extraId: mintExtraId(), description: "咖啡廳客人", countValue: { kind: "exact", count: 8 } }] }, [
       kernelSchema.node("action", null, [kernelSchema.text("別場")]),
     ]);
     const here = scene({}, [kernelSchema.node("action", null, [kernelSchema.text("這一場")])]);
@@ -175,7 +175,7 @@ describe("對白人物欄：一人說話落人物、一群齊聲落群演", () =
 
     await waitFor(() => expect(extrasOf(editor)).toHaveLength(1));
     const [extra] = extrasOf(editor);
-    expect(extra).toMatchObject({ description: "眾人", count: 20 });
+    expect(extra).toMatchObject({ description: "眾人", countValue: { kind: "exact", count: 20 } });
     expect(editor.state.doc.firstChild!.child(0).attrs.character).toEqual({
       id: extra!.extraId,
       displayName: "眾人",
@@ -193,10 +193,10 @@ describe("對白人物欄：一人說話落人物、一群齊聲落群演", () =
   it("本場既有的群演出現在自動補全，別場的不出現（id 只在該場次內有意義）", async () => {
     const guests = mintExtraId();
     const waiters = mintExtraId();
-    const here = scene({ extras: [{ extraId: guests, description: "咖啡廳客人", count: 8 }] }, [
+    const here = scene({ extras: [{ extraId: guests, description: "咖啡廳客人", countValue: { kind: "exact", count: 8 } }] }, [
       kernelSchema.node("dialogue", null, [kernelSchema.text("喔——")]),
     ]);
-    const elsewhere = scene({ extras: [{ extraId: waiters, description: "咖啡廳服務生", count: 2 }] }, [
+    const elsewhere = scene({ extras: [{ extraId: waiters, description: "咖啡廳服務生", countValue: { kind: "exact", count: 2 } }] }, [
       kernelSchema.node("action", null, [kernelSchema.text("別場")]),
     ]);
     const { container } = render(<Harness doc={docJSON(here, elsewhere)} />);
@@ -214,7 +214,7 @@ describe("對白人物欄：一人說話落人物、一群齊聲落群演", () =
   it("改群演 chip 上的字 → 改的是「這一場顯示的名字」，不會變成一筆人物", async () => {
     let editor!: Editor;
     const extraId = mintExtraId();
-    const here = scene({ extras: [{ extraId, description: "咖啡廳客人", count: 8 }] }, [
+    const here = scene({ extras: [{ extraId, description: "咖啡廳客人", countValue: { kind: "exact", count: 8 } }] }, [
       kernelSchema.node("dialogue", { character: { id: extraId, displayName: "咖啡廳客人" } }, [
         kernelSchema.text("喔——"),
       ]),
@@ -244,8 +244,8 @@ describe("對白人物欄：一人說話落人物、一群齊聲落群演", () =
    * ＋ 對白欄升格），然後直接讀**場次 attr 那一份未正規化的原始值** —— 躺在那裡的必須是
    * 新形態。
    *
-   * ⚠️ 刻意讀 `attrs.extras` 而不是 `sceneExtras(...)`：後者會替壞掉的、只有舊欄位的資料
-   * 補出一個新形態來，於是「寫入端根本沒寫 `countValue`」這件事會被它蓋掉（票券 44 的 ⚠️）。
+   * ⚠️ 刻意讀 `attrs.extras` 而不是 `sceneExtras(...)`：後者會替讀不出人數的資料補一個
+   * 「若干」出來，於是「寫入端根本沒寫 `countValue`」這件事會被它蓋掉。
    * 措辭在這一層一個字都不測 —— 那些都在前面幾批的元件測試裡。
    */
   it("煙霧測試：走一遍畫面之後，場次 attr 裡躺的是新形態（票券 49）", async () => {
@@ -256,11 +256,9 @@ describe("對白人物欄：一人說話落人物、一群齊聲落群演", () =
           scene(
             {
               extras: [
-                // 遷移窗口裡兩個形態一起躺著（票券 44）。
                 {
                   extraId: mintExtraId(),
                   description: "路人",
-                  count: 3,
                   countValue: { kind: "range", from: 3, to: 5 },
                 },
               ],
@@ -286,8 +284,9 @@ describe("對白人物欄：一人說話落人物、一群齊聲落群演", () =
     fireEvent.mouseDown(promote);
 
     await waitFor(() => expect(raw()[0]!.countValue).toEqual({ kind: "range", from: 2, to: 4 }));
-    // 舊欄位在遷移窗口裡仍然一起寫（票券 44）—— 那個 2 是下限，不是「有 2 個人」。
-    expect(raw()[0]!.count).toBe(2);
+    // ⚠️ 舊欄位**不該再被寫出去**（票券 50 的 contract）—— 它在遷移窗口裡會說謊，
+    // 而這一條是唯一走過整台編輯器、看得到寫入端真的吐了什麼的地方。
+    expect(raw()[0]).not.toHaveProperty("count");
 
     // ② 群演欄走兩層新增一批：打名稱 → 沒說人數 → 第二層空著 Enter ＝ 若干。
     const extrasBox = await inputIn(container, ".scene__chip--extras");
