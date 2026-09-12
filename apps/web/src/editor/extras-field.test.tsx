@@ -1103,15 +1103,72 @@ describe("新增：沒說人數就問一次（票券 49）", () => {
     return container;
   };
 
-  it("沒說人數 → 進第二層；第一列是 `若干`，`1` 在它下面", () => {
+  it("沒說人數 → 進第二層；列的順序與編輯那側逐列對齊（驗收回饋 2026-09-13）", () => {
     const container = typeThenEnter("路人");
 
     expect(countBox(container)).not.toBeNull();
-    // 新增時第一列**沒有原數量可印** —— 他確實沒說，所以那一列就是「若干」。
-    expect(options(container)).toEqual(["若干", "1"]);
-    // 沒有 `↩︎ 不修改，返回`：手上沒握著任何一批，沒有一輪編輯可以作廢。
+    expect(options(container)).toEqual([
+      "↰ 回上一步，改群演名稱",
+      "若干",
+      "1",
+      "✕ 放棄新增群演",
+    ]);
+    // 格子在第二列 —— 與編輯那側同一格（`options` 只收得到 `role="option"` 那幾列）。
+    const all = [
+      ...container.querySelectorAll(".entity-field__menu li:not(.entity-field__menu-hint)"),
+    ];
+    expect(all[1]?.querySelector(".entity-field__count-input")).not.toBeNull();
+    // `↩︎ 不修改，返回` 不在這一側：手上沒握著任何一批，沒有一輪編輯可以作廢。
     expect(options(container).some((r) => r.startsWith("↩︎"))).toBe(false);
     expect(chipTexts(container)).toEqual([]); // 這一刻還沒有任何一筆定案
+  });
+
+  /**
+   * 新增的第一列讓給了 `↰`，所以「什麼都不做會記成什麼」由**預設停留的那一列**說 ——
+   * 高亮在 `若干` 上，而它與空著 Enter、點到外面是同一個結果（驗收回饋 2026-09-13）。
+   */
+  it("預設停在 `若干` 那一列上，游標仍在格子裡 —— 打字就把高亮拉回格子", () => {
+    const container = typeThenEnter("路人");
+    const activeText = () =>
+      container.querySelector(".entity-field__menu li.is-active")?.textContent ?? null;
+
+    expect(activeText()).toBe("若干");
+    expect(document.activeElement).toBe(countBox(container));
+
+    // 直接打字 —— 不必先按方向鍵，「打到一半 Enter」那條路一步都沒少。
+    fireEvent.change(countBox(container)!, { target: { value: "3" } });
+    expect(
+      container.querySelector(".entity-field__menu-box")!.classList.contains("is-active"),
+    ).toBe(true);
+  });
+
+  it("抬頭說的是現在在回答哪一關（編劇逐字指定 2026-09-13）", () => {
+    // 與編輯那側的 `修改數量（原本是 8）` 同一個句型：動詞 ＋ 對象 ＋ 數量。
+    expect(heldNote(typeThenEnter("路人"))).toBe("💡 選擇群演「路人」數量");
+  });
+
+  it("`↰ 回上一步` 退回名稱那一關，打的字留著 —— 與 Esc 同一條路", async () => {
+    const container = typeThenEnter("路人");
+    const at = options(container).indexOf("↰ 回上一步，改群演名稱");
+    fireEvent.mouseDown(
+      [...container.querySelectorAll('.entity-field__menu li[role="option"]')][at]!,
+    );
+
+    await waitFor(() => expect(countBox(container)).toBeNull());
+    expect(nameBox(container).value).toBe("路人");
+    expect(chipTexts(container)).toEqual([]); // 還沒有任何一筆定案
+  });
+
+  it("`✕ 放棄新增群演` 連名稱一起清掉 —— 手上沒有東西可以原封放回", async () => {
+    const container = typeThenEnter("路人");
+    const at = options(container).indexOf("✕ 放棄新增群演");
+    fireEvent.mouseDown(
+      [...container.querySelectorAll('.entity-field__menu li[role="option"]')][at]!,
+    );
+
+    await waitFor(() => expect(countBox(container)).toBeNull());
+    expect(nameBox(container).value).toBe("");
+    expect(chipTexts(container)).toEqual([]);
   });
 
   it("那一行提示照舊三態，`fallback` 是若干（新增時他確實沒說）", () => {
@@ -1142,10 +1199,11 @@ describe("新增：沒說人數就問一次（票券 49）", () => {
     await waitFor(() => expect(chipTexts(another)).toEqual(["保全（3-5）"]));
   });
 
-  it("第一列（`若干`）按下去也定案 —— 與空著離開同一個結果", async () => {
+  it("`若干` 那一列按下去也定案 —— 與空著離開同一個結果", async () => {
     const container = typeThenEnter("路人");
+    const at = options(container).indexOf("若干");
     fireEvent.mouseDown(
-      container.querySelector('.entity-field__menu li[role="option"]')!,
+      [...container.querySelectorAll('.entity-field__menu li[role="option"]')][at]!,
     );
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["路人（若干）"]));
@@ -1238,7 +1296,12 @@ describe("新增：沒說人數就問一次（票券 49）", () => {
     fireEvent.keyDown(nameBox(container), { key: "Enter" });
 
     expect(countBox(container)).not.toBeNull();
-    expect(options(container)).toEqual(["若干", "1"]);
+    expect(options(container)).toEqual([
+      "↰ 回上一步，改群演名稱",
+      "若干",
+      "1",
+      "✕ 放棄新增群演",
+    ]);
   });
 
   it("握著一批時走的仍然是編輯那一套 —— 第一列印的是原數量", () => {
