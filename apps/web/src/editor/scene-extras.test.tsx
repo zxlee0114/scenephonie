@@ -9,7 +9,7 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { mintExtraId, mintSceneId, sceneExtras, schema as kernelSchema } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -62,7 +62,7 @@ const inputIn = (container: HTMLElement, selector: string) =>
 const extrasOf = (editor: Editor) => sceneExtras(editor.state.doc.firstChild!.attrs.extras);
 
 afterEach(() => {
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("簡表的群演欄", () => {

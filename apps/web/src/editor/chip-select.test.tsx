@@ -3,7 +3,7 @@
  * ChipSelect —— chip row 的自訂下拉（比照 slash 選單外觀，取代原生 <select>）。
  * 使用者回饋 2026-09-03。
  */
-import { fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -23,7 +23,7 @@ function Host({ initial = "" }: { initial?: string }) {
 }
 
 afterEach(() => {
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("ChipSelect", () => {

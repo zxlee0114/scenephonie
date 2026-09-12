@@ -11,7 +11,7 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { mintExtraId, mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -76,7 +76,7 @@ const cell = (root: HTMLElement, label: string) =>
   root.querySelector<HTMLElement>(`.scene__chips [aria-label="${label}"]`)!;
 
 afterEach(() => {
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("登場人物欄：←→ 在實體之間走", () => {

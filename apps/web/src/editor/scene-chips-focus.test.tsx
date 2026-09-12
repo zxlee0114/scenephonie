@@ -13,7 +13,7 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -40,7 +40,7 @@ function Harness({ onEditor }: { onEditor: (e: Editor) => void }) {
 
 describe("進入編輯器的初始焦點", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("焦點落在第一場的「內外景」下拉（ChipSelect 的觸發鈕）", async () => {
@@ -62,7 +62,7 @@ describe("進入編輯器的初始焦點", () => {
 
 describe("chip row 的 Tab 終點是場次內文", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("地點 → 登場人物 → 群演 → 游標進入本場第一個區塊內文，不落在腳部按鈕", async () => {

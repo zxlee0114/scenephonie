@@ -11,7 +11,7 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -53,7 +53,7 @@ const emptyStateButton = (container: HTMLElement) =>
   container.querySelector<HTMLButtonElement>(".empty-screenplay button");
 
 afterEach(() => {
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("零場次的空狀態", () => {

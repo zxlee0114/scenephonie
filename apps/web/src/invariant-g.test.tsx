@@ -8,7 +8,7 @@
  * kernel 的 `packages/schema/src/invariants.test.ts` 對「不變式 G」留了 `it.todo('票券 04')`——
  * 它是 isomorphic 套件，不能 import 編輯器。這個檔案是它的落點。
  */
-import { render, waitFor } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -79,7 +79,7 @@ describe("不變式：原始碼不得出現 hex（tokens.css 是唯一例外）"
 
 describe("不變式 G —— DOM：decoration 與 canonical content 的界線", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("場次號在 gutter：不進 content flow、不可 select、不可編輯、aria-hidden", async () => {

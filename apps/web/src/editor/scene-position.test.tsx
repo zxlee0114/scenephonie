@@ -9,7 +9,7 @@
  *
  * 這支鎖的是「只有第一場有 .scene--first、只有最後一場有 .scene--last」，且插入場次後會重算。
  */
-import { render, waitFor } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -37,7 +37,7 @@ function flags(container: HTMLElement) {
 
 describe("場次首尾旗標不靠 :first-child／:last-child", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("三場：只有第一場是 first、只有最後一場是 last", async () => {

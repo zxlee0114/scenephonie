@@ -5,7 +5,7 @@
 （`路人`）。它已經不是「握在手上的那一批」了，所以選單印的是 `＋ 新增群演「路人」…`，
 要點下去才「復原」，而**復原出來的那一批人數是重新猜的，原本的 8 沒了**。
 
-**Status:** ready-for-agent
+**Status:** in-review
 
 ## 根因（已量過，不必再查）
 
@@ -45,13 +45,72 @@ transaction，直接叫 `editor.commands.undo()` 的結果完全正確 —— ch
 
 ## 驗收
 
-- [ ] 拿起一批、字刪光、點到別處放手 → ⌘Z 一次 → 那一批回來時**`extraId` 與人數都是原本那一個**
-- [ ] 選單不會在那一刻說「新增」（它不是新的一批）
-- [ ] 焦點還在欄位、框裡有字時的 ⌘Z 仍然是原生 undo（撤銷剛打的那幾個字，`forwardHistoryKey` 第三行）
-- [ ] 注音組字期間的 ⌘Z 仍然整顆還給 IME（§7.6）
-- [ ] 人物／地點欄在這件事上的行為與群演欄同一套（與票券 37 對齊）
+- [x] 拿起一批、字刪光、點到別處放手 → ⌘Z 一次 → 那一批回來時**`extraId` 與人數都是原本那一個**
+- [x] 選單不會在那一刻說「新增」（它不是新的一批）
+- [x] 焦點還在欄位、框裡有字時的 ⌘Z 仍然是原生 undo（撤銷剛打的那幾個字，`forwardHistoryKey` 第三行）
+- [x] 注音組字期間的 ⌘Z 仍然整顆還給 IME（§7.6）
+- [x] 人物／地點欄在這件事上的行為與群演欄同一套（與票券 37 對齊）
+
+（五條都有自動測試；**人工驗收還沒跑**。）
 
 ## Comments
+
+### 2026-09-12 — 實作：選第 1 條路
+
+〈要決定的事〉那兩條裡選**第 1 條**（焦點不在欄位裡時那一下歸文件，整顆 chip 回來）。
+不是隨手挑的 —— 票裡自己寫著票券 37 的「焦點不在就只讓文件退，**欄位不插手**」是前提，
+而第 2 條要在焦點已經走了之後把字塞回框裡、還順手把那一筆接回手上，正是 37 禁的那件事。
+兩張票要共用同一條規則的兩半，就只有第 1 條講得通。
+
+**做法：`history-keys.ts` 多一條窗層的退路（`StrayHistoryKey`）。** `forwardHistoryKey` 掛在
+chip row 與對白人物欄上，收得到的只有「焦點還在欄位裡」；焦點掉到 `body` 之後那顆鍵誰都
+沒接。新的那顆監聽掛在 **window**（與 `ScreenplayEditor` 零場次面板同一個理由：焦點掉到
+body 的事件根本到不了編輯器那塊 DOM），判準與 `forwardHistoryKey` **同一條**，只是問的
+對象從事件 target 換成「這一下派到誰身上」：
+
+- 框裡有編劇沒定案的字 → 不接手（`typingInField`，兩個入口共用同一支）；
+- 焦點在 contentEditable 裡 → 不接手（那是 ProseMirror 自己的 keymap，接了會退兩步）；
+- 焦點在編輯器以外的東西上 → 不接手（⌘Z 是全域的，別人的欄位不歸這份稿子管）；
+- 零場次 → 不接手（那個狀態的 ⌘Z 合約整條寫在空狀態面板裡，兩邊同時接會一次退兩步）。
+
+`preventDefault` 同時是這張票的另一半：它擋掉瀏覽器對那個剛被清空的 `<input>` 的原生
+undo，不然那串裸字照樣會被塞回框裡。**沒有新的看不見的狀態** —— 這條路只讀事件與焦點，
+不記任何東西（§7.3）。
+
+**欄位兩個檔案一行都沒改。** 這張票整個落在「那一下到不到得了文件」，而文件那一側本來就
+是對的（票裡量過）—— 撤回來的 chip `extraId` 與人數原封，因為 `editExtra` 撤掉那一筆時
+開的就是一個 transaction。
+
+**順手修掉一個測試衛生問題，而且是整個 `apps/web` 一起**：二十來個測試檔的 `afterEach`
+只清 `document.body.innerHTML`，React 樹沒卸載、前面每一條測試那個 editor 都還活著。窗層
+這條退路是**全域**的，於是下一條測試按的 ⌘Z 會先被**前一個** editor 接走（實作時真的踩到，
+四條紅）。全部改成 RTL 的 `cleanup()`。`dismiss-on-outside-pointer.test.ts` 不動 —— 它沒有
+React 也沒有 editor。
+
+⚠️ `empty-document-state.test.tsx` 那條「焦點不在按鈕上時 ⌘+Z 一樣救得回整份稿」在改之前
+是**靠巧合過的**：空狀態面板那顆 window 監聽不看 `event.defaultPrevented`，所以前一個 editor
+先接走也沒被擋下。這次一併把地基補上（code review 量到的）。
+
+測試：`undo-history.test.tsx` 新增第三個 describe 四條（群演放手後的 ⌘Z、欄位不被塞字且
+選單不說「新增」、人物／地點欄同一套、注音組字仍歸 IME）。全套 494 passed / 34 skipped，
+typecheck 與 lint 都乾淨。
+
+### 2026-09-12 — code review
+
+三點全採納：
+
+1. 上面那條測試衛生問題**不只 `undo-history.test.tsx`** —— 已擴到全部二十個檔。
+2. 檔頭與 `typingInField` 的註解寫著 `strayHistoryKey` 問的是 `document.activeElement`，
+   實作問的是 `event.target`。真的按鍵時兩者一致（所以沒有紅），但這份 codebase 的註解是
+   規格，不能讓下一個讀的人照著一條程式沒實作的判準推理。改成如實寫「事件的 target」，
+   並說明為什麼不是 `activeElement`（那是另一個問題）。
+3. `event.target instanceof HTMLElement` 會把一個聚焦中的 SVG 當成「沒人接住」。今天
+   `src/` 裡沒有 SVG 內容，但這條線不該靠那個成立 —— 收成 `instanceof Element`，
+   `isContentEditable` 那一格另外收窄。
+
+review 另外量過兩件事、兩件都排除了，記下來免得日後重推：Tiptap 3.30 的 `Extension.create`
+雖然是 module 層的單例，`extensionStorage.strayHistoryKey` **每個 editor 一份**，`listener`
+不會互相蓋掉；掛載／卸載的監聽帳也對得上（加一支、移一支，沒有洩漏）。
 
 ### 2026-09-12 — 開票
 

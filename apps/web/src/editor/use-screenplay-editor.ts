@@ -18,6 +18,7 @@ import { hasEmptySceneMeta } from "@scenephonie/schema";
 import { topLevelSceneIds } from "./command-bridge";
 import { emptyScreenplay } from "./empty-screenplay";
 import { claimFocus, requestFocus } from "./focus";
+import { StrayHistoryKey } from "./history-keys";
 import { resetSceneBirth } from "./scene-birth";
 import { ActionNode, DialogueNode, InsertShotNode } from "./nodes/blocks";
 import { SceneNode } from "./nodes/scene";
@@ -127,6 +128,7 @@ export function useScreenplayEditor(
       Slash,
       SoftBreak,
       VerticalNav,
+      StrayHistoryKey,
     ],
     content: initialContent ?? emptyScreenplay(),
     // 上一個 editor instance 可能留下沒人認領的一次性請求（`/next` 發完請求，新 SceneView

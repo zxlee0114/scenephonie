@@ -7,7 +7,7 @@
  */
 import { Editor } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { mintSceneId } from "@scenephonie/schema";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -23,7 +23,7 @@ import { baseStarterKit } from "./starter-kit";
 let editor: Editor;
 afterEach(() => {
   editor?.destroy();
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 /** 建一份只有一場的稿，游標停在空的動作區塊，然後打一個 `/` 把選單叫出來。 */

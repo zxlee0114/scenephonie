@@ -8,7 +8,7 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { render, waitFor } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -59,7 +59,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("新增下一場的打字餘裕", () => {

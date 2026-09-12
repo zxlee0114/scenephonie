@@ -10,7 +10,7 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { render, waitFor } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -61,7 +61,7 @@ function Harness({
 
 describe("載入既有劇本時的初始焦點", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("游標停在最後一場的最後一個區塊末端", async () => {
@@ -108,7 +108,7 @@ describe("載入既有劇本時的初始焦點", () => {
 
 describe("載入時最後一場還沒填 metadata（票券 31）", () => {
   afterEach(() => {
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   it("末場 metadata 全空且無內文：焦點落在該場的 chip row，不是文件末端", async () => {
@@ -207,7 +207,7 @@ describe("載入時最後一場還沒填 metadata（票券 31）", () => {
 
     // 重整：同一份稿重新掛一個編輯器（載入路徑 → documentEnd）。
     first.unmount();
-    document.body.innerHTML = "";
+    cleanup();
     let reloaded!: Editor;
     const after = render(
       <Harness initialFocus="documentEnd" content={saved} onEditor={(e) => (reloaded = e)} />,

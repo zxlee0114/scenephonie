@@ -12,9 +12,10 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import {
   mintExtraId,
+  mintLocationId,
   mintSceneId,
   sceneExtras,
   schema as kernelSchema,
@@ -104,9 +105,11 @@ async function newLocationChip(container: HTMLElement, name = "河堤") {
   return input;
 }
 
-afterEach(() => {
-  document.body.innerHTML = "";
-});
+// `cleanup()` 而不是清空 `body.innerHTML`：後者只是把 DOM 拿掉，React 樹沒有卸載，上一條
+// 測試那個 editor 於是還活著、`StrayHistoryKey` 掛在 window 上的那顆監聽也還在。窗層那條
+// 退路是**全域**的（焦點掉到 body 時才有人接得住），留著的話下一條測試按的 ⌘Z 會先被前一個
+// editor 接走（票券 53 實作時踩到）。
+afterEach(cleanup);
 
 describe("chip row 上的 ⌘Z", () => {
   it("一個新建的 chip ＝ 一支 command ＝ 一次 undo（文件那一側從來沒有兩次）", async () => {
@@ -453,5 +456,144 @@ describe("⌘Z 撤銷一筆定案 → 那串字回到輸入框（票券 37）", 
 
     expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull();
     expect(input.value).toBe("");
+  });
+});
+
+/**
+ * 焦點已經離開整個欄位之後的那一下 ⌘Z（票券 53）。
+ *
+ * 票券 37 管的是「焦點還在欄位裡」那一格，這裡是另一半：拿起一批群演、把字刪光、**點到
+ * 一塊誰都接不住的空白**放手 —— 那一刻 `document.activeElement` 是 `body`，chip row 上的
+ * `forwardHistoryKey` 再也收不到那顆鍵，於是它歸瀏覽器，而瀏覽器對剛剛被清空的 `<input>`
+ * 做的是原生 undo：把刪掉的字整串反白塞回框裡。回來的不是那一批群演，是一串裸字。
+ *
+ * 規則（與 37 同一條的另一半）：**焦點不在任何欄位手上時，那一下歸文件** —— 整顆 chip
+ * 回來，`extraId` 與人數都是原本那一個，而欄位一個字都不插手。
+ */
+describe("放手之後的 ⌘Z（票券 53）", () => {
+  const EXTRAS = ".scene__chip--extras";
+
+  const docWithExtra = (extraId: string) =>
+    kernelSchema
+      .node("doc", null, [
+        kernelSchema.node(
+          "scene",
+          {
+            sceneId: mintSceneId(),
+            extras: [{ extraId, description: "路人", count: 8 }],
+          },
+          [kernelSchema.node("action", null, [kernelSchema.text("內文")])],
+        ),
+      ])
+      .toJSON() as object;
+
+  /** 拿起那顆 chip、把字刪光、點到別處放手 —— chip 外殼跟著消失。 */
+  async function letGoOfTheExtra(container: HTMLElement) {
+    const chip = await waitFor(() => {
+      const el = container.querySelector<HTMLElement>(`${EXTRAS} .entity-chip`);
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    fireEvent.mouseDown(chip);
+    const input = await fieldInput(container, EXTRAS);
+    await waitFor(() => expect(input.value).toBe("路人"));
+    fireEvent.change(input, { target: { value: "" } });
+    // 真的把焦點交出去（`fireEvent.blur` 只發事件，`document.activeElement` 還是那個框）。
+    input.blur();
+    await waitFor(() =>
+      expect(
+        container.querySelector(`${EXTRAS} .entity-field__input-chip`),
+      ).toBeNull(),
+    );
+    return input;
+  }
+
+  it("那一批回來時，`extraId` 與人數都是原本那一個", async () => {
+    const extraId = mintExtraId();
+    let editor!: Editor;
+    const { container } = render(
+      <Harness doc={docWithExtra(extraId)} onEditor={(e) => (editor = e)} />,
+    );
+    await letGoOfTheExtra(container);
+    expect(sceneExtras(editor.state.doc.child(0).attrs.extras)).toHaveLength(0);
+
+    // 焦點在 body 上 —— chip row 收不到，這一下只有窗層那個退路接得住。
+    fireEvent.keyDown(document.body, undoKey);
+
+    await waitFor(() =>
+      expect(sceneExtras(editor.state.doc.child(0).attrs.extras)).toHaveLength(
+        1,
+      ),
+    );
+    const back = sceneExtras(editor.state.doc.child(0).attrs.extras)[0]!;
+    expect(back.extraId).toBe(extraId);
+    expect(back.count).toBe(8);
+  });
+
+  it("欄位不會被塞進一串字，選單也不會在那一刻說「新增」", async () => {
+    const extraId = mintExtraId();
+    const { container } = render(<Harness doc={docWithExtra(extraId)} />);
+    const input = await letGoOfTheExtra(container);
+
+    fireEvent.keyDown(document.body, undoKey);
+
+    await waitFor(() =>
+      expect(container.querySelectorAll(`${EXTRAS} .entity-chip`)).toHaveLength(
+        1,
+      ),
+    );
+    expect(input.value).toBe("");
+    expect(menuRows(container.querySelector(EXTRAS)!)).toHaveLength(0);
+  });
+
+  it("人物／地點欄同一套：放手之後的 ⌘Z 把那一筆原封還回來", async () => {
+    // 地點是**稿子裡本來就有的**那一筆，不是這一刻打出來的 —— 打出來的話「定案」與「拿起來
+    // 改」會落在歷史的同一個分組窗裡（500ms），一次 ⌘Z 兩步一起退，量到的就不是這張票了。
+    const before = { locationId: mintLocationId(), displayName: "河堤" };
+    const doc = kernelSchema
+      .node("doc", null, [
+        kernelSchema.node(
+          "scene",
+          { sceneId: mintSceneId(), location: before },
+          [kernelSchema.node("action", null, [kernelSchema.text("內文")])],
+        ),
+      ])
+      .toJSON() as object;
+
+    let editor!: Editor;
+    const { container } = render(
+      <Harness doc={doc} onEditor={(e) => (editor = e)} />,
+    );
+    const input = await fieldInput(container, LOCATION);
+
+    // 拿起那顆 chip、字刪光、點到別處放手。
+    fireEvent.mouseDown(container.querySelector(`${LOCATION} .entity-chip`)!);
+    await waitFor(() => expect(input.value).toBe("河堤"));
+    fireEvent.change(input, { target: { value: "" } });
+    input.blur();
+    await waitFor(() =>
+      expect(editor.state.doc.firstChild!.attrs.location).toBeNull(),
+    );
+
+    fireEvent.keyDown(document.body, undoKey);
+
+    await waitFor(() =>
+      expect(editor.state.doc.firstChild!.attrs.location).toEqual(before),
+    );
+    expect(input.value).toBe("");
+  });
+
+  it("注音組字期間的那一下仍然整顆還給 IME（§7.6）", async () => {
+    const extraId = mintExtraId();
+    let editor!: Editor;
+    const { container } = render(
+      <Harness doc={docWithExtra(extraId)} onEditor={(e) => (editor = e)} />,
+    );
+    await letGoOfTheExtra(container);
+
+    fireEvent.keyDown(document.body, { ...undoKey, isComposing: true });
+
+    // 文件一動也沒動 —— 那一顆鍵從頭到尾都是 IME 的。
+    expect(sceneExtras(editor.state.doc.child(0).attrs.extras)).toHaveLength(0);
   });
 });
