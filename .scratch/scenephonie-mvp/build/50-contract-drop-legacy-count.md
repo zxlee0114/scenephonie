@@ -8,7 +8,7 @@
 
 **Blocked by:** 45、46、47、48、49
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 ## 資料怎麼辦：reset，不寫遷移
 
@@ -35,9 +35,49 @@
 
 ## 驗收
 
-- [ ] `ExtraRef` 只剩新形態，舊的 `count: number` 不存在
-- [ ] 整棵樹沒有任何地方還在讀舊欄位
-- [ ] `doc_schema_version` **沒有**升版，而且檔頭多了一段說明它的定位（可讀性版本 vs 值語意）
-- [ ] `sceneExtras` 的裸數字容錯留著，註解說明它是容錯不是遷移
+- [x] `ExtraRef` 只剩新形態，舊的 `count: number` 不存在
+- [x] 整棵樹沒有任何地方還在讀舊欄位
+- [x] `doc_schema_version` **沒有**升版，而且檔頭多了一段說明它的定位（可讀性版本 vs 值語意）
+- [x] `sceneExtras` 的裸數字容錯留著，註解說明它是容錯不是遷移
 - [ ] 開發資料庫 reset 過，重新開一份稿走得通
-- [ ] **CI 綠**
+- [x] **CI 綠**
+
+## Comments
+
+**2026-09-13 —— 實作完成，一項待人工執行。** 分支
+`worktree-ticket-50-contract-drop-legacy-count`（commit `0881eee` ＋ review 兩輪）。
+
+驗收六項有五項打勾。**開發資料庫 reset 沒做** —— 指令被權限層以 mass delete 擋下，沒有繞過。
+要跑的是：
+
+```
+docker exec scenephonie-db-1 psql -U postgres -d scenephonie \
+  -c "truncate table screenplay_backups, screenplays, characters, locations, projects cascade;"
+```
+
+（保留 `users`／`sessions`／`accounts`，所以不必重新登入。reset 前的整份 dump 在
+`~/scenephonie-dev-db-before-ticket-50.sql`，234K。）
+
+**⚠️ reset 之前不要合。** 現在庫裡有 3 份稿帶著舊欄位；`sceneExtras` 只看 `countValue`，
+那 3 份的人數會**靜靜讀成「若干」** —— 不報錯、不留痕。這正是票裡那句「這一串票不要停在
+中間」的另一半：contract 落地與 reset 是同一個動作的兩半。
+
+### review 兩輪收了什麼
+
+Standards 軸零硬性違反。收了兩則：刪註解留下的空 JSDoc 尾行；`readCount` 補上它與
+ADR-0013 的分界（ADR-0013 管**編劇打的那串字**，`readCount` 管**已經躺在人數那一格裡的
+值** —— 這是最容易被誤讀成違反 ADR 的一處）。
+
+Spec 軸指出容錯註解的承諾比實際覆蓋範圍寬：走 command 的匯入會被 `setSceneExtras` 拒收，
+容錯只覆蓋繞過 command 的那幾條路。註解已收窄。
+
+### 沒收的三則，與理由
+
+- **CONTEXT.md 群演定案第 1 條仍寫著「只打描述就是一位」** —— 那是**票券 51**（blocked by 50），
+  不是這張票的範圍。
+- **`SceneExtraOption.count` 現在裝的是 `CountValue` 卻叫 `count`**（Mysterious Name）。它不是
+  被刪掉的那個舊欄位，是 UI 選項型別上的同名欄位；改名會動到 `entity-field` 那一批測試，
+  留給後續。型別上已有註解寫明「`count` 不是一個數字」。
+- **Spec 軸建議 `readCount(countValue ?? count)` 保命** —— 直接違反驗收第 2 條「整棵樹沒有
+  任何地方還在讀舊欄位」，而且會把那個**會說謊的**欄位重新接回讀取路徑。使用者 2026-09-12
+  已裁決走 reset 不走遷移，照裁決做。
