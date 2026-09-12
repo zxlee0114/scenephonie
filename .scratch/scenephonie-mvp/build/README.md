@@ -92,3 +92,4 @@ blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開
 | [51](./51-rewrite-context-extras-decision.md) | CONTEXT.md 群演實作定案第 1 條連同理由改寫（票券 09 那條被推翻）。blocked by 50。 |
 | [53](./53-let-go-undo-restores-raw-text.md) | bug：群演放手之後的 ⌘Z 還回來的是一串裸字（瀏覽器對 input 的原生 undo），`extraId` 與人數都沒了。**從票券 47 的人工驗收切出來**；與 37 的分工是「焦點還在欄位裡」對「焦點已經走了」。 |
 | [52](./52-editing-ref-matches-itself-by-prefix.md) | bug：握著一筆實體、清空重打前綴命中不了自己（票券 38 那條裂縫）。**從票券 42 的第 4 條切出來**，與 42 的措辭工作無關。blocked by 40。 |
+| [57](./57-select-chips-in-a-field.md) | 一格裡的 chip 選得起來：`⌘A` 選滿整格、`⌫` 清空，四格一致；按到底放行給整份文件。選取狀態是**一組 chip**（為以後的子集與剪貼留形狀）。**拖曳定案給重排、選取永不靠拖**。blocked by 無（08／09／34 皆已完成）。剪貼另開票。 |
