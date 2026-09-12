@@ -38,8 +38,8 @@
  *
  * ── 人數走一層子選單（票券 48）──────────────────────────────────────
  * 名稱那一關多一列 `修改數量…`，按下去進**人數子選單**（`stage`）：第一列是
- * `↰ 不修改數量（8），回上一步`，接著 `若干`、`1`、一個自由輸入格。挑完退回名稱那一關，
- * 名稱還能接著改。
+ * `↰ 不修改數量（8），回上一步`，接著一個自由輸入格與 `不特別指定數量（若干）`。挑完退回
+ * 名稱那一關，名稱還能接著改。
  *
  * 兩條規則撐著整層：
  *
@@ -52,6 +52,36 @@
  *
  * `↰` 與 `↩︎` 是**兩列**，即使在這一層按下去的結果看起來相近（使用者裁決 2026-09-12）：
  * 前者退一階、名稱那一側的待定改動留著；後者整輪作廢。導航語意不因為結果重疊就合併。
+ *
+ * ── 新增也走兩層（票券 49）────────────────────────────────────────
+ * 規則收斂成一句：**沒說人數就問一次**（`willAskCount`）。`路人（8）`／`路人 x8`／`路人 10+`
+ * 直接定案 —— 人數就在那串字裡，他已經說了（一次打完的路留著）；光禿禿一個 `路人` 進第二層。
+ *
+ * **共用同一套子選單**（版面第三輪，編劇裁決 2026-09-13：「兩邊都同一套」）—— 四列逐列
+ * 對齊，只有頭尾兩列因為手上握著東西沒有而說不同的話：
+ *
+ * ```
+ * ↰ 回上一步，改群演名稱      ← 編輯那側是 `↰ 不修改數量（8），回上一步`
+ * ▌                          ← 格子（**焦點與高亮的預設位置**）
+ * 不特別指定數量（若干）       ← 一字不差
+ * ✕ 放棄新增群演              ← 編輯那側是 `↩︎ 不修改，返回`
+ * ```
+ *
+ * 1. **這一關只有兩條路**：打一個數字，或者不說。`1` 那一列因此在**兩側**都拿掉了（票券
+ *    48 原有，與格子裡打一個 `1` 完全重複），而剩下那一列的措辭說的是**選擇本身** ——
+ *    他不是挑了「若干」這個數量，他是決定不說。
+ * 2. **預設值靠措辭說，不靠位置、也不靠高亮**。中間有一版把高亮放在 `若干` 那一列上（好讓
+ *    「什麼都不做會記成什麼」有個看得見的位置），編劇驗收時推翻：游標在格子裡、高亮在別處，
+ *    一份選單出現兩個重點。現在高亮只說「下一顆鍵會打在哪」。
+ * 3. **退出兩側不同名也不同記號**：`↩︎` 有一批人要原封放回（編輯），`✕` 手上什麼都沒有，
+ *    丟掉的是打到一半的那串字（連名稱一起清）。Esc 仍然等同 `↰`。
+ *
+ * 而且新增時**答完就定案**（`pickCount`／`commitCount` 的新增分支），不像編輯那樣退回名稱
+ * 那一關：那一層問的是這一批的最後一件事，答完就沒有別的事要做了。
+ *
+ * ⚠️ **第一層的 blur 仍然直接定案**（不問）：`blur` 擋不住，點到外面就是走了，這一刻把焦點
+ * 搶回來去開一個子選單，是這一欄唯一會跟他搶滑鼠的地方。結果也正是那個問題的預設答案
+ * —— 若干（他確實沒說），與走完兩層空著離開一模一樣。
  */
 "use client";
 
@@ -74,6 +104,7 @@ import {
   parseExtra,
   resolveCountInput,
   splitNamesLive,
+  statesCount,
   type CountValue,
   type ExtraRef,
 } from "@scenephonie/schema";
@@ -83,6 +114,7 @@ import { chipRow, columns } from "./chip-row";
 import {
   BACK_MARK,
   CONFIRM_MARK,
+  DISCARD_MARK,
   EXTRA_MARK,
   HINT_MARK,
   NEW_MARK,
@@ -113,8 +145,8 @@ type Props = {
 /**
  * 選單上的一格。多數是**一列可以按的字**；人數那一層另外有一格是**輸入框**（票券 48）。
  *
- * 輸入框跟著進同一個陣列，是因為 ↑↓ 要停得進去：它在版面上夾在 `1` 與 `↩︎ 不修改，返回`
- * 中間，兩側都還有列。把它排除在導航之外，那兩側就會在同一顆方向鍵下互相跳過對方。
+ * 輸入框跟著進同一個陣列，是因為 ↑↓ 要停得進去：它在版面上夾在第一列與 `不特別指定數量
+ * （若干）` 中間，兩側都還有列。把它排除在導航之外，那兩側就會在同一顆方向鍵下互相跳過對方。
  */
 type Row =
   | { key: string; box?: false; label: string; run: () => void }
@@ -226,7 +258,16 @@ export function ExtrasField({
    */
   const readText = (segment: string): Omit<ExtraRef, "extraId"> | null => {
     const held = editing.current;
-    if (!held) return parseExtra(segment);
+    if (!held) {
+      const content = parseExtra(segment);
+      if (!content) return null;
+      // 新增那一側**也有待定人數**（票券 49）：第二層挑過或打過的值蓋掉 `parseExtra` 讀出來
+      // 的那一個。沒進過第二層時 `pendingCount` 是 null，於是這一行什麼都不做 —— 尾綴讀出來
+      // 的（或「沒說 ＝ 若干」）照舊是答案。
+      const value = pendingCount.current;
+      if (!value) return content;
+      return { description: content.description, count: legacyCount(value), countValue: value };
+    }
     const description = segment.trim();
     if (!description) return null;
     // ⚠️ 遷移窗口裡**兩個形態要一起寫**（票券 44）：只改 `countValue` 會讓舊欄位說謊，
@@ -350,16 +391,70 @@ export function ExtrasField({
   };
 
   /**
-   * 進**人數子選單**（`修改數量…` 那一列，票券 48）。
+   * 進**人數子選單** —— 編輯時是 `修改數量…` 那一列（票券 48），新增時是「他沒說人數」
+   * 那一下（票券 49）。**同一套子選單**，差別只在第一列印什麼（見 `rows`）。
    *
    * 焦點搬到人數格 —— 名稱那一側的字原封留著，它只是不再是現在要打的東西。
    */
   const openCountStage = () => {
-    if (!editing.current) return;
     stage.current = "count";
     setCountText("");
-    setActive(-1); // 一進來就停在**格子**上（見 `boxIndex`）—— 那是這一刻要打字的地方
+    // Esc 收掉的是建議那份清單，不是「這批有幾個人」這個問題（票券 49）。**只在新增那一側**
+    // 清它 —— 編輯那一側進子選單的路是 `修改數量…`，那一列本來就得選單開著才按得到，
+    // 在那裡動 `dismissed` 等於改到票券 48 的既有行為。
+    // 一進來就停在**格子**上（見 `boxIndex`）——**兩側都是**：那是這一刻要打字的地方。
+    // 中間有一版讓新增停在 `若干` 那一列（好讓預設值有個位置說話），編劇驗收時推翻了：
+    // 游標在格子裡、高亮卻在別的列上，讀的人找不到重點（驗收回饋 2026-09-13）。
+    setActive(-1);
     focusNext.current = "count";
+    redraw();
+  };
+
+  /**
+   * **這一下按下去會先被問人數嗎**（票券 49）—— 第一列怎麼自我介紹與它按下去做什麼，讀的
+   * 是同一個答案。分成兩處寫時，`…` 那個後綴遲早會與實際行為對不上（code review 2026-09-12）。
+   *
+   * 四個否定：握著一批（那是編輯，走票券 47／48 那一套）、已經答過（`pendingCount`）、
+   * 人就在第二層裡、以及那串字自己說了人數（`路人 x8` —— 一次打完的路留著）。
+   * 再加一個：讀不出一筆群演（空著、只打了 `x8`）就沒有一批人可以問。
+   */
+  const willAskCount = (): boolean =>
+    !editing.current &&
+    !pendingCount.current &&
+    stage.current !== "count" &&
+    readText(text) !== null &&
+    !statesCount(text);
+
+  /**
+   * 新增那一側的 Enter 與第一列：**沒說人數就問一次**（票券 49）。
+   *
+   * `路人（8）`／`路人 x8`／`路人 10+` 直接定案 —— 人數就在那串字裡，他已經說了（一次打完
+   * 的路留著，打字快的編劇不該被選單擋；使用者裁決 2026-09-12）。光禿禿一個 `路人` 進第二層，
+   * 那一層的第一列是「若干」，因為新增時**沒有原數量可印** —— 他確實沒說。
+   *
+   * ⚠️ 進過第二層之後 `pendingCount` 已經有值，那時不再問：他剛剛才回答過。
+   */
+  const commitOrAskCount = () => {
+    if (!willAskCount()) {
+      commitText();
+      return;
+    }
+    openCountStage();
+  };
+
+  /**
+   * **放棄這一輪新增**（`✕`，票券 49 驗收回饋 2026-09-13）—— 名稱那一側的字一起清掉。
+   *
+   * 它是 `↩︎ 不修改，返回` 在新增這一側的對應物，但兩者不同名也不同記號：那邊有一批人要
+   * 原封回到原位，這邊手上什麼都沒有，丟掉的是打到一半的那串字。清空之後選單自己就收了
+   * （沒握著東西、框又是空的 ＝ 選單不出現），所以這裡不必另外關它。
+   */
+  const discardAdd = () => {
+    leaveCountStage();
+    setText("");
+    setActive(0);
+    setDismissed(false);
+    focusNext.current = "name";
     redraw();
   };
 
@@ -372,10 +467,20 @@ export function ExtrasField({
     redraw();
   };
 
-  /** 挑一個人數（`若干`、`1`）：記成待定值，退回名稱那一關。 */
+  /**
+   * 從那幾列裡挑一個人數（`不特別指定數量（若干）` 是目前唯一一列）。
+   *
+   * **編輯**時記成待定值、退回名稱那一關（那一批還沒變，票券 48）。**新增**時這就是問句的
+   * 答案，問完就沒有別的事要做了 —— 當場定案（票券 49）。
+   */
   const pickCount = (value: CountValue) => {
     pendingCount.current = value;
-    backToDescribe();
+    if (editing.current) {
+      backToDescribe();
+      return;
+    }
+    focusNext.current = "name"; // 格子即將被卸掉，焦點得有地方去（同 `putBack`）
+    commitText(); // `readText` 讀得到 `pendingCount`，收尾的 `reset` 再把它清掉
   };
 
   /** 框裡那串字讀得出來就記成待定值；讀不出來就不動（於是留著的是第一列那個值）。 */
@@ -396,6 +501,13 @@ export function ExtrasField({
    */
   const commitCount = () => {
     takeCountText();
+    // 新增那一側問完就結束（票券 49）—— 讀不出來時 `pendingCount` 還是 null，於是
+    // `readText` 用 `parseExtra` 讀出來的「沒說 ＝ 若干」，那正是第一列的值。
+    if (!editing.current) {
+      focusNext.current = "name";
+      commitText();
+      return;
+    }
     backToDescribe();
   };
 
@@ -451,40 +563,80 @@ export function ExtrasField({
   };
 
   const rows: Row[] = [];
-  const heldForCount = stage.current === "count" ? editing.current : null;
-  if (heldForCount) {
+  const countStage = stage.current === "count";
+  const heldForCount = countStage ? editing.current : null;
+  if (countStage) {
     /**
-     * ── 人數子選單（票券 48）──────────────────────────────────────
+     * ── 人數子選單（票券 48；票券 49 起新增那一側共用）─────────────────
      *
-     * 第一列**把預設值搬到看得見的地方**：`↰ 不修改數量（8），回上一步`。第七輪提的
-     * `8（原訂）` 解決的是同一個坑 —— 第二關的預設若是「若干」，修改時它會偷偷抹掉原本
-     * 的 8；把那個值印在畫面上，坑就不存在了。再進來時它跟的是**待定值**（挑過 2 之後是
-     * `不修改數量（2）`），因為那才是「現在的樣子」。
+     * **四列，兩側逐列對齊**（編劇裁決 2026-09-13：「兩邊都同一套」）—— 只有頭尾兩列因為
+     * 手上握著東西沒有而說不同的話：
      *
-     * 沒有 `10+／20+／30+／40+` 那道階梯（編劇：「好像可有可無」）—— 那四個數字是猜的，
-     * 而自由輸入格加即時預覽比猜四個數字誠實。
+     * | | 第一列 | 最後一列 |
+     * |---|---|---|
+     * | 編輯 | `↰ 不修改數量（8），回上一步` —— 原值或待定值 | `↩︎ 不修改，返回` |
+     * | 新增 | `↰ 回上一步，改群演名稱` | `✕ 放棄新增群演` |
+     *
+     * 中間兩列一字不差：**格子**（焦點與高亮的預設位置）與 **`不特別指定數量（若干）`**。
+     *
+     * 第一列在編輯那側還兼一件事：**把預設值搬到看得見的地方**（「空著離開會記成什麼」）。
+     * 第七輪提的 `8（原訂）` 解決的是同一個坑 —— 第二關的預設若是「若干」，修改時它會偷偷
+     * 抹掉編劇原本說過的 8；把那個值印在畫面上，坑就不存在了。再進來時它跟的是**待定值**
+     * （挑過 2 之後是 `不修改數量（2）`），因為那才是「現在的樣子」。
+     *
+     * 這一關只有兩條路：**打一個數字，或者不說**。所以既沒有 `1` 那一列（與格子裡打一個
+     * `1` 重複），也沒有 `10+／20+／30+／40+` 那道階梯 —— 那些數字是猜的，而自由輸入格加
+     * 即時預覽比猜誠實。
      */
-    const now = heldCount(heldForCount);
-    rows.push({
-      key: "keep",
-      label: `${BACK_MARK} 不修改數量（${formatCount(now)}），回上一步`,
-      run: backToDescribe,
-    });
-    // 格子**排在第二列**（緊跟著 `↰`，編劇裁決 2026-09-12）：它是進來之後預設停留的地方，
-    // 而原本排在 `若干`／`1` 底下時，按下 `修改數量…` 的那一瞬間焦點會跳到選單的第四列 ——
+    const now = heldForCount ? heldCount(heldForCount) : null;
+    if (heldForCount && now) {
+      rows.push({
+        key: "keep",
+        label: `${BACK_MARK} 不修改數量（${formatCount(now)}），回上一步`,
+        run: backToDescribe,
+      });
+    } else {
+      // 新增那一側**也有 `↰`**（驗收回饋 2026-09-13）—— 它回的是「改群演名稱」那一關，
+      // 打的字留著。原本這一列是「若干」那個答案本身；讓出來之後，兩層之間走得回頭這件事
+      // 才看得見，不再只有 Esc 一條看不見的路。那個「空著離開會記成什麼」的角色現在寫在
+      // `不特別指定數量（若干）` 那一列的字裡（不靠位置，也不靠高亮）。
+      rows.push({
+        key: "back",
+        label: `${BACK_MARK} 回上一步，改群演名稱`,
+        run: backToDescribe,
+      });
+    }
+    // 格子**排在第二列**（緊跟著第一列，編劇裁決 2026-09-12）：它是進來之後預設停留的地方，
+    // 而原本排在 `若干` 底下時，按下 `修改數量…` 的那一瞬間焦點會跳到選單的第四列 ——
     // 跳得遠就看不見它跳去哪了。排在第二列，那一跳只有一格。
     // （另一條路是「先把焦點給第一列」，沒有採用：打完 `3~5` 按 Enter 要多點一次框，而
     // 「空著 Enter／打到一半 Enter／點到外面三者同結果」正是靠格子預設被聚焦才成立的。）
     rows.push({ key: "count-box", box: true });
-    rows.push({ key: "some", label: SOME_LABEL, run: () => pickCount({ kind: "some" }) });
-    // `1` 只在**與第一列不重複**時才印 —— 原本就是 1 的話不必印兩次同一個答案。
-    if (formatCount(now) !== "1") {
-      rows.push({ key: "one", label: "1", run: () => pickCount({ kind: "exact", count: 1 }) });
-    }
+    // 格子底下只剩**一列**，兩側逐字相同（編劇裁決 2026-09-13）。這一關從此只有兩條路：
+    // 打一個數字，或者不說。
+    //
+    // 措辭說的是**選擇本身**，不是一個數量：他不是挑了「若干」，他是決定不說。括號裡留著
+    // `若干`，因為那才是 chip 上與場次表上會看到的字。
+    //
+    // ⚠️ `1` 那一列拿掉了（原本在這裡，票券 48）—— 它與格子裡打一個 `1` 完全重複，而
+    // 「與第一列不重複時才印」那條規矩本來就是為了不印兩次同一個答案。同樣沒有
+    // `10+／20+／30+／40+` 那道階梯：那些數字是猜的，自由輸入格加即時預覽比猜誠實。
+    rows.push({
+      key: "some",
+      label: `不特別指定數量（${SOME_LABEL}）`,
+      run: () => pickCount({ kind: "some" }),
+    });
     // `↩︎` 在子選單裡**也在**（票券 42 第 2 條：選單走到哪一階段它都要在）。它與第一列
     // 的 `↰` 是**兩列**，即使在這一層按下去的結果看起來相近：`↰` 只退一階、名稱那一側的
     // 待定改動留著；`↩︎` 是整輪作廢，待定人數與名稱改動一起丟（使用者裁決 2026-09-12）。
-    rows.push({ key: "put-back", label: `${PUT_BACK_MARK} 不修改，返回`, run: putBack });
+    // 新增那一側最後一列是 `✕ 放棄新增群演`（驗收回饋 2026-09-13）—— 沒有一輪編輯可以
+    // 作廢，但**有一串打到一半的字要丟掉**，那才是這一刻的退出。記號也不同：`↩︎` 承諾
+    // 「原封放回」，而這裡沒有任何東西可以放回去（見 `field-marks.ts`）。
+    if (heldForCount) {
+      rows.push({ key: "put-back", label: `${PUT_BACK_MARK} 不修改，返回`, run: putBack });
+    } else {
+      rows.push({ key: "discard", label: `${DISCARD_MARK} 放棄新增群演`, run: discardAdd });
+    }
   } else if (menuOpen) {
     /**
      * 第一列說的是**按下去會發生的事**（票券 40）。
@@ -511,11 +663,17 @@ export function ExtrasField({
           key: "commit",
           // 結果導向（編劇裁決 2026-09-12）：這一列只印**按下去會得到什麼**，不再把
           // 「原本是什麼」一起唸一遍 —— 原值就在抬頭那一行，解說性的文字之後歸側欄。
+          //
+          // 新增那一列的兩態（票券 49）：說了人數就印**整筆的樣子**（按下去就是這一筆），
+          // 沒說就只印名稱加一個 `…` —— 那一下還有一關要走，`…` 與 `修改數量…` 是同一個
+          // 慣例。⚠️ `N 人` 那個舊措辭在區間／下限／若干上都不成立，它讀的還是舊欄位。
           label:
             before == null
-              ? `${NEW_MARK} 新增群演「${parsed.description}」${parsed.count} 人`
+              ? willAskCount()
+                ? `${NEW_MARK} 新增群演「${parsed.description}」…`
+                : `${NEW_MARK} 新增群演「${after}」`
               : `${CONFIRM_MARK} 確認：改成「${after}」`,
-          run: commitText,
+          run: before == null ? commitOrAskCount : commitText,
         });
       }
       // 另外開一批：只在**手上握著一批而且字改了**的時候有話說。沒握著東西時「新增」本來就
@@ -581,11 +739,14 @@ export function ExtrasField({
    * 只是換一副語氣：空著是格式說明、讀得出來是預覽、讀不出來是警告（而且**說得出現在離開
    * 會記成什麼** —— 那就是 `fallback`，也就是第一列的值）。
    */
-  const countHint = heldForCount
+  const countHint = countStage
     ? countHintText(
         resolveCountInput(countText),
-        heldCount(heldForCount),
-        parsed?.description ?? heldForCount.description,
+        // `fallback` 就是「什麼都不做會記成什麼」：修改時是原值或待定值（第一列），
+        // **新增時是若干**（預設停留的那一列，票券 49）。這一句是那條規矩在畫面上的
+        // 唯一說法 —— 讀不出來時離開，拿到的就是它。
+        heldForCount ? heldCount(heldForCount) : { kind: "some" },
+        parsed?.description ?? heldForCount?.description ?? query,
       )
     : null;
 
@@ -605,7 +766,12 @@ export function ExtrasField({
     pendingCount.current
       ? `正在編輯「${held.description}」群演，數量已更新：${formatCount(pendingCount.current)}`
       : `正在編輯「${held.description}」群演，原本數量「${formatCount(extraCount(held))}」保留`;
-  const heldNote = !heldNow
+  const heldNote = countStage && !heldForCount
+    ? // 新增那一層的抬頭：說出**現在在回答哪一個問題**（票券 49）。手上沒握著任何一批，
+      // 所以它不是「正在編輯誰」，而是這一關本身。措辭是編劇逐字指定的（2026-09-13）——
+      // 與編輯那一側的 `修改數量（原本是 8）` 同一個句型（動詞 ＋ 對象 ＋ 數量）。
+      `${HINT_MARK} 選擇群演「${parsed?.description ?? query}」數量`
+    : !heldNow
     ? null
     : heldForCount
       ? // 人數那一層的抬頭。跟的是**原值**（`原本是 8`），第一列才跟待定值 —— 兩者一起看
@@ -623,6 +789,11 @@ export function ExtrasField({
    * `active` 用 `-1` 代表「停在格子上」：進子選單時那一格還沒有位置可以指（列是在這之後
    * 才長出來的），而它必須是**預設停留的地方** —— 打完 `3~5` 按 Enter 要的是那串字，不是
    * 第一列。方向鍵一走進列上，`active` 就變回一個真的索引。
+   *
+   * ⚠️ **高亮跟著游標走**（驗收回饋 2026-09-13）：曾經有一版讓新增停在 `若干` 那一列上，
+   * 為的是給預設值一個看得見的位置。結果是游標在格子裡閃、高亮在別的列上，同一份選單
+   * 出現兩個「重點」。預設值改用**那一列自己的措辭**說（`不特別指定數量（若干）`），
+   * 高亮就只說一件事：下一顆鍵會打在哪。
    */
   const boxIndex = rows.findIndex((r) => r.box === true);
   const activeIndex =
@@ -723,7 +894,9 @@ export function ExtrasField({
     if (event.key === "Enter" && query) {
       event.preventDefault();
       event.stopPropagation();
-      commitText();
+      // 選單被 Esc 收起來時走這裡 —— 規則一步都不退：**沒說人數就問一次**（票券 49）。
+      // 收起來的是建議那份清單，不是那個問題。
+      commitOrAskCount();
       return;
     }
 

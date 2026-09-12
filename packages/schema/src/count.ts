@@ -244,3 +244,40 @@ export function countAfterTakingOne(value: CountValue): CountValue | null {
       return { kind: "some" };
   }
 }
+
+/**
+ * 升格那一列印的**代價**：拉走一個人之後那批人會變成什麼（票券 49，文案照票券 46 那張表）。
+ *
+ * ADR-0006 —— 代價寫在按下去之前。升格動到的是編劇沒有打過字的地方（群演那一欄），所以
+ * 那句話要在他做決定的當下就在眼前。**人數在這一列裡是措辭的一部分，不是裝飾。**
+ *
+ * 「剩多少」不在這裡算 —— 它是 `countAfterTakingOne` 的事（票券 46 那條「畫面不該自己決定
+ * `3-5` 減一是多少」）。這一支只把那個值翻成話，與 `countHintText` 同一種分工。
+ *
+ * | 原值 | 印 |
+ * |---|---|
+ * | `8` | `群演剩 7 人` |
+ * | `3-5` | `群演剩 2-4 人` |
+ * | `10+` | `群演剩 9 人以上` |
+ * | `若干` | `群演仍是若干人` |
+ * | `1` | `這批群演就此用完`（票券 35 的既有措辭） |
+ *
+ * 下限印的是「以上」而不是 `9+`：這一列是一句話，`+` 在句子中間讀起來像標點。括號裡那一段
+ * （`formatCount`）才是**值印出來的樣子**，兩者不是同一個東西。
+ */
+export function remainingExtraText(value: CountValue): string {
+  const left = countAfterTakingOne(value);
+  // 只有確切走得到這一句（票券 46 的關鍵一條）—— 區間、下限、若干拉走一個之後那批人都還在。
+  if (left === null) return "這批群演就此用完";
+  switch (left.kind) {
+    case "exact":
+      return `群演剩 ${left.count} 人`;
+    case "range":
+      return `群演剩 ${left.from}-${left.to} 人`;
+    case "atLeast":
+      return `群演剩 ${left.count} 人以上`;
+    case "some":
+      // 「仍是」而不是「剩」：什麼都沒少，那批人本來就沒有說死有幾個。
+      return "群演仍是若干人";
+  }
+}

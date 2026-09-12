@@ -136,9 +136,30 @@ describe("對白人物欄：一人說話落人物、一群齊聲落群演", () =
     await waitFor(() =>
       expect(menuRows(container, ".block__speaker-field")).toEqual([
         "＋ 建立新實體「眾人 x20」",
-        "👥 新增群演「眾人」20 人",
+        // 措辭在四種樣子上都得讀得通，所以印的是**整筆的樣子**（票券 49）——
+        // 「N 人」只對確切成立。
+        "👥 新增群演「眾人（20）」",
       ]),
     );
+  });
+
+  it("區間／下限／若干在這一列上也讀得通（票券 49）", async () => {
+    const said = async (typed: string) => {
+      const { container, unmount } = render(<Harness doc={dialogueScene()} />);
+      const input = await inputIn(container, ".block__speaker-field");
+      fireEvent.change(input, { target: { value: typed } });
+      await waitFor(() =>
+        expect(menuRows(container, ".block__speaker-field")).toHaveLength(2),
+      );
+      const row = menuRows(container, ".block__speaker-field").at(-1)!;
+      unmount();
+      return row;
+    };
+
+    expect(await said("眾人（3-5）")).toBe("👥 新增群演「眾人（3-5）」");
+    expect(await said("眾人 10+")).toBe("👥 新增群演「眾人（10+）」");
+    // 沒說人數的那一串在這裡**直接落成若干**（對白欄不走兩階段 —— 這一列是一次按下去的事）。
+    expect(await said("眾人")).toBe("👥 新增群演「眾人（若干）」");
   });
 
   it("挑群演那一列 → 一筆本場群演 ＋ 一個指向它的引用，**同一個 transaction**", async () => {
@@ -214,6 +235,75 @@ describe("對白人物欄：一人說話落人物、一群齊聲落群演", () =
     );
     // 一群齊聲說仍然是群演 —— 改一個字不該替編劇把它翻成人物。
     expect(extrasOf(editor)).toHaveLength(1);
+  });
+
+  /**
+   * ── 遷移的整合驗證點（票券 49）─────────────────────────────────────
+   *
+   * 票券 45–48 各自 CI 綠，但沒有一批走過**整台編輯器**。這一條走一遍畫面（群演欄兩層
+   * ＋ 對白欄升格），然後直接讀**場次 attr 那一份未正規化的原始值** —— 躺在那裡的必須是
+   * 新形態。
+   *
+   * ⚠️ 刻意讀 `attrs.extras` 而不是 `sceneExtras(...)`：後者會替壞掉的、只有舊欄位的資料
+   * 補出一個新形態來，於是「寫入端根本沒寫 `countValue`」這件事會被它蓋掉（票券 44 的 ⚠️）。
+   * 措辭在這一層一個字都不測 —— 那些都在前面幾批的元件測試裡。
+   */
+  it("煙霧測試：走一遍畫面之後，場次 attr 裡躺的是新形態（票券 49）", async () => {
+    let editor!: Editor;
+    const { container } = render(
+      <Harness
+        doc={docJSON(
+          scene(
+            {
+              extras: [
+                // 遷移窗口裡兩個形態一起躺著（票券 44）。
+                {
+                  extraId: mintExtraId(),
+                  description: "路人",
+                  count: 3,
+                  countValue: { kind: "range", from: 3, to: 5 },
+                },
+              ],
+            },
+            [kernelSchema.node("dialogue", null, [kernelSchema.text("喔——")])],
+          ),
+        )}
+        onEditor={(e) => (editor = e)}
+      />,
+    );
+    const raw = () => editor.state.doc.firstChild!.attrs.extras as Record<string, unknown>[];
+
+    // ① 對白人物欄從那批人裡升格一個 —— 剩下的樣子照票券 46 那張表（`3-5` → `2-4`）。
+    const speaker = await inputIn(container, ".block__speaker-field");
+    fireEvent.change(speaker, { target: { value: "路人" } });
+    const promote = await waitFor(() => {
+      const li = [
+        ...container.querySelectorAll<HTMLElement>(".block__speaker-field .entity-field__menu li"),
+      ].find((el) => (el.textContent ?? "").includes("升格"));
+      expect(li).toBeDefined();
+      return li!;
+    });
+    fireEvent.mouseDown(promote);
+
+    await waitFor(() => expect(raw()[0]!.countValue).toEqual({ kind: "range", from: 2, to: 4 }));
+    // 舊欄位在遷移窗口裡仍然一起寫（票券 44）—— 那個 2 是下限，不是「有 2 個人」。
+    expect(raw()[0]!.count).toBe(2);
+
+    // ② 群演欄走兩層新增一批：打名稱 → 沒說人數 → 第二層空著 Enter ＝ 若干。
+    const extrasBox = await inputIn(container, ".scene__chip--extras");
+    fireEvent.change(extrasBox, { target: { value: "保全" } });
+    fireEvent.keyDown(extrasBox, { key: "Enter" });
+    const countBox = await waitFor(() => {
+      const el = container.querySelector<HTMLInputElement>(".entity-field__count-input");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    fireEvent.keyDown(countBox, { key: "Enter" });
+
+    await waitFor(() => expect(raw()).toHaveLength(2));
+    // 「他沒說」原原本本躺在 attr 裡 —— 不是 1（那個 1 只是遷移窗口裡舊欄位填得出來的值）。
+    expect(raw()[1]!.countValue).toEqual({ kind: "some" });
+    expect(extrasChips(container)).toEqual(["路人（2-4）", "保全（若干）"]);
   });
 
   it("一個人說話就是人物 —— 即使他只叫「路人甲」", async () => {

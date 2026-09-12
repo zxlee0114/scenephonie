@@ -208,6 +208,25 @@ export function parseExtra(
 }
 
 /**
+ * 編劇在這串字裡**說了人數沒有**（票券 49）。
+ *
+ * 新增那一側的兩層流程收斂成一句話：**沒說人數就問一次。** `路人（8）`／`路人 x8`／
+ * `路人 10+` 直接定案（人數就在那串字裡），光禿禿一個 `路人` 進第二層。
+ *
+ * ⚠️ 它問的**不是**「`parseExtra` 讀出來的是不是若干」：`路人（若干）` 讀出來也是若干，
+ * 但那是他自己打的括號，**他已經說了**。兩者在值上分不開，只有「這串字裡有沒有一個讀得出來
+ * 的尾綴」分得開 —— 所以這一支與 `parseExtra` 共用 `splitCount`，不另寫一套解析。
+ *
+ * 沒有描述的那一串（`x8`）回 `false`：`parseExtra` 根本讀不出一筆群演，問人數沒有意義。
+ */
+export function statesCount(text: string): boolean {
+  const trimmed = text.trim();
+  const split = splitCount(trimmed);
+  if (!split) return false;
+  return trimmed.slice(0, split.end).trim().length > 0;
+}
+
+/**
  * 一筆群演在畫面與**場次表第一層**上的樣子：`咖啡廳客人（8）`／`（3-5）`／`（10+）`／`（若干）`。
  *
  * **括號不是乘號**（編劇指定，票券 41 第二輪）：印出來的 `x` 只讀得懂整數 —— 一張場次表上的

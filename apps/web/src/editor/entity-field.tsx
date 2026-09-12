@@ -31,7 +31,15 @@ import {
   type ReactNode,
 } from "react";
 
-import { isExtraId, parseExtra, splitNamesLive } from "@scenephonie/schema";
+import {
+  formatExtra,
+  isExtraId,
+  legacyCount,
+  parseExtra,
+  remainingExtraText,
+  splitNamesLive,
+  type CountValue,
+} from "@scenephonie/schema";
 
 import { useChipCaret } from "./chip-caret";
 import { chipRow, columns } from "./chip-row";
@@ -45,8 +53,23 @@ export type EntityOption = { id: string; name: string };
  *
  * 人數在這裡是**措辭的一部分**，不是裝飾：升格那一列要在按下去之前就說出「群演剩 1 人」，
  * 而剩下 0 人時那一筆會整批消失（票券 35），措辭也得跟著換。
+ *
+ * ⚠️ `count` 是**四種樣子的那個值**（票券 49），不是一個數字：`3-5` 減一是 `2-4`、若干減一
+ * 還是若干，一個 `number` 說不出這幾件事。剩多少由 `remainingExtraText` 翻譯，這一欄不自己算
+ * （票券 46 那條「畫面不該自己決定 `3-5` 減一是多少」）。
  */
-export type SceneExtraOption = EntityOption & { count: number };
+export type SceneExtraOption = EntityOption & { count: CountValue };
+
+/**
+ * 一批群演在這一欄的選項列上印出來的樣子（`服務生（3-5）`）。
+ *
+ * 走 `formatExtra` 而**不自己拼一對括號**：「一筆群演長什麼樣」只能有一個實作點，否則
+ * 「括號不是乘號」（票券 45）下次再變形狀時，這裡會被漏掉 —— 而這一列正是上一次被漏掉的
+ * 那一處（票券 49）。`name`／`description` 只是同一個欄位在兩邊的名字。
+ */
+const extraLabel = (extra: SceneExtraOption): string =>
+  // 遷移窗口裡 `formatExtra` 的舊欄位仍是必填，由新形態推（票券 44 的規矩，票券 50 一起刪）。
+  formatExtra({ description: extra.name, count: legacyCount(extra.count), countValue: extra.count });
 /**
  * 一個引用：實體 id ＋ **這一場顯示的名字**（別名不存在實體上，就是這個欄位）。
  *
@@ -770,13 +793,17 @@ export function EntityField({
             continue;
           // 人數變化寫在**按下去之前**：升格會動到編劇沒有打過字的地方（群演那一欄），那句話
           // 該在他做決定的當下就在眼前，而不是事後去簡表才發現（ADR-0006 那條方法論）。
-          const left =
-            extra.count > 1
-              ? `群演剩 ${extra.count - 1} 人`
-              : "這批群演就此用完";
+          //
+          // ⚠️ 剩多少**不在這裡算**（票券 46／49）：`3-5` 減一是 `2-4`、若干減一還是若干，
+          // 這一欄自己算的話就會有第二個真相來源。`remainingExtraText` 是那個值翻成話的那一支。
+          const left = remainingExtraText(extra.count);
           rows.push({
             key: `promote:${extra.id}`,
-            label: `${HIT_MARK[kind]} 從「${extra.name} x${extra.count}」裡升格一個人 —— ${who}（${left}）`,
+            // 括號不是乘號（票券 45）—— 這一句裡的 `x` 從前是**硬寫的**，四種樣子上線之後
+            // 它會印出 `服務生 x3-5`，而那讀起來像兩個數字相乘。走 `formatExtra` 而不是自己
+            // 拼一對括號：「一筆群演印出來長什麼樣」只能有一個實作點，否則下次改顯示形狀
+            // 就得記得這裡還有一份（code review 2026-09-12）。
+            label: `${HIT_MARK[kind]} 從「${extraLabel(extra)}」裡升格一個人 —— ${who}（${left}）`,
             run: () => void promote(extra),
           });
         }
@@ -796,7 +823,9 @@ export function EntityField({
         if (parsed) {
           rows.push({
             key: "create-extra",
-            label: `${EXTRA_MARK} 新增群演「${parsed.description}」${parsed.count} 人`,
+            // 整筆的樣子，不是「N 人」（票券 49）：`N 人` 只對確切成立，而這一列讀得進
+            // `眾人（3-5）`／`眾人 10+`／光禿禿的 `眾人`（那就是若干 —— 他沒說）。
+            label: `${EXTRA_MARK} 新增群演「${formatExtra(parsed)}」`,
             run: () => createExtra(),
           });
         }

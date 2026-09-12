@@ -14,10 +14,12 @@ import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import {
+  legacyCount,
   mintExtraId,
   mintSceneId,
   sceneExtras,
   schema as kernelSchema,
+  type CountValue,
 } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -87,11 +89,21 @@ const speakerOf = (editor: Editor, index = 0) =>
     displayName: string;
   };
 
-/** 本場有 `服務生 x2`，一句台詞等著人講。 */
+/** 本場有 `服務生（2）`，一句台詞等著人講。 */
 const waiterScene = (count = 2, extraId = mintExtraId()) =>
   scene({ extras: [{ extraId, description: "服務生", count }] }, [
     kernelSchema.node("dialogue", null, [kernelSchema.text("歡迎光臨")]),
   ]);
+
+/** 同上，但那批人是**四種樣子**裡的別種（票券 49 的措辭要在它們身上都讀得通）。 */
+const waiterSceneOf = (countValue: CountValue, extraId = mintExtraId()) =>
+  scene(
+    {
+      // 遷移窗口裡兩個形態一起寫（票券 44）—— 只寫一邊的話讀回來會是舊的那個數字。
+      extras: [{ extraId, description: "服務生", count: legacyCount(countValue), countValue }],
+    },
+    [kernelSchema.node("dialogue", null, [kernelSchema.text("歡迎光臨")])],
+  );
 
 afterEach(() => {
   cleanup();
@@ -109,9 +121,12 @@ describe("升格那一列：與「齊聲」並排，語意分得清楚", () => {
         // 齊聲與升格是「那批人」的兩種讀法，所以相鄰；下面兩列是別的東西
         // （「剛好同名的另一個人」與「再開一批新的背景演員」，票券 08／09 既有）。
         "👥 服務生",
-        "👤 從「服務生 x2」裡升格一個人 —— 新的人物「服務生」（群演剩 1 人）",
+        // 乘號在票券 45 之後不再印（`路人 x3-5` 會被讀成兩個數字相乘）—— 這一列是硬寫的
+        // 那一處，票券 49 把它接回 `formatCount`。
+        "👤 從「服務生（2）」裡升格一個人 —— 新的人物「服務生」（群演剩 1 人）",
         "＋ 建立新實體「服務生」",
-        "👥 新增群演「服務生」1 人",
+        // 打的字裡沒有人數，那就是「沒說」—— 不是 1（票券 45 的裁決，這一列到 49 才跟上）。
+        "👥 新增群演「服務生（若干）」",
       ]),
     );
   });
@@ -124,9 +139,46 @@ describe("升格那一列：與「齊聲」並排，語意分得清楚", () => {
 
     await waitFor(() =>
       expect(promoteRow(container)?.textContent).toBe(
-        "👤 從「服務生 x1」裡升格一個人 —— 新的人物「服務生」（這批群演就此用完）",
+        "👤 從「服務生（1）」裡升格一個人 —— 新的人物「服務生」（這批群演就此用完）",
       ),
     );
+  });
+
+  it("四種樣子上都讀得通 —— 剩多少照票券 46 那張表（不是畫面自己算的）", async () => {
+    const cases: [CountValue, string][] = [
+      [{ kind: "range", from: 3, to: 5 }, "從「服務生（3-5）」裡升格一個人 —— 新的人物「服務生」（群演剩 2-4 人）"],
+      [{ kind: "atLeast", count: 10 }, "從「服務生（10+）」裡升格一個人 —— 新的人物「服務生」（群演剩 9 人以上）"],
+      // 若干拉走一個之後那一批**還在**，而且措辭說得出「仍是若干人」（票券 49 驗收）。
+      [{ kind: "some" }, "從「服務生（若干）」裡升格一個人 —— 新的人物「服務生」（群演仍是若干人）"],
+      // ⚠️ 區間的下限踩在 1 上時那一批也還在 —— 只有確切減得到 0（票券 46 的關鍵一條）。
+      [{ kind: "range", from: 1, to: 2 }, "從「服務生（1-2）」裡升格一個人 —— 新的人物「服務生」（群演剩 1 人）"],
+    ];
+
+    for (const [countValue, expected] of cases) {
+      const { container, unmount } = render(<Harness doc={docJSON(waiterSceneOf(countValue))} />);
+      const input = await speakerInput(container);
+
+      fireEvent.change(input, { target: { value: "服務生" } });
+
+      await waitFor(() => expect(promoteRow(container)?.textContent).toBe(`👤 ${expected}`));
+      unmount();
+    }
+  });
+
+  it("若干升格一個之後那一批還在 —— 攤在 doc 上的也是若干", async () => {
+    let editor!: Editor;
+    const { container } = render(
+      <Harness doc={docJSON(waiterSceneOf({ kind: "some" }))} onEditor={(e) => (editor = e)} />,
+    );
+    const input = await speakerInput(container);
+
+    fireEvent.change(input, { target: { value: "服務生" } });
+    await waitFor(() => expect(promoteRow(container)).toBeDefined());
+    fireEvent.mouseDown(promoteRow(container)!);
+
+    await waitFor(() => expect(speakerOf(editor).id.startsWith("ch_")).toBe(true));
+    expect(extrasOf(editor)).toHaveLength(1);
+    expect(extrasOf(editor)[0]!.countValue).toEqual({ kind: "some" });
   });
 
   it("本場沒有那批群演時沒有這一列 —— 別場的群演升格不了", async () => {
@@ -234,7 +286,7 @@ describe("名字就是編劇打的字", () => {
 
     await waitFor(() =>
       expect(promoteRow(container)?.textContent).toBe(
-        "👤 從「服務生 x2」裡升格一個人 —— 新的人物「服務生小李」（群演剩 1 人）",
+        "👤 從「服務生（2）」裡升格一個人 —— 新的人物「服務生小李」（群演剩 1 人）",
       ),
     );
     fireEvent.mouseDown(promoteRow(container)!);
@@ -270,7 +322,7 @@ describe("名字就是編劇打的字", () => {
 
     await waitFor(() =>
       expect(promoteRow(container)?.textContent).toBe(
-        "👤 從「服務生 x2」裡升格一個人 —— 服務生小李（1 場）（群演剩 1 人）",
+        "👤 從「服務生（2）」裡升格一個人 —— 服務生小李（1 場）（群演剩 1 人）",
       ),
     );
     fireEvent.mouseDown(promoteRow(container)!);
