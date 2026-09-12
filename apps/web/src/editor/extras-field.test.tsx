@@ -1181,6 +1181,31 @@ describe("新增：沒說人數就問一次（票券 49）", () => {
     await waitFor(() => expect(chipTexts(container)).toEqual(["路人 8（若干）"]));
   });
 
+  it("⚠️ 第一層打完就走（blur）**不問**，直接記成若干 —— 那正是問題的預設答案", async () => {
+    // `blur` 擋不住：點到外面就是走了。這一刻把焦點搶回來去開一個子選單，是這一欄唯一會
+    // 跟他搶滑鼠的地方；而結果與走完兩層空著離開一模一樣，所以問了也問不出新東西。
+    const { container } = render(<Host />);
+    fireEvent.change(nameBox(container), { target: { value: "路人" } });
+    fireEvent.blur(nameBox(container));
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["路人（若干）"]));
+    expect(countBox(container)).toBeNull();
+  });
+
+  it("第一列的 `…` 與它按下去做的事讀同一個答案（`willAskCount`）", () => {
+    // 印 `…` 就一定會問，印整筆就一定直接定案 —— 兩者分頭寫時遲早對不上。
+    const asked = typeThenEnter("路人");
+    expect(countBox(asked)).not.toBeNull();
+    cleanup();
+
+    const straight = render(<Host />).container;
+    fireEvent.change(nameBox(straight), { target: { value: "路人 x8" } });
+    expect(rows(straight)[0]).toBe("＋ 新增群演「路人（8）」");
+    fireEvent.keyDown(nameBox(straight), { key: "Enter" });
+    expect(countBox(straight)).toBeNull();
+    expect(chipTexts(straight)).toEqual(["路人（8）"]);
+  });
+
   it("Esc 退回第一層，打的字留著 —— 兩層之間走得回頭", async () => {
     const container = typeThenEnter("路人");
     fireEvent.keyDown(countBox(container)!, { key: "Escape" });

@@ -49,6 +49,10 @@ export type { EntityDirectory } from "./entities";
 
 // 群演（場次限定實體，票券 09）：id 鑄造、讀取正規化、「描述 x 人數」的解析與場次表那一格
 // 的文字。`extrasLabel` 的第一個呼叫端會是票券 15（場次表第一層），與 `referenceLabel` 一起。
+//
+// `statesCount`（票券 49）是「新增那一側沒說人數就問一次」那條規則的判準 —— 唯一的呼叫端
+// 是群演欄的 `willAskCount`。它與 `parseExtra` 的差別見它自己的檔頭：值上分不出「他說了
+// 若干」與「他沒說」，只有那串字分得出來。
 export {
   EXTRA_ID_PREFIX,
   mintExtraId,

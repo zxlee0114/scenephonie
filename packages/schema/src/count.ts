@@ -225,6 +225,26 @@ export function legacyCount(value: CountValue): number {
  * 於是**下限踩在 1 上之後，一路減的是上限，最後一個才用完**（使用者裁決 2026-09-12）：
  * `1-3` → `1-2` → 確切 1 → 整筆移除。`1+` 沒有上限可減，拉走一個仍然是 `1+`。
  */
+export function countAfterTakingOne(value: CountValue): CountValue | null {
+  /** 減一，但踩在 1 上不動（見上面那段）—— 確切那一種走的是另一條路，它減得到 0。 */
+  const minusOne = (n: number) => Math.max(1, n - 1);
+  switch (value.kind) {
+    case "exact":
+      // 0 個背景演員等於沒有這一筆（票券 09 對 `x0` 的裁決，同 `parseExtra`）。
+      return value.count > 1 ? { kind: "exact", count: value.count - 1 } : null;
+    case "range": {
+      const from = minusOne(value.from);
+      const to = minusOne(value.to);
+      // 兩端相同收斂成確切 —— 同 `countValueOf`，否則 `路人（2-2）` 會從這裡溜出去。
+      return from === to ? { kind: "exact", count: from } : { kind: "range", from, to };
+    }
+    case "atLeast":
+      return { kind: "atLeast", count: minusOne(value.count) };
+    case "some":
+      return { kind: "some" };
+  }
+}
+
 /**
  * 升格那一列印的**代價**：拉走一個人之後那批人會變成什麼（票券 49，文案照票券 46 那張表）。
  *
@@ -259,25 +279,5 @@ export function remainingExtraText(value: CountValue): string {
     case "some":
       // 「仍是」而不是「剩」：什麼都沒少，那批人本來就沒有說死有幾個。
       return "群演仍是若干人";
-  }
-}
-
-export function countAfterTakingOne(value: CountValue): CountValue | null {
-  /** 減一，但踩在 1 上不動（見上面那段）—— 確切那一種走的是另一條路，它減得到 0。 */
-  const minusOne = (n: number) => Math.max(1, n - 1);
-  switch (value.kind) {
-    case "exact":
-      // 0 個背景演員等於沒有這一筆（票券 09 對 `x0` 的裁決，同 `parseExtra`）。
-      return value.count > 1 ? { kind: "exact", count: value.count - 1 } : null;
-    case "range": {
-      const from = minusOne(value.from);
-      const to = minusOne(value.to);
-      // 兩端相同收斂成確切 —— 同 `countValueOf`，否則 `路人（2-2）` 會從這裡溜出去。
-      return from === to ? { kind: "exact", count: from } : { kind: "range", from, to };
-    }
-    case "atLeast":
-      return { kind: "atLeast", count: minusOne(value.count) };
-    case "some":
-      return { kind: "some" };
   }
 }

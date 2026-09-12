@@ -52,6 +52,24 @@
  *
  * `↰` 與 `↩︎` 是**兩列**，即使在這一層按下去的結果看起來相近（使用者裁決 2026-09-12）：
  * 前者退一階、名稱那一側的待定改動留著；後者整輪作廢。導航語意不因為結果重疊就合併。
+ *
+ * ── 新增也走兩層（票券 49）────────────────────────────────────────
+ * 規則收斂成一句：**沒說人數就問一次**（`willAskCount`）。`路人（8）`／`路人 x8`／`路人 10+`
+ * 直接定案 —— 人數就在那串字裡，他已經說了（一次打完的路留著）；光禿禿一個 `路人` 進第二層。
+ *
+ * **共用同一套子選單**，差別只有兩處：
+ *
+ * 1. **第一列**是 `若干` 而不是 `↰ 不修改數量（8）` —— 新增沒有原數量可印，他確實沒說。
+ *    「第一列 ＝ 空著離開會記成什麼」這條規矩兩邊一字不改，只是那個值不同。
+ * 2. **沒有 `↩︎ 不修改，返回`** —— 手上沒握著任何一批，沒有一輪編輯可以作廢。退一階走 Esc
+ *    （打的字留著）。
+ *
+ * 而且新增時**答完就定案**（`pickCount`／`commitCount` 的新增分支），不像編輯那樣退回名稱
+ * 那一關：那一層問的是這一批的最後一件事，答完就沒有別的事要做了。
+ *
+ * ⚠️ **第一層的 blur 仍然直接定案**（不問）：`blur` 擋不住，點到外面就是走了，這一刻把焦點
+ * 搶回來去開一個子選單，是這一欄唯一會跟他搶滑鼠的地方。結果也正是那個問題的預設答案
+ * —— 若干（他確實沒說），與走完兩層空著離開一模一樣。
  */
 "use client";
 
@@ -368,11 +386,29 @@ export function ExtrasField({
   const openCountStage = () => {
     stage.current = "count";
     setCountText("");
-    setDismissed(false); // Esc 收掉的是建議那份清單，不是這個問題（票券 49 的新增那一側）
+    // Esc 收掉的是建議那份清單，不是「這批有幾個人」這個問題（票券 49）。**只在新增那一側**
+    // 清它 —— 編輯那一側進子選單的路是 `修改數量…`，那一列本來就得選單開著才按得到，
+    // 在那裡動 `dismissed` 等於改到票券 48 的既有行為。
+    if (!editing.current) setDismissed(false);
     setActive(-1); // 一進來就停在**格子**上（見 `boxIndex`）—— 那是這一刻要打字的地方
     focusNext.current = "count";
     redraw();
   };
+
+  /**
+   * **這一下按下去會先被問人數嗎**（票券 49）—— 第一列怎麼自我介紹與它按下去做什麼，讀的
+   * 是同一個答案。分成兩處寫時，`…` 那個後綴遲早會與實際行為對不上（code review 2026-09-12）。
+   *
+   * 四個否定：握著一批（那是編輯，走票券 47／48 那一套）、已經答過（`pendingCount`）、
+   * 人就在第二層裡、以及那串字自己說了人數（`路人 x8` —— 一次打完的路留著）。
+   * 再加一個：讀不出一筆群演（空著、只打了 `x8`）就沒有一批人可以問。
+   */
+  const willAskCount = (): boolean =>
+    !editing.current &&
+    !pendingCount.current &&
+    stage.current !== "count" &&
+    readText(text) !== null &&
+    !statesCount(text);
 
   /**
    * 新增那一側的 Enter 與第一列：**沒說人數就問一次**（票券 49）。
@@ -384,13 +420,7 @@ export function ExtrasField({
    * ⚠️ 進過第二層之後 `pendingCount` 已經有值，那時不再問：他剛剛才回答過。
    */
   const commitOrAskCount = () => {
-    if (editing.current || pendingCount.current || stage.current === "count") {
-      commitText();
-      return;
-    }
-    // 讀不出一筆群演（空著、只打了 `x8`）就沒有一批人可以問人數 —— 交給 `commitText` 的
-    // 既有行為（什麼都不做，或整串退回去當描述）。
-    if (!readText(text) || statesCount(text)) {
+    if (!willAskCount()) {
       commitText();
       return;
     }
@@ -588,9 +618,9 @@ export function ExtrasField({
           // 慣例。⚠️ `N 人` 那個舊措辭在區間／下限／若干上都不成立，它讀的還是舊欄位。
           label:
             before == null
-              ? statesCount(text) || pendingCount.current
-                ? `${NEW_MARK} 新增群演「${after}」`
-                : `${NEW_MARK} 新增群演「${parsed.description}」…`
+              ? willAskCount()
+                ? `${NEW_MARK} 新增群演「${parsed.description}」…`
+                : `${NEW_MARK} 新增群演「${after}」`
               : `${CONFIRM_MARK} 確認：改成「${after}」`,
           run: before == null ? commitOrAskCount : commitText,
         });

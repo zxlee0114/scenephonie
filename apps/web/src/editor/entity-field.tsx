@@ -32,9 +32,9 @@ import {
 } from "react";
 
 import {
-  formatCount,
   formatExtra,
   isExtraId,
+  legacyCount,
   parseExtra,
   remainingExtraText,
   splitNamesLive,
@@ -59,6 +59,17 @@ export type EntityOption = { id: string; name: string };
  * （票券 46 那條「畫面不該自己決定 `3-5` 減一是多少」）。
  */
 export type SceneExtraOption = EntityOption & { count: CountValue };
+
+/**
+ * 一批群演在這一欄的選項列上印出來的樣子（`服務生（3-5）`）。
+ *
+ * 走 `formatExtra` 而**不自己拼一對括號**：「一筆群演長什麼樣」只能有一個實作點，否則
+ * 「括號不是乘號」（票券 45）下次再變形狀時，這裡會被漏掉 —— 而這一列正是上一次被漏掉的
+ * 那一處（票券 49）。`name`／`description` 只是同一個欄位在兩邊的名字。
+ */
+const extraLabel = (extra: SceneExtraOption): string =>
+  // 遷移窗口裡 `formatExtra` 的舊欄位仍是必填，由新形態推（票券 44 的規矩，票券 50 一起刪）。
+  formatExtra({ description: extra.name, count: legacyCount(extra.count), countValue: extra.count });
 /**
  * 一個引用：實體 id ＋ **這一場顯示的名字**（別名不存在實體上，就是這個欄位）。
  *
@@ -789,8 +800,10 @@ export function EntityField({
           rows.push({
             key: `promote:${extra.id}`,
             // 括號不是乘號（票券 45）—— 這一句裡的 `x` 從前是**硬寫的**，四種樣子上線之後
-            // 它會印出 `服務生 x3-5`，而那讀起來像兩個數字相乘。
-            label: `${HIT_MARK[kind]} 從「${extra.name}（${formatCount(extra.count)}）」裡升格一個人 —— ${who}（${left}）`,
+            // 它會印出 `服務生 x3-5`，而那讀起來像兩個數字相乘。走 `formatExtra` 而不是自己
+            // 拼一對括號：「一筆群演印出來長什麼樣」只能有一個實作點，否則下次改顯示形狀
+            // 就得記得這裡還有一份（code review 2026-09-12）。
+            label: `${HIT_MARK[kind]} 從「${extraLabel(extra)}」裡升格一個人 —— ${who}（${left}）`,
             run: () => void promote(extra),
           });
         }
