@@ -18,6 +18,7 @@ import { useEffect, useRef } from "react";
 
 import {
   dialogueCharacters,
+  extraCount,
   mintExtraId,
   parseExtra,
   sceneAppearingCharacters,
@@ -271,7 +272,9 @@ function DialogueView(props: NodeViewProps) {
         sceneExtras={extrasHere().map((e) => ({
           id: e.extraId,
           name: e.description,
-          count: e.count,
+          // 新形態（票券 49）—— 升格那一列的措辭要在四種樣子上都說得出話，舊的那個數字
+          // 在區間／下限／若干上都是謊（若干是 1、區間是下限）。
+          count: extraCount(e),
         }))}
         onCreateExtra={createExtra}
         // 升格（特約）—— 先記在手上，減一與人物引用是 `onCommit` 那一次寫入（票券 35）。

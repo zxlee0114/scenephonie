@@ -12,6 +12,7 @@ import {
   mintExtraId,
   parseExtra,
   sceneExtras,
+  statesCount,
 } from "./extras";
 
 const some: CountValue = { kind: "some" };
@@ -309,5 +310,35 @@ describe("extraCount —— 一筆群演現在算什麼人數（票券 48）", (
     expect(sceneExtras([{ extraId: "ex_a", description: "路人", count: 1, countValue: { kind: "exact", count: 2 } }])[0]!.countValue).toEqual(
       { kind: "exact", count: 1 },
     );
+  });
+});
+
+describe("statesCount —— 這串字裡編劇說了人數沒有（票券 49）", () => {
+  it("三種尾綴都算說了", () => {
+    expect(statesCount("路人（8）")).toBe(true);
+    expect(statesCount("路人 x8")).toBe(true);
+    expect(statesCount("路人 10+")).toBe(true);
+    expect(statesCount("路人（3-5）")).toBe(true);
+  });
+
+  it("括號裡的「若干」也算說了 —— 括號本身就是他的宣告", () => {
+    expect(statesCount("路人（若干）")).toBe(true);
+  });
+
+  it("光禿禿一個描述沒說", () => {
+    expect(statesCount("路人")).toBe(false);
+    expect(statesCount("")).toBe(false);
+  });
+
+  it("裸數字沒說 —— 那是名字的一部分（ADR-0013、票券 43）", () => {
+    expect(statesCount("路人 8")).toBe(false);
+  });
+
+  it("讀不出來的尾綴沒說 —— 整串退回去當描述，那就是他沒說", () => {
+    expect(statesCount("路人（三五個）")).toBe(false);
+  });
+
+  it("沒有描述的那一串不算 —— `parseExtra` 根本讀不出一筆群演", () => {
+    expect(statesCount("x8")).toBe(false);
   });
 });

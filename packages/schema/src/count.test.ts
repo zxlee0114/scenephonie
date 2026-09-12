@@ -14,6 +14,7 @@ import {
   countAfterTakingOne,
   countHintText,
   countLowerBound,
+  remainingExtraText,
   resolveCountInput,
   type CountValue,
 } from "./count";
@@ -210,5 +211,30 @@ describe("countAfterTakingOne —— 升格拉走一個之後那批人剩多少�
       kind: "exact",
       count: 1,
     });
+  });
+});
+
+describe("remainingExtraText —— 升格那一列說得出那批人會變成什麼（票券 49）", () => {
+  it("確切減一", () => {
+    expect(remainingExtraText({ kind: "exact", count: 8 })).toBe("群演剩 7 人");
+  });
+
+  it("區間兩端一起減 —— 剩下的不是一個數字，措辭也就不能是一個數字", () => {
+    expect(remainingExtraText({ kind: "range", from: 3, to: 5 })).toBe("群演剩 2-4 人");
+  });
+
+  it("下限印「以上」—— 那一列是一句話，`9+` 在句子中間讀不出來", () => {
+    expect(remainingExtraText({ kind: "atLeast", count: 10 })).toBe("群演剩 9 人以上");
+  });
+
+  it("若干拉走一個仍是若干 —— 那批人還在，而且還是沒說死幾個", () => {
+    expect(remainingExtraText({ kind: "some" })).toBe("群演仍是若干人");
+  });
+
+  it("只有確切減到 0 才說得出「用完」（票券 46 的關鍵一條）", () => {
+    expect(remainingExtraText({ kind: "exact", count: 1 })).toBe("這批群演就此用完");
+    // 區間、下限、若干在任何情況下都走不到那一句 —— 它們本來就沒有說死有幾個人。
+    expect(remainingExtraText({ kind: "range", from: 1, to: 2 })).toBe("群演剩 1 人");
+    expect(remainingExtraText({ kind: "atLeast", count: 1 })).toBe("群演剩 1 人以上");
   });
 });
