@@ -122,7 +122,7 @@ describe("countHintText —— 只把狀態翻成話", () => {
 
   it("空著時是格式說明 —— 它說的是「這裡打得出什麼」", () => {
     expect(countHintText({ state: "empty" }, some, "路人")).toBe(
-      "人數（8）、區間（3~5、3-5、10+）",
+      "合法：8、3~5、2-6、10+",
     );
   });
 

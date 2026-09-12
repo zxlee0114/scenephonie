@@ -850,7 +850,7 @@ describe("人數子選單（票券 48）", () => {
 
   describe("底下那一行提示永遠有話說", () => {
     it("空著 —— 格式說明", () => {
-      expect(countHint(openCount(held()))).toBe("人數（8）、區間（3~5、3-5、10+）");
+      expect(countHint(openCount(held()))).toBe("合法：8、3~5、2-6、10+");
     });
 
     it("讀得出來 —— 預覽，而且跟著框裡的字變", () => {
