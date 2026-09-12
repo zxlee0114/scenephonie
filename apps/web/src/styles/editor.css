@@ -789,15 +789,16 @@
 /* 人數子選單裡的自由輸入格（票券 48）。它在 a11y 樹上不是一列選項（`role="presentation"`，
    真正被聚焦的是裡面那個 `<input>`），所以不吃 hover、不用手指游標 —— 但它**是選單裡的一
    格**：↑↓ 走得進來、Enter 打在它身上，於是「現在停在哪」與其餘各列用同一條 `.is-active`
-   反白（編劇裁決 2026-09-12）。反白只畫在**格子那一行**上（見下）：底下那一行
-   提示與其餘各列的說明同一階，一起點亮會讀成「連說明也被選起來了」。 */
+   反白（編劇裁決 2026-09-12）。反白蓋住**整格**：底下那一行提示講的就是這一格，
+   一起亮起來讀得出是同一件事。 */
 .entity-field__menu li.entity-field__menu-box {
   white-space: normal;
   cursor: default;
-  /* 左右內距交給裡面那兩個元素自己負責（見下）—— 格子那一行的反白要能畫到整列寬，
-     而它與提示、與其餘各列的文字都必須切齊同一條左緣。由這一列統一留白的話，反白就只能
-     縮在內距裡面，比別列窄一截。 */
-  padding-inline: 0;
+  /* 左右內距**與其餘各列同一個值**（繼承上面那條 `li`），所以格子裡的字、底下那一行提示、
+     以及 `若干`、`不修改，返回` 都切齊同一條左緣 —— 裡面兩個元素自己都不再補左右內距。
+     上下比別列鬆一階：整格是「一個框加底下一行話」，而反白要與 placeholder 隔開，不然
+     兩者黏在一起（編劇裁決 2026-09-12）。 */
+  padding-block: var(--space-2);
 }
 
 /* 「現在停在哪」整份選單只有**一種**說法：那一列整條反白（`.is-active`，見上）。格子那一列
@@ -807,28 +808,23 @@
 /* 反白畫在**格子那一行**上，不是整格：底下那一行提示與其餘各列的說明同一階（票券 36 的
    分工），把它一起點亮會讀成「連說明也被選起來了」，而且那一列會比別列高一行。
    負邊距把 `li` 的左右內距還回去 —— 這樣這一條反白與別列**寬度一致、起訖對齊**。 */
-.entity-field__count-input {
+/* ⚠️ 選擇器要**兩個 class**：`.entity-field input` 那條（見上，`padding: 0`／
+   `min-inline-size: 6ch`）比單一個 `.entity-field__count-input` 更 specific，寫在這裡的
+   內距會被它整條蓋掉，而且看不出來（2026-09-12 為此白改了兩輪版面）。 */
+.entity-field .entity-field__count-input {
   display: block;
   inline-size: 100%;
-  /* 左右與其餘各列同一個值（`li` 的 `padding-inline`），所以 placeholder 與打進去的字
-     都跟 `若干`、`不修改，返回` 切齊。上下比別列鬆一階：那幾列是文字，這一格要點得進去
-     （編劇裁決 2026-09-12）。 */
-  padding: var(--space-2) var(--space-3);
+  min-inline-size: 0;
+  /* 左右**不補**：那一列自己的內距已經與其餘各列同一個值，字自然切齊同一條左緣。 */
+  padding-inline: 0;
   font: inherit;
   color: var(--text-primary);
   background: transparent;
   border: 0;
-  border-radius: var(--space-1);
 }
 
-/* `is-active` 掛在那一列上（「停在哪」的標記與別列同一顆 class），但顏色畫在格子那一行。 */
-.entity-field__menu li.entity-field__menu-box.is-active {
-  background: transparent;
-}
-
-.entity-field__menu-box.is-active .entity-field__count-input {
-  background: var(--selection-bg);
-}
+/* 反白蓋住**整格**（輸入框連同底下那一行提示）—— 那一行講的就是這一格，一起亮起來讀得出
+   是同一件事（編劇裁決 2026-09-12，第三輪只亮一行的版本被推翻）。 */
 
 .entity-field__count-input::placeholder {
   color: var(--text-faint);
@@ -845,9 +841,7 @@
    它永遠有話說（空著是格式說明、讀得出來是預覽、讀不出來是警告），所以版面上一直留著
    這一行的高度 —— 會消失的提示比沒有提示更難讀。 */
 .entity-field__count-hint {
-  /* 與格子切齊同一條左緣（那一列自己不留左右內距，見上）。 */
   margin: var(--space-1) 0 0;
-  padding-inline: var(--space-3);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
   color: var(--text-faint);
