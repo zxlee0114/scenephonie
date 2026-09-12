@@ -33,7 +33,6 @@ export interface SetSceneExtrasOptions {
  * 若干。拒收的因此是**壞形狀** —— `{ kind: "range", from: 5, to: 3 }`、`kind` 不認得、
  * 根本不是一個值 —— 而不是「非正整數」，因為區間與若干本來就不是一個整數。
  * 描述空白的那一筆照樣擋下來 —— 沒有描述的人數不知道是在數什麼。
- *
  */
 export function setSceneExtras(
   doc: ProseMirrorNode,

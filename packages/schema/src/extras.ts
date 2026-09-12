@@ -78,6 +78,10 @@ export function sceneExtras(value: unknown): ExtraRef[] {
  *
  * 反過來，**讀不出來的補「若干」**（`countValueOf` 回 `null` 的那些）：那裡沒有一個誠實的
  * 讀法可以推，而「若干」說的正是「這裡不知道」。
+ *
+ * ⚠️ 這**不違反 ADR-0013**（裸數字不是人數），兩者管的根本不是同一層：ADR-0013 管的是
+ * **編劇打的那串字**（`路人 8` 整串是名字，因為「8」可能是名字的一部分，見 `SUFFIX_FORMS`）；
+ * 這裡管的是**已經躺在人數那一格裡的值**，那一格裡的 `8` 沒有別的意思可言。
  */
 function readCount(raw: unknown): CountValue {
   if (Number.isInteger(raw) && (raw as number) >= 1) {
@@ -202,7 +206,6 @@ export function statesCount(text: string): boolean {
  *
  * 人數一律印出來（包含「若干」）—— 這一欄的形狀就是「描述 ＋ 人數」，藏起來會讓 chip 與
  * 編劇打進去的字對不上，也讓副導少看到一個數字。
- *
  */
 export function formatExtra(extra: { description: string; countValue: CountValue }): string {
   return `${extra.description}（${formatCount(extra.countValue)}）`;
