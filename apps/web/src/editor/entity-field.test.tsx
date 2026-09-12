@@ -1013,7 +1013,7 @@ describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
     const { container } = held();
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
 
-    expect(heldNote(container)).toBe("✏️ 正在編輯「派出所」，修改文字可更新名稱");
+    expect(heldNote(container)).toBe("💡 正在編輯「派出所」，修改文字可更新名稱");
     // 它不是選項：選不到、Enter 碰不到。
     expect(rows(container)).toEqual(["📍 派出所（3 場）", "🔗 作為既有實體的另一個名字…"]);
   });
@@ -1025,7 +1025,7 @@ describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
       target: { value: "派出所後門" },
     });
 
-    expect(heldNote(container)).toBe("✏️ 正在編輯「派出所」，修改文字可更新名稱");
+    expect(heldNote(container)).toBe("💡 正在編輯「派出所」，修改文字可更新名稱");
     expect(rows(container)).toContain("✏️ 把實體改名為「派出所後門」");
   });
 
@@ -1036,7 +1036,7 @@ describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
       target: { value: "" },
     });
 
-    expect(heldNote(container)).toBe("✏️ 正在編輯「派出所」，再按一次 Backspace 移除這一場的引用");
+    expect(heldNote(container)).toBe("💡 正在編輯「派出所」，再按一次 Backspace 移除這一場的引用");
   });
 
   it("清空之後重打的字，改的是那一筆的名字（清空不等於放手）", () => {

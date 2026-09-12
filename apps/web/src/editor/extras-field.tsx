@@ -80,7 +80,15 @@ import {
 
 import { useChipCaret } from "./chip-caret";
 import { chipRow, columns } from "./chip-row";
-import { BACK_MARK, EXTRA_MARK, NEW_MARK, PUT_BACK_MARK, RENAME_MARK } from "./field-marks";
+import {
+  BACK_MARK,
+  CONFIRM_MARK,
+  EXTRA_MARK,
+  HINT_MARK,
+  NEW_MARK,
+  PUT_BACK_MARK,
+  RENAME_MARK,
+} from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
 import { historyKey } from "./history-keys";
 
@@ -462,12 +470,17 @@ export function ExtrasField({
       label: `${BACK_MARK} 不修改數量（${formatCount(now)}），回上一步`,
       run: backToDescribe,
     });
+    // 格子**排在第二列**（緊跟著 `↰`，編劇裁決 2026-09-12）：它是進來之後預設停留的地方，
+    // 而原本排在 `若干`／`1` 底下時，按下 `修改數量…` 的那一瞬間焦點會跳到選單的第四列 ——
+    // 跳得遠就看不見它跳去哪了。排在第二列，那一跳只有一格。
+    // （另一條路是「先把焦點給第一列」，沒有採用：打完 `3~5` 按 Enter 要多點一次框，而
+    // 「空著 Enter／打到一半 Enter／點到外面三者同結果」正是靠格子預設被聚焦才成立的。）
+    rows.push({ key: "count-box", box: true });
     rows.push({ key: "some", label: SOME_LABEL, run: () => pickCount({ kind: "some" }) });
     // `1` 只在**與第一列不重複**時才印 —— 原本就是 1 的話不必印兩次同一個答案。
     if (formatCount(now) !== "1") {
       rows.push({ key: "one", label: "1", run: () => pickCount({ kind: "exact", count: 1 }) });
     }
-    rows.push({ key: "count-box", box: true });
     // `↩︎` 在子選單裡**也在**（票券 42 第 2 條：選單走到哪一階段它都要在）。它與第一列
     // 的 `↰` 是**兩列**，即使在這一層按下去的結果看起來相近：`↰` 只退一階、名稱那一側的
     // 待定改動留著；`↩︎` 是整輪作廢，待定人數與名稱改動一起丟（使用者裁決 2026-09-12）。
@@ -496,10 +509,12 @@ export function ExtrasField({
       if (before == null || changed) {
         rows.push({
           key: "commit",
+          // 結果導向（編劇裁決 2026-09-12）：這一列只印**按下去會得到什麼**，不再把
+          // 「原本是什麼」一起唸一遍 —— 原值就在抬頭那一行，解說性的文字之後歸側欄。
           label:
             before == null
               ? `${NEW_MARK} 新增群演「${parsed.description}」${parsed.count} 人`
-              : `${RENAME_MARK} 把「${before}」改成「${after}」`,
+              : `${CONFIRM_MARK} 確認：改成「${after}」`,
           run: commitText,
         });
       }
@@ -508,9 +523,10 @@ export function ExtrasField({
       if (changed) {
         rows.push({
           key: "another",
-          // 代價寫在按下去之前（ADR-0006）—— 這一列與上一列的差別就是「原本那批還在不在」，
-          // 所以兩批都點名（編劇指定的措辭，票券 40 第二輪）。
-          label: `${NEW_MARK} 新增「${after}」群演，保留「${before}」`,
+          // 「另外」兩個字自己就說完了代價（ADR-0006：代價寫在按下去之前）—— 原本那一批
+          // 還在。措辭第二輪收成結果導向（編劇裁決 2026-09-12），不再把 `保留「路人（8）」`
+          // 唸出來：那是解說，之後歸側欄。
+          label: `${NEW_MARK} 另外新增「${after}」群演`,
           run: addAnother,
         });
       }
@@ -587,19 +603,19 @@ export function ExtrasField({
    */
   const editHeadline = (held: ExtraRef): string =>
     pendingCount.current
-      ? `正在編輯「${held.description}」名稱，數量已更新為${formatCount(pendingCount.current)}；再度更新數量，請點選選單中的「修改數量」選項`
-      : `正在編輯「${held.description}」名稱，原本數量${formatCount(extraCount(held))}保留；如欲更新數量，請點選選單中的「修改數量」選項`;
+      ? `正在編輯「${held.description}」群演，數量已更新：${formatCount(pendingCount.current)}`
+      : `正在編輯「${held.description}」群演，原本數量「${formatCount(extraCount(held))}」保留`;
   const heldNote = !heldNow
     ? null
     : heldForCount
       ? // 人數那一層的抬頭。跟的是**原值**（`原本是 8`），第一列才跟待定值 —— 兩者一起看
         // 才讀得出「我把它從 8 改成了 2」。
-        `${RENAME_MARK} 修改數量（原本是 ${formatCount(extraCount(heldForCount))}）`
+        `${HINT_MARK} 修改數量（原本是 ${formatCount(extraCount(heldForCount))}）`
       : dismissed || composingNow
         ? null
         : query === ""
-          ? `${RENAME_MARK} 正在編輯「${formatExtra(heldNow)}」，再按一次 Backspace 移除這一批`
-          : `${RENAME_MARK} ${editHeadline(heldNow)}`;
+          ? `${HINT_MARK} 正在編輯「${formatExtra(heldNow)}」，再按一次 Backspace 移除這一批`
+          : `${HINT_MARK} ${editHeadline(heldNow)}`;
 
   /**
    * 人數格在第幾列 —— `-1` ＝ 這一層沒有格子（名稱那一關）。
@@ -926,6 +942,9 @@ export function ExtrasField({
                     setCountText(e.target.value);
                     setActive(-1); // 打字就是停在格子上
                   }}
+                  // 空格子看起來像「這一列壞了」。placeholder 只說**這一格要填什麼**，
+                  // 格式舉例留給底下那一行提示（票券 36 的分工：一行字不兼職）。
+                  placeholder="輸入人數"
                   onKeyDown={countKeyDown}
                   onFocus={() => setActive(-1)}
                   // 點到外面與 Enter 同一個結果（票券 48）—— `blur` 擋不住，兩者若分岔，

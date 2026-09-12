@@ -793,14 +793,28 @@
   cursor: default;
 }
 
+/* 它是一格**輸入**，不是一列選項 —— 所以要看得出來是個框：底色與選單分開、框線比選單的
+   分隔線重、聚焦時吃同一條 `--focus-ring`（與欄位其餘各處的聚焦一致）。原本透明無底色時
+   讀起來像「這一列空缺了」（使用者回報 2026-09-12）。 */
 .entity-field__count-input {
   inline-size: 100%;
   padding: var(--space-1) var(--space-2);
   font: inherit;
   color: var(--text-primary);
-  background: transparent;
+  background: var(--surface-page);
   border: 1px solid var(--rule-strong);
   border-radius: var(--space-1);
+}
+
+.entity-field__count-input::placeholder {
+  color: var(--text-faint);
+}
+
+.entity-field__count-input:focus-visible,
+.entity-field__count-input:focus {
+  border-color: var(--focus-ring);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -1px;
 }
 
 /* 那一行提示與唯讀抬頭同一階：兩者都是**說明**，不是選項（票券 36 的分工）。
