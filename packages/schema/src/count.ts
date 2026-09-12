@@ -136,7 +136,9 @@ export function countHintText(
   const shown = (value: CountValue) => `${description}（${formatCount(value)}）`;
   switch (result.state) {
     case "empty":
-      return "人數（8）、區間（3~5、3-5、10+）";
+      // 舉四個**真的打得出來**的例子就好（編劇裁決 2026-09-12）—— 原本那句把它們分類成
+      // 「人數」與「區間」，可是這一行的讀者正要打字，不是正要學一套詞彙。
+      return "合法：8、3~5、2-6、10+";
     case "parsed":
       return shown(result.value);
     case "unreadable":

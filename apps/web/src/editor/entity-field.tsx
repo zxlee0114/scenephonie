@@ -36,7 +36,7 @@ import { isExtraId, parseExtra, splitNamesLive } from "@scenephonie/schema";
 import { useChipCaret } from "./chip-caret";
 import { chipRow, columns } from "./chip-row";
 import { claimHistoryKey, historyKey } from "./history-keys";
-import { EXTRA_MARK, HIT_MARK, NEW_MARK, RENAME_MARK } from "./field-marks";
+import { EXTRA_MARK, HINT_MARK, HIT_MARK, NEW_MARK, RENAME_MARK } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
 
 export type EntityOption = { id: string; name: string };
@@ -940,8 +940,10 @@ export function EntityField({
     stage.name !== "suggest"
       ? null
       : query === ""
-        ? `${RENAME_MARK} 正在編輯「${heldEntityNow.name}」，再按一次 Backspace 移除這一場的引用`
-        : `${RENAME_MARK} 正在編輯「${heldEntityNow.name}」，修改文字可更新名稱`;
+        ? // 抬頭是**唯讀說明**，記號跟著那條分工走（`HINT_MARK`）—— 它與群演欄逐字同一套，
+          // 兩欄並排時不該一邊 `💡` 一邊 `✏️`（票券 48 第二輪，使用者回報 2026-09-12）。
+          `${HINT_MARK} 正在編輯「${heldEntityNow.name}」，再按一次 Backspace 移除這一場的引用`
+        : `${HINT_MARK} 正在編輯「${heldEntityNow.name}」，修改文字可更新名稱`;
 
   const activeRow = rows[Math.min(active, rows.length - 1)];
 

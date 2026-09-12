@@ -227,8 +227,26 @@ export function formatExtra(extra: {
   count: number;
   countValue?: CountValue;
 }): string {
-  const value = extra.countValue ?? legacyCountValue(extra.count);
-  return `${extra.description}（${formatCount(value)}）`;
+  return `${extra.description}（${formatCount(extraCount(extra))}）`;
+}
+
+/**
+ * 一筆群演**現在的人數值**（票券 48）—— `formatExtra` 印出來的就是它。
+ *
+ * 畫面上需要這個值本身、而不只是它印出來的樣子：人數子選單第一列說的是「不修改數量（8）」，
+ * 底下那一行提示要拿它當「現在離開會記成什麼」的 `fallback`。抽出來是為了讓那兩處與
+ * `formatExtra` **不會各寫各的**。
+ *
+ * ⚠️ **前提：這一筆是正規化過的**（經 `sceneExtras`，也就是所有從 doc 讀出來的路徑）。
+ * 它與 `bothShapes` 在**一格上不同**：兩個形態互相矛盾時（`{ count: 1, countValue: 確切 2 }`
+ * ＝ 升格拉走了一個人）`bothShapes` 讓舊欄位贏，這裡讓 `countValue` 贏。這個分岔是票券 44
+ * 留下來的（`formatExtra` 從第一天就這麼讀），這張票原封沿用 —— 改掉它會動到場次表那一格
+ * 的既有行為，不在這一批的範圍。正規化過的資料不可能矛盾，所以走得到的路上兩者一致；
+ * ⚠️ 拿一筆**沒正規化過**的 `ExtraRef` 餵進來則會讀出「多一個人」（code review 2026-09-12）。
+ * 票券 50 刪掉 `count` 時這整個分岔一起消失。
+ */
+export function extraCount(extra: { count: number; countValue?: CountValue }): CountValue {
+  return extra.countValue ?? legacyCountValue(extra.count);
 }
 
 /**
