@@ -589,6 +589,52 @@ describe("放手之後的 ⌘Z（票券 53）", () => {
     expect(container.querySelector(".entity-field__count-input")).not.toBeNull();
   });
 
+  /**
+   * 框空了就到底 —— 那一下**不會溜到文件上**（使用者裁決 2026-09-12）。
+   *
+   * 沒有這條線時：字退光之後的 ⌘Z 往上冒到 `forwardHistoryKey`／`strayHistoryKey`，兩者都只
+   * 問「框裡有沒有沒定案的字」，空框 ＝ 沒有，於是那一下把「剛拿起這一批」從文件退回來 ——
+   * 欄位裡於是同時有一顆唯讀 chip 與手上這一筆編輯殼，同一批人兩份（使用者回報 2026-09-12）。
+   */
+  it("人數格空著時的 ⌘Z 留在框裡 —— 手上那一批不會變成兩份（票券 48）", async () => {
+    const extraId = mintExtraId();
+    let editor!: Editor;
+    const { container } = render(
+      <Harness doc={docWithExtra(extraId)} onEditor={(e) => (editor = e)} />,
+    );
+    const chip = await waitFor(() => {
+      const el = container.querySelector<HTMLElement>(`${EXTRAS} .entity-chip`);
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    fireEvent.mouseDown(chip);
+
+    const field = container.querySelector(EXTRAS)!;
+    const at = menuRows(field).findIndex((r) => r.includes("修改數量"));
+    fireEvent.mouseDown(
+      [...field.querySelectorAll(".entity-field__menu li:not(.entity-field__menu-hint)")][at]!,
+    );
+    const box = await waitFor(() => {
+      const el = container.querySelector<HTMLInputElement>(".entity-field__count-input");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+
+    // 打了字、再退光（原生 undo 在 jsdom 裡量不到，直接把框清成空的 —— 這一條量的是
+    // **空框那一下**，不是字怎麼回來的）。
+    fireEvent.change(box, { target: { value: "3~5" } });
+    fireEvent.change(box, { target: { value: "" } });
+
+    fireEvent.keyDown(box, undoKey);
+    fireEvent.keyDown(box, undoKey);
+
+    // 文件一步都沒退：那一批仍然在手上，欄位裡沒有第二顆 chip。
+    expect(editor.state.doc.child(0).attrs.extras).toHaveLength(0);
+    expect(container.querySelectorAll(`${EXTRAS} .entity-chip`)).toHaveLength(0);
+    // 選單還開著、游標還停在那個空框上。
+    expect(container.querySelector(".entity-field__count-input")).not.toBeNull();
+  });
+
   it("人物／地點欄同一套：放手之後的 ⌘Z 把那一筆原封還回來", async () => {
     // 地點是**稿子裡本來就有的**那一筆，不是這一刻打出來的 —— 打出來的話「定案」與「拿起來
     // 改」會落在歷史的同一個分組窗裡（500ms），一次 ⌘Z 兩步一起退，量到的就不是這張票了。

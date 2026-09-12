@@ -82,6 +82,7 @@ import { useChipCaret } from "./chip-caret";
 import { chipRow, columns } from "./chip-row";
 import { BACK_MARK, EXTRA_MARK, NEW_MARK, PUT_BACK_MARK, RENAME_MARK } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
+import { historyKey } from "./history-keys";
 
 type Props = {
   /** 這一場的群演，依欄位裡的順序。 */
@@ -638,13 +639,22 @@ export function ExtrasField({
    * ↑↓ 在整層裡跑（格子自己是其中一格），Enter 打在停著的那一格上 —— 停在格子上時就是
    * 「把框裡那串字讀掉」（`commitCount`）。**Esc 等同 `↰`**：退一階、名稱那一側的字留著。
    *
-   * ⌘Z 不在這裡攔 —— **沿用票券 37**：`forwardHistoryKey`（掛在 chip row 上）看的是
-   * 「框裡有沒有編劇還沒定案的字」，人數格裡打到一半的 `3~` 正是那種字，於是那一下歸原生
-   * undo，字自己回來。在這裡自己寫一套 undo 等於同一個 bug 有兩種修法，而其中一種只蓋得到
-   * 人數格（票券 48「為什麼 blocked by 37」）。
+   * ⌘Z／⌘⇧Z **留在這個框裡，一步都不出去**（使用者裁決 2026-09-12）：欄位的鍵不該有欄位
+   * 以外的後果。框裡有字時那一下是原生 undo，字自己回來（**沿用票券 37**，這裡沒有另寫一套
+   * undo）；字退光之後框是空的、它自己的歷史到底了 —— 那一下就什麼都不做，游標留在空框上。
+   *
+   * ⚠️ 這一行 `stopPropagation` 就是「不出去」的全部：沒有它，空框那一下會往上冒到 chip row
+   * 的 `forwardHistoryKey`、再冒到 window 的 `strayHistoryKey`，兩者都只問「框裡有沒有沒定案
+   * 的字」（`typingInField`），答不出「這一欄手上握著東西嗎」，於是把「剛拿起這一批」那一步從
+   * 文件退回來 —— 畫面上同一批人變成兩份（使用者回報 2026-09-12，票券 54 的人數格入口）。
+   * 不 `preventDefault`：那會連框自己的原生 undo／redo 一起擋掉，而框裡有字時那正是要的東西。
    */
   const countKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing || composing.current) return; // 組字中每一顆鍵都還給 IME
+    if (historyKey(event)) {
+      event.stopPropagation();
+      return;
+    }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       const step = event.key === "ArrowDown" ? 1 : -1;

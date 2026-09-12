@@ -220,3 +220,20 @@ skipped、schema 238 passed）。群演欄新增 26 條測試，`undo-history.te
 
 改完之後：`pnpm typecheck`／`pnpm lint` 綠，web 525 passed / 34 skipped、schema 241 passed。
 （新增三條測試：點提示不算走了、子選單裡的 `↩︎` 焦點有主人、`extraCount` 的分岔。）
+
+### 2026-09-12 — 人工驗收第 1 條：人數格的 ⌘Z 收在框裡
+
+**回報：** 在人數格裡打字、連按 ⌘Z 直到字退光，**再按一下**欄位裡冒出一顆 `路人（8）`
+chip 疊在編輯中的那顆後面（而那顆新的其實就是手上正在編輯的這一批），再一下它又消失。
+
+**裁決（使用者）：** 「那個欄位的 ⌘Z 感覺應該只會影響那個欄位。所以當欄位是空的、沒有之前
+的欄位歷史，繼續按 ⌘Z 不會有作用，持續聚焦在那個空欄位而已。」
+
+**做法：** `countKeyDown` 認出歷史鍵就 `stopPropagation()` 收住，**不 `preventDefault`** ——
+框裡有字時那一下仍然是原生 undo（票券 37 那條線一步都沒退），框空了就到底。擋的是它往上冒
+到 chip row 的 `forwardHistoryKey` 與 window 的 `strayHistoryKey`：那兩支只問「框裡有沒有沒
+定案的字」，答不出「這一欄手上握著東西嗎」，於是把「剛拿起這一批」從文件退回來。
+
+`undo-history.test.tsx` 加一條（拿掉守衛會紅：`extras` 從 0 變 1）。web 526 passed。
+
+⚠️ 這一下只關掉**人數格**那個入口。名稱框清空之後的同一顆 ⌘Z 仍然走得到，留在票券 54。
