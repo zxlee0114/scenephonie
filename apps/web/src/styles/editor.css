@@ -794,6 +794,10 @@
 .entity-field__menu li.entity-field__menu-box {
   white-space: normal;
   cursor: default;
+  /* 左右內距交給裡面那兩個元素自己負責（見下）—— 格子那一行的反白要能畫到整列寬，
+     而它與提示、與其餘各列的文字都必須切齊同一條左緣。由這一列統一留白的話，反白就只能
+     縮在內距裡面，比別列窄一截。 */
+  padding-inline: 0;
 }
 
 /* 「現在停在哪」整份選單只有**一種**說法：那一列整條反白（`.is-active`，見上）。格子那一列
@@ -805,9 +809,11 @@
    負邊距把 `li` 的左右內距還回去 —— 這樣這一條反白與別列**寬度一致、起訖對齊**。 */
 .entity-field__count-input {
   display: block;
-  inline-size: calc(100% + var(--space-3) * 2);
-  margin-inline: calc(var(--space-3) * -1);
-  padding: var(--space-1) var(--space-3);
+  inline-size: 100%;
+  /* 左右與其餘各列同一個值（`li` 的 `padding-inline`），所以 placeholder 與打進去的字
+     都跟 `若干`、`不修改，返回` 切齊。上下比別列鬆一階：那幾列是文字，這一格要點得進去
+     （編劇裁決 2026-09-12）。 */
+  padding: var(--space-2) var(--space-3);
   font: inherit;
   color: var(--text-primary);
   background: transparent;
@@ -839,7 +845,9 @@
    它永遠有話說（空著是格式說明、讀得出來是預覽、讀不出來是警告），所以版面上一直留著
    這一行的高度 —— 會消失的提示比沒有提示更難讀。 */
 .entity-field__count-hint {
+  /* 與格子切齊同一條左緣（那一列自己不留左右內距，見上）。 */
   margin: var(--space-1) 0 0;
+  padding-inline: var(--space-3);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
   color: var(--text-faint);
