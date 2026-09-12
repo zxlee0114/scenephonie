@@ -771,13 +771,13 @@ describe("人數子選單（票券 48）", () => {
     expect(list.indexOf("✏️ 修改數量…")).toBeLessThan(list.findIndex((r) => r.startsWith("↩︎")));
   });
 
-  it("第一列是 `↰ 不修改數量（8），回上一步`；若干、1、自由輸入格在它下面", () => {
+  it("第一列是 `↰ 不修改數量（8），回上一步`；自由輸入格與「不指定」在它下面", () => {
     const container = openCount(held());
 
+    // 四列，與新增那一側逐列對齊（編劇裁決 2026-09-13：「兩邊都同一套」）。
     expect(options(container)).toEqual([
       "↰ 不修改數量（8），回上一步",
-      "若干",
-      "1",
+      "不特別指定數量（若干）",
       "↩︎ 不修改，返回",
     ]);
     expect(countBox(container)).not.toBeNull();
@@ -797,7 +797,7 @@ describe("人數子選單（票券 48）", () => {
     expect(all[0]?.textContent).toBe("↰ 不修改數量（8），回上一步");
     expect(all[1]?.querySelector(".entity-field__count-input")).not.toBeNull();
     expect(all.map((li) => li.getAttribute("role"))[1]).toBe("presentation");
-    expect(all[2]?.textContent).toBe("若干");
+    expect(all[2]?.textContent).toBe("不特別指定數量（若干）");
   });
 
   /**
@@ -824,14 +824,14 @@ describe("人數子選單（票券 48）", () => {
     expect(countBox(container)!.placeholder).toBe("輸入人數");
   });
 
-  it("`1` 那一列與第一列重複時不印 —— 不必印兩次同一個答案", () => {
-    const container = openCount(held({ count: 1 }));
-
-    expect(options(container)).toEqual([
-      "↰ 不修改數量（1），回上一步",
-      "若干",
-      "↩︎ 不修改，返回",
-    ]);
+  /**
+   * 這一關只有兩條路：打一個數字，或者不說（編劇裁決 2026-09-13）。`1` 那一列（票券 48
+   * 原有）與格子裡打一個 `1` 完全重複 —— 兩側一起拿掉。
+   */
+  it("沒有 `1` 那一列 —— 它與格子裡打一個 `1` 完全重複", () => {
+    expect(options(openCount(held()))).not.toContain("1");
+    // 原本就是 1 的那一批也一樣（那一列從前在這裡會被判定成重複而不印）。
+    expect(options(openCount(held({ count: 1 })))).not.toContain("1");
   });
 
   it("沒有猜出來的數字階梯 —— `10+／20+／30+／40+` 拿掉了", () => {
@@ -938,7 +938,7 @@ describe("人數子選單（票券 48）", () => {
 
   it("挑完人數退回描述那一關，名稱還能接著改，游標停在字尾（不整串反白）", async () => {
     const container = openCount(held());
-    pick(container, "若干");
+    pick(container, "不特別指定數量（若干）");
 
     await waitFor(() => expect(countBox(container)).toBeNull());
     const box = nameBox(container);
@@ -971,7 +971,7 @@ describe("人數子選單（票券 48）", () => {
 
     it("改過數量 —— 人數那一段跟著待定值走，名稱那一段仍是原值", () => {
       const container = openCount(held());
-      pick(container, "若干");
+      pick(container, "不特別指定數量（若干）");
       fireEvent.change(nameBox(container), { target: { value: "保全" } });
 
       expect(heldNote(container)).toBe(
@@ -1068,9 +1068,8 @@ describe("人數子選單（票券 48）", () => {
     expect(nameBox(container).value).toBe("路人");
 
     // 再走一次：這次往下走到最後一列 `↩︎ 不修改，返回`，那一批原封放回。
-    // 列序是 `↰`／格子／`若干`／`1`／`↩︎`，格子在第二列，所以 ↓ 三格到底。
+    // 列序是 `↰`／格子／`不特別指定數量（若干）`／`↩︎`，格子在第二列，所以 ↓ 兩格到底。
     const again = countBox(openCount(container))!;
-    fireEvent.keyDown(again, { key: "ArrowDown" });
     fireEvent.keyDown(again, { key: "ArrowDown" });
     fireEvent.keyDown(again, { key: "ArrowDown" });
     fireEvent.keyDown(again, { key: "Enter" });
