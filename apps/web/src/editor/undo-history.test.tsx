@@ -181,26 +181,17 @@ describe("⌘Z 撤銷一筆定案 → 那串字回到輸入框（票券 37）", 
     expect(menuRows(container.querySelector(LOCATION)!).length).toBeGreaterThan(
       0,
     );
+    // 而且**是待選的樣子**：純輸入框，沒有 chip 外框、沒有 ✚／✓ 記號（2026-09-12 驗收
+    // 回饋 —— 那是「正在編輯一筆既有引用」，不是編劇按 ⌘Z 要退回的那一刻）。
+    expect(
+      container.querySelector(`${LOCATION} .entity-field__input-chip`),
+    ).toBeNull();
   });
 
-  it("字回來之後再按一次 ⌘Z → 歸原生 undo，文件不再退一步", async () => {
-    let editor!: Editor;
-    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
-    const input = await newLocationChip(container);
-
-    fireEvent.keyDown(input, undoKey);
-    await waitFor(() => expect(input.value).toBe("河堤"));
-
-    const before = JSON.stringify(editor.state.doc.toJSON());
-    fireEvent.keyDown(input, undoKey);
-    // 框裡有字 → `forwardHistoryKey` 不接手。撤掉那幾個字是原生 undo 的事（jsdom 裡不會
-    // 真的發生），文件一個字都不該再退。
-    expect(JSON.stringify(editor.state.doc.toJSON())).toBe(before);
-  });
-
-  it("原封不動再定案一次 → 同一筆實體，目錄不多一列", async () => {
+  it("原封不動再定案一次 → 編劇看得到的地方一列都不多（留下的是孤兒，ADR-0005）", async () => {
+    let minted = 0;
     const createEntity = vi.fn(async ({ name }: { name: string }) => ({
-      id: "lo_new",
+      id: `lo_${++minted}`,
       name,
     }));
     let editor!: Editor;
@@ -213,16 +204,50 @@ describe("⌘Z 撤銷一筆定案 → 那串字回到輸入框（票券 37）", 
     fireEvent.keyDown(input, undoKey);
     await waitFor(() => expect(input.value).toBe("河堤"));
 
-    // `editing.current` 有接回來，所以這一次走的是「原封放回，用回它自己的 id」。
+    // ⌘Z 之後欄位什麼都不握 —— 那串字是待選階段的字，所以這一次是重新建一筆。
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() =>
       expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull(),
     );
-    expect(createEntity).toHaveBeenCalledTimes(1);
+    // 目錄裡確實多了一筆，而它沒有任何引用 —— 孤兒「不出現在任何地方」（ADR-0005，見
+    // `db/schema.ts` 的實體表那段）。編劇看得到的是這一場的地點，而它只有一個。
+    expect(createEntity).toHaveBeenCalledTimes(2);
     expect(editor.state.doc.firstChild!.attrs.location).toEqual({
-      locationId: "lo_new",
+      locationId: "lo_2",
       displayName: "河堤",
     });
+  });
+
+  it("第二下 ⌘Z：欄位塞回去的那串字被收掉，文件不再退一步", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    const input = await newLocationChip(container);
+
+    fireEvent.keyDown(input, undoKey);
+    await waitFor(() => expect(input.value).toBe("河堤"));
+
+    const before = JSON.stringify(editor.state.doc.toJSON());
+    fireEvent.keyDown(input, undoKey);
+
+    // 收掉的是那串字，不是文件的下一步 —— 原生 undo 也沒份（見 `restored`）。
+    await waitFor(() => expect(input.value).toBe(""));
+    expect(JSON.stringify(editor.state.doc.toJSON())).toBe(before);
+  });
+
+  it("欄位塞回去的字被改過，第二下 ⌘Z 照樣收掉整串（那串字的出身沒變）", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    const input = await newLocationChip(container);
+
+    fireEvent.keyDown(input, undoKey);
+    await waitFor(() => expect(input.value).toBe("河堤"));
+    fireEvent.change(input, { target: { value: "河堤邊" } });
+
+    const before = JSON.stringify(editor.state.doc.toJSON());
+    fireEvent.keyDown(input, undoKey);
+
+    await waitFor(() => expect(input.value).toBe(""));
+    expect(JSON.stringify(editor.state.doc.toJSON())).toBe(before);
   });
 
   it("⌘⇧Z 把那一筆做回去 —— 框裡的字跟著收掉", async () => {

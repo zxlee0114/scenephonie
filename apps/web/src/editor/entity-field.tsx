@@ -197,8 +197,6 @@ type Committed = {
   ref: EntityRef;
   /** 它站在第幾格（`caret` 的值，`null` ＝ 隊尾／單值欄）。放回去要回原位，不是跳到隊尾。 */
   at: number | null;
-  /** 定案**之前**那筆實體用在幾場 —— 撤銷之後文件正好退回那一刻，數字也就是那一刻的。 */
-  scenes: number | null;
   /** 定案之前這一欄的樣子（⌘Z 要退回的那一個）。 */
   before: readonly EntityRef[];
   /** 定案之後這一欄的樣子（⌘⇧Z 要做回的那一個）。 */
@@ -305,6 +303,19 @@ export function EntityField({
    */
   const undoneCommit = useRef<Committed | null>(null);
   /**
+   * 框裡這串字是**欄位塞回去的**（⌘Z），不是編劇打進去的 —— 下一顆 ⌘Z 因此歸欄位，它把框
+   * 清空（2026-09-12 驗收回饋）。
+   *
+   * 平常「框裡有字時 ⌘Z 歸原生 undo」是對的：那幾個字是編劇一顆一顆打的，瀏覽器替那個
+   * `<input>` 記著他打字的每一步。但欄位塞回去的字**不在那個堆疊裡**，而整排 chip 共用的
+   * 又是同一個 `<input>` 節點 —— 它的 undo 堆疊裡躺著先前別顆 chip 留下的字。於是原生 undo
+   * 會把那些舊字翻出來接到現在這串的後面（驗收時撈到的 `abcd` → `abcdprev`），游標還會先
+   * 跳到字首。那不是「撤銷我剛打的字」，那是拿別人的字污染這一欄。
+   *
+   * 改過之後仍算數：那串字的出身沒變，堆疊裡照樣沒有它。清空是唯一說得出口的結果。
+   */
+  const restored = useRef(false);
+  /**
    * **輸入框排在第幾格** —— `0` ＝ 所有 chip 之前，`null` ＝ 全部之後（平常的樣子）。
    *
    * 一個 ref 扛三件事，因為它們本來就是同一件事「游標停在哪」：
@@ -401,7 +412,6 @@ export function EntityField({
         ? {
             ref: only,
             at,
-            scenes: only.id == null ? null : (usage?.().get(only.id) ?? null),
             before: refs,
             after: next,
           }
@@ -503,12 +513,9 @@ export function EntityField({
   };
 
   /**
-   * 把一筆引用**還原成可編輯的文字** —— `editRef`（點 chip、Backspace）與 ⌘Z 撤銷一筆定案
-   * （票券 37）共同的終點。兩個入口，同一件事。
+   * 把一筆引用**還原成可編輯的文字**（點 chip、空欄位上的 Backspace）。
    *
-   * 差別只有 `select` 一個參數，那正是兩者唯一分家的裁決：`editRef` 反白是因為那一筆是從
-   * chip 上拿下來的**舊東西**，多半要整個換掉；⌘Z 回來的是編劇**上一秒剛打完**的字，他要
-   * 的是接著改它 —— 整串反白的話下一顆鍵就把它清光，等於白撤銷一次。
+   * ⚠️ 這**不是** ⌘Z 的終點，兩者一度共用過（見 `returnToSuggest` 的 2026-09-12 驗收回饋）。
    */
   const enterEditing = (
     ref: EntityRef,
@@ -521,12 +528,47 @@ export function EntityField({
     heldScenes.current = scenes;
     caret.current = at;
     editing.current = ref;
+    restored.current = false; // 這串字來自 chip，不是 ⌘Z 塞回來的那一串
     setText(ref.displayName);
     setStage({ name: "suggest" });
     setActive(0);
     setDismissed(false);
     selectNext.current = select;
     redraw(); // 手上那一筆住在 ref 裡（見 `editing`），接回來不會自己觸發一次渲染
+  };
+
+  /**
+   * ⌘Z 撤掉一筆定案之後的終點：那串字回到框裡，**而且什麼都不握**（票券 37）。
+   *
+   * ── 為什麼不是 `enterEditing` ──────────────────────────────────────────
+   * 第一版讓 ⌘Z 走 `enterEditing`，理由是「原封再定案一次要用回原來那個 id，否則目錄多一筆」。
+   * 2026-09-12 的人工驗收否掉了它，而且否得對：那樣畫出來的是**正在編輯一筆既有引用**
+   * （chip 外框、✚／✓ 記號、「正在編輯「X」」那行字），不是編劇要的「退回原來打的名字
+   * （待選階段）」。開票的原話就是待選。
+   *
+   * 而那個理由本身是錯的 —— **ADR-0005 早就裁決過這一題**（`db/schema.ts` 的實體表那段）：
+   * doc 與實體表沒有共同的交易邊界與 undo 堆疊，於是「存在＝被引用」，⌘Z 留在目錄裡的那筆
+   * 成為孤兒，而孤兒「不出現在自動補全、不出現在場次表、不出現在任何地方，v1 永不清理」。
+   * 所以不握那一筆、重打一次 Enter 重新建一筆，編劇看得到的地方**一列都不會多**；多出來的
+   * 只有一筆誰也看不到的孤兒，那正是 ADR 說它願意付的代價。
+   *
+   * 於是三件事在這裡收在一起：待選的外觀、「⌘Z 撤銷的是建立那一步」的直覺、以及 ADR-0005
+   * 的「⌘Z 只作用在 doc 上」。
+   *
+   * 不反白（`selectNext` 不動）：⌘Z 回來的是編劇**上一秒剛打完**的字，他要的是接著改它 ——
+   * 整串反白的話下一顆鍵就把它清光，等於白撤銷一次。
+   */
+  const returnToSuggest = (name: string, at: number | null) => {
+    editing.current = null;
+    heldScenes.current = null;
+    caret.current = at;
+    // 這串字是欄位塞回去的，不是編劇打的 —— 下一顆 ⌘Z 歸欄位（見 `restored`）。
+    restored.current = true;
+    setText(name);
+    setStage({ name: "suggest" });
+    setActive(0);
+    setDismissed(false);
+    redraw();
   };
 
   /**
@@ -609,6 +651,7 @@ export function EntityField({
   const reset = () => {
     editing.current = null;
     heldScenes.current = null;
+    restored.current = false;
     // `caret` 不清 —— `merge` 剛把它挪到新 chip 之後，那就是游標該在的地方。
     setText("");
     setStage({ name: "suggest" });
@@ -1088,13 +1131,21 @@ export function EntityField({
       whenFieldBecomes(snapshot.before, () => {
         lastCommit.current = null;
         undoneCommit.current = snapshot;
-        enterEditing(snapshot.ref, {
-          at: snapshot.at,
-          scenes: snapshot.scenes,
-          select: false,
-        });
+        returnToSuggest(snapshot.ref.displayName, snapshot.at);
       });
       onKeyDown?.(event); // 文件那一半（見上）—— 對白人物欄靠的就是這一句
+      return;
+    }
+    // 第二下 ⌘Z：把欄位塞回去的那串字收掉。**不交給原生 undo**，理由見 `restored`。
+    // 收掉之後框是空的，第三下就照舊歸文件了。
+    if (history === "undo" && restored.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      restored.current = false;
+      undoneCommit.current = null; // 字沒了，⌘⇧Z 的目標換成文件那一步（框空著＝歸文件）
+      setText("");
+      setActive(0);
+      setDismissed(false);
       return;
     }
     if (
