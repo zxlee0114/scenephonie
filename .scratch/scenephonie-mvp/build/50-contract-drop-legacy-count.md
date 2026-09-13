@@ -8,7 +8,7 @@
 
 **Blocked by:** 45、46、47、48、49
 
-**Status:** in-progress
+**Status:** done
 
 ## 資料怎麼辦：reset，不寫遷移
 
@@ -39,7 +39,7 @@
 - [x] 整棵樹沒有任何地方還在讀舊欄位
 - [x] `doc_schema_version` **沒有**升版，而且檔頭多了一段說明它的定位（可讀性版本 vs 值語意）
 - [x] `sceneExtras` 的裸數字容錯留著，註解說明它是容錯不是遷移
-- [ ] 開發資料庫 reset 過，重新開一份稿走得通
+- [x] 開發資料庫 reset 過，重新開一份稿走得通
 - [x] **CI 綠**
 
 ## Comments
@@ -81,3 +81,19 @@ Spec 軸指出容錯註解的承諾比實際覆蓋範圍寬：走 command 的匯
 - **Spec 軸建議 `readCount(countValue ?? count)` 保命** —— 直接違反驗收第 2 條「整棵樹沒有
   任何地方還在讀舊欄位」，而且會把那個**會說謊的**欄位重新接回讀取路徑。使用者 2026-09-12
   已裁決走 reset 不走遷移，照裁決做。
+
+### reset 做完了（2026-09-13）
+
+使用者跑了 truncate。庫裡舊的 16 份稿全數消失，現在的三份 id 都是 reset 之後新建的。
+其中一份打了群演，doc 裡實際躺著的是：
+
+```json
+[{"extraId": "ex_57om…", "countValue": {"kind": "range", "from": 3, "to": 5}, "description": "路人"},
+ {"extraId": "ex_I-vF…", "countValue": {"kind": "some"}, "description": "jfjifjifj"}]
+```
+
+`路人（3-5）` 寫出去就是 `range 3–5`，**旁邊沒有 `count`** —— 遷移窗口裡那個會說謊的
+「3」已經沒有地方可以待了。「若干」也誠實地是 `{kind:"some"}`，不是憑空編出來的 1。
+
+六條驗收全數通過。reset 前的 dump 留在 `~/scenephonie-dev-db-before-ticket-50.sql`，
+確認無誤後可以刪。**票券 51**（CONTEXT.md 群演定案改寫）現在解除封鎖。
