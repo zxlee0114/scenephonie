@@ -96,10 +96,8 @@ import {
 import {
   SOME_LABEL,
   countHintText,
-  extraCount,
   formatCount,
   formatExtra,
-  legacyCount,
   mintExtraId,
   parseExtra,
   resolveCountInput,
@@ -266,14 +264,11 @@ export function ExtrasField({
       // 的（或「沒說 ＝ 若干」）照舊是答案。
       const value = pendingCount.current;
       if (!value) return content;
-      return { description: content.description, count: legacyCount(value), countValue: value };
+      return { description: content.description, countValue: value };
     }
     const description = segment.trim();
     if (!description) return null;
-    // ⚠️ 遷移窗口裡**兩個形態要一起寫**（票券 44）：只改 `countValue` 會讓舊欄位說謊，
-    // 而升格（票券 46）此刻還在讀它。`legacyCount` 是那條規則唯一的住處。
-    const value = heldCount(held);
-    return { description, count: legacyCount(value), countValue: value };
+    return { description, countValue: heldCount(held) };
   };
 
   /**
@@ -282,7 +277,7 @@ export function ExtrasField({
    * 「現在的樣子」只有這一個答案，所以第一列（`↰ 不修改數量（8）`）、那一行提示的
    * `fallback`、以及定案寫回去的值全部走這一支。
    */
-  const heldCount = (held: ExtraRef): CountValue => pendingCount.current ?? extraCount(held);
+  const heldCount = (held: ExtraRef): CountValue => pendingCount.current ?? held.countValue;
 
   /** 一段字 → 一筆群演。重新編輯中的那一筆沿用原 id 與人數，其餘鑄新的。 */
   const toExtra = (segment: string): ExtraRef | null => {
@@ -765,7 +760,7 @@ export function ExtrasField({
   const editHeadline = (held: ExtraRef): string =>
     pendingCount.current
       ? `正在編輯「${held.description}」群演，數量已更新：${formatCount(pendingCount.current)}`
-      : `正在編輯「${held.description}」群演，原本數量「${formatCount(extraCount(held))}」保留`;
+      : `正在編輯「${held.description}」群演，原本數量「${formatCount(held.countValue)}」保留`;
   const heldNote = countStage && !heldForCount
     ? // 新增那一層的抬頭：說出**現在在回答哪一個問題**（票券 49）。手上沒握著任何一批，
       // 所以它不是「正在編輯誰」，而是這一關本身。措辭是編劇逐字指定的（2026-09-13）——
@@ -776,7 +771,7 @@ export function ExtrasField({
     : heldForCount
       ? // 人數那一層的抬頭。跟的是**原值**（`原本是 8`），第一列才跟待定值 —— 兩者一起看
         // 才讀得出「我把它從 8 改成了 2」。
-        `${HINT_MARK} 修改數量（原本是 ${formatCount(extraCount(heldForCount))}）`
+        `${HINT_MARK} 修改數量（原本是 ${formatCount(heldForCount.countValue)}）`
       : dismissed || composingNow
         ? null
         : query === ""

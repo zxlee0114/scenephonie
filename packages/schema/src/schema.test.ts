@@ -177,7 +177,7 @@ describe("同一份 schema 餵給 Node.fromJSON（Yjs 升級路徑預留，不�
           intExt: "內景",
           location: { locationId: "lo_abc", displayName: "海豚公寓房間" },
           appearingCharacters: [{ characterId: "ch_1", displayName: "小明" }],
-          extras: [{ extraId: "ex_1", description: "路人", count: 3 }],
+          extras: [{ extraId: "ex_1", description: "路人", countValue: { kind: "exact", count: 3 } }],
           manualDraft: false,
           dismissedCharacterIds: ["ch_9"],
         },

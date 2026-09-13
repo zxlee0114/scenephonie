@@ -21,7 +21,7 @@
  * | 時間（順場表「光」） | `time` | | 人物（`dialogue` attr） | `character` |
  * | 內外（順場表「景」） | `intExt` | | 顯示名（引用上的名字） | `displayName` |
  * | 地點 | `location` | | 描述（群演） | `description` |
- * | 登場人物（判準：入鏡） | `appearingCharacters` | | 人數（群演） | `count` |
+ * | 登場人物（判準：入鏡） | `appearingCharacters` | | 人數（群演） | `countValue` |
  * | 群演 | `extras` | | 種類（子場次，票券 11） | `kind` |
  * | 發聲方式 | `voiceStyle` | | | |
  */
@@ -62,22 +62,18 @@ export interface CharacterRef {
 /**
  * 場次 `extras` 欄的形狀（群演）。場次限定實體，id 只在該場次內有意義。
  *
- * ⚠️ **人數在遷移窗口裡有兩個形態**（expand–contract，票券 44）：`count` 是舊的那一個，
- * `countValue` 是四種樣子的那一個（確切／區間／下限／若干）。讀取路徑（`sceneExtras`）
- * 兩邊都填得出來，所以既有呼叫點繼續讀 `count`，新的路一批一批搬到 `countValue`
- * （票券 45–49），最後票券 50 把 `count` 整個刪掉。
+ * **人數就是四種樣子**（確切／區間／下限／若干，見 `./count`）—— expand–contract 收在票券 50：
+ * 舊的 `count: number` 已經刪掉，`countValue` 是**唯一的形態**，而且**必填**。它自己沒有可選
+ * 欄位，因為 attr 不允許 undefined（§6.6）。
  *
- * 那個窗口裡 **`count` 會說謊**：`路人（3-5）` 的 `count` 是 3、`路人（若干）` 的是 1。
- * 可以接受的條件是**沒有人再讀它** —— 所以這一串票不要停在中間。
- *
- * `countValue` 現在是可選的，只為了讓既有的建構點（command、測試 fixture）不必同時改；
- * 票券 50 會把它變成必填。**它自己沒有可選欄位**，因為 attr 不允許 undefined（§6.6）。
+ * ⚠️ 別再加一個「方便的數字」回來。`路人（3-5）` 的那個數字只能是下限、`路人（若干）` 的只能
+ * 憑空編一個 1 —— 那個會說謊的欄位正是票券 41／44 拆掉的東西。要排序或比大小走
+ * `countLowerBound`，它在「若干」上誠實地回 `null`，而不是替系統宣告一個人數。
  */
 export interface ExtraRef {
   extraId: string;
   description: string;
-  count: number;
-  countValue?: CountValue;
+  countValue: CountValue;
 }
 
 /** `dialogue` 節點 `character` attr 的引用形狀（§5.1：`{ id, displayName }`）。合法目標是人物或本場次的群演。 */

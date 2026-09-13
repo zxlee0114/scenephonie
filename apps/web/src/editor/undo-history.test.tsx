@@ -326,7 +326,7 @@ describe("⌘Z 撤銷一筆定案 → 那串字回到輸入框（票券 37）", 
           "scene",
           {
             sceneId: mintSceneId(),
-            extras: [{ extraId, description: "服務生", count: 2 }],
+            extras: [{ extraId, description: "服務生", countValue: { kind: "exact", count: 2 } }],
           },
           [kernelSchema.node("dialogue", null, [kernelSchema.text("歡迎光臨")])],
         ),
@@ -351,9 +351,9 @@ describe("⌘Z 撤銷一筆定案 → 那串字回到輸入框（票券 37）", 
     });
     fireEvent.mouseDown(promote);
     await waitFor(() =>
-      expect(sceneExtras(editor.state.doc.child(0).attrs.extras)[0]!.count).toBe(
-        1,
-      ),
+      expect(
+        sceneExtras(editor.state.doc.child(0).attrs.extras)[0]!.countValue,
+      ).toEqual({ kind: "exact", count: 1 }),
     );
     // 升格成功之後那一行命名提示（票券 35）。
     expect(
@@ -367,9 +367,10 @@ describe("⌘Z 撤銷一筆定案 → 那串字回到輸入框（票券 37）", 
     expect(
       container.querySelector(`${SPEAKER} .entity-field__note--naming`),
     ).toBeNull();
-    expect(sceneExtras(editor.state.doc.child(0).attrs.extras)[0]!.count).toBe(
-      2,
-    );
+    expect(sceneExtras(editor.state.doc.child(0).attrs.extras)[0]!.countValue).toEqual({
+      kind: "exact",
+      count: 2,
+    });
     expect(editor.state.doc.child(0).child(0).attrs.character).toBeNull();
   });
 
@@ -480,7 +481,7 @@ describe("放手之後的 ⌘Z（票券 53）", () => {
           "scene",
           {
             sceneId: mintSceneId(),
-            extras: [{ extraId, description: "路人", count: 8 }],
+            extras: [{ extraId, description: "路人", countValue: { kind: "exact", count: 8 } }],
           },
           [kernelSchema.node("action", null, [kernelSchema.text("內文")])],
         ),
@@ -527,7 +528,7 @@ describe("放手之後的 ⌘Z（票券 53）", () => {
     );
     const back = sceneExtras(editor.state.doc.child(0).attrs.extras)[0]!;
     expect(back.extraId).toBe(extraId);
-    expect(back.count).toBe(8);
+    expect(back.countValue).toEqual({ kind: "exact", count: 8 });
   });
 
   it("欄位不會被塞進一串字，選單也不會在那一刻說「新增」", async () => {

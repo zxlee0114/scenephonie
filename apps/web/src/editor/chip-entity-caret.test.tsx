@@ -48,8 +48,8 @@ const crowdedScene = () =>
           { characterId: "c3", displayName: "阿姨" },
         ],
         extras: [
-          { extraId: mintExtraId(), description: "咖啡廳客人", count: 8 },
-          { extraId: mintExtraId(), description: "服務生", count: 2 },
+          { extraId: mintExtraId(), description: "咖啡廳客人", countValue: { kind: "exact", count: 8 } },
+          { extraId: mintExtraId(), description: "服務生", countValue: { kind: "exact", count: 2 } },
         ],
       },
       [action("門開了")],
