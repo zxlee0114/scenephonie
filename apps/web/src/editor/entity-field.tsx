@@ -420,6 +420,30 @@ export function EntityField({
     return options.find((o) => o.id === held.id) ?? null;
   };
 
+  /**
+   * **自動補全看得到的那些** —— 存在的實體（`existing()`）再加上手上那一筆（票券 52）。
+   *
+   * 手上那一筆**暫時仍存在**：`editRef` 為了把 chip 變回文字先把引用從 doc 上拿掉，只被這一
+   * 場引用的實體於是掉出 `existing()`。少了這一句，「拿在手上」與「還在目錄裡」在自動補全
+   * 這一側就不同形 —— 握著 `Leon` 清空重打 `L` 命中不了它自己，被多場引用的同一個手勢卻
+   * 可以，而差別在編劇看不見的地方。（票券 38 只補了「完全相等」那一格，這裡是同一條裂縫
+   * 的另一半；`editingMatch` 是這條例外的第三個落點，它多認的是**顯示名**。）
+   *
+   * 放在**最前面**不是排版：候選有 5 列上限，附在尾巴會被別的名字擠掉，而手上那一筆是最該
+   * 印出來的一列。已經在 `existing()` 裡的（被多場引用）走原本那條路，次序一個字沒動。
+   *
+   * ⚠️ 只多認**這一筆**，`existing()` 一個字都沒放寬：差別是握在手上的那一筆有一個明確的
+   * 持有者，而孤兒沒有 —— 孤兒仍然不進候選（ADR-0005）。
+   *
+   * ⚠️ 這不是「可以指向的東西」那份清單：別名那兩列問的是「要指到**別的**哪一筆」，手上
+   * 那一筆不在裡面（把自己設成自己的別名沒有意義），所以那兩處讀的仍然是 `existing()`。
+   */
+  const candidates = (): readonly EntityOption[] => {
+    const listed = existing();
+    const held = heldEntity();
+    return held && !listed.includes(held) ? [held, ...listed] : listed;
+  };
+
   /** 把幾筆引用併進現有的（單值欄就是取代成最後一筆）。 */
   const merge = (added: EntityRef[]) => {
     if (added.length === 0) return;
@@ -722,17 +746,7 @@ export function EntityField({
     const scenesOf = (id: string) =>
       (id === editing.current?.id ? heldScenes.current : null) ??
       counts?.get(id);
-    const listed = existing();
-    // 手上那一筆**暫時仍存在**（票券 52）：`editRef` 為了把 chip 變回文字先把引用從 doc 上
-    // 拿掉，只被這一場引用的實體於是掉出 `existing()` —— 但它有一個明確的持有者，不是孤兒。
-    // 少了這一句，「拿在手上」與「還在目錄裡」在自動補全這一側就不同形：握著 `Leon` 清空
-    // 重打 `L` 命中不了它自己，而被多場引用的同一個手勢卻可以（票券 38 只補了「完全相等」
-    // 那一格）。放在最前面是為了不被 `hits` 的 5 列上限擠掉 —— 手上那一筆是最該印出來的。
-    //
-    // ⚠️ 只多認**這一筆**，`existing()` 一個字都沒放寬：真正的孤兒沒有持有者，仍然不進候選
-    // （ADR-0005）。
-    const held = heldEntity();
-    const known = held && !listed.includes(held) ? [held, ...listed] : listed;
+    const known = candidates();
     // 手上那一筆也算命中 —— 少了它，把自己拿回來改會看到「建立新實體『它自己』」（票券 38）。
     // `editingMatch` 仍然要問：它認的是**顯示名**，而目錄裡那筆的名字可以不一樣（別名）。
     const exact = known.find((o) => o.name === query) ?? editingMatch(query);
@@ -761,6 +775,9 @@ export function EntityField({
             // 命中列的顯示名就是實體名 —— 但**手上那一筆**用回框裡的字：它的顯示名可能是
             // 這一場的別名（ADR-0005：別名住在引用上），拿目錄名蓋回去等於靜悄悄改掉它。
             // 目錄命中的那一列兩者本來就相同，這一條只在「拿回來改」那條路上有差別。
+            // ⚠️ 手上那一筆從 `hits` 進榜時（清空重打前綴，票券 52）走的是**實體名** ——
+            // 那時框裡是編劇剛打的半截字，不是這一場的叫法，把 `L` 當顯示名寫回去才是竄改。
+            // 分界因此是 `exact`：原封放回才保別名，字改過了就按他選的那一筆的名字走。
             merge([
               {
                 id: option.id,
@@ -876,7 +893,9 @@ export function EntityField({
         });
       }
       // 第三列永遠在 —— 它不是建議，是一個入口。（一個存在的實體都沒有時就沒得指了。）
-      if (known.length > 0) {
+      // ⚠️ 這一列問的是「指到**別的**哪一筆」，所以讀 `existing()` 而不是 `candidates()`：
+      // 手上那一筆不是它的目標（把自己設成自己的別名沒有意義，票券 52）。
+      if (existing().length > 0) {
         rows.push({
           key: "alias",
           label: "🔗 作為既有實體的另一個名字…",
@@ -903,7 +922,8 @@ export function EntityField({
         run: () => renameEntity(target, true),
       });
     } else if (stage.name === "aliasPick") {
-      for (const option of known) {
+      // 同上：要指的是**別的**那一筆，手上那一筆不進這份清單（票券 52）。
+      for (const option of existing()) {
         rows.push({
           key: `alias:${option.id}`,
           label: `${HIT_MARK[kind]} ${option.name}`,
@@ -947,10 +967,14 @@ export function EntityField({
    * 真正做決定的那一刻仍然是 `compositionend`，不是現在。
    *
    * 只列命中，不列「建立新實體」與別名入口 —— 那兩列是動作，而這一刻不該有任何動作可按。
+   *
+   * 讀的是 `candidates()`，與送出之後那份選單同一份：預覽要回答的就是「等一下會命中什麼」，
+   * 兩邊的候選分家的話，注音打到一半看不到手上那一筆、`compositionend` 之後它才蹦出來
+   * —— 同一個手勢兩種結果，正是票券 52 在收的那件事。
    */
   const preview =
     composingNow && query.length > 0 && !pending
-      ? existing()
+      ? candidates()
           .filter((o) => o.name.includes(query))
           .slice(0, 5)
       : [];

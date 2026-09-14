@@ -1412,64 +1412,45 @@ describe("點 chip 之間那道縫，下一筆就插在那裡（票券 39 收票
 });
 
 describe("清空重打前綴，要重新命中手上那一筆（票券 52）", () => {
-  // 票券 38 只補了「完全相等」那一格：`exact` 多認手上那一筆，但 `hits` 仍然只看
+  // 票券 38 只補了「完全相等」那一格：`exact` 多認手上那一筆，但候選清單仍然只看
   // `existing()`。於是**只被這一場引用**的實體清空重打前綴命中不了自己，被多場引用的卻
   // 可以 —— 同一個手勢兩種結果，而差別在編劇看不見的地方。
-  it("握著只被這一場引用的那一筆，清空打前綴 → 它出現在候選裡", () => {
-    const { container } = render(
-      <Host initial={[{ id: policeStation.id, displayName: "派出所" }]} usage={() => new Map()} />,
-    );
+  /** 握著一筆、清空重打 —— 這張票的每一條都從這個手勢開始。 */
+  const heldThenType = (
+    value: string,
+    usage: (refs: readonly EntityRef[]) => ReadonlyMap<string, number>,
+    initial: EntityRef[] = [{ id: policeStation.id, displayName: "派出所" }],
+  ) => {
+    const { container } = render(<Host initial={initial} usage={usage} />);
     const input = container.querySelector("input")!;
-
     fireEvent.keyDown(input, { key: "Backspace" });
-    fireEvent.change(input, { target: { value: "派" } });
+    fireEvent.change(input, { target: { value } });
+    return container;
+  };
 
-    expect(rows(container)[0]).toBe("📍 派出所");
+  it("握著只被這一場引用的那一筆，清空打前綴 → 它出現在候選裡", () => {
+    expect(rows(heldThenType("派", () => new Map()))[0]).toBe("📍 派出所");
   });
 
   it("場數沒有被弄丟 —— 印的是拿起來那一刻的快照", () => {
     // 拿起來之前這一筆用在 3 場；拿下來之後 doc 上少了這一場，而這一欄是它唯一的引用，
     // 所以 `usage()` 直接掉到 0。編劇要判斷的是「這筆實體有多大」，那個數字不該因為他把
     // chip 拿起來就消失（`heldScenes`）。
-    const { container } = render(
-      <Host
-        initial={[{ id: policeStation.id, displayName: "派出所" }]}
-        usage={(refs) =>
-          refs.some((r) => r.id === policeStation.id) ? new Map([[policeStation.id, 3]]) : new Map()
-        }
-      />,
+    const container = heldThenType("派", (refs) =>
+      refs.some((r) => r.id === policeStation.id) ? new Map([[policeStation.id, 3]]) : new Map(),
     );
-    const input = container.querySelector("input")!;
-
-    fireEvent.keyDown(input, { key: "Backspace" });
-    fireEvent.change(input, { target: { value: "派" } });
 
     expect(rows(container)[0]).toBe("📍 派出所（3 場）");
   });
 
   it("被多場引用的那一筆行為不變 —— 它本來就沒離開 existing()", () => {
-    const { container } = render(
-      <Host
-        initial={[{ id: policeStation.id, displayName: "派出所" }]}
-        usage={() => new Map([[policeStation.id, 2]])}
-      />,
-    );
-    const input = container.querySelector("input")!;
-
-    fireEvent.keyDown(input, { key: "Backspace" });
-    fireEvent.change(input, { target: { value: "派" } });
+    const container = heldThenType("派", () => new Map([[policeStation.id, 2]]));
 
     expect(rows(container).filter((r) => r.startsWith("📍 派出所"))).toEqual(["📍 派出所（2 場）"]);
   });
 
   it("打回完整的名字時也只印一列 —— exact 與 hits 不各進榜一次", () => {
-    const { container } = render(
-      <Host initial={[{ id: policeStation.id, displayName: "派出所" }]} usage={() => new Map()} />,
-    );
-    const input = container.querySelector("input")!;
-
-    fireEvent.keyDown(input, { key: "Backspace" });
-    fireEvent.change(input, { target: { value: "派出所" } });
+    const container = heldThenType("派出所", () => new Map());
 
     expect(rows(container).filter((r) => r.startsWith("📍 派出所"))).toHaveLength(1);
   });
@@ -1477,22 +1458,38 @@ describe("清空重打前綴，要重新命中手上那一筆（票券 52）", (
   it("真正的孤兒仍然不出現在候選裡（ADR-0005 不動）", () => {
     // 差別是握在手上的那一筆有一個明確的持有者，孤兒沒有。手上握著 `海豚公寓房間` 時，
     // 打 `派` 不該把沒有人引用的 `派出所` 撈出來。
-    const { container } = render(
-      <Host
-        initial={[{ id: dolphinApartment.id, displayName: "海豚公寓房間" }]}
-        usage={() => new Map()}
-      />,
-    );
-    const input = container.querySelector("input")!;
-
-    fireEvent.keyDown(input, { key: "Backspace" });
-    fireEvent.change(input, { target: { value: "派" } });
+    const container = heldThenType("派", () => new Map(), [
+      { id: dolphinApartment.id, displayName: "海豚公寓房間" },
+    ]);
 
     expect(rows(container).some((r) => r.startsWith("📍 派出所"))).toBe(false);
     expect(rows(container)[0]).toBe("＋ 建立新實體「派」");
   });
 
-  it("人物欄走同一段程式碼", () => {
+  it("注音打到一半的預覽也看得到手上那一筆", () => {
+    // 預覽與送出之後那份選單讀同一份候選 —— 分家的話，組字期間看不到它、`compositionend`
+    // 之後它才蹦出來，又是同一個手勢兩種結果。
+    const { container } = render(
+      <Host initial={[{ id: policeStation.id, displayName: "派出所" }]} usage={() => new Map()} />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "派" } });
+
+    expect(previewRows(container)).toEqual(["📍 派出所"]);
+  });
+
+  it("別名那兩列不把手上那一筆列進去 —— 自己不是自己的別名", () => {
+    // 候選多認手上那一筆，是為了回答「我打的字命中誰」。別名問的是另一個問題：
+    // 「指到**別的**哪一筆」—— 手上那一筆不是它的目標。
+    const container = heldThenType("派", () => new Map());
+
+    expect(rows(container).some((r) => r.includes("既有實體的另一個名字"))).toBe(false);
+  });
+
+  it("拿回來改的人物欄一樣命中得到自己", () => {
     const { container } = render(
       <EntityField
         kind="character"
@@ -1513,6 +1510,8 @@ describe("清空重打前綴，要重新命中手上那一筆（票券 52）", (
   });
 
   it("選了它 → 用回目錄裡的名字，不是框裡打到一半的那幾個字", async () => {
+    // 分界是 `exact`：原封放回才保這一場的別名（票券 38），字改過之後框裡是剛打的半截，
+    // 把它當顯示名寫回去才是竄改。
     const commits: EntityRef[][] = [];
     const { container } = render(
       <EntityField
