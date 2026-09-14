@@ -15,6 +15,17 @@
 import type { EntityKind } from "./entity-field";
 
 export const HIT_MARK: Record<EntityKind, string> = { location: "📍", character: "👤" };
+/**
+ * `🕓` ＝ **這個名字還沒有別場認識它**（使用者裁決 2026-09-14）。
+ *
+ * 自動補全裡的候選有兩種來源，而它們不是同一種東西：`📍`／`👤` 是**劇中已經存在的那一位**
+ * （別場也指著它），`🕓` 是編劇三秒鐘前才在這一場打下的那串字 —— 它進候選是為了「你剛剛
+ * 打過這個，新名字也許是它的變體」，那是一則歷史紀錄，不是一個身分。
+ *
+ * ⚠️ 這一列**不印場數**。`（1 場）` 那個 `1` 指的就是編劇正站著的這一場，印出來等於拿實體
+ * 的權威去背書一個可能只是打錯的字。別場也認識它的那一刻，它自然就換回 `📍`／`👤` 與場數。
+ */
+export const HISTORY_MARK = "🕓";
 export const NEW_MARK = "＋";
 export const EXTRA_MARK = "👥";
 export const RENAME_MARK = "✏️";

@@ -43,7 +43,14 @@ import {
 import { useChipCaret } from "./chip-caret";
 import { chipRow, columns } from "./chip-row";
 import { claimHistoryKey, historyKey } from "./history-keys";
-import { EXTRA_MARK, HINT_MARK, HIT_MARK, NEW_MARK, RENAME_MARK } from "./field-marks";
+import {
+  EXTRA_MARK,
+  HINT_MARK,
+  HISTORY_MARK,
+  HIT_MARK,
+  NEW_MARK,
+  RENAME_MARK,
+} from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
 
 export type EntityOption = { id: string; name: string };
@@ -444,6 +451,40 @@ export function EntityField({
     return held && !listed.includes(held) ? [held, ...listed] : listed;
   };
 
+  /**
+   * 一筆實體**用在幾場** —— 手上那一筆用拿起來之前的快照（見 `heldScenes`）。
+   *
+   * 含編劇正站著的這一場：chip 一拿起來 doc 上就少一場，而「這筆實體有多大」不該因為他把
+   * 它拿在手上就少一。
+   */
+  const scenesOf = (id: string) =>
+    (id === editing.current?.id ? heldScenes.current : null) ?? usage?.().get(id);
+
+  /**
+   * 一列候選印出來的樣子 —— **選單與組字預覽共用**（票券 52）。
+   *
+   * 記號分的是兩種不同的東西（使用者裁決 2026-09-14）：`📍`／`👤` ＝ **劇中已經存在的那一位**
+   * （別場也指著它），`🕓` ＝ 編劇剛在這一場打下的那串字。後者進候選的理由是「你剛剛打過
+   * 這個，新名字也許是它的變體」—— 那是一則歷史紀錄，而拿實體的樣子去印它，等於替一個
+   * 可能只是打錯的字背書。判準不是「像不像打錯的」（系統分不出），是**除了這一場有沒有別場
+   * 認識它**。
+   *
+   * `alias` 是這一場的叫法，只在它不等於實體名時傳進來（見呼叫處）。歷史那一列**不印場數**，
+   * 但別名照印：那一句回答的是「框裡的字與這一列是什麼關係」，跟它有多大無關。
+   */
+  const candidateLabel = (option: EntityOption, alias: string | null) => {
+    const scenes = scenesOf(option.id);
+    const onlyHere = option === heldEntity() && (scenes ?? 1) <= 1;
+    const note = [
+      alias && `這場顯示為 ${alias}`,
+      !onlyHere && scenes && `${scenes} 場`,
+    ]
+      .filter(Boolean)
+      .join("，");
+    const mark = onlyHere ? HISTORY_MARK : HIT_MARK[kind];
+    return `${mark} ${option.name}${note ? `（${note}）` : ""}`;
+  };
+
   /** 把幾筆引用併進現有的（單值欄就是取代成最後一筆）。 */
   const merge = (added: EntityRef[]) => {
     if (added.length === 0) return;
@@ -741,11 +782,6 @@ export function EntityField({
     // **孤兒不出現在自動補全**（ADR-0005）—— 「存在＝被引用」不是一句口號，選單是它唯一
     // 看得見的地方。目錄是 append-only 的，裡面一定會累積 ⌘Z 留下的孤兒；「v1 永不清理」
     // 指的是**不刪資料列**，不是「照樣顯示」。
-    const counts = usage?.();
-    /** 選單印的場次數 —— 手上那一筆用拿起來之前的快照（見 `heldScenes`）。 */
-    const scenesOf = (id: string) =>
-      (id === editing.current?.id ? heldScenes.current : null) ??
-      counts?.get(id);
     const known = candidates();
     // 手上那一筆也算命中 —— 少了它，把自己拿回來改會看到「建立新實體『它自己』」（票券 38）。
     // `editingMatch` 仍然要問：它認的是**顯示名**，而目錄裡那筆的名字可以不一樣（別名）。
@@ -759,18 +795,14 @@ export function EntityField({
 
     if (stage.name === "suggest") {
       for (const option of [...(exact ? [exact] : []), ...hits]) {
-        const count = scenesOf(option.id);
         // 手上那一筆的顯示名可能不是它在目錄裡的名字（別名，或實體改名後舊引用留著舊字）
         // —— 那時標籤主體印**實體名**、括號裡補這一場的叫法，沿用場次表那條慣例
         // （CONTEXT.md 地點詞條：印 `實體名（這一場的顯示名）`，只在兩者不同時才印）。
         // 主體是實體名而不是編劇打的字：他打的字他自己知道，不知道的是它會綁到誰。
         const alias = option === exact && query !== option.name ? query : null;
-        const note = [alias && `這場顯示為 ${alias}`, count && `${count} 場`]
-          .filter(Boolean)
-          .join("，");
         rows.push({
           key: `hit:${option.id}`,
-          label: `${HIT_MARK[kind]} ${option.name}${note ? `（${note}）` : ""}`,
+          label: candidateLabel(option, alias),
           run: () => {
             // 命中列的顯示名就是實體名 —— 但**手上那一筆**用回框裡的字：它的顯示名可能是
             // 這一場的別名（ADR-0005：別名住在引用上），拿目錄名蓋回去等於靜悄悄改掉它。
@@ -1455,9 +1487,9 @@ export function EntityField({
           aria-hidden="true"
         >
           {preview.map((option) => (
-            <li key={option.id}>
-              {HIT_MARK[kind]} {option.name}
-            </li>
+            // 與送出之後那份選單同一支標籤 —— 同一筆東西在選字前後換一張臉，比印錯場數
+            // 更糟（票券 52）。
+            <li key={option.id}>{candidateLabel(option, null)}</li>
           ))}
         </ul>
       )}
