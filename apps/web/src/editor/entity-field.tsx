@@ -722,8 +722,19 @@ export function EntityField({
     const scenesOf = (id: string) =>
       (id === editing.current?.id ? heldScenes.current : null) ??
       counts?.get(id);
-    const known = existing();
+    const listed = existing();
+    // 手上那一筆**暫時仍存在**（票券 52）：`editRef` 為了把 chip 變回文字先把引用從 doc 上
+    // 拿掉，只被這一場引用的實體於是掉出 `existing()` —— 但它有一個明確的持有者，不是孤兒。
+    // 少了這一句，「拿在手上」與「還在目錄裡」在自動補全這一側就不同形：握著 `Leon` 清空
+    // 重打 `L` 命中不了它自己，而被多場引用的同一個手勢卻可以（票券 38 只補了「完全相等」
+    // 那一格）。放在最前面是為了不被 `hits` 的 5 列上限擠掉 —— 手上那一筆是最該印出來的。
+    //
+    // ⚠️ 只多認**這一筆**，`existing()` 一個字都沒放寬：真正的孤兒沒有持有者，仍然不進候選
+    // （ADR-0005）。
+    const held = heldEntity();
+    const known = held && !listed.includes(held) ? [held, ...listed] : listed;
     // 手上那一筆也算命中 —— 少了它，把自己拿回來改會看到「建立新實體『它自己』」（票券 38）。
+    // `editingMatch` 仍然要問：它認的是**顯示名**，而目錄裡那筆的名字可以不一樣（別名）。
     const exact = known.find((o) => o.name === query) ?? editingMatch(query);
     // ⚠️ 排掉的是 `exact` **那一筆**，不是「名字剛好等於 query 的」。兩者多數時候同一件事，
     // 但手上那一筆的顯示名可能不等於它在目錄裡的名字（別名，或實體改名後舊引用還留著舊字）

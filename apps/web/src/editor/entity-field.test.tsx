@@ -1410,3 +1410,132 @@ describe("點 chip 之間那道縫，下一筆就插在那裡（票券 39 收票
     expect(container.querySelector("input")!.value).toBe("阿盈"); // 不是隊尾的「建鳴」
   });
 });
+
+describe("清空重打前綴，要重新命中手上那一筆（票券 52）", () => {
+  // 票券 38 只補了「完全相等」那一格：`exact` 多認手上那一筆，但 `hits` 仍然只看
+  // `existing()`。於是**只被這一場引用**的實體清空重打前綴命中不了自己，被多場引用的卻
+  // 可以 —— 同一個手勢兩種結果，而差別在編劇看不見的地方。
+  it("握著只被這一場引用的那一筆，清空打前綴 → 它出現在候選裡", () => {
+    const { container } = render(
+      <Host initial={[{ id: policeStation.id, displayName: "派出所" }]} usage={() => new Map()} />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "派" } });
+
+    expect(rows(container)[0]).toBe("📍 派出所");
+  });
+
+  it("場數沒有被弄丟 —— 印的是拿起來那一刻的快照", () => {
+    // 拿起來之前這一筆用在 3 場；拿下來之後 doc 上少了這一場，而這一欄是它唯一的引用，
+    // 所以 `usage()` 直接掉到 0。編劇要判斷的是「這筆實體有多大」，那個數字不該因為他把
+    // chip 拿起來就消失（`heldScenes`）。
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={(refs) =>
+          refs.some((r) => r.id === policeStation.id) ? new Map([[policeStation.id, 3]]) : new Map()
+        }
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "派" } });
+
+    expect(rows(container)[0]).toBe("📍 派出所（3 場）");
+  });
+
+  it("被多場引用的那一筆行為不變 —— 它本來就沒離開 existing()", () => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map([[policeStation.id, 2]])}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "派" } });
+
+    expect(rows(container).filter((r) => r.startsWith("📍 派出所"))).toEqual(["📍 派出所（2 場）"]);
+  });
+
+  it("打回完整的名字時也只印一列 —— exact 與 hits 不各進榜一次", () => {
+    const { container } = render(
+      <Host initial={[{ id: policeStation.id, displayName: "派出所" }]} usage={() => new Map()} />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "派出所" } });
+
+    expect(rows(container).filter((r) => r.startsWith("📍 派出所"))).toHaveLength(1);
+  });
+
+  it("真正的孤兒仍然不出現在候選裡（ADR-0005 不動）", () => {
+    // 差別是握在手上的那一筆有一個明確的持有者，孤兒沒有。手上握著 `海豚公寓房間` 時，
+    // 打 `派` 不該把沒有人引用的 `派出所` 撈出來。
+    const { container } = render(
+      <Host
+        initial={[{ id: dolphinApartment.id, displayName: "海豚公寓房間" }]}
+        usage={() => new Map()}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "派" } });
+
+    expect(rows(container).some((r) => r.startsWith("📍 派出所"))).toBe(false);
+    expect(rows(container)[0]).toBe("＋ 建立新實體「派」");
+  });
+
+  it("人物欄走同一段程式碼", () => {
+    const { container } = render(
+      <EntityField
+        kind="character"
+        placeholder="人物"
+        refs={[{ id: "ch_1", displayName: "服務生小李" }]}
+        options={[{ id: "ch_1", name: "服務生小李" }]}
+        usage={() => new Map()}
+        onCommit={() => {}}
+        onCreate={async () => null}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "服務生" } });
+
+    expect(rows(container)[0]).toBe("👤 服務生小李");
+  });
+
+  it("選了它 → 用回目錄裡的名字，不是框裡打到一半的那幾個字", async () => {
+    const commits: EntityRef[][] = [];
+    const { container } = render(
+      <EntityField
+        kind="location"
+        placeholder="地點"
+        refs={[{ id: policeStation.id, displayName: "派出所" }]}
+        options={[policeStation]}
+        usage={() => new Map()}
+        multiple
+        onCommit={(next) => commits.push(next)}
+        onCreate={async () => null}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "派" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(commits.at(-1)).toHaveLength(1));
+    expect(commits.at(-1)![0]).toEqual({
+      id: policeStation.id,
+      displayName: "派出所",
+    });
+  });
+});
