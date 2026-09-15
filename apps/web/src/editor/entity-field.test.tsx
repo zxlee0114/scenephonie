@@ -656,7 +656,7 @@ describe("編輯中的那一筆不是孤兒（票券 38）", () => {
   });
 
   it("被引用兩次以上的那一筆行為不變 —— 它本來就沒離開 existing()", () => {
-    // 場數含編劇正站著的這一場（見 `heldScenes`），所以「別場也認識它」是 2 起跳。
+    // 2 起跳才是「別場也認識它」（場數含編劇正站著的這一場），所以記號是 `📍` 不是 `🕓`。
     const { container } = render(
       <Host
         initial={[{ id: policeStation.id, displayName: "派出所" }]}
@@ -667,8 +667,9 @@ describe("編輯中的那一筆不是孤兒（票券 38）", () => {
 
     fireEvent.keyDown(input, { key: "Backspace" });
 
-    // 兩場用到它，其中一場就是編劇正站著的這一場 —— 印的是**別場**那一場（2026-09-15 裁決）。
-    expect(rows(container)[0]).toBe("📍 派出所（1 場）");
+    // 手上那一筆不印場數（2026-09-15 第二輪裁決）—— 場數只回答「這實體多大」，而代價
+    // 那一句改名列自己在講。
+    expect(rows(container)[0]).toBe("📍 派出所");
     expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
   });
 
@@ -838,7 +839,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
 
     expect(rows(container)).toEqual([
-      "📍 派出所（這場顯示為 分局，2 場）",
+      "📍 派出所（這場顯示為 分局）",
       "✏️ 把實體改名為「分局」",
       "🔗 作為既有實體的另一個名字…",
     ]);
@@ -848,7 +849,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
     const { container } = held();
     retype(container, "派出所");
 
-    expect(rows(container)).toEqual(["📍 派出所（2 場）", "🔗 作為既有實體的另一個名字…"]);
+    expect(rows(container)).toEqual(["📍 派出所", "🔗 作為既有實體的另一個名字…"]);
   });
 
   it("沒有改名能力時就不出現那一列（不給做不到的選項）", () => {
@@ -1007,28 +1008,29 @@ describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
       />,
     );
 
-  it("命中列的場次數**不含**編劇正站著的這一場 —— 正在編輯它，它不一定會留在這一場", () => {
-    // 2026-09-15 裁決，推翻 2026-09-11 的相反結論（見 `heldScenes`）。三場用到它，
-    // 其中一場是編劇站著的這一場 → 印 2：那是他接下來無論怎麼做都還成立的數字。
+  it("手上那一筆一個場數都不印 —— 那個數字回答的是「它多大」，不是編劇這一刻要的", () => {
+    // 2026-09-15 第二輪裁決，推翻 2026-09-11（見 `candidateLabel`）。編劇寫劇本時不會
+    // 顧慮某個角色登場過幾場；真正該報的是代價，而那一句改名那一列自己在講。
     const { container } = held();
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
 
-    expect(rows(container)[0]).toBe("📍 派出所（2 場）");
+    expect(rows(container)[0]).toBe("📍 派出所");
   });
 
-  it("同一場的別欄也指著它時，那一場仍然整場扣掉", () => {
-    // 這條釘的是**減一**而不是「拿掉之後重數」：重數的話，同一場的別欄（例如對白說話者）
-    // 會把這一場留在數字裡，而要扣掉的是整個場次。
+  it("同一場的別欄也指著它時，那一場仍然整場扣掉 —— 它該印成歷史紀錄", () => {
+    // 場數不印了，但它仍然決定記號：這條釘的是**減一**而不是「拿掉之後重數」。usage 恆為
+    // 1（同一場的別欄也指著它，撤掉這一欄之後它還在），重數會得到 1 → 誤判成「別場也認識
+    // 它」；減一得到 0 → `🕓`，而那才是實話。
     const { container } = render(
       <Host
         initial={[{ id: policeStation.id, displayName: "派出所" }]}
-        usage={() => new Map([[policeStation.id, 3]])}
+        usage={() => new Map([[policeStation.id, 1]])}
         onRenameEntity={() => {}}
       />,
     );
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
 
-    expect(rows(container)[0]).toBe("📍 派出所（2 場）");
+    expect(rows(container)[0]).toBe("🕓 派出所");
   });
 
   it("字沒改時有一行唯讀抬頭說得出改名這條路 —— 沒有它，那條路完全不可見", () => {
@@ -1037,7 +1039,7 @@ describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
 
     expect(heldNote(container)).toBe("💡 正在編輯「派出所」，修改文字可更新名稱");
     // 它不是選項：選不到、Enter 碰不到。
-    expect(rows(container)).toEqual(["📍 派出所（2 場）", "🔗 作為既有實體的另一個名字…"]);
+    expect(rows(container)).toEqual(["📍 派出所", "🔗 作為既有實體的另一個名字…"]);
   });
 
   it("字改過之後抬頭還在 —— 框裡的字已經不是它的名字了，「我在編輯誰」得有人說", () => {
@@ -1454,22 +1456,21 @@ describe("清空重打前綴，要重新命中手上那一筆（票券 52）", (
     expect(rows(heldThenType("派", () => new Map()))[0]).toBe("🕓 派出所");
   });
 
-  it("場數沒有被弄丟 —— 印的是拿起來那一刻的快照", () => {
+  it("身分記號沒有被弄丟 —— 走的是拿起來那一刻的快照", () => {
     // 拿起來之前這一筆用在 3 場；拿下來之後 doc 上少了這一場，而這一欄是它唯一的引用，
-    // 所以 `usage()` 直接掉到 0。編劇要判斷的是「這筆實體有多大」，那個數字不該因為他把
-    // chip 拿起來就消失（`heldScenes`）。
+    // 所以 `usage()` 直接掉到 0。少了快照，別場明明認識它卻會被印成 `🕓`（`heldScenes`）。
     const container = heldThenType("派", (refs) =>
       refs.some((r) => r.id === policeStation.id) ? new Map([[policeStation.id, 3]]) : new Map(),
     );
 
-    // 三場用到它，扣掉編劇正站著的這一場 → 2（2026-09-15 裁決）。
-    expect(rows(container)[0]).toBe("📍 派出所（2 場）");
+    // 場數不印（2026-09-15 第二輪裁決），但它仍然是劇中已經存在的那一位。
+    expect(rows(container)[0]).toBe("📍 派出所");
   });
 
   it("被多場引用的那一筆行為不變 —— 它本來就沒離開 existing()", () => {
     const container = heldThenType("派", () => new Map([[policeStation.id, 2]]));
 
-    expect(rows(container).filter((r) => r.startsWith("📍 派出所"))).toEqual(["📍 派出所（1 場）"]);
+    expect(rows(container).filter((r) => r.startsWith("📍 派出所"))).toEqual(["📍 派出所"]);
   });
 
   it("打回完整的名字時也只印一列 —— exact 與 hits 不各進榜一次", () => {
@@ -1565,7 +1566,8 @@ describe("清空重打前綴，要重新命中手上那一筆（票券 52）", (
 describe("還沒有別場認識的名字，印成一則歷史紀錄（使用者裁決 2026-09-14）", () => {
   // 候選有兩種來源，而它們不是同一種東西：別場也指著的那一筆是**劇中已經存在的那一位**，
   // 手上這一筆可能只是編劇三秒鐘前打錯的字。它進候選的理由是「你剛剛打過這個，新名字也許
-  // 是它的變體」—— 那是一則歷史紀錄，印上 `（1 場）` 等於拿實體的權威去背書那個錯字。
+  // 是它的變體」—— 那是一則歷史紀錄，用實體的樣子去印它等於替一個可能只是打錯的字背書。
+  // （場數在 2026-09-15 第二輪裁決之後兩種來源都不印了，這一組釘的只剩記號。）
   const held = (scenes: number | null) => {
     const { container } = render(
       <Host
@@ -1577,14 +1579,14 @@ describe("還沒有別場認識的名字，印成一則歷史紀錄（使用者�
     return rows(container)[0];
   };
 
-  it("只有這一場認識它 → 時鐘，而且一個數字都不印", () => {
-    // 場數不含編劇正站著的這一場（2026-09-15 裁決），所以這裡那個數字是 0 —— 沒什麼好報的。
+  it("只有這一場認識它 → 時鐘", () => {
+    // 場數不含編劇正站著的這一場（見 `heldScenes`），所以這裡那個數字是 0。
     expect(held(1)).toBe("🕓 派出所");
   });
 
-  it("別場也認識它 → 換回身分記號與場數（印的是別場那幾場）", () => {
-    expect(held(2)).toBe("📍 派出所（1 場）");
-    expect(held(4)).toBe("📍 派出所（3 場）");
+  it("別場也認識它 → 換回身分記號，但場數仍然不印", () => {
+    expect(held(2)).toBe("📍 派出所");
+    expect(held(4)).toBe("📍 派出所");
   });
 
   it("一場都算不出來時也當成歷史 —— 沒有別場認識它就是沒有", () => {
