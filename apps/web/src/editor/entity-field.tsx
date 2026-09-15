@@ -298,11 +298,17 @@ export function EntityField({
    */
   const editing = useRef<EntityRef | null>(null);
   /**
-   * 拿起來**那一刻**，手上那一筆實體用在幾場 —— **含編劇正站著的這一場**。
+   * 手上那一筆實體**除了這一場**還用在幾場（使用者裁決 2026-09-15）。
    *
-   * 為什麼要快照：`editRef` 第一件事就是把引用從 doc 上拿掉，`usage()` 從那之後就少算這一場
-   * （除非同一場的別欄也引用它）。但編劇要判斷的是「這筆實體有多大」，那個數字不該因為他把
-   * chip 拿起來就少一 —— 判準與 ADR-0005 那條邊界同一條：**手上那一筆不是孤兒**。
+   * **不含編劇正站著的這一場** —— 這推翻了 2026-09-11 的相反裁決（票券 39 收票）。同一個
+   * 觀察兩種結論：他把這一筆拿起來改，就表示這個人或這個地點**不一定會留在這一場**。既然
+   * 去留未定，把它算進去就是在報一個可能下一秒就不成立的數字；而「除了這一場還有幾場」
+   * 無論他接下來做什麼都成立。改名那一列的 `還有 N 場印著「X」` 本來就是這樣數的，兩個
+   * 數字這下同一個意思。
+   *
+   * 為什麼仍要快照而不是重數：`editRef` 第一件事就是把引用從 doc 上拿掉，那之後再數，同一場
+   * 的別欄若也指著它，這一場就會留在數字裡 —— 而這一場是要整場扣掉的。所以是「拿起來那一刻
+   * 的總數減一」（計數單位是場次，這一場在總數裡就是那個 1）。
    */
   const heldScenes = useRef<number | null>(null);
   /**
@@ -452,10 +458,10 @@ export function EntityField({
   };
 
   /**
-   * 一筆實體**用在幾場** —— 手上那一筆用拿起來之前的快照（見 `heldScenes`）。
+   * 一筆實體**用在幾場**。手上那一筆走 `heldScenes` 的快照 —— 那個數字**不含這一場**
+   * （2026-09-15 裁決）：正在編輯它，就表示它不一定會留在這一場。
    *
-   * 含編劇正站著的這一場：chip 一拿起來 doc 上就少一場，而「這筆實體有多大」不該因為他把
-   * 它拿在手上就少一。
+   * 目錄裡其餘那些是它們自己的總數 —— 那幾場指的是別人，與編劇站在哪一場無關。
    */
   const scenesOf = (id: string) =>
     (id === editing.current?.id ? heldScenes.current : null) ?? usage?.().get(id);
@@ -467,14 +473,16 @@ export function EntityField({
    * （別場也指著它），`🕓` ＝ 編劇剛在這一場打下的那串字。後者進候選的理由是「你剛剛打過
    * 這個，新名字也許是它的變體」—— 那是一則歷史紀錄，而拿實體的樣子去印它，等於替一個
    * 可能只是打錯的字背書。判準不是「像不像打錯的」（系統分不出），是**除了這一場有沒有別場
-   * 認識它**。
+   * 認識它** —— 而手上那一筆的場數本來就不含這一場（2026-09-15 裁決），所以那就是 `0`。
    *
-   * `alias` 是這一場的叫法，只在它不等於實體名時傳進來（見呼叫處）。歷史那一列**不印場數**，
-   * 但別名照印：那一句回答的是「框裡的字與這一列是什麼關係」，跟它有多大無關。
+   * `alias` 是這一場的叫法，只在它不等於實體名時傳進來（見呼叫處）。歷史那一列**不印場數**
+   * （那個數字是 0，沒什麼好報的），但別名照印：那一句回答的是「框裡的字與這一列是什麼
+   * 關係」，跟它有多大無關。
    */
   const candidateLabel = (option: EntityOption, alias: string | null) => {
     const scenes = scenesOf(option.id);
-    const onlyHere = option === heldEntity() && (scenes ?? 1) <= 1;
+    // 手上那一筆的場數已經不含這一場（見 `scenesOf`），所以「沒有別場認識它」就是 0。
+    const onlyHere = option === heldEntity() && !scenes;
     const note = [
       alias && `這場顯示為 ${alias}`,
       !onlyHere && scenes && `${scenes} 場`,
@@ -588,8 +596,11 @@ export function EntityField({
    */
   const editRef = (ref: EntityRef) => {
     if (editing.current) return;
-    // ⚠️ 在 `onCommit` 之前問 —— 引用一從 doc 上拿掉，這一場就從場次數裡消失了。
-    const scenes = ref.id == null ? null : (usage?.().get(ref.id) ?? null);
+    // ⚠️ 在 `onCommit` 之前問 —— 引用一從 doc 上拿掉，這一場就從場次數裡消失了。而要的是
+    // **扣掉這一場之後**還剩幾場（見 `heldScenes`），所以是「拿起來那一刻的總數減一」，
+    // 不是「拿掉之後再數一次」：同一場的別欄也指著它時，後者會把這一場留在數字裡。
+    const counted = ref.id == null ? null : usage?.().get(ref.id);
+    const scenes = counted == null ? null : Math.max(0, counted - 1);
     // ⚠️ 先把手握上再 `onCommit`：反過來的話，那一次重繪會看到「chip 沒了、手上也沒有」。
     // 拿起來的那一筆**整串反白**：再一顆 Backspace 就整串清掉，也可以直接覆寫。滑鼠點進來
     // 原本游標停在字尾，與 Backspace 進來兩種樣子 —— 統一成這一種（2026-09-11 驗收回饋）。
