@@ -91,5 +91,6 @@ blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開
 | [50](./50-contract-drop-legacy-count.md) | **contract**：刪掉 `count: number`，四種樣子成為 canonical，開發資料庫 reset（不升 `doc_schema_version`）。blocked by 45–49。 |
 | [51](./51-rewrite-context-extras-decision.md) | CONTEXT.md 群演實作定案第 1 條連同理由改寫（票券 09 那條被推翻）。blocked by 50。 |
 | [53](./53-let-go-undo-restores-raw-text.md) | bug：群演放手之後的 ⌘Z 還回來的是一串裸字（瀏覽器對 input 的原生 undo），`extraId` 與人數都沒了。**從票券 47 的人工驗收切出來**；與 37 的分工是「焦點還在欄位裡」對「焦點已經走了」。 |
-| [52](./52-editing-ref-matches-itself-by-prefix.md) | bug：握著一筆實體、清空重打前綴命中不了自己（票券 38 那條裂縫）。**從票券 42 的第 4 條切出來**，與 42 的措辭工作無關。blocked by 40。 |
+| [52](./52-editing-ref-matches-itself-by-prefix.md) | bug（已完成）：握著一筆實體、清空重打前綴命中不了自己（票券 38 那條裂縫）。**從票券 42 的第 4 條切出來**，與 42 的措辭工作無關。blocked by 40。呈現另有兩輪追加裁決：只有這一場認識的名字印成 `🕓` 歷史紀錄而非實體，且**手上那一筆不印場數**（後者推翻 2026-09-11）。 |
+| [58](./58-single-value-field-caret-after-commit.md) | bug（已完成）：單值欄（非雜景地點欄、對白人物欄）定案之後輸入框卡在 chip **前面** —— `merge` 的單值分支沒把 `caret` 歸位，而 `reset()` 靠它歸位。**從票券 52 的人工驗收切出來**，與 52 無關（根因在票券 39 的游標歸位）。 |
 | [57](./57-select-chips-in-a-field.md) | 一格裡的 chip 選得起來：`⌘A` 選滿整格、`⌫` 清空，四格一致；按到底放行給整份文件。選取狀態是**一組 chip**（為以後的子集與剪貼留形狀）。**拖曳定案給重排、選取永不靠拖**。blocked by 無（08／09／34 皆已完成）。剪貼另開票。 |

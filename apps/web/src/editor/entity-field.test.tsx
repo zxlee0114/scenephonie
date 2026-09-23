@@ -600,7 +600,9 @@ describe("編輯中的那一筆不是孤兒（票券 38）", () => {
     const { container } = lonely();
     fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
 
-    expect(rows(container)[0]).toBe("📍 派出所");
+    // 🕓 而不是 📍：除了這一場沒有別場認識它（使用者裁決 2026-09-14，見 `HISTORY_MARK`）。
+    // 這張票釘的是**那一列在不在**、以及「建立新實體」有沒有消失，記號是另一件事。
+    expect(rows(container)[0]).toBe("🕓 派出所");
     expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
   });
 
@@ -654,17 +656,20 @@ describe("編輯中的那一筆不是孤兒（票券 38）", () => {
   });
 
   it("被引用兩次以上的那一筆行為不變 —— 它本來就沒離開 existing()", () => {
+    // 2 起跳才是「別場也認識它」（場數含編劇正站著的這一場），所以記號是 `📍` 不是 `🕓`。
     const { container } = render(
       <Host
         initial={[{ id: policeStation.id, displayName: "派出所" }]}
-        usage={() => new Map([[policeStation.id, 1]])}
+        usage={() => new Map([[policeStation.id, 2]])}
       />,
     );
     const input = container.querySelector("input")!;
 
     fireEvent.keyDown(input, { key: "Backspace" });
 
-    expect(rows(container)[0]).toBe("📍 派出所（1 場）");
+    // 手上那一筆不印場數（2026-09-15 第二輪裁決）—— 場數只回答「這實體多大」，而代價
+    // 那一句改名列自己在講。
+    expect(rows(container)[0]).toBe("📍 派出所");
     expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
   });
 
@@ -702,7 +707,7 @@ describe("編輯中的那一筆：別名與人物欄（票券 38 code review）"
 
     fireEvent.keyDown(input, { key: "Backspace" });
     // 主體是實體名，括號裡是這一場的叫法（票券 38 驗收回饋那一節）。
-    expect(rows(container)[0]).toBe("📍 海豚公寓房間（這場顯示為 未知大樓房間）");
+    expect(rows(container)[0]).toBe("🕓 海豚公寓房間（這場顯示為 未知大樓房間）");
 
     fireEvent.keyDown(input, { key: "Enter" }); // 第一列就是預設那一列
     await waitFor(() => expect(commits.at(-1)).toHaveLength(1));
@@ -727,7 +732,7 @@ describe("編輯中的那一筆：別名與人物欄（票券 38 code review）"
 
     fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
 
-    expect(rows(container)[0]).toBe("👤 服務生小李");
+    expect(rows(container)[0]).toBe("🕓 服務生小李");
     expect(rows(container).some((r) => r.includes("建立新實體"))).toBe(false);
   });
 });
@@ -753,7 +758,7 @@ describe("別名 ＋ 實體改名之後，命中列不重覆（票券 38 人工�
 
     fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
 
-    expect(rows(container).filter((r) => r.startsWith("📍 test1"))).toHaveLength(1);
+    expect(rows(container).filter((r) => r.includes("test1"))).toHaveLength(1);
   });
 });
 
@@ -778,13 +783,15 @@ describe("命中列標出這一場的叫法（票券 38 驗收回饋）", () => 
   it("顯示名不等於實體名時，括號裡補一句這一場叫什麼", () => {
     // 沿用場次表那條慣例：印 `實體名（這一場的顯示名）`，只在兩者不同時才印括號
     // （CONTEXT.md 的地點詞條）。選單與場次表回答同一個問題，形狀就該是同一個。
+    // 場數不印：只有這一場認識它（2026-09-14 裁決）。別名那一句照印 —— 它回答的是
+    // 「框裡的字與這一列是什麼關係」，跟這筆實體有多大無關。
     expect(heldAlias([{ id: "lo_1", name: "test1" }], "test")[0]).toBe(
-      "📍 test1（這場顯示為 test，1 場）",
+      "🕓 test1（這場顯示為 test）",
     );
   });
 
   it("兩者相同時一個字都不多印", () => {
-    expect(heldAlias([{ id: "lo_1", name: "test" }], "test")[0]).toBe("📍 test（1 場）");
+    expect(heldAlias([{ id: "lo_1", name: "test" }], "test")[0]).toBe("🕓 test");
   });
 });
 
@@ -832,7 +839,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
 
     expect(rows(container)).toEqual([
-      "📍 派出所（這場顯示為 分局，3 場）",
+      "📍 派出所（這場顯示為 分局）",
       "✏️ 把實體改名為「分局」",
       "🔗 作為既有實體的另一個名字…",
     ]);
@@ -842,7 +849,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
     const { container } = held();
     retype(container, "派出所");
 
-    expect(rows(container)).toEqual(["📍 派出所（3 場）", "🔗 作為既有實體的另一個名字…"]);
+    expect(rows(container)).toEqual(["📍 派出所", "🔗 作為既有實體的另一個名字…"]);
   });
 
   it("沒有改名能力時就不出現那一列（不給做不到的選項）", () => {
@@ -1001,12 +1008,29 @@ describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
       />,
     );
 
-  it("命中列的場次數含編劇正站著的這一場 —— 拿起來不該讓一筆實體看起來變小", () => {
+  it("手上那一筆一個場數都不印 —— 那個數字回答的是「它多大」，不是編劇這一刻要的", () => {
+    // 2026-09-15 第二輪裁決，推翻 2026-09-11（見 `candidateLabel`）。編劇寫劇本時不會
+    // 顧慮某個角色登場過幾場；真正該報的是代價，而那一句改名那一列自己在講。
     const { container } = held();
     fireEvent.mouseDown(container.querySelector(".entity-chip")!);
 
-    // doc 裡剩下兩場，加上被拿在手上的這一場 → 3。
-    expect(rows(container)[0]).toBe("📍 派出所（3 場）");
+    expect(rows(container)[0]).toBe("📍 派出所");
+  });
+
+  it("同一場的別欄也指著它時，那一場仍然整場扣掉 —— 它該印成歷史紀錄", () => {
+    // 場數不印了，但它仍然決定記號：這條釘的是**減一**而不是「拿掉之後重數」。usage 恆為
+    // 1（同一場的別欄也指著它，撤掉這一欄之後它還在），重數會得到 1 → 誤判成「別場也認識
+    // 它」；減一得到 0 → `🕓`，而那才是實話。
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => new Map([[policeStation.id, 1]])}
+        onRenameEntity={() => {}}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+
+    expect(rows(container)[0]).toBe("🕓 派出所");
   });
 
   it("字沒改時有一行唯讀抬頭說得出改名這條路 —— 沒有它，那條路完全不可見", () => {
@@ -1015,7 +1039,7 @@ describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
 
     expect(heldNote(container)).toBe("💡 正在編輯「派出所」，修改文字可更新名稱");
     // 它不是選項：選不到、Enter 碰不到。
-    expect(rows(container)).toEqual(["📍 派出所（3 場）", "🔗 作為既有實體的另一個名字…"]);
+    expect(rows(container)).toEqual(["📍 派出所", "🔗 作為既有實體的另一個名字…"]);
   });
 
   it("字改過之後抬頭還在 —— 框裡的字已經不是它的名字了，「我在編輯誰」得有人說", () => {
@@ -1320,6 +1344,44 @@ describe("一次只編輯一筆：握著的時候別的 chip 動不得（票券 
   });
 });
 
+describe("單值欄定案之後游標在那顆 chip 後面（使用者回報 2026-09-24）", () => {
+  // 單值欄（非雜景的地點欄、對白人物欄）只裝得下一筆，所以輸入框的家就是隊尾。拿起來改時
+  // `caret` 記著它原本那一格（票券 39：放回去要回原位），而 `reset()` 刻意不清它 —— 靠 `merge`
+  // 把它挪到新 chip 之後。單值欄那條 early return 原本沒挪，於是定案之後輸入框卡在 chip 前面。
+  const layout = (root: HTMLElement) =>
+    [...root.querySelectorAll(".entity-chip, input")].map((el) =>
+      el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×＋📍👤🕓]/gu, "") ?? ""),
+    );
+
+  const held = () => {
+    const { container } = render(
+      <Host
+        multiple={false}
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        options={[policeStation]}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    return container;
+  };
+
+  it("原封放回（字沒改）", async () => {
+    const container = held();
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" });
+
+    await waitFor(() => expect(layout(container)).toEqual(["派出所", "|"]));
+  });
+
+  it("改成別的既有實體", async () => {
+    const container = held();
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "派出所後門" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(layout(container)).toEqual(["派出所後門", "|"]));
+  });
+});
+
 describe("點 chip 之間那道縫，下一筆就插在那裡（票券 39 收票）", () => {
   const two = () =>
     render(
@@ -1408,5 +1470,176 @@ describe("點 chip 之間那道縫，下一筆就插在那裡（票券 39 收票
     fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
 
     expect(container.querySelector("input")!.value).toBe("阿盈"); // 不是隊尾的「建鳴」
+  });
+});
+
+describe("清空重打前綴，要重新命中手上那一筆（票券 52）", () => {
+  // 票券 38 只補了「完全相等」那一格：`exact` 多認手上那一筆，但候選清單仍然只看
+  // `existing()`。於是**只被這一場引用**的實體清空重打前綴命中不了自己，被多場引用的卻
+  // 可以 —— 同一個手勢兩種結果，而差別在編劇看不見的地方。
+  /** 握著一筆、清空重打 —— 這張票的每一條都從這個手勢開始。 */
+  const heldThenType = (
+    value: string,
+    usage: (refs: readonly EntityRef[]) => ReadonlyMap<string, number>,
+    initial: EntityRef[] = [{ id: policeStation.id, displayName: "派出所" }],
+  ) => {
+    const { container } = render(<Host initial={initial} usage={usage} />);
+    const input = container.querySelector("input")!;
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value } });
+    return container;
+  };
+
+  it("握著只被這一場引用的那一筆，清空打前綴 → 它出現在候選裡", () => {
+    expect(rows(heldThenType("派", () => new Map()))[0]).toBe("🕓 派出所");
+  });
+
+  it("身分記號沒有被弄丟 —— 走的是拿起來那一刻的快照", () => {
+    // 拿起來之前這一筆用在 3 場；拿下來之後 doc 上少了這一場，而這一欄是它唯一的引用，
+    // 所以 `usage()` 直接掉到 0。少了快照，別場明明認識它卻會被印成 `🕓`（`heldScenes`）。
+    const container = heldThenType("派", (refs) =>
+      refs.some((r) => r.id === policeStation.id) ? new Map([[policeStation.id, 3]]) : new Map(),
+    );
+
+    // 場數不印（2026-09-15 第二輪裁決），但它仍然是劇中已經存在的那一位。
+    expect(rows(container)[0]).toBe("📍 派出所");
+  });
+
+  it("被多場引用的那一筆行為不變 —— 它本來就沒離開 existing()", () => {
+    const container = heldThenType("派", () => new Map([[policeStation.id, 2]]));
+
+    expect(rows(container).filter((r) => r.startsWith("📍 派出所"))).toEqual(["📍 派出所"]);
+  });
+
+  it("打回完整的名字時也只印一列 —— exact 與 hits 不各進榜一次", () => {
+    const container = heldThenType("派出所", () => new Map());
+
+    expect(rows(container).filter((r) => r.endsWith("派出所"))).toHaveLength(1);
+  });
+
+  it("真正的孤兒仍然不出現在候選裡（ADR-0005 不動）", () => {
+    // 差別是握在手上的那一筆有一個明確的持有者，孤兒沒有。手上握著 `海豚公寓房間` 時，
+    // 打 `派` 不該把沒有人引用的 `派出所` 撈出來。
+    const container = heldThenType("派", () => new Map(), [
+      { id: dolphinApartment.id, displayName: "海豚公寓房間" },
+    ]);
+
+    expect(rows(container).some((r) => r.endsWith("派出所"))).toBe(false);
+    expect(rows(container)[0]).toBe("＋ 建立新實體「派」");
+  });
+
+  it("注音打到一半的預覽也看得到手上那一筆", () => {
+    // 預覽與送出之後那份選單讀同一份候選 —— 分家的話，組字期間看不到它、`compositionend`
+    // 之後它才蹦出來，又是同一個手勢兩種結果。
+    const { container } = render(
+      <Host initial={[{ id: policeStation.id, displayName: "派出所" }]} usage={() => new Map()} />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "派" } });
+
+    expect(previewRows(container)).toEqual(["🕓 派出所"]);
+  });
+
+  it("別名那兩列不把手上那一筆列進去 —— 自己不是自己的別名", () => {
+    // 候選多認手上那一筆，是為了回答「我打的字命中誰」。別名問的是另一個問題：
+    // 「指到**別的**哪一筆」—— 手上那一筆不是它的目標。
+    const container = heldThenType("派", () => new Map());
+
+    expect(rows(container).some((r) => r.includes("既有實體的另一個名字"))).toBe(false);
+  });
+
+  it("拿回來改的人物欄一樣命中得到自己", () => {
+    const { container } = render(
+      <EntityField
+        kind="character"
+        placeholder="人物"
+        refs={[{ id: "ch_1", displayName: "服務生小李" }]}
+        options={[{ id: "ch_1", name: "服務生小李" }]}
+        usage={() => new Map()}
+        onCommit={() => {}}
+        onCreate={async () => null}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "服務生" } });
+
+    expect(rows(container)[0]).toBe("🕓 服務生小李");
+  });
+
+  it("選了它 → 用回目錄裡的名字，不是框裡打到一半的那幾個字", async () => {
+    // 分界是 `exact`：原封放回才保這一場的別名（票券 38），字改過之後框裡是剛打的半截，
+    // 把它當顯示名寫回去才是竄改。
+    const commits: EntityRef[][] = [];
+    const { container } = render(
+      <EntityField
+        kind="location"
+        placeholder="地點"
+        refs={[{ id: policeStation.id, displayName: "派出所" }]}
+        options={[policeStation]}
+        usage={() => new Map()}
+        multiple
+        onCommit={(next) => commits.push(next)}
+        onCreate={async () => null}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.keyDown(input, { key: "Backspace" });
+    fireEvent.change(input, { target: { value: "派" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(commits.at(-1)).toHaveLength(1));
+    expect(commits.at(-1)![0]).toEqual({
+      id: policeStation.id,
+      displayName: "派出所",
+    });
+  });
+});
+
+describe("還沒有別場認識的名字，印成一則歷史紀錄（使用者裁決 2026-09-14）", () => {
+  // 候選有兩種來源，而它們不是同一種東西：別場也指著的那一筆是**劇中已經存在的那一位**，
+  // 手上這一筆可能只是編劇三秒鐘前打錯的字。它進候選的理由是「你剛剛打過這個，新名字也許
+  // 是它的變體」—— 那是一則歷史紀錄，用實體的樣子去印它等於替一個可能只是打錯的字背書。
+  // （場數在 2026-09-15 第二輪裁決之後兩種來源都不印了，這一組釘的只剩記號。）
+  const held = (scenes: number | null) => {
+    const { container } = render(
+      <Host
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        usage={() => (scenes == null ? new Map() : new Map([[policeStation.id, scenes]]))}
+      />,
+    );
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
+    return rows(container)[0];
+  };
+
+  it("只有這一場認識它 → 時鐘", () => {
+    // 場數不含編劇正站著的這一場（見 `heldScenes`），所以這裡那個數字是 0。
+    expect(held(1)).toBe("🕓 派出所");
+  });
+
+  it("別場也認識它 → 換回身分記號，但場數仍然不印", () => {
+    expect(held(2)).toBe("📍 派出所");
+    expect(held(4)).toBe("📍 派出所");
+  });
+
+  it("一場都算不出來時也當成歷史 —— 沒有別場認識它就是沒有", () => {
+    expect(held(null)).toBe("🕓 派出所");
+  });
+
+  it("目錄裡別人的那一筆不受影響 —— 只被一場用到也仍然是一筆實體", () => {
+    // 判準是「除了**這一場**有沒有別場認識它」，不是「場數大不大」：手上沒握著的那一筆，
+    // 那 1 場指的是別人，那是編劇不知道的事，該印。
+    const { container } = render(
+      <Host initial={[]} usage={() => new Map([[dolphinApartment.id, 1]])} />,
+    );
+
+    fireEvent.change(container.querySelector("input")!, { target: { value: "海豚" } });
+
+    expect(rows(container)[0]).toBe("📍 海豚公寓房間（1 場）");
   });
 });
