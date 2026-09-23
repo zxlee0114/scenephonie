@@ -522,6 +522,10 @@ export function EntityField({
       onCommit(next);
     };
     if (!multiple) {
+      // ⚠️ `caret` 要清：單值欄只裝得下一筆，輸入框的家就是隊尾。拿起來改時它記著那一筆原本
+      // 那一格（`0`），而 `reset()` 刻意不清它 —— 靠這裡挪到新 chip 之後。漏了這一句，定案
+      // 之後輸入框就卡在 chip **前面**（使用者回報 2026-09-24）。
+      caret.current = null;
       commit([added[added.length - 1]!], null);
       return;
     }

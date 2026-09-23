@@ -1344,6 +1344,44 @@ describe("一次只編輯一筆：握著的時候別的 chip 動不得（票券 
   });
 });
 
+describe("單值欄定案之後游標在那顆 chip 後面（使用者回報 2026-09-24）", () => {
+  // 單值欄（非雜景的地點欄、對白人物欄）只裝得下一筆，所以輸入框的家就是隊尾。拿起來改時
+  // `caret` 記著它原本那一格（票券 39：放回去要回原位），而 `reset()` 刻意不清它 —— 靠 `merge`
+  // 把它挪到新 chip 之後。單值欄那條 early return 原本沒挪，於是定案之後輸入框卡在 chip 前面。
+  const layout = (root: HTMLElement) =>
+    [...root.querySelectorAll(".entity-chip, input")].map((el) =>
+      el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×＋📍👤🕓]/gu, "") ?? ""),
+    );
+
+  const held = () => {
+    const { container } = render(
+      <Host
+        multiple={false}
+        initial={[{ id: policeStation.id, displayName: "派出所" }]}
+        options={[policeStation]}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    return container;
+  };
+
+  it("原封放回（字沒改）", async () => {
+    const container = held();
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" });
+
+    await waitFor(() => expect(layout(container)).toEqual(["派出所", "|"]));
+  });
+
+  it("改成別的既有實體", async () => {
+    const container = held();
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "派出所後門" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(layout(container)).toEqual(["派出所後門", "|"]));
+  });
+});
+
 describe("點 chip 之間那道縫，下一筆就插在那裡（票券 39 收票）", () => {
   const two = () =>
     render(
