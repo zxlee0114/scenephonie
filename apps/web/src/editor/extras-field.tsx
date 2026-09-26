@@ -860,6 +860,13 @@ export function ExtrasField({
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing || composing.current) return; // 組字中每一顆鍵都還給 IME
 
+    // 握著一批時名稱框的 ⌘Z／⌘⇧Z 也留在框裡 —— 與人數格（`countKeyDown`）同一條線，理由見
+    // 那裡。那一格只蓋得到人數格這個入口；字刪光之後的名稱框是同一條裂縫的另一個入口（票券 54）。
+    if (historyKey(event) && editing.current) {
+      event.stopPropagation();
+      return;
+    }
+
     if (rows.length > 0) {
       if (event.key === "ArrowDown") {
         event.preventDefault();

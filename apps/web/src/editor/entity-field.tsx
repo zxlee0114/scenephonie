@@ -1256,6 +1256,18 @@ export function EntityField({
     // **框裡還有字時不接手**（與 `forwardHistoryKey` 同一條線）：那一刻的 ⌘Z 是「撤銷我剛
     // 打的那幾個字」。字回來之後框裡非空，再按一次就照舊歸原生 undo —— 兩條規則自己接起來。
     const history = historyKey(event);
+    // **手上握著一筆時，⌘Z／⌘⇧Z 留在這個框裡**（票券 54，沿用 48 的裁決：欄位的鍵不該有
+    // 欄位以外的後果）。框裡有字時是原生 undo；框空了就到底，游標留在空框上。
+    //
+    // 少了這一段，空框那一下交給呼叫端的 `forwardHistoryKey`（它只問框裡有沒有字，答不出
+    // 「手上握著東西嗎」），文件把「剛拿起這一筆」那一步退回來 —— chip 回到欄位裡、手上卻
+    // 還握著同一筆，畫面上兩份。`stopPropagation` 擋冒泡（chip row、window 的
+    // `strayHistoryKey`），不呼叫 `onKeyDown` 擋對白人物欄那條 prop；**不** `preventDefault`，
+    // 否則框自己的原生 undo 也一起沒了。
+    if (history && editing.current) {
+      event.stopPropagation();
+      return;
+    }
     if (history === "undo" && text === "" && lastCommit.current) {
       const snapshot = lastCommit.current;
       whenFieldBecomes(snapshot.before, () => {

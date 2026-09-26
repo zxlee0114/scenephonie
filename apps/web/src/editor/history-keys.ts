@@ -66,6 +66,11 @@ export function historyKey(event: ReactKeyboardEvent): "undo" | "redo" | null {
  *
  * 兩個入口問的是**同一個東西**（事件的 target），差別只在誰先收到那顆鍵：`forwardHistoryKey`
  * 在 chip row 上，`strayHistoryKey` 在 window 上。
+ *
+ * ⚠️ 它答不出「這一欄手上握著東西嗎」—— 那個狀態住在欄位元件的 ref 裡，這一層看不到。
+ * 握著一筆時空框那一下若流到這裡，文件會把「剛拿起它」那一步退回來，同一筆變成兩份。
+ * 所以那一格由欄位自己在前面攔下（`stopPropagation`，見 `EntityField`／`ExtrasField` 的
+ * `handleKeyDown`，票券 54），根本到不了這裡。
  */
 function typingInField(el: Element | null, event: KeyboardEvent): boolean {
   return (
