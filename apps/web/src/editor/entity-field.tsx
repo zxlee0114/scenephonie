@@ -133,8 +133,13 @@ type Props = {
    *
    * 形狀是 `{ id: extraId, name: 描述 }`。它們**不經過 `usage`** —— 群演的存在性不是
    * 「被幾場引用」，而是它就寫在這一場的 `extras` attr 裡。
+   *
+   * **是函式不是值**（票券 56）：群演住在**場次**的 attr，而這一欄掛在對白的 node view 裡 ——
+   * 場次 attr 改了，對白 node 一個字沒動，ProseMirror 不會重繪它，手上那份清單就停在掛載
+   * 當時。改成這一欄每次自己重繪時才問，打字那一刻讀到的就是 doc 當下的樣子，也不必為了
+   * 它去重掛任何 view（重掛會洗掉組字中的輸入，§7.6）。
    */
-  sceneExtras?: readonly SceneExtraOption[];
+  sceneExtras?: () => readonly SceneExtraOption[];
   /**
    * 在這一欄**直接新建一筆群演**（`眾人 x20` → 一筆本場的群演 ＋ 一個指向它的引用）。
    *
@@ -242,7 +247,7 @@ export function EntityField({
   refs,
   options,
   usage,
-  sceneExtras = [],
+  sceneExtras: readSceneExtras,
   onCreateExtra,
   onPromoteFromExtra,
   multiple = false,
@@ -778,6 +783,8 @@ export function EntityField({
   // 組字期間選單完全不動作（§7.6）；Esc 之後也不再自己彈回來，直到下一次打字。
   const menuOpen = !composingNow && !dismissed && query.length > 0;
 
+  /** 這一次重繪當下的本場群演（見 `Props.sceneExtras`：函式，才不會停在掛載當時那一份）。 */
+  const sceneExtras = readSceneExtras?.() ?? [];
   const rows: Row[] = [];
   if (pending && !dismissed && !composingNow) {
     // 待確認時面板**取代**自動補全 —— 這一刻要問的不是「哪一筆實體」，而是「這一場是什麼形狀」。
