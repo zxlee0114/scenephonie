@@ -268,13 +268,16 @@ function DialogueView(props: NodeViewProps) {
         options={catalog.characters}
         usage={() => entityUsage(editor.state.doc)}
         // 合法目標是「人物」或「**本場次的**群演」（§5.1）—— id 只在該場次內有意義。
-        sceneExtras={extrasHere().map((e) => ({
-          id: e.extraId,
-          name: e.description,
-          // 升格那一列的措辭要在四種樣子上都說得出話 —— 所以這裡給的是**值本身**，不是
-          // 一個數字（票券 49／50）。
-          count: e.countValue,
-        }))}
+        // 給函式不給值：群演住在場次 attr，改了它這個 view 不會重繪（票券 56）。
+        sceneExtras={() =>
+          extrasHere().map((e) => ({
+            id: e.extraId,
+            name: e.description,
+            // 升格那一列的措辭要在四種樣子上都說得出話 —— 所以這裡給的是**值本身**，不是
+            // 一個數字（票券 49／50）。
+            count: e.countValue,
+          }))
+        }
         onCreateExtra={createExtra}
         // 升格（特約）—— 先記在手上，減一與人物引用是 `onCommit` 那一次寫入（票券 35）。
         onPromoteFromExtra={(extraId, characterId) => {
