@@ -319,3 +319,139 @@ describe("對白人物欄：一人說話落人物、一群齊聲落群演", () =
     expect(speaker.id.startsWith("ch_")).toBe(true);
   });
 });
+
+/**
+ * 群演欄寫進場次 attr 之後，**同一場**的對白人物欄當下就讀得到（票券 56）。
+ *
+ * 對白是自己的 node view，場次 attr 改了它不會被重繪 —— 所以對白人物欄不能吃一份掛載當時
+ * 算好的群演清單。每一條都**不離開這一場**：離開再回來、或重新整理本來就是對的。
+ */
+describe("對白人物欄跟著同一場的群演欄走（票券 56）", () => {
+  const withDialogue = (extras: unknown[] = []) =>
+    docJSON(scene({ extras }, [kernelSchema.node("dialogue", null, [kernelSchema.text("喔——")])]));
+
+  /** 直接改場次的 attr —— 不管是誰寫的，對白欄都要讀到。 */
+  const setExtras = (editor: Editor, extras: unknown[]) =>
+    editor.view.dispatch(editor.state.tr.setNodeAttribute(0, "extras", extras));
+
+  const promoteRows = (container: HTMLElement) =>
+    menuRows(container, ".block__speaker-field").filter((row) => row.includes("升格"));
+
+  it("群演欄新增一批 → 對白欄看得到齊聲與升格兩列（整台編輯器走一遍）", async () => {
+    const { container } = render(<Harness doc={withDialogue()} />);
+
+    const extrasBox = await inputIn(container, ".scene__chip--extras");
+    fireEvent.change(extrasBox, { target: { value: "保全 x8、" } });
+    await waitFor(() => expect(extrasChips(container)).toEqual(["保全（8）"]));
+
+    const speaker = await inputIn(container, ".block__speaker-field");
+    fireEvent.change(speaker, { target: { value: "保全" } });
+
+    await waitFor(() => {
+      expect(menuRows(container, ".block__speaker-field")).toContain("👥 保全");
+      expect(promoteRows(container)).toHaveLength(1);
+    });
+    expect(promoteRows(container)[0]).toContain("從「保全（8）」裡升格一個人");
+  });
+
+  it("群演欄改過人數 → 升格那一列印新的數量與新的剩多少", async () => {
+    let editor!: Editor;
+    const extraId = mintExtraId();
+    const { container } = render(
+      <Harness
+        doc={withDialogue([{ extraId, description: "路人", countValue: { kind: "exact", count: 1 } }])}
+        onEditor={(e) => (editor = e)}
+      />,
+    );
+    const speaker = await inputIn(container, ".block__speaker-field");
+    fireEvent.change(speaker, { target: { value: "路人" } });
+    // 一個人的那批，拉走就用完。
+    await waitFor(() => expect(promoteRows(container)[0]).toContain("這批群演就此用完"));
+
+    setExtras(editor, [{ extraId, description: "路人", countValue: { kind: "range", from: 3, to: 5 } }]);
+    // 選單在下一次打字時重畫 —— 這就是編劇「移過去打字」那一刻。
+    fireEvent.change(speaker, { target: { value: "路" } });
+
+    await waitFor(() => expect(promoteRows(container)[0]).toContain("從「路人（3-5）」裡升格一個人"));
+    // 剩多少跟著換：`3-5` 減一還有人，不再是「用完」。
+    expect(promoteRows(container)[0]).not.toContain("就此用完");
+  });
+
+  it("群演欄刪掉一批 → 齊聲與升格兩列跟著消失", async () => {
+    let editor!: Editor;
+    const { container } = render(
+      <Harness
+        doc={withDialogue([
+          { extraId: mintExtraId(), description: "保全", countValue: { kind: "exact", count: 8 } },
+        ])}
+        onEditor={(e) => (editor = e)}
+      />,
+    );
+    const speaker = await inputIn(container, ".block__speaker-field");
+    fireEvent.change(speaker, { target: { value: "保全" } });
+    await waitFor(() => expect(promoteRows(container)).toHaveLength(1));
+
+    setExtras(editor, []);
+    fireEvent.change(speaker, { target: { value: "保" } });
+
+    await waitFor(() => {
+      expect(menuRows(container, ".block__speaker-field")).not.toContain("👥 保全");
+      expect(promoteRows(container)).toEqual([]);
+    });
+  });
+
+  it("對白欄正在組字時，群演欄的改動不打斷它（§7.6）", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness doc={withDialogue()} onEditor={(e) => (editor = e)} />);
+    const speaker = await inputIn(container, ".block__speaker-field");
+
+    fireEvent.compositionStart(speaker);
+    fireEvent.change(speaker, { target: { value: "ㄅㄠˇ" } });
+
+    setExtras(editor, [
+      { extraId: mintExtraId(), description: "保全", countValue: { kind: "exact", count: 8 } },
+    ]);
+
+    // 同一個 input、字還在 —— 沒有被重掛或清掉。
+    expect(container.querySelector(".block__speaker-field input")).toBe(speaker);
+    expect(speaker.value).toBe("ㄅㄠˇ");
+
+    fireEvent.compositionEnd(speaker, { data: "保" });
+    fireEvent.change(speaker, { target: { value: "保" } });
+    await waitFor(() => expect(promoteRows(container)).toHaveLength(1));
+  });
+
+  it("對白欄正握著一筆時，群演欄的改動不打斷它（§7.6）", async () => {
+    let editor!: Editor;
+    const extraId = mintExtraId();
+    const extras = [{ extraId, description: "保全", countValue: { kind: "exact", count: 8 } }];
+    const { container } = render(
+      <Harness
+        doc={docJSON(
+          scene({ extras }, [
+            kernelSchema.node("dialogue", { character: { id: extraId, displayName: "保全" } }, [
+              kernelSchema.text("站住！"),
+            ]),
+          ]),
+        )}
+        onEditor={(e) => (editor = e)}
+      />,
+    );
+    const speaker = await inputIn(container, ".block__speaker-field");
+    fireEvent.mouseDown(container.querySelector(".block__speaker-field .entity-chip")!);
+    await waitFor(() => expect(speaker.value).toBe("保全"));
+
+    setExtras(editor, [...extras, { extraId: mintExtraId(), description: "路人", countValue: { kind: "some" } }]);
+
+    expect(container.querySelector(".block__speaker-field input")).toBe(speaker);
+    expect(speaker.value).toBe("保全");
+    // 手上那一筆原封放回 —— 仍是原來那批群演，沒有被當成新東西。
+    fireEvent.keyDown(speaker, { key: "Enter" });
+    await waitFor(() =>
+      expect(editor.state.doc.firstChild!.child(0).attrs.character).toEqual({
+        id: extraId,
+        displayName: "保全",
+      }),
+    );
+  });
+});
