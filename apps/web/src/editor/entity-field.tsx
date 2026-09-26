@@ -42,7 +42,12 @@ import {
 
 import { useChipCaret } from "./chip-caret";
 import { chipRow, columns } from "./chip-row";
-import { claimHistoryKey, historyKey } from "./history-keys";
+import {
+  claimHistoryKey,
+  historyKey,
+  keepHistoryInBox,
+  ownHistory,
+} from "./history-keys";
 import {
   EXTRA_MARK,
   HINT_MARK,
@@ -357,6 +362,11 @@ export function EntityField({
    */
   const restored = useRef(false);
   /**
+   * 手上握著一筆時，這個框**自己的**原生歷史（票券 54）—— 原生堆疊是整份頁面共用的，退光
+   * 這個框的那幾步之後再按就會退到別的框去（見 `history-keys` 的 `ownHistory`）。
+   */
+  const heldHistory = useRef(ownHistory()).current;
+  /**
    * **輸入框排在第幾格** —— `0` ＝ 所有 chip 之前，`null` ＝ 全部之後（平常的樣子）。
    *
    * 一個 ref 扛三件事，因為它們本來就是同一件事「游標停在哪」：
@@ -623,6 +633,7 @@ export function EntityField({
     // 拿起來的那一筆**整串反白**：再一顆 Backspace 就整串清掉，也可以直接覆寫。滑鼠點進來
     // 原本游標停在字尾，與 Backspace 進來兩種樣子 —— 統一成這一種（2026-09-11 驗收回饋）。
     enterEditing(ref, { at: refs.indexOf(ref), scenes, select: true });
+    heldHistory.start(ref.displayName); // 那串字是塞進來的，不在原生堆疊裡 —— 它就是起點
     onCommit(refs.filter((r) => r !== ref));
     input.current?.focus();
   };
@@ -1262,11 +1273,10 @@ export function EntityField({
     //
     // 少了這一段，空框那一下交給呼叫端的 `forwardHistoryKey`（它只問框裡有沒有字，答不出
     // 「手上握著東西嗎」），文件把「剛拿起這一筆」那一步退回來 —— chip 回到欄位裡、手上卻
-    // 還握著同一筆，畫面上兩份。`stopPropagation` 擋冒泡（chip row、window 的
-    // `strayHistoryKey`），不呼叫 `onKeyDown` 擋對白人物欄那條 prop；**不** `preventDefault`，
-    // 否則框自己的原生 undo 也一起沒了。
+    // 還握著同一筆，畫面上兩份。也不呼叫 `onKeyDown` —— 對白人物欄的 ⌘Z 走那條 prop。
+    // 框自己的那幾步退光之後，原生那一下也擋掉：它會退到別的框去（驗收回饋 2026-09-27）。
     if (history && editing.current) {
-      event.stopPropagation();
+      keepHistoryInBox(event, heldHistory);
       return;
     }
     if (history === "undo" && text === "" && lastCommit.current) {
@@ -1467,7 +1477,10 @@ export function EntityField({
           // 組字結束才輪到我們：這一刻起選單與分隔符才開始作用。
           onChange(event.currentTarget.value);
         }}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          heldHistory.typed(event.nativeEvent);
+          onChange(event.target.value);
+        }}
         onKeyDown={handleKeyDown}
         onBlur={() => {
           // 離開欄位時把還沒 chip 化的字定案（與 CjkField 的 blur 回寫同一個理由：

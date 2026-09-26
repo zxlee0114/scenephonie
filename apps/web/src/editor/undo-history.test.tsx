@@ -861,6 +861,78 @@ describe("握著一筆時的 ⌘Z 留在框裡（票券 54）", () => {
     );
   });
 
+  /**
+   * 原生那一下**放不放**（`fireEvent` 回 `false` ＝ 被 `preventDefault`）。jsdom 沒有原生
+   * undo，所以量的是「交不交給瀏覽器」，瀏覽器做回來的那一次 input 由 `nativeUndid` 模擬。
+   */
+  const passes = (input: HTMLInputElement, key: object) =>
+    fireEvent.keyDown(input, key);
+  const nativeUndid = (input: HTMLInputElement, value: string, redo = false) =>
+    fireEvent.input(input, {
+      target: { value },
+      inputType: redo ? "historyRedo" : "historyUndo",
+    });
+
+  /**
+   * 人工驗收撈到的（2026-09-27）：握著 `路人（8）`、清空、⌘Z 三下、⌘⇧Z —— 人物欄冒出
+   * `小明小明`。原生堆疊是整份頁面共用的，框自己那幾步退光之後的那一下退到了別的框。
+   */
+  it("群演名稱框：原生 undo 只退這個框自己的那幾步，到底就擋（不會退到別的欄位）", async () => {
+    const extraId = mintExtraId();
+    const { container } = render(
+      <Harness
+        doc={docWith({
+          extras: [{ extraId, description: "路人", countValue: { kind: "exact", count: 8 } }],
+        })}
+      />,
+    );
+    const input = await holdAndClear(container, EXTRAS, "路人");
+
+    // 清空是這個框自己的一步 —— 第一下放給原生，字回來。
+    expect(passes(input, undoKey)).toBe(true);
+    nativeUndid(input, "路人");
+    // 回到拿起時的樣子了：再下去就是別人的，擋掉。
+    expect(passes(input, undoKey)).toBe(false);
+    expect(passes(input, undoKey)).toBe(false);
+    // ⌘⇧Z 只做回剛剛放行的那一步。
+    expect(passes(input, redoKey)).toBe(true);
+    nativeUndid(input, "", true);
+    expect(passes(input, redoKey)).toBe(false);
+  });
+
+  it("拿起來還沒動過 —— ⌘Z 直接到底（堆疊頂端不是這個框的）", async () => {
+    const before = { locationId: mintLocationId(), displayName: "河堤" };
+    const { container } = render(<Harness doc={docWith({ location: before })} />);
+    fireEvent.mouseDown(
+      await waitFor(() => {
+        const el = container.querySelector<HTMLElement>(`${LOCATION} .entity-chip`);
+        expect(el).not.toBeNull();
+        return el!;
+      }),
+    );
+    const input = await fieldInput(container, LOCATION);
+    await waitFor(() => expect(input.value).toBe("河堤"));
+
+    expect(passes(input, undoKey)).toBe(false);
+    expect(passes(input, redoKey)).toBe(false);
+  });
+
+  it("人數格（新增那一側）：空著的 ⌘Z 不會退到名稱框剛打的字", async () => {
+    const { container } = render(<Harness />);
+    const name = await fieldInput(container, EXTRAS);
+    fireEvent.change(name, { target: { value: "路人" } });
+    fireEvent.keyDown(name, { key: "Enter" });
+    const box = await waitFor(() => {
+      const el = container.querySelector<HTMLInputElement>(".entity-field__count-input");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+
+    expect(passes(box, undoKey)).toBe(false);
+    fireEvent.change(box, { target: { value: "3" } });
+    expect(passes(box, undoKey)).toBe(true);
+  });
+
   it("框裡有字時仍然是原生 undo —— 文件照樣不動（票券 37／53 那條線不退）", async () => {
     const before = { locationId: mintLocationId(), displayName: "河堤" };
     let editor!: Editor;
