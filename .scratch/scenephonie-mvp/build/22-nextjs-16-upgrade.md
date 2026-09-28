@@ -6,7 +6,7 @@ drizzle-orm／drizzle-kit／react 已於本分支的相依 refresh commit 更新
 
 **Blocked by:** None —— 可獨立進行。**建議排在票券 04（編輯器）之前**，避免 Tiptap 整合完成後又要對整個 bundler／caching 行為重驗一次；若票券 18（PDF，`@sparticuz/chromium` + Puppeteer）先落地，本票需一併重驗 serverless function 打包。
 
-**Status:** in-review
+**Status:** done
 
 **風險與已知變動點（開工前確認官方 upgrade guide 為準）：**
 
@@ -67,3 +67,5 @@ PPR flag 亦移除）。骨架無 `'use cache'` 或 RSC 資料快取，啟用只
 **未由本票驗證**：Vercel preview deployment 綠燈、preview／production 的 route handler 連
 Postgres —— 需 PR 開出後在 Vercel 上觀察，非本機可驗。`.github/workflows/ci.yml` 檢視過，
 對 Next 行為無隱含假設（`.nvmrc` 供版本、`NEXT_TELEMETRY_DISABLED` 仍有效），未改。
+
+**狀態校正（2026-09-29）** —— PR #26 已 merge，`Status:` 從 `in-review` 改成 `done`（README 的 Frontier 靠這一行判斷）。

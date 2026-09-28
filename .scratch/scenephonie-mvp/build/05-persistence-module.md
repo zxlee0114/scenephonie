@@ -4,7 +4,7 @@
 
 **Blocked by:** 04, 01
 
-**Status:** in-review
+**Status:** done
 
 - [x] 重整頁面，劇本內容還在
 - [x] 並行寫入：`doc_seq` 不符時第二個寫入被拒
@@ -25,3 +25,5 @@
 **已知缺口，屬票券 06：** `saveScreenplayAction` 目前沒有授權 gate，任何 client 都能對任意 `screenplayId` 覆寫整份 doc（`actions.ts` 檔頭已標記）。在票券 06 補上 gate 之前不得對外開放。
 
 **append-only 是程式碼層規則，不是資料庫權限層保證** —— `screenplay_backups` 的 FK 是 `ON DELETE cascade`。要變成保證，得撤掉執行期角色的 `UPDATE`／`DELETE` 權限，那要等票券 06 有真正的角色分離。
+
+**狀態校正（2026-09-29）** —— PR #34 已 merge，`Status:` 從 `in-review` 改成 `done`（README 的 Frontier 靠這一行判斷）。

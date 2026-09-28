@@ -4,7 +4,7 @@
 
 **Blocked by:** 04（`extensions/slash.tsx` 在該票交付）
 
-**Status:** in-review
+**Status:** done
 
 ## 根因（已定位，不必再查）
 
@@ -42,3 +42,5 @@ run: (editor, range) => {
 ## Comments
 
 **開票（2026-09-04）** —— 票券 26 的本機驗收中由使用者順帶發現：「如果使用 slash 選單建下一場，會在原場次留下空白的一行」。與 26 無關，早於 26 就存在。
+
+**狀態校正（2026-09-29）** —— PR #36 已 merge，`Status:` 從 `in-review` 改成 `done`（README 的 Frontier 靠這一行判斷）。票上記的「瀏覽器實地確認待驗收」沒有留下結果紀錄。
