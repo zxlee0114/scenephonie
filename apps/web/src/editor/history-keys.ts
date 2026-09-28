@@ -62,10 +62,89 @@ export function historyKey(event: ReactKeyboardEvent): "undo" | "redo" | null {
 }
 
 /**
+ * 一個輸入框**自己的**原生歷史還剩多少（票券 54 驗收回饋，2026-09-27）。
+ *
+ * 裁決是「框裡的 ⌘Z 只在那個框自己的歷史裡走，框空了就到底」。第一版以為交給原生 undo
+ * 就做得到 —— 錯了：**Chrome／Safari 的原生堆疊是整份頁面共用一條**，不是每個框一份。框
+ * 自己的編輯退光之後再按，退的是**別的框**上一刻的編輯，焦點還跟著跳過去。人工驗收撈到的：
+ * 群演欄握著一批、清空、⌘Z 三下、⌘⇧Z 一下 —— 人物欄冒出 `小明小明`，游標停在那裡。
+ *
+ * 於是這本帳回答一件事：**這一下原生 undo／redo 還會不會停在這個框裡**。
+ *
+ * - **undo**：從 `start` 那一刻起編劇動過這個框，而且框裡的字還不是起點的樣子。起點那串
+ *   字是程式塞的（拿起一筆、進人數格），不在原生堆疊裡 —— 退回起點就表示這個框自己的那幾
+ *   步退光了，再下去就是別人的。不去數「退了幾步」：瀏覽器會把連打的字併成一步，數不準。
+ * - **redo**：只做回剛剛放行過的那幾步。這一側數得準 —— 一次 undo 就是一步，一次 redo 也是。
+ *
+ * 保守的那一格：動過之後又改回起點一模一樣的字，undo 就不放行了（堆疊裡其實還有這個框的
+ * 步驟）。寧可少退一步，也不要退到別的欄位去。
+ */
+export interface OwnHistory {
+  /** 從這裡開始算這個框自己的歷史 —— 拿起一筆、進人數格、從人數格回來。 */
+  start(value: string): void;
+  /** 框裡的字被改了（`onChange` 的原生事件）。原生 undo／redo 自己造成的那一次不算。 */
+  typed(event: Event): void;
+  /** 這一下放不放給原生處理。放的話順手記帳（`value` ＝ 按下去之前框裡的字）。 */
+  allows(which: "undo" | "redo", value: string): boolean;
+}
+
+export function ownHistory(): OwnHistory {
+  let baseline = "";
+  let edited = false;
+  let redoable = 0;
+  return {
+    start(value) {
+      baseline = value;
+      edited = false;
+      redoable = 0;
+    },
+    typed(event) {
+      const kind = (event as InputEvent).inputType;
+      if (kind === "historyUndo" || kind === "historyRedo") return;
+      edited = true;
+      redoable = 0; // 撤銷之後又打字，原生堆疊的 redo 那一串就作廢了
+    },
+    allows(which, value) {
+      if (which === "redo") {
+        if (redoable === 0) return false;
+        redoable -= 1;
+        return true;
+      }
+      if (!edited || value === baseline) return false;
+      redoable += 1;
+      return true;
+    },
+  };
+}
+
+/**
+ * 把一顆歷史鍵**留在這個框裡**（票券 48、54）：不往上冒（chip row、window 的
+ * `strayHistoryKey`），框自己的歷史還有東西就交給原生 undo／redo，到底了就擋掉
+ * （`preventDefault`）—— 否則原生那一下會退到別的框去（見 `ownHistory`）。
+ *
+ * 呼叫端**不要**再把這顆鍵交給 `onKeyDown`：對白人物欄的 ⌘Z 走的是那條 prop（`blocks.tsx`），
+ * 交出去就等於沒擋。
+ */
+export function keepHistoryInBox(
+  event: ReactKeyboardEvent<HTMLInputElement>,
+  box: OwnHistory,
+): void {
+  const which = historyKey(event);
+  if (!which) return;
+  event.stopPropagation();
+  if (!box.allows(which, event.currentTarget.value)) event.preventDefault();
+}
+
+/**
  * 這一下**還握在某個輸入框手上**嗎 —— 框裡有編劇打了還沒定案的字（見檔頭第二段）。
  *
  * 兩個入口問的是**同一個東西**（事件的 target），差別只在誰先收到那顆鍵：`forwardHistoryKey`
  * 在 chip row 上，`strayHistoryKey` 在 window 上。
+ *
+ * ⚠️ 它答不出「這一欄手上握著東西嗎」—— 那個狀態住在欄位元件的 ref 裡，這一層看不到。
+ * 握著一筆時空框那一下若流到這裡，文件會把「剛拿起它」那一步退回來，同一筆變成兩份。
+ * 所以那一格由欄位自己在前面攔下（`keepHistoryInBox`，見 `EntityField`／`ExtrasField` 的
+ * `handleKeyDown`，票券 54），根本到不了這裡。
  */
 function typingInField(el: Element | null, event: KeyboardEvent): boolean {
   return (

@@ -42,7 +42,12 @@ import {
 
 import { useChipCaret } from "./chip-caret";
 import { chipRow, columns } from "./chip-row";
-import { claimHistoryKey, historyKey } from "./history-keys";
+import {
+  claimHistoryKey,
+  historyKey,
+  keepHistoryInBox,
+  ownHistory,
+} from "./history-keys";
 import {
   EXTRA_MARK,
   HINT_MARK,
@@ -357,6 +362,11 @@ export function EntityField({
    */
   const restored = useRef(false);
   /**
+   * 手上握著一筆時，這個框**自己的**原生歷史（票券 54）—— 原生堆疊是整份頁面共用的，退光
+   * 這個框的那幾步之後再按就會退到別的框去（見 `history-keys` 的 `ownHistory`）。
+   */
+  const heldHistory = useRef(ownHistory()).current;
+  /**
    * **輸入框排在第幾格** —— `0` ＝ 所有 chip 之前，`null` ＝ 全部之後（平常的樣子）。
    *
    * 一個 ref 扛三件事，因為它們本來就是同一件事「游標停在哪」：
@@ -623,6 +633,7 @@ export function EntityField({
     // 拿起來的那一筆**整串反白**：再一顆 Backspace 就整串清掉，也可以直接覆寫。滑鼠點進來
     // 原本游標停在字尾，與 Backspace 進來兩種樣子 —— 統一成這一種（2026-09-11 驗收回饋）。
     enterEditing(ref, { at: refs.indexOf(ref), scenes, select: true });
+    heldHistory.start(ref.displayName); // 那串字是塞進來的，不在原生堆疊裡 —— 它就是起點
     onCommit(refs.filter((r) => r !== ref));
     input.current?.focus();
   };
@@ -1244,7 +1255,8 @@ export function EntityField({
     // ⌘Z —— **文件那一半不在這裡做**：接歷史的是呼叫端（`forwardHistoryKey`），這一下照舊
     // 交給它。⚠️ 交的方式**必須是 `onKeyDown?.(event)`**，不能只靠 DOM 冒泡：地點欄那一側
     // 掛在 `.scene__chips` 上（冒泡收得到），但對白人物欄是掛在**這個 prop** 上
-    // （`blocks.tsx`）—— 少了這一句，那一欄的 ⌘Z 會整顆消失。
+    // （`blocks.tsx`）—— 少了這一句，那一欄的 ⌘Z 會整顆消失。**唯一的例外是手上握著一筆**
+    // 的時候：那一下刻意不交出去（票券 54，見下面第一段）。
     //
     // 這裡補的是文件退回去之後，欄位要把字接回來的那一半（票券 37）：
     //
@@ -1256,6 +1268,17 @@ export function EntityField({
     // **框裡還有字時不接手**（與 `forwardHistoryKey` 同一條線）：那一刻的 ⌘Z 是「撤銷我剛
     // 打的那幾個字」。字回來之後框裡非空，再按一次就照舊歸原生 undo —— 兩條規則自己接起來。
     const history = historyKey(event);
+    // **手上握著一筆時，⌘Z／⌘⇧Z 留在這個框裡**（票券 54，沿用 48 的裁決：欄位的鍵不該有
+    // 欄位以外的後果）。框裡有字時是原生 undo；框空了就到底，游標留在空框上。
+    //
+    // 少了這一段，空框那一下交給呼叫端的 `forwardHistoryKey`（它只問框裡有沒有字，答不出
+    // 「手上握著東西嗎」），文件把「剛拿起這一筆」那一步退回來 —— chip 回到欄位裡、手上卻
+    // 還握著同一筆，畫面上兩份。也不呼叫 `onKeyDown` —— 對白人物欄的 ⌘Z 走那條 prop。
+    // 框自己的那幾步退光之後，原生那一下也擋掉：它會退到別的框去（驗收回饋 2026-09-27）。
+    if (history && editing.current) {
+      keepHistoryInBox(event, heldHistory);
+      return;
+    }
     if (history === "undo" && text === "" && lastCommit.current) {
       const snapshot = lastCommit.current;
       whenFieldBecomes(snapshot.before, () => {
@@ -1454,7 +1477,10 @@ export function EntityField({
           // 組字結束才輪到我們：這一刻起選單與分隔符才開始作用。
           onChange(event.currentTarget.value);
         }}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          heldHistory.typed(event.nativeEvent);
+          onChange(event.target.value);
+        }}
         onKeyDown={handleKeyDown}
         onBlur={() => {
           // 離開欄位時把還沒 chip 化的字定案（與 CjkField 的 blur 回寫同一個理由：

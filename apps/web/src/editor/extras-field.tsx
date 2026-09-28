@@ -120,7 +120,7 @@ import {
   RENAME_MARK,
 } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
-import { historyKey } from "./history-keys";
+import { historyKey, keepHistoryInBox, ownHistory } from "./history-keys";
 
 type Props = {
   /** 這一場的群演，依欄位裡的順序。 */
@@ -201,6 +201,14 @@ export function ExtrasField({
   /** 人數輸入格裡那串字。子選單一關就清掉 —— 讀不出來的半截字不該留到下一次。 */
   const [countText, setCountText] = useState("");
   const countInput = useRef<HTMLInputElement>(null);
+  /**
+   * 兩個框**各自的**原生歷史（票券 54）—— 原生堆疊是整份頁面共用的，一個框的那幾步退光之後
+   * 再按就會退到別的框去（見 `history-keys` 的 `ownHistory`）。名稱框只在握著一批時用得到；
+   * 人數格一直都是（48 的裁決：那個框的鍵不出去）。換框就重新起算 —— 兩個框的步驟疊在同一條
+   * 堆疊上，回到名稱框時頂端是人數格的。
+   */
+  const nameHistory = useRef(ownHistory()).current;
+  const countHistory = useRef(ownHistory()).current;
   /** 這一欄的外框 —— 只為了問一個問題：焦點離開人數格之後，人還在這一欄裡嗎。 */
   const field = useRef<HTMLDivElement>(null);
   /** 下一次重繪之後把焦點送去哪：`"count"` ＝ 人數格，`"name"` ＝ 名稱框（游標停字尾）。 */
@@ -318,6 +326,7 @@ export function ExtrasField({
     editing.current = extra;
     onCommit(extras.filter((e) => e !== extra));
     setText(extra.description);
+    nameHistory.start(extra.description); // 那串字是塞進來的，不在原生堆疊裡 —— 它就是起點
     setActive(0);
     setDismissed(false);
     selectNext.current = true;
@@ -394,6 +403,7 @@ export function ExtrasField({
   const openCountStage = () => {
     stage.current = "count";
     setCountText("");
+    countHistory.start("");
     // Esc 收掉的是建議那份清單，不是「這批有幾個人」這個問題（票券 49）。**只在新增那一側**
     // 清它 —— 編輯那一側進子選單的路是 `修改數量…`，那一列本來就得選單開著才按得到，
     // 在那裡動 `dismissed` 等於改到票券 48 的既有行為。
@@ -457,6 +467,7 @@ export function ExtrasField({
   const backToDescribe = () => {
     stage.current = "describe";
     setCountText("");
+    nameHistory.start(text);
     setActive(0);
     focusNext.current = "name";
     redraw();
@@ -524,6 +535,7 @@ export function ExtrasField({
     setCountText("");
     setActive(0);
     const inside = next instanceof Node && field.current?.contains(next);
+    if (inside) nameHistory.start(text);
     if (!inside) {
       if (!composing.current) commitText();
       if (!text.trim()) letGo();
@@ -825,16 +837,19 @@ export function ExtrasField({
    * 以外的後果。框裡有字時那一下是原生 undo，字自己回來（**沿用票券 37**，這裡沒有另寫一套
    * undo）；字退光之後框是空的、它自己的歷史到底了 —— 那一下就什麼都不做，游標留在空框上。
    *
-   * ⚠️ 這一行 `stopPropagation` 就是「不出去」的全部：沒有它，空框那一下會往上冒到 chip row
-   * 的 `forwardHistoryKey`、再冒到 window 的 `strayHistoryKey`，兩者都只問「框裡有沒有沒定案
-   * 的字」（`typingInField`），答不出「這一欄手上握著東西嗎」，於是把「剛拿起這一批」那一步從
-   * 文件退回來 —— 畫面上同一批人變成兩份（使用者回報 2026-09-12，票券 54 的人數格入口）。
-   * 不 `preventDefault`：那會連框自己的原生 undo／redo 一起擋掉，而框裡有字時那正是要的東西。
+   * 「不出去」有兩層（`keepHistoryInBox`）：
+   * - **不往上冒**：空框那一下若冒到 chip row 的 `forwardHistoryKey`、window 的
+   *   `strayHistoryKey`，兩者都只問「框裡有沒有沒定案的字」（`typingInField`），答不出「這一欄
+   *   手上握著東西嗎」，於是把「剛拿起這一批」那一步從文件退回來 —— 畫面上同一批人變成兩份
+   *   （使用者回報 2026-09-12，票券 54 的人數格入口）。
+   * - **不退到別的框**：原生堆疊是整份頁面共用的，這個框自己那幾步退光之後的原生 undo 會退到
+   *   名稱框、甚至別的欄位（票券 54 驗收回饋 2026-09-27）—— 那一下 `preventDefault`。框自己
+   *   還有步驟時照舊交給原生，字自己回來。
    */
   const countKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing || composing.current) return; // 組字中每一顆鍵都還給 IME
     if (historyKey(event)) {
-      event.stopPropagation();
+      keepHistoryInBox(event, countHistory);
       return;
     }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -859,6 +874,13 @@ export function ExtrasField({
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing || composing.current) return; // 組字中每一顆鍵都還給 IME
+
+    // 握著一批時名稱框的 ⌘Z／⌘⇧Z 也留在框裡 —— 與人數格（`countKeyDown`）同一條線，理由見
+    // 那裡。那一格只蓋得到人數格這個入口；字刪光之後的名稱框是同一條裂縫的另一個入口（票券 54）。
+    if (historyKey(event) && editing.current) {
+      keepHistoryInBox(event, nameHistory);
+      return;
+    }
 
     if (rows.length > 0) {
       if (event.key === "ArrowDown") {
@@ -1012,7 +1034,10 @@ export function ExtrasField({
           setComposingNow(false);
           onChange(event.currentTarget.value);
         }}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          nameHistory.typed(event.nativeEvent);
+          onChange(event.target.value);
+        }}
         onKeyDown={handleKeyDown}
         onBlur={() => {
           // 焦點只是搬去人數格 —— 這一輪編輯還在進行中（票券 48）。少了這一行，「按下
@@ -1114,6 +1139,7 @@ export function ExtrasField({
                   aria-label="人數"
                   value={countText}
                   onChange={(e) => {
+                    countHistory.typed(e.nativeEvent);
                     setCountText(e.target.value);
                     setActive(-1); // 打字就是停在格子上
                   }}
