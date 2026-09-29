@@ -11,12 +11,13 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 import { mintSceneId } from "../ids";
 import { schema } from "../schema";
 import { type CommandResult, ok, reject } from "./result";
-import { docFrom, topLevelArray } from "./tree";
+import { docFrom, findScene, topLevelArray } from "./tree";
 
 export interface CreateNextSceneOptions {
   /**
    * 在這個 `sceneId` 之後插入新場次；`null`／省略 ＝ 接在全劇最後一場之後。
    * **以 id 定址** —— 用滑鼠點的入口必須自己傳這個，靠 selection 推算會插錯位置（§7.1）。
+   * 給的是子場次的 id 時，新場次接在它的**主場次**之後 —— 場次是序列，子場次不在那條序列上。
    */
   readonly afterSceneId?: string | null;
 }
@@ -37,9 +38,9 @@ export function createNextScene(
   if (afterSceneId == null) {
     insertAt = children.length;
   } else {
-    const idx = children.findIndex((n) => n.attrs.sceneId === afterSceneId);
-    if (idx === -1) return reject(`找不到 sceneId「${afterSceneId}」，無法在其後建立場次`);
-    insertAt = idx + 1;
+    const hit = findScene(doc, afterSceneId);
+    if (!hit) return reject(`找不到 sceneId「${afterSceneId}」，無法在其後建立場次`);
+    insertAt = hit.topIndex + 1;
   }
 
   const next = [...children];

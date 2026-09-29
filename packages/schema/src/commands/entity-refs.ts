@@ -33,29 +33,27 @@ import type {
 } from "../schema";
 import { MONTAGE } from "../schema";
 import { type CommandResult, ok, reject } from "./result";
-import { docFrom, replaceChild, topLevelArray } from "./tree";
+import { docFrom, findScene as locateScene, replaceChild, replaceScene, topLevelArray, type SceneHit as TreeHit } from "./tree";
 
 /** 「先建立實體、再寫入 doc」—— 拒絕訊息刻意把這句話寫進去，因為它是這條規則的前提。 */
 const missing = (kind: string, id: string) =>
   reject(`實體「${id}」不存在，不能建立${kind}引用 —— 先建立實體、再寫入 doc（不變式 ⑧）`);
 
 interface SceneHit {
-  readonly children: ProseMirrorNode[];
-  readonly index: number;
+  readonly doc: ProseMirrorNode;
+  readonly at: TreeHit;
   readonly scene: ProseMirrorNode;
 }
 
+/** 以 `sceneId` 找場次 —— 主場次與子場次都算（票券 11：子場次有自己完整的 metadata）。 */
 function findScene(doc: ProseMirrorNode, sceneId: string): SceneHit | null {
-  const children = topLevelArray(doc);
-  const index = children.findIndex((n) => n.attrs.sceneId === sceneId);
-  return index === -1 ? null : { children, index, scene: children[index]! };
+  const at = locateScene(doc, sceneId);
+  return at ? { doc, at, scene: at.node } : null;
 }
 
 function rebuild(hit: SceneHit, nextScene: ProseMirrorNode, what: string): CommandResult {
-  const next = [...hit.children];
-  next[hit.index] = nextScene;
   try {
-    return ok(docFrom(next));
+    return ok(replaceScene(hit.doc, hit.at, nextScene));
   } catch (err) {
     return reject(`${what}後 doc 不符 schema：${(err as Error).message}`);
   }
@@ -373,7 +371,8 @@ export function retitleEntityRefs(
     return { attr: Array.isArray(attr) ? next : next[0]! };
   };
 
-  const scenes = topLevelArray(doc).map((scene) => {
+  // 主場次與子場次各自帶 metadata，也各自裝對白 —— 走到子場次就遞迴一層（深度固定兩層）。
+  const retitleScene = (scene: ProseMirrorNode): ProseMirrorNode => {
     const location = retitle(
       sceneLocations(scene.attrs.location),
       (r) => r.locationId,
@@ -389,6 +388,12 @@ export function retitleEntityRefs(
     const blocks: ProseMirrorNode[] = [];
     let blockChanged = false;
     scene.forEach((child) => {
+      if (child.type.name === "subscene") {
+        const next = retitleScene(child);
+        if (next !== child) blockChanged = true;
+        blocks.push(next);
+        return;
+      }
       const character =
         child.type.name === "dialogue"
           ? retitle(dialogueCharacters(child.attrs.character), (r) => r.id, child.attrs.character)
@@ -413,7 +418,9 @@ export function retitleEntityRefs(
       blocks,
       scene.marks,
     );
-  });
+  };
+
+  const scenes = topLevelArray(doc).map(retitleScene);
 
   if (!touched) return ok(doc);
 

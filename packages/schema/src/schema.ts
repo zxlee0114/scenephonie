@@ -5,11 +5,10 @@
  * 住在 `apps/web` 的編輯器套件裡。這個模組要能在 Node 跑（PDF 匯出、場次表推導、
  * 伺服器端 command），也要能原封不動餵給日後的 `y-prosemirror`（票券 19 已驗證往返等價）。
  *
- * **本票券（02）的範圍**：`doc`、`scene`、`sceneBlock`（`action`／`dialogue`／`insertShot`）。
- * **先不含**子場次（`subscene`）與場次群組（`sceneGroup`／`groupMember`／`groupFragment`）——
- * 那些在票券 05／後續長出，屆時沿用同一份 schema、同一套 null 鐵律。其中 `subscene` 的
- * `kind`（`插入｜接續`）比照 `voiceStyle` 走「不允許 null」，但**無 default、建立時必填**
- * （它是編劇按下哪個入口的宣告，系統不代填）。
+ * **範圍**：`doc`、`scene`、`subscene`（票券 11）、`sceneBlock`（`action`／`dialogue`／`insertShot`）。
+ * **先不含**場次群組（`sceneGroup`／`groupMember`／`groupFragment`）—— 票券 12，屆時沿用同一份
+ * schema、同一套 null 鐵律。`subscene` 的 `kind`（`插入｜接續`）比照 `voiceStyle` 走「不允許
+ * null」，但**無 default、建立時必填**（它是編劇按下哪個入口的宣告，系統不代填）。
  *
  * ── 詞彙 ↔ 識別碼對照（票券 23）────────────────────────────────────────
  * 程式碼識別碼用英文小駝峰，領域詞彙（`CONTEXT.md` 詞條）維持中文，兩邊靠這張表對接。
@@ -46,6 +45,13 @@ export const MONTAGE: SceneIntExt = "雜景";
 /** `voiceStyle`（發聲方式）的三個值。**不允許 null**，`default: '一般'`（§5.3）。輸出渲染為 `小明（V.O.）`。 */
 export const VOICE_VALUES = ["一般", "V.O.", "O.S."] as const;
 export type VoiceStyle = (typeof VOICE_VALUES)[number];
+
+/**
+ * `subscene` 的 `kind`（種類，§4.4、ADR-0006）。**編劇的宣告**：按下 `/insert` 就是插入、
+ * `/continue-to` 就是接續。兩種只有語意分岔，結構完全共用。
+ */
+export const SUBSCENE_KINDS = ["插入", "接續"] as const;
+export type SubsceneKind = (typeof SUBSCENE_KINDS)[number];
 
 /** 場次 `location` 欄的引用形狀：實體 id ＋ 這一場顯示的名字（漸進揭露，§4.7）。 */
 export interface LocationRef {
@@ -118,17 +124,44 @@ function enumValidator(label: string, values: readonly string[], { nullable }: {
 }
 
 /**
+ * 場次與子場次共用的 metadata attr（§5.1：`subscene` 的 attrs「同 `scene` ＋ `kind`」）。
+ *
+ * 每次呼叫回一份新的物件 —— 兩個節點型別不共用同一份 spec 物件（default 的陣列也不共用）。
+ */
+function sceneMetaAttrs() {
+  return {
+    // 建立時必填、無 default —— 少了 default 就是「建立節點時必須鑄造」的強制版本
+    // （`Node.fromJSON` 少了這個 attr 會直接 throw）。鑄造見 ./ids 的 mintSceneId()。
+    sceneId: {},
+    // 可為 null（§5.3）：空 metadata → 自動草稿，是草稿防呆的地基。default 也是 null。
+    // time（時間）／intExt（內外）是封閉列舉（§4.3），驗證器放行 null 與列舉值、擋掉其餘。
+    time: { default: null, validate: enumValidator("時間", TIME_VALUES, { nullable: true }) },
+    intExt: { default: null, validate: enumValidator("內外", INT_EXT_VALUES, { nullable: true }) },
+    // location（地點）／appearingCharacters（登場人物）是實體引用（物件／陣列），
+    // 形狀由 command 層與 TS 型別把關，不做字串列舉驗證。
+    location: { default: null },
+    appearingCharacters: { default: null },
+    // 不允許 null：空陣列就是「沒有」，不需要「未填 vs 空」的區別（不參與草稿完整性判定）。
+    extras: { default: [] as ExtraRef[] },
+    dismissedCharacterIds: { default: [] as string[] },
+    // 不允許 null，default false（§5.3）。手動標記為草稿；不存狀態機。
+    manualDraft: { default: false, validate: "boolean" },
+  };
+}
+
+/**
  * canonical 場次 schema。
  *
  * 內容規則：
  * ```
- * doc   := scene*                 （§5.1 意圖 scene+，見下方註解）
- * scene := sceneBlock+            isolating, defining
+ * doc      := scene*                          （§5.1 意圖 scene+，見下方註解）
+ * scene    := (sceneBlock | subscene)+        isolating, defining
+ * subscene := sceneBlock+                     isolating, defining（不含 subscene → 深度兩層）
  * sceneBlock := action | dialogue | insertShot   （group，不是節點）
  * action / dialogue / insertShot := inline*
  * ```
  *
- * `scene` 是 `isolating`（跨場次的鍵盤選取／刪除不會把兩場合併，`sceneId` 錨點隨之
+ * `scene`／`subscene` 都是 `isolating`（跨場次的鍵盤選取／刪除不會把兩場合併，`sceneId` 錨點隨之
  * 消失）也是 `defining`（貼上時保留自己的結構）。marks 全關 —— 約束 2，資料模型不含
  * 呈現性資訊（無粗體／斜體／刪除線）。
  */
@@ -143,26 +176,27 @@ export const schema = new Schema({
     },
 
     scene: {
+      // §5.1：主場次的內容是區塊與子場次交錯。「子場次不能是第一個孩子」（不變式 ①）**不寫進
+      // 這裡** —— 空區塊不算內容，那條線 schema 表達不了，由 command 守（`createSubscene`）。
+      content: "(sceneBlock | subscene)+",
+      isolating: true,
+      defining: true,
+      attrs: sceneMetaAttrs(),
+    },
+
+    // 子場次（票券 11、ADR-0003／0006）。**內容規則不含 `subscene`** —— 深度固定兩層（不變式 ⑤）
+    // 由這一行直接保證，不是執行期檢查。它也因此是場次內容型別的子集（ADR-0006 保護規則 4），
+    // 日後攤平成重疊群組時是搬移而不是轉換。
+    subscene: {
       content: "sceneBlock+",
       isolating: true,
       defining: true,
       attrs: {
-        // 建立時必填、無 default —— 少了 default 就是「建立節點時必須鑄造」的強制版本
-        // （`Node.fromJSON` 少了這個 attr 會直接 throw）。鑄造見 ./ids 的 mintSceneId()。
-        sceneId: {},
-        // 可為 null（§5.3）：空 metadata → 自動草稿，是草稿防呆的地基。default 也是 null。
-        // time（時間）／intExt（內外）是封閉列舉（§4.3），驗證器放行 null 與列舉值、擋掉其餘。
-        time: { default: null, validate: enumValidator("時間", TIME_VALUES, { nullable: true }) },
-        intExt: { default: null, validate: enumValidator("內外", INT_EXT_VALUES, { nullable: true }) },
-        // location（地點）／appearingCharacters（登場人物）是實體引用（物件／陣列），
-        // 形狀由 command 層與 TS 型別把關，不做字串列舉驗證。
-        location: { default: null },
-        appearingCharacters: { default: null },
-        // 不允許 null：空陣列就是「沒有」，不需要「未填 vs 空」的區別（不參與草稿完整性判定）。
-        extras: { default: [] as ExtraRef[] },
-        dismissedCharacterIds: { default: [] as string[] },
-        // 不允許 null，default false（§5.3）。手動標記為草稿；不存狀態機。
-        manualDraft: { default: false, validate: "boolean" },
+        ...sceneMetaAttrs(),
+        // 不允許 null、**無 default**、建立時必填（§5.3）—— 少了它 `Node.fromJSON` 直接 throw，
+        // 與 `sceneId` 同一個「建立時必須給」的強制版本。系統不代填：那一欄的全部價值就在於
+        // 它是編劇的宣告。
+        kind: { validate: enumValidator("種類", SUBSCENE_KINDS, { nullable: false }) },
       },
     },
 

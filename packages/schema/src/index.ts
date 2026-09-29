@@ -17,6 +17,7 @@ export {
   INT_EXT_VALUES,
   MONTAGE,
   VOICE_VALUES,
+  SUBSCENE_KINDS,
 } from "./schema";
 export type {
   SceneTime,
@@ -26,6 +27,7 @@ export type {
   CharacterRef,
   ExtraRef,
   DialogueCharacterRef,
+  SubsceneKind,
 } from "./schema";
 
 export { hasEmptySceneMeta } from "./scene-meta";
@@ -85,6 +87,11 @@ export type { CountInputResult, CountValue } from "./count";
 
 // 多值欄位的輸入規則（地點欄與登場人物欄共用同一份；貼上走同一條路）。
 export { splitNamesLive } from "./names";
+
+// 子場次的推導值（票券 11）：折返標記（編輯器 decoration，日後 PDF 同一支）與不變式 ② 的判準。
+// `subsceneEchoesParent` 的呼叫端是票券 14（草稿推導）；先出去是因為它是不變式 ② 的唯一定義點。
+export { returnMarkers, subsceneEchoesParent } from "./subscenes";
+export type { ReturnMarker } from "./subscenes";
 
 export { projectScenes, docFromJSON } from "./project-scenes";
 export type { SceneNumber } from "./project-scenes";

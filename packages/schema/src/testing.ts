@@ -38,3 +38,11 @@ export function sceneWith(
 ): ProseMirrorNode {
   return schema.node("scene", { sceneId: mintSceneId(), ...attrs }, blocks);
 }
+
+/** 造一個帶新鑄 `sceneId` 的子場次（票券 11）。`attrs` 至少要給 `kind` —— 它沒有預設。 */
+export function subsceneWith(
+  blocks: ProseMirrorNode[],
+  attrs: Record<string, unknown> & { kind: string },
+): ProseMirrorNode {
+  return schema.node("subscene", { sceneId: mintSceneId(), ...attrs }, blocks);
+}
