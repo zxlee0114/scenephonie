@@ -48,3 +48,23 @@
 4. 另一場同樣走一次，按 Esc → 收起；點回那句台詞再離開 → 又出現。
 5. `✕ 不新增 —— 他不入鏡` → 收起；點回那句再離開 → 不再出現；⌘Z 一次 → 那個判斷撤掉。
 6. 選單開著時自己去 chip row 把小明加進登場人物欄 → 選單自己收起。
+
+**2026-09-29 — code review 之後改的三件事。** Spec 軸抓到兩個真的缺陷，兩個都先寫測試重現、
+反證過（退回舊的 plugin，新測試確實 fail）：
+
+1. **人物欄定案那一刻就跳選單** —— 正是裁決 2 否決的時機。bridge 的整份 replace 把 selection
+   沖到 doc 一端，plugin 把那當成「游標離開了這一句」。更陰的是沖過去之後 selection **停在**那裡，
+   接著進來的 focus transaction（不動 doc、不動 selection）也會被當成移動。修法：bridge 的
+   transaction 打上 `KERNEL_REPLACE` meta，只有 `caretAt`／`keepCaret` 明確放回去的游標算數；
+   其餘 transaction 要 selection 真的變了才算。⚠️ 這條測試單獨跑時曾經**假性通過**（斷言得太早，
+   focus transaction 還沒進來），整套跑才掛 —— 測試裡多等一拍是故意的。
+2. **定址只靠 `sceneId ＋ 序`**：在對白開頭 Backspace 併進上一段時，序換人了，選單會掛到下一句
+   （問的是根本沒被碰過的那個人）。改成記 doc 座標、跟著 `tr.mapping` 走，被併掉就是被刪了；
+   只有 bridge 的整份 replace 才退回 id 定址。
+3. **懸空引用不問**：目錄裡沒有那筆人物時，「＋ 新增」會被不變式 ⑧ 拒絕，那一列就成了按不下去的
+   承諾。
+
+Standards 軸的採納：選單的兩個 handler 改在點擊當下讀 plugin state（ref／doc 是真相），
+`notAppearing` 改名 `dismissAsNotAppearing`。沒採納的：`sceneById` 與 `sceneNow` 的重複在改寫
+之後消失了；兩支 command 抽共用 helper、`dismissAppearingPrompt` 改名、選單借用
+`entity-field__*` 的樣式 —— 都是判斷題，留著不動。

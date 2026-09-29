@@ -148,6 +148,74 @@ describe("什麼時候問", () => {
     expect(prompt(container)).toBeNull();
   });
 
+  it("人物欄定案那一刻不問 —— kernel command 整份 replace 不算「離開」（使用者否決過這個時機）", async () => {
+    const { sceneId, doc } = sceneDoc();
+    const { container, editor } = await mount(doc);
+    caretInto(editor, sceneId, 0);
+
+    const input = container.querySelector<HTMLInputElement>(".block__speaker-field input")!;
+    fireEvent.change(input, { target: { value: "小華" } });
+    fireEvent.blur(input);
+    await waitFor(() =>
+      expect(JSON.stringify(editor.state.doc.child(0).child(0).attrs.character)).toContain("小華"),
+    );
+
+    // 多等一下：定案之後還有 focus 相關的 transaction 接著進來，太早斷言會假性通過。
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(prompt(container)).toBeNull();
+  });
+
+  it("在對白開頭按 Backspace 併進上一段 —— 不把下一句的說話者掛到錯的地方", async () => {
+    const sceneId = mintSceneId();
+    const doc = kernelSchema
+      .node("doc", null, [
+        kernelSchema.node("scene", { sceneId }, [
+          kernelSchema.node("action", null, [kernelSchema.text("他走進來")]),
+          kernelSchema.node("dialogue", { character: { id: xiaoming, displayName: "小明" } }, [
+            kernelSchema.text("嗨"),
+          ]),
+          kernelSchema.node("dialogue", { character: { id: xiaohua, displayName: "小華" } }, [
+            kernelSchema.text("你好"),
+          ]),
+          // 初始焦點落在文件末端 —— 放一段動作，免得游標一開始就站在小華那一句裡。
+          kernelSchema.node("action", null, [kernelSchema.text("兩人握手")]),
+        ]),
+      ])
+      .toJSON() as object;
+    const { container, editor } = await mount(doc);
+    caretInto(editor, sceneId, 1, "start");
+
+    act(() => {
+      editor.commands.joinBackward();
+    });
+
+    await act(async () => {});
+    // 小明那一句併進動作裡了；就算要問，也不該問到小華（他那一句根本沒被碰過）。
+    expect(prompt(container)?.textContent ?? "").not.toContain("小華");
+  });
+
+  it("懸空引用不問 —— 目錄裡沒有那筆人物，「＋ 新增」會是一個按不下去的承諾", async () => {
+    const sceneId = mintSceneId();
+    const doc = kernelSchema
+      .node("doc", null, [
+        kernelSchema.node("scene", { sceneId }, [
+          kernelSchema.node("dialogue", { character: { id: mintCharacterId(), displayName: "阿盈" } }, [
+            kernelSchema.text("好久不見"),
+          ]),
+          kernelSchema.node("action", null, [kernelSchema.text("她轉身")]),
+        ]),
+      ])
+      .toJSON() as object;
+    const { container, editor } = await mount(doc);
+
+    writeThenLeave(editor, sceneId);
+
+    await act(async () => {});
+    expect(prompt(container)).toBeNull();
+  });
+
   it("載入時不問 —— 編劇還沒走進任何一句對白", async () => {
     const { doc } = sceneDoc();
     const { container } = await mount(doc);

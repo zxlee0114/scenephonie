@@ -21,21 +21,33 @@
  * 「不新增」是一支 command（`dismissAppearingPrompt`），那才是記下來的判斷。
  */
 import { Extension, type Editor } from "@tiptap/core";
-import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
+import { Plugin, PluginKey, type EditorState, type Transaction } from "@tiptap/pm/state";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { unlistedSpeakers, type DialogueCharacterRef } from "@scenephonie/schema";
 
 import { sceneContext, type BlockAddress } from "../address";
+import { blockContentPos, KERNEL_REPLACE } from "../command-bridge";
+
+/**
+ * 被追蹤的那一句對白：**doc 座標**（區塊節點之前）＋ 由它推出來的定址。
+ *
+ * 座標才是身分 —— 區塊序只是這一刻的讀法。上面插了一段、或上一句被 Backspace 併掉，序就換人了，
+ * 而 `tr.mapping` 知道那一句實際搬去哪、或是被刪了。定址（`sceneId ＋ 序`）留著給 node view 比對
+ * 「問的是不是我」，每一步都從座標重算。
+ */
+interface TrackedDialogue extends BlockAddress {
+  readonly pos: number;
+}
 
 /** 一份打開著的提示：哪一句對白、問的是哪幾位。 */
-export interface AppearingPrompt extends BlockAddress {
+export interface AppearingPrompt extends TrackedDialogue {
   readonly speakers: readonly DialogueCharacterRef[];
 }
 
 interface PromptState {
   /** 游標**目前**所在的對白（不在對白裡就是 `null`）—— 下一次離開時要問的就是它。 */
-  readonly inside: BlockAddress | null;
+  readonly inside: TrackedDialogue | null;
   readonly prompt: AppearingPrompt | null;
 }
 
@@ -44,44 +56,55 @@ const key = new PluginKey<PromptState>("appearingPrompt");
 /** 收起選單的 transaction meta。 */
 const CLOSE = "close";
 
-function sceneById(doc: PMNode, sceneId: string): PMNode | null {
-  let found: PMNode | null = null;
-  doc.forEach((node) => {
-    if (!found && node.type.name === "scene" && node.attrs.sceneId === sceneId) found = node;
-  });
-  return found;
+/** `pos`（區塊節點之前）上的那一句對白；不是對白回 `null`。 */
+function dialogueAt(doc: PMNode, pos: number): TrackedDialogue | null {
+  if (pos < 0 || pos > doc.content.size) return null;
+  if (doc.nodeAt(pos)?.type.name !== "dialogue") return null;
+  const ctx = sceneContext(doc.resolve(pos));
+  return ctx && { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex, pos };
 }
 
 /**
- * 那一句**當下**該問的人；沒有就是 `null`。
+ * 那一句在這筆 transaction 之後的位置；被刪掉（併進別段、整句拿掉）回 `null`。
  *
- * 定址用 `sceneId ＋ 區塊序` 而不是 doc 座標：kernel command 經 bridge 是整份 replace，
- * 座標 map 過去全都落在 doc 的一端，只有 id 定址活得過那一步（`../address`）。
+ * bridge 的整份 replace 是例外：`tr.mapping` 會把一切 map 到 doc 的一端，那時唯一活得過去的是
+ * id 定址（`../address`）—— 那些 command 不增減區塊（改結構的會自己放游標），序就還是它。
  */
-function promptAt(doc: PMNode, at: BlockAddress): AppearingPrompt | null {
-  const scene = sceneById(doc, at.sceneId);
-  const speakers = scene ? unlistedSpeakers(scene, at.blockIndex) : [];
+function follow(tr: Transaction, doc: PMNode, at: TrackedDialogue): TrackedDialogue | null {
+  if (!tr.docChanged) return at;
+  if (tr.getMeta(KERNEL_REPLACE)) {
+    const content = blockContentPos(doc, at.sceneId, at.blockIndex);
+    return content == null ? null : dialogueAt(doc, content - 1);
+  }
+  const mapped = tr.mapping.mapResult(at.pos, 1);
+  return mapped.deleted ? null : dialogueAt(doc, mapped.pos);
+}
+
+/** 那一句**當下**該問的人；沒有就是 `null`。 */
+function promptAt(doc: PMNode, at: TrackedDialogue): AppearingPrompt | null {
+  // 區塊節點之前那個座標的 parent 就是它所在的場次。
+  const speakers = unlistedSpeakers(doc.resolve(at.pos).parent, at.blockIndex);
   return speakers.length > 0 ? { ...at, speakers } : null;
 }
 
 /** 游標所在的對白區塊；不在對白裡回 `null`。 */
-function dialogueUnder(state: EditorState): BlockAddress | null {
+function dialogueUnder(state: EditorState): TrackedDialogue | null {
   const { $from } = state.selection;
   const ctx = sceneContext($from);
-  if (!ctx) return null;
-  const block = $from.node(ctx.sceneDepth).maybeChild(ctx.blockIndex);
-  return block?.type.name === "dialogue" ? { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex } : null;
+  if (!ctx || $from.depth <= ctx.sceneDepth) return null;
+  return dialogueAt(state.doc, $from.before(ctx.sceneDepth + 1));
 }
 
-const sameBlock = (a: BlockAddress | null, b: BlockAddress | null) =>
-  a?.sceneId === b?.sceneId && a?.blockIndex === b?.blockIndex;
+const samePlace = (a: TrackedDialogue | null, b: TrackedDialogue | null) =>
+  a === b ||
+  (a !== null && b !== null && a.pos === b.pos && a.sceneId === b.sceneId && a.blockIndex === b.blockIndex);
 
 /** 兩份提示問的是不是同一件事（state 沒變就回同一個物件，React 才不會白白重繪）。 */
 const samePrompt = (a: AppearingPrompt | null, b: AppearingPrompt | null) =>
   a === b ||
   (a !== null &&
     b !== null &&
-    sameBlock(a, b) &&
+    samePlace(a, b) &&
     a.speakers.length === b.speakers.length &&
     a.speakers.every((s, i) => s.id === b.speakers[i]!.id && s.displayName === b.speakers[i]!.displayName));
 
@@ -95,23 +118,35 @@ export const AppearingPromptPlugin = Extension.create({
         state: {
           // 載入時不記 `inside`：編劇還沒走進任何一句對白，初始焦點把游標搬到文件末端不是「離開」。
           init: () => ({ inside: null, prompt: null }),
-          apply(tr, prev, _old, next) {
+          apply(tr, prev, old, next) {
             if (tr.getMeta(key) === CLOSE) return { ...prev, prompt: null };
 
-            // 開著的那一份跟著 doc 走：他在 chip row 補上了、或按了選單，落差不在就收起。
-            let prompt = prev.prompt && tr.docChanged ? promptAt(next.doc, prev.prompt) : prev.prompt;
-
-            const inside = dialogueUnder(next);
-            if (prev.inside && !sameBlock(prev.inside, inside)) {
-              // 離開了一句對白 —— 有該問的人就換成問這一句（開著的舊選單讓位給剛寫完的這一句）。
-              prompt = promptAt(next.doc, prev.inside) ?? prompt;
+            const was = prev.inside && follow(tr, next.doc, prev.inside);
+            // 開著的那一份跟著那一句走，也跟著 doc 重問一次：他在 chip row 補上了、按了選單、
+            // 或那一句被刪了，落差不在就收起。
+            let prompt = prev.prompt;
+            if (prompt && tr.docChanged) {
+              const at = follow(tr, next.doc, prompt);
+              prompt = at && promptAt(next.doc, at);
             }
 
-            if (sameBlock(inside, prev.inside) && samePrompt(prompt, prev.prompt)) return prev;
-            return {
-              inside: sameBlock(inside, prev.inside) ? prev.inside : inside,
-              prompt: samePrompt(prompt, prev.prompt) ? prev.prompt : prompt,
-            };
+            // bridge 的整份 replace 把 selection 沖到 doc 一端 —— 那不是編劇移動了游標（例如人物欄
+            // 定案那一下，使用者否決過在那一刻問）。只有明確放回去的游標才算數。沖過去之後
+            // selection 會**停在**那一端，所以其餘 transaction 也要游標真的動了才算：緊接著的
+            // focus／meta transaction 不動 selection，不能把那個被沖走的位置當成他走過去的。
+            const moved = tr.getMeta(KERNEL_REPLACE)
+              ? tr.selectionSet
+              : !old.selection.eq(next.selection);
+            const inside = moved ? dialogueUnder(next) : was;
+            if (moved && was && !samePlace(was, inside)) {
+              // 離開了一句對白 —— 有該問的人就換成問這一句（開著的舊選單讓位給剛寫完的這一句）。
+              prompt = promptAt(next.doc, was) ?? prompt;
+            }
+
+            const nextInside = samePlace(inside, prev.inside) ? prev.inside : inside;
+            const nextPrompt = samePrompt(prompt, prev.prompt) ? prev.prompt : prompt;
+            if (nextInside === prev.inside && nextPrompt === prev.prompt) return prev;
+            return { inside: nextInside, prompt: nextPrompt };
           },
         },
       }),

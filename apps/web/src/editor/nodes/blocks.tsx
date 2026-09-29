@@ -37,7 +37,11 @@ import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { fieldEdge } from "../chip-nav";
 import { runKernelCommand } from "../command-bridge";
 import { forwardHistoryKey } from "../history-keys";
-import { appearingPrompt, closeAppearingPrompt } from "../extensions/appearing-prompt";
+import {
+  appearingPrompt,
+  closeAppearingPrompt,
+  type AppearingPrompt,
+} from "../extensions/appearing-prompt";
 import { Action, Dialogue, InsertShot } from "../schema";
 import { useEntityCatalog } from "../entity-catalog";
 import { EntityField, type EntityOption, type EntityRef } from "../entity-field";
@@ -185,24 +189,31 @@ function DialogueView(props: NodeViewProps) {
     [editor],
   );
   const prompt = useSyncExternalStore(subscribe, () => appearingPrompt(editor));
-  const promptHere = (() => {
-    const here = prompt && locateBlock(props);
-    return here && here.sceneId === prompt.sceneId && here.blockIndex === prompt.blockIndex
-      ? prompt
-      : null;
-  })();
+  /**
+   * 問的是這一句，而且只問**目錄裡找得到**的人 —— 懸空引用（實體被 ⌘Z 掉、跨劇本貼上）沒有
+   * 實體可以加進登場人物欄，`addAppearingCharacter` 會拒絕它，那一列就成了按不下去的承諾。
+   */
+  const isHere = (p: AppearingPrompt | null): p is AppearingPrompt => {
+    const here = p && locateBlock(props);
+    return !!here && here.sceneId === p.sceneId && here.blockIndex === p.blockIndex;
+  };
+  const askable = isHere(prompt)
+    ? prompt.speakers.filter((s) => catalog.directory.hasCharacter(s.id))
+    : [];
 
   /**
    * 選單的兩個出口都走 kernel command。**游標留在原地**：他正在下一段打字，按一下選單不該把
    * 游標搬走 —— 這兩支只改場次 attr，doc 座標一個都沒動，所以原封放回去就是原來那個位置。
+   *
+   * 場次從 plugin **當下**的 state 讀，不從這次 render 拿到的 `prompt`（ref／doc 是真相）。
    */
-  const answerPrompt = (produce: Parameters<typeof runKernelCommand>[1]) => {
-    runKernelCommand(editor, produce, { keepFocus: true, keepCaret: true });
+  const answerPrompt = (produce: (sceneId: string) => Parameters<typeof runKernelCommand>[1]) => {
+    const now = appearingPrompt(editor);
+    if (!isHere(now)) return;
+    runKernelCommand(editor, produce(now.sceneId), { keepFocus: true, keepCaret: true });
   };
-  const addAsAppearing = (speaker: DialogueCharacterRef) => {
-    if (!promptHere) return;
-    const { sceneId } = promptHere;
-    answerPrompt((doc) =>
+  const addAsAppearing = (speaker: DialogueCharacterRef) =>
+    answerPrompt((sceneId) => (doc) =>
       addAppearingCharacter(doc, {
         sceneId,
         // 顯示名是這一句台詞上的名字（漸進揭露：「男子」不被換成實體名）。
@@ -210,12 +221,10 @@ function DialogueView(props: NodeViewProps) {
         directory: catalog.directory,
       }),
     );
-  };
-  const notAppearing = (speaker: DialogueCharacterRef) => {
-    if (!promptHere) return;
-    const { sceneId } = promptHere;
-    answerPrompt((doc) => dismissAppearingPrompt(doc, { sceneId, characterId: speaker.id }));
-  };
+  const dismissAsNotAppearing = (speaker: DialogueCharacterRef) =>
+    answerPrompt((sceneId) => (doc) =>
+      dismissAppearingPrompt(doc, { sceneId, characterId: speaker.id }),
+    );
 
   /** 這一場**當下**的群演（對白人物欄的另一種合法目標，§5.1）。 */
   const extrasHere = (): ExtraRef[] => {
@@ -419,11 +428,11 @@ function DialogueView(props: NodeViewProps) {
           }
         }}
       />
-      {promptHere && (
+      {askable.length > 0 && (
         <AppearingPromptMenu
-          speakers={promptHere.speakers}
+          speakers={askable}
           onAdd={addAsAppearing}
-          onDismiss={notAppearing}
+          onDismiss={dismissAsNotAppearing}
           onClose={() => closeAppearingPrompt(editor)}
         />
       )}

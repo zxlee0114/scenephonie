@@ -58,6 +58,15 @@ export function topLevelSceneIds(doc: PMNode): string[] {
 
 export type BlockCaretPlace = "start" | "end";
 
+/**
+ * 這一筆 transaction 是 bridge 的**整份 replace**（transaction meta 的鍵）。
+ *
+ * 整份 replace 之後舊座標 map 過去全落在 doc 的一端 —— 包括 selection。讀 selection 判斷
+ * 「游標去了哪裡」的 plugin（登場人物提示，票券 10）要知道那不是編劇移動了游標，而是座標
+ * 被沖掉了；只有 `caretAt`／`keepCaret` 明確放回去的那一個才算數（`tr.selectionSet`）。
+ */
+export const KERNEL_REPLACE = "kernelReplace";
+
 /** 場次內第 `blockIndex` 個區塊的內文起點／末端（doc 座標）；找不到回 `null`。 */
 export function blockContentPos(
   doc: PMNode,
@@ -92,7 +101,9 @@ export function runKernelCommand(
 
   const before = new Set(topLevelSceneIds(state.doc));
   const nextDoc = editor.schema.nodeFromJSON(result.value.toJSON());
-  const tr = state.tr.replaceWith(0, state.doc.content.size, nextDoc.content);
+  const tr = state.tr
+    .replaceWith(0, state.doc.content.size, nextDoc.content)
+    .setMeta(KERNEL_REPLACE, true);
 
   if (options.keepCaret) {
     const { anchor, head } = state.selection;
