@@ -30,6 +30,9 @@ export type {
 
 export { hasEmptySceneMeta } from "./scene-meta";
 
+// 登場人物提示的觸發條件（票券 10）—— 提示不是推導，這支只回答「該不該問」，從不寫 doc。
+export { unlistedSpeakers } from "./appearing-prompt";
+
 // 實體（人物／地點）：id 鑄造、command 問存在性用的目錄，與讀取路徑的正規化（票券 08）。
 //
 // ⚠️ 只出去有呼叫端的東西。`referenceLabel`（場次表那一格的文字）、`isCharacterId`／

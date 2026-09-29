@@ -583,8 +583,7 @@ describe("把 chip 拿回來重新編輯", () => {
     fireEvent.change(input, { target: { value: "派出所後門" } });
     fireEvent.blur(input);
 
-    // 第二個參數是**這一筆從哪一條路生出來的**（票券 35）—— 打字新建就是 "typed"。
-    await waitFor(() => expect(onCreate).toHaveBeenCalledWith("派出所後門", "typed"));
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith("派出所後門"));
   });
 });
 

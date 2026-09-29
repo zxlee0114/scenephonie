@@ -94,3 +94,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [52](./52-editing-ref-matches-itself-by-prefix.md) | bug（已完成）：握著一筆實體、清空重打前綴命中不了自己（票券 38 那條裂縫）。**從票券 42 的第 4 條切出來**，與 42 的措辭工作無關。blocked by 40。呈現另有兩輪追加裁決：只有這一場認識的名字印成 `🕓` 歷史紀錄而非實體，且**手上那一筆不印場數**（後者推翻 2026-09-11）。 |
 | [58](./58-single-value-field-caret-after-commit.md) | bug（已完成）：單值欄（非雜景地點欄、對白人物欄）定案之後輸入框卡在 chip **前面** —— `merge` 的單值分支沒把 `caret` 歸位，而 `reset()` 靠它歸位。**從票券 52 的人工驗收切出來**，與 52 無關（根因在票券 39 的游標歸位）。 |
 | [57](./57-select-chips-in-a-field.md) | 一格裡的 chip 選得起來：`⌘A` 選滿整格、`⌫` 清空，四格一致；按到底放行給整份文件。選取狀態是**一組 chip**（為以後的子集與剪貼留形狀）。**拖曳定案給重排、選取永不靠拖**。blocked by 無（08／09／34 皆已完成）。剪貼另開票。 |
+| [59](./59-voice-style-entry.md) | 發聲方式（V.O./O.S.）的輸入入口 —— `voiceStyle` 在 schema 裡，但沒有 UI 設得到。規格 §4.6：併進對白人物欄的自動補全。**從票券 10 切出來**（提示的判準已經在讀這個 attr）。blocked by 10。 |
+| [60](./60-speaker-field-caret-before-chip-layout.md) | bug：對白人物欄游標走到 chip 前面時，輸入框撐開、把 chip 推到欄位中間 —— 違反「縫」的版面（不佔版面）。**從票券 10 驗收撈到**，與 10 無關。 |
+| [61](./61-speaker-field-left-exits-to-previous-block.md) | 對白人物欄最前面按 ← 走不回上一個區塊。落點與場次第一個區塊的情況開工前問。**從票券 10 驗收撈到**。 |
+| [62](./62-empty-dialogue-backspace-reverts.md) | 空的對白（人物欄與台詞都空）按 Backspace 不收回區塊。退回描述還是整塊拿掉，開工前問。**從票券 10 驗收撈到**。 |

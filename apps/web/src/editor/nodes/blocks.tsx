@@ -14,27 +14,35 @@
 import type { NodeViewRenderer } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import {
+  addAppearingCharacter,
   dialogueCharacters,
+  dismissAppearingPrompt,
   mintExtraId,
   parseExtra,
-  sceneAppearingCharacters,
   sceneExtras,
   addSceneExtras,
-  setAppearingCharacters,
   setDialogueCharacters,
   takeOneFromExtra,
+  type DialogueCharacterRef,
   type ExtraRef,
 } from "@scenephonie/schema";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { sceneContext, type BlockAddress } from "../address";
+import { AppearingPromptMenu } from "../appearing-prompt-menu";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { fieldEdge } from "../chip-nav";
 import { runKernelCommand } from "../command-bridge";
 import { forwardHistoryKey } from "../history-keys";
+import {
+  appearingPrompt,
+  closeAppearingPrompt,
+  resumeAfterAppearingPrompt,
+  type AppearingPrompt,
+} from "../extensions/appearing-prompt";
 import { Action, Dialogue, InsertShot } from "../schema";
 import { useEntityCatalog } from "../entity-catalog";
 import { EntityField, type EntityOption, type EntityRef } from "../entity-field";
@@ -167,37 +175,64 @@ function DialogueView(props: NodeViewProps) {
   };
 
   /**
-   * 在這一欄**新建**的人物，順手掛進本場的登場人物欄。
+   * 登場人物提示（票券 10）—— 編劇寫完**這一句**按 Enter 時，說話者不在登場人物欄就在這裡問一聲。
    *
-   * ⚠️ **這是暫時的**（使用者裁決 2026-09-10）。§4.7 的規則是「登場人物的判準是入鏡，系統
-   * 絕不從對白推導」—— 推導會讓製片誤排通告。之所以現在推導得起來，是因為 V.O./O.S. 還沒
-   * 實作（票券 10），**每一句對白都是一般發聲**，於是「有台詞」與「入鏡」暫時同一件事。
-   * 發聲方式一落地，這裡就要換回 §4.7 那個可忽略的提示選單。
-   *
-   * 只在**新建**時掛，不在選既有人物時掛：編劇如果刻意把某個人從登場人物欄拿掉（他有聲音
-   * 但沒入鏡），我們不該再把他塞回去。
+   * 時機在 `extensions/appearing-prompt` 的 plugin state，這個 view 只讀「問的是不是我」。
+   * 訂閱 transaction 而不是等 props：plugin state 變了，這個 node 本身一個字都沒變。
    */
-  const addToAppearing = (characterId: string, displayName: string) => {
-    const here = locateBlock(props);
-    if (!here) return;
-    const scene = sceneNow(here.sceneId);
-    if (!scene) return;
-    const current = sceneAppearingCharacters(scene.attrs.appearingCharacters);
-    if (current.some((r) => r.characterId === characterId)) return;
-    runKernelCommand(
-      editor,
-      (doc) =>
-        setAppearingCharacters(doc, {
-          sceneId: here.sceneId,
-          refs: [
-            ...current.map((r) => ({ characterId: r.characterId, displayName: r.displayName })),
-            { characterId, displayName },
-          ],
-          directory: catalog.directory,
-        }),
-      { keepFocus: true },
-    );
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      editor.on("transaction", notify);
+      return () => {
+        editor.off("transaction", notify);
+      };
+    },
+    [editor],
+  );
+  const prompt = useSyncExternalStore(subscribe, () => appearingPrompt(editor));
+  /**
+   * 問的是這一句，而且只問**目錄裡找得到**的人 —— 懸空引用（實體被 ⌘Z 掉、跨劇本貼上）沒有
+   * 實體可以加進登場人物欄，`addAppearingCharacter` 會拒絕它，那一列就成了按不下去的承諾。
+   */
+  const isHere = (p: AppearingPrompt | null): p is AppearingPrompt => {
+    const here = p && locateBlock(props);
+    return !!here && here.sceneId === p.sceneId && here.blockIndex === p.blockIndex;
   };
+  const askable = isHere(prompt)
+    ? prompt.speakers.filter((s) => catalog.directory.hasCharacter(s.id))
+    : [];
+  // 問的全是懸空引用：沒有一列按得下去，就當沒攔過那一顆 Enter。
+  const nothingToAsk = isHere(prompt) && askable.length === 0;
+  useEffect(() => {
+    if (nothingToAsk) resumeAfterAppearingPrompt(editor);
+  }, [nothingToAsk, editor]);
+
+  /**
+   * 選單的兩個出口都走 kernel command，寫完就接著做那一顆被攔下來的 Enter。**游標留在原地**：
+   * 焦點在選單上時 selection 一直停在台詞裡，這兩支只改場次 attr、doc 座標一個都沒動，原封放回去
+   * 就是 Enter 要切的那個位置。
+   *
+   * 場次從 plugin **當下**的 state 讀，不從這次 render 拿到的 `prompt`（ref／doc 是真相）。
+   */
+  const answerPrompt = (produce: (sceneId: string) => Parameters<typeof runKernelCommand>[1]) => {
+    const now = appearingPrompt(editor);
+    if (!isHere(now)) return;
+    runKernelCommand(editor, produce(now.sceneId), { keepFocus: true, keepCaret: true });
+    resumeAfterAppearingPrompt(editor);
+  };
+  const addAsAppearing = (speaker: DialogueCharacterRef) =>
+    answerPrompt((sceneId) => (doc) =>
+      addAppearingCharacter(doc, {
+        sceneId,
+        // 顯示名是這一句台詞上的名字（漸進揭露：「男子」不被換成實體名）。
+        ref: { characterId: speaker.id, displayName: speaker.displayName },
+        directory: catalog.directory,
+      }),
+    );
+  const dismissAsNotAppearing = (speaker: DialogueCharacterRef) =>
+    answerPrompt((sceneId) => (doc) =>
+      dismissAppearingPrompt(doc, { sceneId, characterId: speaker.id }),
+    );
 
   /** 這一場**當下**的群演（對白人物欄的另一種合法目標，§5.1）。 */
   const extrasHere = (): ExtraRef[] => {
@@ -338,14 +373,9 @@ function DialogueView(props: NodeViewProps) {
             pendingPromotions.current = [];
           }
         }}
-        onCreate={async (name, via) => {
-          const created = await catalog.create("character", name);
-          // 票券 08 的暫時措施只套用在「打字新建」那條路。**升格出來的那一位不掛**（票券 35）：
-          // 他確實入鏡，但系統不自己加 —— 那是票券 10 那個可忽略的提示選單要做的事。
-          // ⚠️ 票券 10 落地之前，同一欄的兩條路刻意不一致；那天兩條一起改。
-          if (created && via === "typed") addToAppearing(created.id, created.name);
-          return created;
-        }}
+        // 新建的人物**不**順手掛進登場人物欄（票券 08 的暫時措施，票券 10 拆掉）：判準是入鏡，
+        // 不是有沒有台詞。落差由離開這一句時的提示指出來，決定權在編劇手上。
+        onCreate={(name) => catalog.create("character", name)}
         onRenameEntity={(id, name) => catalog.rename("character", id, name)}
         // 改名之後，**還印著舊名的那幾場**要不要跟上，由編劇當場裁（票券 39）。三個實體欄位
         // 共用同一份接線，「什麼算還印著舊名」才只有一個答案。
@@ -407,6 +437,17 @@ function DialogueView(props: NodeViewProps) {
         }}
       />
       <NodeViewContent className="block__content" />
+      {askable.length > 0 && (
+        <AppearingPromptMenu
+          // 問的人換了就是另一份選單：亮起的列不該沿用到別人身上。
+          key={askable.map((s) => s.id).join()}
+          speakers={askable}
+          onAdd={addAsAppearing}
+          onDismiss={dismissAsNotAppearing}
+          onSkip={() => resumeAfterAppearingPrompt(editor)}
+          onClose={() => closeAppearingPrompt(editor)}
+        />
+      )}
     </NodeViewWrapper>
   );
 }

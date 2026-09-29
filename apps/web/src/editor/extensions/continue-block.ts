@@ -19,7 +19,7 @@
  *
  * `Shift+Enter` 不歸這裡管 —— 那是 `extensions/soft-break` 的區塊內軟換行。
  */
-import { Extension } from "@tiptap/core";
+import { Extension, type Editor } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
 
 import { sceneContext } from "../address";
@@ -31,57 +31,62 @@ const SCENE_BLOCKS = new Set(["action", "dialogue", "insertShot"]);
 /** 「還什麼都沒寫就按 Enter」＝ 取消這個型別，退回描述。動作本身就是退路，不在其中。 */
 const ESCAPABLE = new Set(["dialogue", "insertShot"]);
 
+/**
+ * `Enter` 的本體 —— 登場人物提示（`./appearing-prompt`）會先攔下這一顆 Enter，問完再從這裡接著走。
+ */
+export function continueBlock(editor: Editor): boolean {
+  const { selection } = editor.state;
+  if (!(selection instanceof TextSelection)) return false;
+  const { $from, $to } = selection;
+  if (!$from.sameParent($to)) return false;
+
+  const parent = $from.parent;
+  if (!SCENE_BLOCKS.has(parent.type.name)) return false;
+
+  const ctx = sceneContext($from);
+
+  // 空的對白／插入畫面按 Enter ＝ 取消這個區塊，直接變回描述（action）——不是再生一個
+  // 同樣空的區塊。選錯型別的退路，與「空區塊上按 Tab 換型別」同一組手勢。
+  // 使用者回饋 2026-09-03（第四輪）。
+  if (ctx && ESCAPABLE.has(parent.type.name) && isBlankBlock(parent)) {
+    return setBlockTypeAt(
+      editor,
+      { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex },
+      "action",
+    );
+  }
+
+  const split = editor.commands.command(({ tr, dispatch }) => {
+    if (dispatch) {
+      tr.deleteSelection();
+      // 同型別、attr 走 schema 預設（對白 → character 清空）。
+      tr.split(tr.mapping.map($from.pos), 1, [{ type: parent.type }]);
+      tr.scrollIntoView();
+    }
+    return true;
+  });
+
+  // 對白：新那段要重新指定說話者 —— 焦點請求指向剛切出來的那個區塊（blockIndex + 1）。
+  // ⚠️ 一定要在 split **之後**才發：DialogueView 現在會訂閱後續請求，若先發，位在
+  // blockIndex + 1 的**舊**對白會搶先認領，焦點就落到別人的人物欄去了。
+  if (split && parent.type.name === "dialogue" && ctx) {
+    requestFocus({
+      kind: "speaker",
+      sceneId: ctx.sceneId,
+      blockIndex: ctx.blockIndex + 1,
+    });
+  }
+
+  return split;
+}
+
 export const ContinueBlock = Extension.create({
   name: "continueBlock",
   // 壓過 StarterKit keymap 的 splitBlock（priority 1000）與 sceneBlock 節點（1100）。
   priority: 1101,
   addKeyboardShortcuts() {
     return {
-      Enter: () => {
-        const { selection } = this.editor.state;
-        if (!(selection instanceof TextSelection)) return false;
-        const { $from, $to } = selection;
-        if (!$from.sameParent($to)) return false;
-
-        const parent = $from.parent;
-        if (!SCENE_BLOCKS.has(parent.type.name)) return false;
-
-        const ctx = sceneContext($from);
-
-        // 空的對白／插入畫面按 Enter ＝ 取消這個區塊，直接變回描述（action）——不是再生一個
-        // 同樣空的區塊。選錯型別的退路，與「空區塊上按 Tab 換型別」同一組手勢。
-        // 使用者回饋 2026-09-03（第四輪）。
-        if (ctx && ESCAPABLE.has(parent.type.name) && isBlankBlock(parent)) {
-          return setBlockTypeAt(
-            this.editor,
-            { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex },
-            "action",
-          );
-        }
-
-        const split = this.editor.commands.command(({ tr, dispatch }) => {
-          if (dispatch) {
-            tr.deleteSelection();
-            // 同型別、attr 走 schema 預設（對白 → character 清空）。
-            tr.split(tr.mapping.map($from.pos), 1, [{ type: parent.type }]);
-            tr.scrollIntoView();
-          }
-          return true;
-        });
-
-        // 對白：新那段要重新指定說話者 —— 焦點請求指向剛切出來的那個區塊（blockIndex + 1）。
-        // ⚠️ 一定要在 split **之後**才發：DialogueView 現在會訂閱後續請求，若先發，位在
-        // blockIndex + 1 的**舊**對白會搶先認領，焦點就落到別人的人物欄去了。
-        if (split && parent.type.name === "dialogue" && ctx) {
-          requestFocus({
-            kind: "speaker",
-            sceneId: ctx.sceneId,
-            blockIndex: ctx.blockIndex + 1,
-          });
-        }
-
-        return split;
-      },
+      Enter: () => continueBlock(this.editor),
     };
   },
 });

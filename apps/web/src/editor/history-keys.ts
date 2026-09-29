@@ -168,6 +168,11 @@ export function forwardHistoryKey(
   event.stopPropagation();
   if (which === "redo") editor.commands.redo();
   else editor.commands.undo();
+  // 撤掉的若正是這一格所在的區塊（剛開出來的新對白、它的人物欄還握著焦點），輸入框跟著被拆掉，
+  // 焦點就掉到 `body` —— 編劇接下來打的字無處可去。還給內文：undo 已經把 selection 放回撤銷前
+  // 的位置（使用者回饋 2026-09-29，票券 10 驗收）。
+  const target = event.target as Node | null;
+  if (target && !target.isConnected) editor.view.focus();
   return true;
 }
 

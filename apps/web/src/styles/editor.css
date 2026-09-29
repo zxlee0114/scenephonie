@@ -909,6 +909,46 @@
   outline: none;
 }
 
+/*
+ * 登場人物提示（票券 10）：浮在那一句的**台詞底下**，**不佔版面**（使用者回饋 2026-09-29）。
+ * 選單開著時 Enter 被攔著、下一段還沒開 —— 底下那一格沒有人在寫字，蓋住它不擋任何東西；
+ * 推開版面反而讓整頁在問與答之間跳兩次。外框與 `entity-field__confirm` 同一套（同樣是
+ * 「問一句、給幾條路」的面板）。
+ */
+.block--dialogue {
+  position: relative;
+}
+
+.appearing-prompt {
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-start: 0;
+  /* 寬度跟著那一行唯讀提示走，不斷行（使用者回饋 2026-09-29：斷成兩行時最後一個字孤零零
+   * 掛在第二行，面板看起來歪）。 */
+  inline-size: max-content;
+  padding: var(--space-2);
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-2);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  user-select: none;
+}
+
+.appearing-prompt .entity-field__note {
+  white-space: nowrap;
+}
+
+.appearing-prompt:focus {
+  outline: none;
+}
+
+.appearing-prompt [role="group"] + [role="group"] {
+  margin-block-start: var(--space-2);
+}
+
 .block--insert-shot {
   max-inline-size: calc(var(--measure-body-ic) * 1ic);
   /* 與動作的差別靠縮排、spacing 與一個結構標籤（§7.11）——不靠顏色、不靠框、不靠線。 */

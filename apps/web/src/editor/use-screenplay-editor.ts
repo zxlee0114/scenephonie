@@ -22,6 +22,7 @@ import { StrayHistoryKey } from "./history-keys";
 import { resetSceneBirth } from "./scene-birth";
 import { ActionNode, DialogueNode, InsertShotNode } from "./nodes/blocks";
 import { SceneNode } from "./nodes/scene";
+import { AppearingPromptPlugin } from "./extensions/appearing-prompt";
 import { BlockCycle } from "./extensions/block-cycle";
 import { ContinueBlock } from "./extensions/continue-block";
 import { NextScene } from "./extensions/next-scene";
@@ -129,6 +130,7 @@ export function useScreenplayEditor(
       SoftBreak,
       VerticalNav,
       StrayHistoryKey,
+      AppearingPromptPlugin,
     ],
     content: initialContent ?? emptyScreenplay(),
     // 上一個 editor instance 可能留下沒人認領的一次性請求（`/next` 發完請求，新 SceneView
