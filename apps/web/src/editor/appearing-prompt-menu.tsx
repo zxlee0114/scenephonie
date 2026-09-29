@@ -44,7 +44,12 @@ export function AppearingPromptMenu({
     { speaker, choice: "add" as const },
     { speaker, choice: "dismiss" as const },
   ]);
-  const choose = (row: Row) => (row.choice === "add" ? onAdd : onDismiss)(row.speaker);
+  /** 已經回答了（選了、Esc、點走）—— 之後焦點回內文是**對的**，不再收回來。 */
+  const answered = useRef(false);
+  const choose = (row: Row) => {
+    answered.current = true;
+    (row.choice === "add" ? onAdd : onDismiss)(row.speaker);
+  };
 
   /** 亮起的那一列；`null` ＝ 還沒碰過鍵盤（沒有預選）。 */
   const [active, setActive] = useState<number | null>(null);
@@ -52,7 +57,17 @@ export function AppearingPromptMenu({
   const latest = useRef({ rows, active, choose, onSkip, onClose });
   latest.current = { rows, active, choose, onSkip, onClose };
 
-  useEffect(() => dismissOnOutsidePointer(() => root.current, () => latest.current.onClose()), []);
+  useEffect(
+    () =>
+      dismissOnOutsidePointer(
+        () => root.current,
+        () => {
+          answered.current = true;
+          latest.current.onClose();
+        },
+      ),
+    [],
+  );
 
   useEffect(() => {
     const el = root.current;
@@ -75,6 +90,7 @@ export function AppearingPromptMenu({
       } else if (event.key === "Enter") {
         if (active !== null && rows[active]) choose(rows[active]);
       } else if (event.key === "Escape") {
+        answered.current = true;
         onSkip();
       } else if (event.key !== "Tab") {
         return;
@@ -83,7 +99,20 @@ export function AppearingPromptMenu({
       event.preventDefault();
     };
     el.addEventListener("keydown", onKeyDown);
-    return () => el.removeEventListener("keydown", onKeyDown);
+
+    // 選單開著時焦點被拉回內文（延後執行的 focus、別處程式呼叫的 `view.focus()`），那些鍵就落到
+    // 內文去了：↑ 移游標、Enter 被攔著什麼都不做 —— 看起來像卡住。收回來。編劇自己點走不會走到
+    // 這裡：點到別處時選單已經先收起了（`dismissOnOutsidePointer`）。回答之後 `resume…` 把焦點
+    // 還給內文那一下選單還掛著，同樣不收（`answered`）。
+    const content = el.closest<HTMLElement>(".ProseMirror");
+    const onFocusIn = (event: FocusEvent) => {
+      if (!answered.current && event.target === content) el.focus({ preventScroll: true });
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      el.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("focusin", onFocusIn);
+    };
   }, []);
 
   return (
@@ -106,6 +135,8 @@ export function AppearingPromptMenu({
                 key={choice}
                 role="menuitem"
                 className={active === s * 2 + c ? "is-active" : undefined}
+                // 滑鼠與鍵盤共用同一個「現在停在哪」：各亮各的，就會兩列同時亮著（同其他選單）。
+                onMouseEnter={() => setActive(s * 2 + c)}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   choose({ speaker, choice });

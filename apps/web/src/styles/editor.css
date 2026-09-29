@@ -949,10 +949,6 @@
   margin-block-start: var(--space-2);
 }
 
-.appearing-prompt li:hover {
-  background: var(--selection-bg);
-}
-
 .block--insert-shot {
   max-inline-size: calc(var(--measure-body-ic) * 1ic);
   /* 與動作的差別靠縮排、spacing 與一個結構標籤（§7.11）——不靠顏色、不靠框、不靠線。 */

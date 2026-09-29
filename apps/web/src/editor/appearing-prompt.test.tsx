@@ -90,7 +90,8 @@ function caretInto(editor: Editor, sceneId: string, blockIndex: number, place: "
  */
 function press(editor: Editor, key: string) {
   act(() => {
-    editor.commands.focus();
+    // 同步 focus：`commands.focus()` 排在下一個 animation frame，會在選單拿到焦點之後把它搶回內文。
+    editor.view.focus();
     fireEvent.keyDown(editor.view.dom, { key });
   });
 }
@@ -267,6 +268,8 @@ describe("出口：選完才開下一段", () => {
 
     await waitFor(() => expect(prompt(container)).toBeNull());
     expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]);
+    // 焦點回到編輯器裡（不是掉到頁面上）。
+    expect(editor.view.dom.contains(document.activeElement)).toBe(true);
     expect(sceneAttrs(editor).appearingCharacters).toBeNull();
     expect(sceneAttrs(editor).dismissedCharacterIds).toEqual([]);
 
@@ -323,6 +326,19 @@ describe("鍵盤（焦點在選單上）", () => {
     await waitFor(() => expect(prompt(container)).not.toBeNull());
     menuKey(container, "ArrowUp");
     await waitFor(() => expect(lit(container)).toEqual(["✕ 不新增 —— 他不入鏡"]));
+  });
+
+  it("滑鼠停過的那一列就是亮著的那一列 —— ↑↓ 從那裡接著走，不會兩列同時亮", async () => {
+    const { sceneId, doc } = sceneDoc();
+    const { container, editor } = await mount(doc);
+    writeThenEnter(editor, sceneId);
+    await waitFor(() => expect(prompt(container)).not.toBeNull());
+
+    fireEvent.mouseEnter(row(container, "不新增"));
+    await waitFor(() => expect(lit(container)).toEqual(["✕ 不新增 —— 他不入鏡"]));
+    menuKey(container, "ArrowUp");
+
+    await waitFor(() => expect(lit(container)).toEqual(["＋ 新增為登場人物"]));
   });
 
   it("Enter 打在亮起的那一列上 ＝ 選它，接著開下一段", async () => {
