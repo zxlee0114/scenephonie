@@ -17,7 +17,13 @@
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import type { EntityDirectory } from "../entities";
-import { dialogueCharacters, sceneAppearingCharacters, sceneLocations } from "../entities";
+import { sceneDismissedCharacterIds } from "../appearing-prompt";
+import {
+  dialogueCharacters,
+  isCharacterId,
+  sceneAppearingCharacters,
+  sceneLocations,
+} from "../entities";
 import type {
   CharacterRef,
   DialogueCharacterRef,
@@ -156,7 +162,7 @@ export interface SetAppearingCharactersOptions {
 
 /**
  * 場次的登場人物欄。**判準是入鏡，不是有沒有台詞** —— 所以這支 command 只寫編劇填的東西，
- * 絕不從對白推導（推導會讓製片誤排演員通告，§4.7）。提示是另一件事，票券 10。
+ * 絕不從對白推導（推導會讓製片誤排演員通告，§4.7）。提示是另一件事，見 `addAppearingCharacter`。
  */
 export function setAppearingCharacters(
   doc: ProseMirrorNode,
@@ -182,6 +188,85 @@ export function setAppearingCharacters(
       hit.scene.marks,
     ),
     "寫入登場人物",
+  );
+}
+
+export interface AddAppearingCharacterOptions {
+  readonly sceneId: string;
+  /** 顯示名是**這一場台詞上的那個名字**（漸進揭露：`男子` 不被換成實體名）。 */
+  readonly ref: CharacterRef;
+  readonly directory: EntityDirectory;
+}
+
+/**
+ * 登場人物提示的「＋ 新增為登場人物」（票券 10）—— **編劇按下去才跑**，系統自己絕不呼叫。
+ *
+ * 與 `setAppearingCharacters` 的差別是「讀現況再接上」留在 kernel（同 `addSceneExtras`）：
+ * 選單可能晚一步才被按下，呼叫端手上那份 doc 是上一次重繪的，拿它去組整串會蓋掉中間的編輯。
+ * 接在**隊尾**：登場人物欄的次序是編劇排的，新來的一筆不插隊。已經在欄位裡就原樣回來 ——
+ * 那時落差已經不在了，不算錯。
+ */
+export function addAppearingCharacter(
+  doc: ProseMirrorNode,
+  options: AddAppearingCharacterOptions,
+): CommandResult {
+  const { sceneId, ref, directory } = options;
+
+  const hit = findScene(doc, sceneId);
+  if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
+  if (!directory.hasCharacter(ref.characterId)) return missing("人物", ref.characterId);
+
+  const current = sceneAppearingCharacters(hit.scene.attrs.appearingCharacters);
+  if (current.some((r) => r.characterId === ref.characterId)) return ok(doc);
+
+  const appearingCharacters = [...current.map((r) => ({ ...r })), { ...ref }];
+  return rebuild(
+    hit,
+    hit.scene.type.create(
+      { ...hit.scene.attrs, appearingCharacters },
+      hit.scene.content,
+      hit.scene.marks,
+    ),
+    "寫入登場人物",
+  );
+}
+
+export interface DismissAppearingPromptOptions {
+  readonly sceneId: string;
+  readonly characterId: string;
+}
+
+/**
+ * 登場人物提示的「✕ 不新增 —— 他不入鏡」（票券 10）。
+ *
+ * 這是一個**明確判斷**，所以存進 doc：場次上的一小份人物 id 清單，這一場的這個人不再提示。
+ * 它是真資訊（編劇判斷過了），不是呈現性資訊。**ESC 不走這裡** —— ESC 是「現在別煩我」，
+ * 不記錄任何判斷；拿「懶得理」去填一個製片要據以排通告的欄位是錯的（§4.7）。
+ *
+ * 記的是 `sceneId` 底下的人物 id：別場的同一個人照樣會被問。不檢查實體表 —— 這不是一筆
+ * 引用（不會印出來、不聚合），只擋掉根本不是人物 id 的東西。
+ */
+export function dismissAppearingPrompt(
+  doc: ProseMirrorNode,
+  options: DismissAppearingPromptOptions,
+): CommandResult {
+  const { sceneId, characterId } = options;
+
+  const hit = findScene(doc, sceneId);
+  if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
+  if (!isCharacterId(characterId)) return reject(`「${characterId}」不是人物 id —— 只有人物會被提示`);
+
+  const current = sceneDismissedCharacterIds(hit.scene.attrs.dismissedCharacterIds);
+  if (current.includes(characterId)) return ok(doc);
+
+  return rebuild(
+    hit,
+    hit.scene.type.create(
+      { ...hit.scene.attrs, dismissedCharacterIds: [...current, characterId] },
+      hit.scene.content,
+      hit.scene.marks,
+    ),
+    "記錄不入鏡",
   );
 }
 

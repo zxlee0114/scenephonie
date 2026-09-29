@@ -37,6 +37,14 @@ export interface RunOptions {
    * 捲動只會讓畫面莫名其妙跳一下。
    */
   readonly keepFocus?: boolean;
+  /**
+   * true ＝ replace 之後把游標放回**原本的 doc 座標**。
+   *
+   * 整份 replace 會把舊的 selection map 到 doc 的一端 —— 游標在內文裡、卻按了一個浮在旁邊的
+   * 選單（登場人物提示，票券 10）時，那一下不該把他正在寫的位置搬走。只給**不改 doc 座標**的
+   * command 用（只動 attr 的那幾支）；座標超出新 doc 時不放，交給 map 過來的那一個。
+   */
+  readonly keepCaret?: boolean;
 }
 
 /** doc 頂層場次的 sceneId（依文件順序）。 */
@@ -85,6 +93,14 @@ export function runKernelCommand(
   const before = new Set(topLevelSceneIds(state.doc));
   const nextDoc = editor.schema.nodeFromJSON(result.value.toJSON());
   const tr = state.tr.replaceWith(0, state.doc.content.size, nextDoc.content);
+
+  if (options.keepCaret) {
+    const { anchor, head } = state.selection;
+    const size = tr.doc.content.size;
+    if (anchor <= size && head <= size) {
+      tr.setSelection(TextSelection.between(tr.doc.resolve(anchor), tr.doc.resolve(head)));
+    }
+  }
 
   if (options.caretAt) {
     const pos = blockContentPos(

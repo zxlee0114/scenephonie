@@ -19,6 +19,8 @@ export { moveScene } from "./move-scene";
 export type { MoveSceneOptions, MoveTarget } from "./move-scene";
 
 export {
+  addAppearingCharacter,
+  dismissAppearingPrompt,
   retitleEntityRefs,
   setSceneLocations,
   setSceneIntExt,
@@ -26,6 +28,8 @@ export {
   setDialogueCharacters,
 } from "./entity-refs";
 export type {
+  AddAppearingCharacterOptions,
+  DismissAppearingPromptOptions,
   RetitleEntityRefsOptions,
   SetSceneLocationsOptions,
   SetSceneIntExtOptions,

@@ -91,17 +91,6 @@ export type EntityRef = { id: string | null; displayName: string };
 
 export type EntityKind = "location" | "character";
 
-/**
- * 一筆實體是**從哪一條路**生出來的。
- *
- * 存在的理由只有一個，而且是暫時的：票券 08 留了個暫時措施「在對白人物欄新建的人物順手掛進
- * 登場人物欄」，而**升格出來的那一位不套用**（票券 35 裁決 —— 推導不自動把有台詞的人加進
- * 登場人物欄）。呼叫端分不出兩條路的話，就只能一律套用或一律不套用。
- *
- * ⚠️ 票券 10 把那個暫時措施換成提示選單的那一天，這個型別就沒有讀者了，跟著拆掉。
- */
-export type EntityBirth = "typed" | "promote";
-
 type Props = {
   kind: EntityKind;
   /** 未填時的提示字，也是無障礙標籤。 */
@@ -164,7 +153,7 @@ type Props = {
   /** 引用有變動時回報**整份**引用清單（上層跑 domain command 寫回 doc）。 */
   onCommit: (refs: EntityRef[]) => void;
   /** 建立一筆新實體。**必須在 `onCommit` 之前完成** —— 先建立實體、再寫入 doc。 */
-  onCreate: (name: string, via: EntityBirth) => Promise<EntityOption | null>;
+  onCreate: (name: string) => Promise<EntityOption | null>;
   /** 把實體本身改名（`✏️` 那一列，以及第三列第二步的「同時把實體改名」）。沒給就不出現。 */
   onRenameEntity?: (id: string, name: string) => void;
   /**
@@ -567,10 +556,7 @@ export function EntityField({
    * ⚠️ 這支只解析、**不寫回**：一次貼上多個名字時要等全部解析完才寫一次，否則第二筆會
    * 覆蓋掉第一筆（`refs` 是 prop，中途還沒重繪過）。
    */
-  const resolve = async (
-    name: string,
-    via: EntityBirth = "typed",
-  ): Promise<EntityRef | null> => {
+  const resolve = async (name: string): Promise<EntityRef | null> => {
     const held = editing.current;
     // 剛拿下來的那一筆是**群演**：改字改的是「這一場顯示的名字」，不是換一個目標。
     // （CONTEXT.md：群演欄寫「咖啡廳客人（8）」，對白顯示「眾人」—— 兩者本來就可以不同。）
@@ -586,7 +572,7 @@ export function EntityField({
     const hit = byName(name);
     if (hit) return { id: hit.id, displayName: name };
 
-    const created = await onCreate(name, via);
+    const created = await onCreate(name);
     if (!created) return null; // 建立失敗就什麼都不寫 —— 沒有實體就不該有引用（不變式 ⑧）
     setBornHere((ids) => [...ids, created.id]);
     return { id: created.id, displayName: name };
@@ -1129,7 +1115,7 @@ export function EntityField({
     // `resolve` 會用回那個 `ex_` id，於是「升格」產出的會是一筆群演，正好相反。
     editing.current = null;
     caret.current = null; // 升格是新的一筆，排在隊尾（不是把誰放回原位）。
-    const ref = await resolve(query, "promote");
+    const ref = await resolve(query);
     if (!ref?.id) return;
     onPromoteFromExtra(extra.id, ref.id);
     merge([ref]);

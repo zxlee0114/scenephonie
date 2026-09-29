@@ -5,9 +5,9 @@
  * **① 多值**：多個具名角色可以同時說一句台詞（齊聲）。attr 的形狀因此與地點欄同一套
  * （單值 ｜ 陣列 ｜ null），舊稿裡的單值物件照樣讀得出來。
  *
- * **② 在這一欄新建的人物順手掛進本場的登場人物欄。** ⚠️ 這是**暫時**的：§4.7 的規則是
- * 「判準是入鏡，系統絕不從對白推導」，而現在推導得起來只因為 V.O./O.S. 還沒實作（票券 10）
- * —— 每一句對白都是一般發聲，「有台詞」與「入鏡」暫時同一件事。
+ * **② 在這一欄新建的人物不會被掛進登場人物欄。** 票券 08 曾經暫時這麼做（那時「有台詞」與
+ * 「入鏡」被當成同一件事），票券 10 拆掉：判準是入鏡，系統絕不從對白推導（§4.7）。落差由
+ * 離開那一句時的提示指出來（`appearing-prompt.test.tsx`），決定權在編劇手上。
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
@@ -81,26 +81,18 @@ describe("對白的人物欄", () => {
     expect(Array.isArray(dialogue.attrs.character)).toBe(true);
   });
 
-  it("在這一欄新建的人物，順手掛進本場的登場人物欄", async () => {
-    const { container } = render(<Harness />);
-    const input = await speakerInput(container);
-
-    fireEvent.change(input, { target: { value: "小明" } });
-    fireEvent.keyDown(input, { key: "Enter" });
-
-    await waitFor(() => expect(speakers(container)).toEqual(["小明"]));
-    await waitFor(() => expect(appearing(container)).toEqual(["小明"]));
-  });
-
-  it("齊聲的兩個人都掛得上去，而且不重複掛", async () => {
-    const { container } = render(<Harness />);
+  it("在這一欄新建的人物**不**掛進登場人物欄 —— 推導不替編劇決定誰入鏡", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
     const input = await speakerInput(container);
 
     fireEvent.change(input, { target: { value: "小明、小華" } });
     await waitFor(() => expect(speakers(container)).toHaveLength(1));
     fireEvent.keyDown(input, { key: "Enter" });
 
-    await waitFor(() => expect(appearing(container)).toEqual(["小明", "小華"]));
+    await waitFor(() => expect(speakers(container)).toEqual(["小明", "小華"]));
+    expect(appearing(container)).toEqual([]);
+    expect(editor.state.doc.firstChild!.attrs.appearingCharacters).toBeNull();
   });
 
   it("填好人物、台詞還空著時按 Enter —— 對白不該被當成空區塊取消掉", async () => {

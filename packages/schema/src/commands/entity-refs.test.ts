@@ -10,6 +10,8 @@ import {
 } from "../entities";
 import { block, makeDoc, makeScene, sceneWith } from "../testing";
 import {
+  addAppearingCharacter,
+  dismissAppearingPrompt,
   retitleEntityRefs,
   setAppearingCharacters,
   setDialogueCharacters,
@@ -384,6 +386,108 @@ describe("retitleEntityRefs（改名之後，別場的舊稱呼一起跟上）",
       entityId: dolphinApartment,
       from: "海豚公寓房間",
       to: "  ",
+    });
+
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("addAppearingCharacter（提示選單的「＋ 新增為登場人物」）", () => {
+  it("接在登場人物欄的隊尾，既有的次序不動（那是編劇排的）", () => {
+    const doc = makeDoc(
+      makeScene({ appearingCharacters: [{ characterId: xiaohua, displayName: "小華" }] }),
+    );
+    const next = unwrap(
+      addAppearingCharacter(doc, {
+        sceneId: sceneIdOf(doc),
+        ref: { characterId: xiaoming, displayName: "男子" },
+        directory,
+      }),
+    );
+
+    // 顯示名是這一場台詞上那個名字 —— 漸進揭露的「男子」不被換成實體名。
+    expect(sceneAppearingCharacters(next.child(0).attrs.appearingCharacters)).toEqual([
+      { characterId: xiaohua, displayName: "小華" },
+      { characterId: xiaoming, displayName: "男子" },
+    ]);
+  });
+
+  it("欄位原本是 null（尚未填）也接得上", () => {
+    const doc = makeDoc(makeScene());
+    const next = unwrap(
+      addAppearingCharacter(doc, {
+        sceneId: sceneIdOf(doc),
+        ref: { characterId: xiaoming, displayName: "小明" },
+        directory,
+      }),
+    );
+
+    expect(next.child(0).attrs.appearingCharacters).toEqual([
+      { characterId: xiaoming, displayName: "小明" },
+    ]);
+  });
+
+  it("已經在欄位裡 → 原樣回來，不重複掛（選單晚一步按下去時他可能已經自己加了）", () => {
+    const doc = makeDoc(
+      makeScene({ appearingCharacters: [{ characterId: xiaoming, displayName: "小明" }] }),
+    );
+    const next = unwrap(
+      addAppearingCharacter(doc, {
+        sceneId: sceneIdOf(doc),
+        ref: { characterId: xiaoming, displayName: "男子" },
+        directory,
+      }),
+    );
+
+    expect(next.toJSON()).toEqual(doc.toJSON());
+  });
+
+  it("拒絕對不存在人物的引用（不變式 ⑧）", () => {
+    const doc = makeDoc(makeScene());
+    const result = addAppearingCharacter(doc, {
+      sceneId: sceneIdOf(doc),
+      ref: { characterId: "ch_不存在", displayName: "小明" },
+      directory,
+    });
+
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("dismissAppearingPrompt（提示選單的「✕ 不新增 —— 他不入鏡」）", () => {
+  it("把人物 id 記進這一場的 dismissedCharacterIds，登場人物欄一個字都不動", () => {
+    const doc = makeDoc(makeScene());
+    const next = unwrap(
+      dismissAppearingPrompt(doc, { sceneId: sceneIdOf(doc), characterId: xiaoming }),
+    );
+
+    expect(next.child(0).attrs.dismissedCharacterIds).toEqual([xiaoming]);
+    expect(next.child(0).attrs.appearingCharacters).toBeNull();
+  });
+
+  it("記的是 sceneId —— 別場的同一個人照樣會被問", () => {
+    const doc = makeDoc(makeScene(), makeScene());
+    const next = unwrap(
+      dismissAppearingPrompt(doc, { sceneId: sceneIdOf(doc), characterId: xiaoming }),
+    );
+
+    expect(next.child(1).attrs.dismissedCharacterIds).toEqual([]);
+  });
+
+  it("同一個人記兩次 → 原樣回來", () => {
+    const doc = makeDoc(makeScene({ dismissedCharacterIds: [xiaoming] }));
+    const next = unwrap(
+      dismissAppearingPrompt(doc, { sceneId: sceneIdOf(doc), characterId: xiaoming }),
+    );
+
+    expect(next.toJSON()).toEqual(doc.toJSON());
+  });
+
+  it("拒絕不是人物 id 的東西（群演不會被問，也就不會被記）", () => {
+    const doc = makeDoc(makeScene());
+    const result = dismissAppearingPrompt(doc, {
+      sceneId: sceneIdOf(doc),
+      characterId: "ex_咖啡廳客人",
     });
 
     expect(result.ok).toBe(false);

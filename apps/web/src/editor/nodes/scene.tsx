@@ -444,7 +444,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
         />
 
         {/* 登場人物。**判準是入鏡，不是有沒有台詞** —— 這一欄由編劇填，系統絕不從對白推導
-            （推導會讓製片誤排演員通告）。提示是另一件事，票券 10。 */}
+            （推導會讓製片誤排演員通告）。提示是另一件事：離開一句對白時問（`extensions/appearing-prompt`）。 */}
         <SceneEntityChip
           editor={editor}
           catalog={catalog}

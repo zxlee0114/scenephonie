@@ -99,6 +99,19 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     rationale: "拒絕對不存在人物的引用；以 sceneId ＋ 人物 id 定址。判準是入鏡，不從對白推導。",
   },
   {
+    name: "addAppearingCharacter",
+    enforces: ["⑧"],
+    addressesById: true,
+    rationale:
+      "登場人物提示的「新增」；拒絕對不存在人物的引用，以 sceneId ＋ 人物 id 定址。讀現況再接上留在 kernel。",
+  },
+  {
+    name: "dismissAppearingPrompt",
+    enforces: [],
+    addressesById: true,
+    rationale: "登場人物提示的「不新增」；以 sceneId ＋ 人物 id 定址，只記判斷、不建立引用。",
+  },
+  {
     name: "setDialogueCharacters",
     enforces: ["⑧"],
     addressesById: true,
