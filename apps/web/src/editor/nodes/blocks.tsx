@@ -428,15 +428,18 @@ function DialogueView(props: NodeViewProps) {
           }
         }}
       />
+      <NodeViewContent className="block__content" />
       {askable.length > 0 && (
         <AppearingPromptMenu
+          // 問的人換了就是另一份選單：亮起的列不該沿用到別人身上。
+          key={askable.map((s) => s.id).join()}
           speakers={askable}
+          keyboardFrom={editor.view.dom}
           onAdd={addAsAppearing}
           onDismiss={dismissAsNotAppearing}
           onClose={() => closeAppearingPrompt(editor)}
         />
       )}
-      <NodeViewContent className="block__content" />
     </NodeViewWrapper>
   );
 }

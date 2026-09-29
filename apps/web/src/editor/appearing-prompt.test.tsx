@@ -6,7 +6,8 @@
  * 「某人物在本場有**一般**發聲方式的對白，且不在本場的登場人物欄」—— 判準住在 kernel
  * （`unlistedSpeakers`），這裡量的是**時機與出口**：
  *
- * - 編劇**離開一句對白**時才問，浮在那一句的人物欄底下；不搶焦點、不擋打字；
+ * - 編劇**離開一句對白**時才問，排在那一句的台詞底下；不搶焦點、不擋打字；
+ * - 選單開著時 ↑↓ 歸它、沒有預選；Enter 只在有亮起的列時才算選擇；
  * - `＋ 新增為登場人物` 寫進登場人物欄；`✕ 不新增 —— 他不入鏡` 寫進 `dismissedCharacterIds`；
  * - **Esc 不記錄任何判斷**（「現在別煩我」）—— 下次離開那一句還會再問。
  */
@@ -102,15 +103,18 @@ afterEach(() => {
 });
 
 describe("什麼時候問", () => {
-  it("離開一句「一般」對白、說話者不在登場人物欄 → 在那一句的人物欄底下問", async () => {
+  it("離開一句「一般」對白、說話者不在登場人物欄 → 在那一句的台詞底下問", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);
 
     writeThenLeave(editor, sceneId);
 
     await waitFor(() => expect(prompt(container)).not.toBeNull());
-    // 錨在那一句對白上，不是下一段。
-    expect(prompt(container)!.closest(".block--dialogue")).not.toBeNull();
+    // 錨在那一句對白上，不是下一段；排在台詞**之後**，不蓋住剛寫完的字。
+    const dialogue = prompt(container)!.closest(".block--dialogue")!;
+    expect(dialogue).not.toBeNull();
+    const lines = dialogue.querySelector(".block__content")!;
+    expect(lines.compareDocumentPosition(prompt(container)!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(prompt(container)!.textContent).toContain("小明");
     expect(rowsOf(container)).toEqual(["＋ 新增為登場人物", "✕ 不新增 —— 他不入鏡"]);
   });
@@ -291,6 +295,77 @@ describe("三個出口", () => {
     fireEvent.pointerDown(document.body);
 
     await waitFor(() => expect(prompt(container)).toBeNull());
+    expect(sceneAttrs(editor).dismissedCharacterIds).toEqual([]);
+  });
+});
+
+describe("鍵盤", () => {
+  const key = (editor: Editor, k: string) => fireEvent.keyDown(editor.view.dom, { key: k });
+  const lit = (root: HTMLElement) =>
+    [...(prompt(root)?.querySelectorAll("li.is-active") ?? [])].map((li) => li.textContent ?? "");
+
+  it("沒有預選：選單出現時沒有任何一列亮著", async () => {
+    const { sceneId, doc } = sceneDoc();
+    const { container, editor } = await mount(doc);
+    writeThenLeave(editor, sceneId);
+    await waitFor(() => expect(prompt(container)).not.toBeNull());
+
+    expect(lit(container)).toEqual([]);
+  });
+
+  it("↓ 亮起第一列、再 ↓ 換到下一列；↑ 從沒亮的狀態亮起最後一列", async () => {
+    const { sceneId, doc } = sceneDoc();
+    const { container, editor } = await mount(doc);
+    writeThenLeave(editor, sceneId);
+    await waitFor(() => expect(prompt(container)).not.toBeNull());
+    const caret = editor.state.selection.from;
+
+    key(editor, "ArrowDown");
+    await waitFor(() => expect(lit(container)).toEqual(["＋ 新增為登場人物"]));
+    key(editor, "ArrowDown");
+    await waitFor(() => expect(lit(container)).toEqual(["✕ 不新增 —— 他不入鏡"]));
+    // ↑↓ 歸選單：游標沒被移走。
+    expect(editor.state.selection.from).toBe(caret);
+
+    key(editor, "Escape");
+    await waitFor(() => expect(prompt(container)).toBeNull());
+    writeThenLeave(editor, sceneId);
+    await waitFor(() => expect(prompt(container)).not.toBeNull());
+    key(editor, "ArrowUp");
+    await waitFor(() => expect(lit(container)).toEqual(["✕ 不新增 —— 他不入鏡"]));
+  });
+
+  it("Enter 打在亮起的那一列上 ＝ 選它；游標不動", async () => {
+    const { sceneId, doc } = sceneDoc();
+    const { container, editor } = await mount(doc);
+    writeThenLeave(editor, sceneId);
+    await waitFor(() => expect(prompt(container)).not.toBeNull());
+    caretInto(editor, sceneId, 1, "start");
+    const caret = editor.state.selection.from;
+
+    key(editor, "ArrowDown");
+    await waitFor(() => expect(lit(container)).toEqual(["＋ 新增為登場人物"]));
+    key(editor, "Enter");
+
+    await waitFor(() =>
+      expect(sceneAppearingCharacters(sceneAttrs(editor).appearingCharacters)).toEqual([
+        { characterId: xiaoming, displayName: "小明" },
+      ]),
+    );
+    await waitFor(() => expect(prompt(container)).toBeNull());
+    expect(editor.state.selection.from).toBe(caret);
+  });
+
+  it("沒亮任何一列時 Enter 屬於內文 —— 順手一個 Enter 不會替他做決定", async () => {
+    const { sceneId, doc } = sceneDoc();
+    const { container, editor } = await mount(doc);
+    writeThenLeave(editor, sceneId);
+    await waitFor(() => expect(prompt(container)).not.toBeNull());
+
+    key(editor, "Enter");
+
+    await act(async () => {});
+    expect(sceneAttrs(editor).appearingCharacters).toBeNull();
     expect(sceneAttrs(editor).dismissedCharacterIds).toEqual([]);
   });
 });
