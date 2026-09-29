@@ -18,7 +18,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { ContinueBlock } from "./extensions/continue-block";
 import { InsertShotNode } from "./nodes/blocks";
-import { Action, Dialogue, Doc, Scene } from "./schema";
+import { Action, Dialogue, Doc, Scene, Subscene } from "./schema";
 import { SceneIds } from "./extensions/scene-ids";
 import { SoftBreak } from "./extensions/soft-break";
 import { toPlainJson } from "./plain-json";
@@ -33,6 +33,7 @@ function build(blocks: object[]) {
       baseStarterKit(),
       Doc,
       Scene,
+      Subscene,
       Action,
       Dialogue,
       InsertShotNode,

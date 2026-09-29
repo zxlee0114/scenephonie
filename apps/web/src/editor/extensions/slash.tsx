@@ -10,22 +10,39 @@
 
 import { Extension } from "@tiptap/core";
 import type { Editor, Range } from "@tiptap/core";
-import Suggestion from "@tiptap/suggestion";
+import Suggestion, { type SuggestionProps } from "@tiptap/suggestion";
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
-import type { BlockType } from "@scenephonie/schema";
+import {
+  canCreateSubscene,
+  createSubscene,
+  projectScenes,
+  sceneLocations,
+  type BlockType,
+  type SubsceneAnchor,
+  type SubsceneKind,
+} from "@scenephonie/schema";
+import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { sceneContext } from "../address";
+import { isSceneNode, sceneContext } from "../address";
+import { runKernelCommand } from "../command-bridge";
 import { BLOCK_META, setBlockTypeAt } from "../block-types";
 import { dismissOnOutsidePointer } from "../dismiss-on-outside-pointer";
 import { slashMenuPosition } from "../slash-menu-position";
 import { currentSceneId, requestNextScene } from "./next-scene";
+import { exitSubscene, subsceneDepth } from "./subscene-exit";
 
+/**
+ * 選單的一列。`next` 的那一列不直接執行，而是把選單換成**第二步**的清單（`/insert`／
+ * `/continue-to` 的「套用哪一場的時空」）—— 還在同一個選單裡、同一顆 Enter，指令字也還留在
+ * 文件裡，繼續打字就回到第一步。
+ */
 type SlashItem = {
   key: string;
   label: string;
   hint: string;
-  run: (editor: Editor, range: Range) => void;
+  run?: (editor: Editor, range: Range) => void;
+  next?: (editor: Editor) => SlashItem[];
 };
 
 /**
@@ -43,9 +60,123 @@ function dropEmptyCommandBlock(editor: Editor) {
   if ($from.parent.content.size > 0) return;
 
   const scene = $from.node($from.depth - 1);
-  if (scene.type.name !== "scene" || scene.childCount <= 1) return;
+  if (!isSceneNode(scene) || scene.childCount <= 1) return;
+  // 主場次的第一個孩子不能換成子場次（不變式 ①）—— 收掉它會讓後面那個子場次變成第一個。
+  if ($from.index($from.depth - 1) === 0 && scene.child(1).type.name === "subscene") return;
 
   editor.view.dispatch(state.tr.delete($from.before(), $from.after()));
+}
+
+/**
+ * `/insert`／`/continue-to` 從游標這裡建子場次時，kernel 要的定址（`createSubscene` 的
+ * `SubsceneAnchor`），以及承載指令的那一行要不要收掉。
+ *
+ * 判斷「這一行有沒有內容」要**扣掉指令字本身** —— 選單還開著時 `/insert` 這幾個字還在區塊裡。
+ * 扣完是空的：這一行只是為了打指令才開的，收掉，子場次接在上一個孩子之後；還有字（`客廳。/insert`）：
+ * 留著，子場次接在它之後。在子場次裡按下去一律是「接在這個子場次之後的兄弟」（語意不變）。
+ */
+function subsceneAnchorAtCaret(editor: Editor): { anchor: SubsceneAnchor; drop: boolean } | null {
+  const { $from } = editor.state.selection;
+  const ctx = sceneContext($from);
+  if (!ctx) return null;
+  const container = $from.node(ctx.sceneDepth);
+
+  const before = $from.parent.textBetween(0, $from.parentOffset);
+  const slash = before.lastIndexOf("/");
+  const leftover =
+    (slash >= 0 ? before.slice(0, slash) : before) +
+    $from.parent.textBetween($from.parentOffset, $from.parent.content.size);
+  const blank = leftover.trim() === "";
+
+  if (container.type.name === "subscene") {
+    return {
+      anchor: { sceneId: ctx.sceneId, afterBlockIndex: 0 },
+      drop: blank && container.childCount > 1,
+    };
+  }
+  return {
+    anchor: { sceneId: ctx.sceneId, afterBlockIndex: blank ? ctx.blockIndex - 1 : ctx.blockIndex },
+    drop: blank,
+  };
+}
+
+/** 空場次裡 `/insert`／`/continue-to` 不可用（不變式 ①）—— 不列出來，而不是按了才拒絕。 */
+function subsceneAvailable(editor: Editor): boolean {
+  const at = subsceneAnchorAtCaret(editor);
+  return at != null && canCreateSubscene(editor.state.doc, at.anchor);
+}
+
+function createSubsceneAt(
+  editor: Editor,
+  range: Range,
+  kind: SubsceneKind,
+  applyFromSceneId: string | null,
+) {
+  // 定址先問清楚 —— 刪掉指令字、收掉空行之後 selection 就不再是這一行了。
+  const at = subsceneAnchorAtCaret(editor);
+  if (!at) return;
+  editor.view.dispatch(editor.state.tr.delete(range.from, range.to));
+  if (at.drop) editor.view.dispatch(editor.state.tr.delete(
+    editor.state.selection.$from.before(),
+    editor.state.selection.$from.after(),
+  ));
+  runKernelCommand(
+    editor,
+    (doc) => createSubscene(doc, { ...at.anchor, kind, applyFromSceneId }),
+    { focusNewSceneMeta: true },
+  );
+}
+
+/** 一場的時空，選單上印成 `內景 公寓客廳 夜`（缺的欄位就不印）。 */
+function spaceTimeOf(scene: PMNode): string {
+  const place = sceneLocations(scene.attrs.location)
+    .map((r) => r.displayName)
+    .join("、");
+  return [scene.attrs.intExt, place, scene.attrs.time].filter(Boolean).join(" ");
+}
+
+/**
+ * 第二步：套用哪一場的內外／時間／地點（§4.4 明確套用）。**第一項永遠是「不沿用，留空」** ——
+ * metadata 完全不繼承主場次是預設，套用是編劇的明確選擇。三欄都還空著的場次沒有東西可套，不列。
+ */
+function applyStep(kind: SubsceneKind) {
+  return (editor: Editor): SlashItem[] => {
+    const byId = new Map<string, PMNode>();
+    editor.state.doc.descendants((node) => {
+      if (!isSceneNode(node)) return false;
+      byId.set(node.attrs.sceneId as string, node);
+      return node.type.name === "scene";
+    });
+    const rows: SlashItem[] = [
+      {
+        key: "apply:none",
+        label: "不沿用，留空",
+        hint: "從空白開始 —— 時空沒填完之前它是草稿",
+        run: (e, range) => createSubsceneAt(e, range, kind, null),
+      },
+    ];
+    for (const { sceneId, label } of projectScenes(editor.state.doc)) {
+      const scene = byId.get(sceneId);
+      const spaceTime = scene ? spaceTimeOf(scene) : "";
+      if (!spaceTime) continue;
+      rows.push({
+        key: `apply:${sceneId}`,
+        label: `${label}\u3000${spaceTime}`,
+        hint: "套用內外／時間／地點（不含登場人物）",
+        run: (e, range) => createSubsceneAt(e, range, kind, sceneId),
+      });
+    }
+    return rows;
+  };
+}
+
+/** 主場次的地點顯示名 —— `/back-to` 那一列的標籤「回到 公寓客廳」。 */
+function parentPlace(editor: Editor): string {
+  const { $from } = editor.state.selection;
+  const depth = subsceneDepth($from);
+  if (depth == null) return "主場次";
+  const names = sceneLocations($from.node(depth - 1).attrs.location).map((r) => r.displayName);
+  return names.length > 0 ? names.join("、") : "主場次";
 }
 
 function convertBlock(editor: Editor, range: Range, type: BlockType) {
@@ -53,6 +184,52 @@ function convertBlock(editor: Editor, range: Range, type: BlockType) {
   const ctx = sceneContext(editor.state.selection.$from);
   if (!ctx) return;
   setBlockTypeAt(editor, { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex }, type);
+}
+
+/**
+ * 這一刻的選單。子場次那三列看游標在哪（ADR-0006 的表）：
+ *
+ * | 代號 | 標籤 | 建立什麼 |
+ * |---|---|---|
+ * | `/insert` | 插入戲 | `kind = 插入` 的子場次 |
+ * | `/continue-to` | 接續到… | `kind = 接續` 的子場次 |
+ * | `/back-to` | 回到 <主場次地點> | 不建立任何東西，游標跳回主場次 |
+ *
+ * 英文代號是因為 `/` 之後打中文要切輸入法；中文標籤仍是編劇看到的字。`/back-to` 只在子場次裡
+ * 列出來 —— 在主場次裡沒有地方可「回到」。
+ */
+function slashItems(editor: Editor): SlashItem[] {
+  const inSubscene = subsceneDepth(editor.state.selection.$from) != null;
+  const subsceneRows: SlashItem[] = subsceneAvailable(editor)
+    ? [
+        {
+          key: "insert",
+          label: "插入戲",
+          hint: "閃回、閃進、夢境 —— 另一段時空的戲",
+          next: applyStep("插入"),
+        },
+        {
+          key: "continue-to",
+          label: "接續到…",
+          hint: "連續動作走進另一個空間，中間沒有時間間隔",
+          next: applyStep("接續"),
+        },
+      ]
+    : [];
+  const backRow: SlashItem[] = inSubscene
+    ? [
+        {
+          key: "back-to",
+          label: `回到 ${parentPlace(editor)}`,
+          hint: "不建立任何東西 —— 游標回到主場次（也可以在空行按 Enter）",
+          run: (e, range) => {
+            e.view.dispatch(e.state.tr.delete(range.from, range.to));
+            exitSubscene(e);
+          },
+        },
+      ]
+    : [];
+  return [ITEMS[0]!, ...subsceneRows, ...backRow, ...ITEMS.slice(1)];
 }
 
 const ITEMS: SlashItem[] = [
@@ -208,6 +385,16 @@ export function SlashMenu() {
   );
 }
 
+/**
+ * 選到一列要做什麼。有第二步的列：換清單，不執行（指令字還留著，Esc 或繼續打字都回得去）。
+ */
+function pickFor(props: SuggestionProps<SlashItem>) {
+  return (item: SlashItem) =>
+    item.next
+      ? patchMenu({ items: item.next(props.editor), index: 0 })
+      : props.command(item);
+}
+
 export const Slash = Extension.create({
   name: "slash",
   // ⚠️ 必須壓過 `continueBlock`（1101）與 `softBreak`（1100）：Tiptap 依 priority 由高到低把
@@ -224,14 +411,16 @@ export const Slash = Extension.create({
         // 台詞裡的停頓寫法），不該彈選單；要換型別走 Tab，要開下一場走 ⌘+Enter 或腳部按鈕。
         // 使用者回饋 2026-09-03。
         allow: ({ state }) => state.selection.$from.parent.type.name === "action",
-        items: ({ query }) => {
+        items: ({ query, editor }) => {
           const q = query.toLowerCase();
-          return ITEMS.filter((i) => i.key.startsWith(q) || i.label.includes(query));
+          return slashItems(editor).filter((i) => i.key.startsWith(q) || i.label.includes(query));
         },
-        command: ({ editor, range, props }) => props.run(editor, range),
+        command: ({ editor, range, props }) => props.run?.(editor, range),
         render: () => ({
+          // `pick` 每次都重新綁：Suggestion 的 `props.command` 帶的是**那一刻**的 range。只在
+          // onStart 綁的話，打完 `/insert` 再按 Enter 只會刪掉 `/` 那一個字（range 停在起點）。
           onStart: (props) => {
-            pick = (item) => props.command(item);
+            pick = pickFor(props);
             patchMenu({
               open: true,
               items: props.items,
@@ -240,6 +429,7 @@ export const Slash = Extension.create({
             });
           },
           onUpdate: (props) => {
+            pick = pickFor(props);
             patchMenu({ items: props.items, index: 0, caret: props.clientRect ?? null });
           },
           onKeyDown: ({ event }) => {

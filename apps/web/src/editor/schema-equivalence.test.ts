@@ -17,6 +17,12 @@ function kernelDoc() {
       kernelSchema.node("action", null, [kernelSchema.text("阿明推開玻璃門。")]),
       kernelSchema.node("dialogue", { character: null }, [kernelSchema.text("還有位子嗎？")]),
       kernelSchema.node("insertShot", null, [kernelSchema.text("吧台上缺角的杯。")]),
+      kernelSchema.node(
+        "subscene",
+        { sceneId: mintSceneId(), kind: "接續", time: "夜" },
+        [kernelSchema.node("action", null, [kernelSchema.text("他走上陽台。")])],
+      ),
+      kernelSchema.node("action", null, [kernelSchema.text("回到吧台。")]),
     ]),
     kernelSchema.node(
       "scene",
@@ -93,11 +99,14 @@ describe("Tiptap schema ↔ @scenephonie/schema 相容", () => {
     }
   });
 
-  it("doc 與 scene 的內容規則一致", () => {
+  it("doc、scene 與 subscene 的內容規則一致", () => {
     const editor = makeEditor(kernelDoc().toJSON());
     try {
       expect(editor.schema.nodes.doc!.spec.content).toBe(kernelSchema.nodes.doc!.spec.content);
       expect(editor.schema.nodes.scene!.spec.content).toBe(kernelSchema.nodes.scene!.spec.content);
+      expect(editor.schema.nodes.subscene!.spec.content).toBe(
+        kernelSchema.nodes.subscene!.spec.content,
+      );
     } finally {
       editor.destroy();
     }

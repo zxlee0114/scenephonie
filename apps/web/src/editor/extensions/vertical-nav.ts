@@ -26,21 +26,33 @@
  */
 import { Extension } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
-import type { ResolvedPos } from "@tiptap/pm/model";
+import type { Node as PMNode, ResolvedPos } from "@tiptap/pm/model";
 
 import { sceneContext, type SceneContext } from "../address";
 import { requestFocus } from "../focus";
 
-/** 游標所在場次的**下一場**，沒有就是 null（也包含「本場不在場次序列裡」的防禦）。 */
-function nextScene($from: ResolvedPos, ctx: SceneContext) {
-  const parent = $from.node(ctx.sceneDepth - 1);
-  const next = parent.maybeChild($from.index(ctx.sceneDepth - 1) + 1);
-  return next?.type.name === "scene" ? next : null;
-}
+/**
+ * 游標所在區塊**正下方的那一排 chip row** 屬於哪一場；下面接的是同一層的區塊（交給原生的
+ * 行間移動）或文件到底了，就是 null。
+ *
+ * 子場次讓「下面」多了三種（票券 11）：主場次的區塊下面接子場次、子場次下面接子場次，
+ * 子場次是主場次最後一個孩子時下面是**下一場**。子場次下面接主場次的區塊（折返）則是一般的
+ * 行間移動 —— 那裡沒有 chip row，只有一行不可編輯的「回到」。
+ */
+function sceneBelow($from: ResolvedPos, ctx: SceneContext): PMNode | null {
+  const container = $from.node(ctx.sceneDepth);
+  const next = container.maybeChild(ctx.blockIndex + 1);
+  if (next) return next.type.name === "subscene" ? next : null;
 
-/** 這個區塊是本場最後一個嗎 —— 再往下就出場次了。 */
-const inLastBlock = ($from: ResolvedPos, ctx: SceneContext) =>
-  ctx.blockIndex === $from.node(ctx.sceneDepth).childCount - 1;
+  const parent = $from.node(ctx.sceneDepth - 1);
+  const sibling = parent.maybeChild($from.index(ctx.sceneDepth - 1) + 1);
+  if (container.type.name !== "subscene") return sibling?.type.name === "scene" ? sibling : null;
+  if (sibling) return sibling.type.name === "subscene" ? sibling : null;
+
+  const doc = $from.node(ctx.sceneDepth - 2);
+  const nextTop = doc.maybeChild($from.index(ctx.sceneDepth - 2) + 1);
+  return nextTop?.type.name === "scene" ? nextTop : null;
+}
 
 export const VerticalNav = Extension.create({
   name: "verticalNav",
@@ -93,12 +105,11 @@ export const VerticalNav = Extension.create({
       return false;
     };
 
-    /** 往下出界：下一場的 chip row 第一格。沒有下一場就把鍵還回去（文件到底了）。 */
+    /** 往下出界：正下方那一場（下一場或子場次）的 chip row 第一格。沒有就把鍵還回去。 */
     const goDown = ($from: ResolvedPos, ctx: SceneContext): boolean => {
-      if (!inLastBlock($from, ctx)) return false;
-      const next = nextScene($from, ctx);
-      if (!next) return false;
-      return requestFocus({ kind: "sceneMeta", sceneId: next.attrs.sceneId as string });
+      const below = sceneBelow($from, ctx);
+      if (!below) return false;
+      return requestFocus({ kind: "sceneMeta", sceneId: below.attrs.sceneId as string });
     };
 
     /**

@@ -17,7 +17,7 @@ import { SceneIds } from "./extensions/scene-ids";
 import { SceneNumbers } from "./extensions/scene-numbers";
 import { Slash, SlashMenu } from "./extensions/slash";
 import { SoftBreak } from "./extensions/soft-break";
-import { Action, Dialogue, Doc, InsertShot, Scene } from "./schema";
+import { Action, Dialogue, Doc, InsertShot, Scene, Subscene } from "./schema";
 import { baseStarterKit } from "./starter-kit";
 
 let editor: Editor;
@@ -34,6 +34,7 @@ async function openMenu() {
       baseStarterKit(),
       Doc,
       Scene,
+      Subscene,
       Action,
       Dialogue,
       InsertShot,

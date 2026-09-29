@@ -50,10 +50,41 @@ export const Doc = Node.create({
   content: "scene*",
 });
 
+/** 場次與子場次共用的 metadata attr 綁定（§5.1：`subscene` 的 attrs「同 `scene` ＋ `kind`」）。 */
+function sceneAttributes() {
+  return {
+    sceneId: {
+      default: SCENE_ATTRS.sceneId.default,
+      parseHTML: (el: HTMLElement) => el.getAttribute("data-scene-id"),
+      renderHTML: (attrs: Record<string, unknown>) =>
+        attrs.sceneId == null ? {} : { "data-scene-id": attrs.sceneId as string },
+    },
+    time: { default: SCENE_ATTRS.time.default },
+    intExt: { default: SCENE_ATTRS.intExt.default },
+    location: { default: SCENE_ATTRS.location.default, ...jsonAttr("location") },
+    appearingCharacters: {
+      default: SCENE_ATTRS.appearingCharacters.default,
+      ...jsonAttr("appearing-characters"),
+    },
+    extras: { default: [...SCENE_ATTRS.extras.default], ...jsonAttr("extras") },
+    dismissedCharacterIds: {
+      default: [...SCENE_ATTRS.dismissedCharacterIds.default],
+      ...jsonAttr("dismissed-character-ids"),
+    },
+    manualDraft: {
+      default: SCENE_ATTRS.manualDraft.default,
+      parseHTML: (el: HTMLElement) => el.getAttribute("data-manual-draft") === "true",
+      renderHTML: (attrs: Record<string, unknown>) =>
+        attrs.manualDraft ? { "data-manual-draft": "true" } : {},
+    },
+  };
+}
+
 export const Scene = Node.create({
   name: "scene",
   group: "block",
-  content: "sceneBlock+",
+  // 主場次的內容是區塊與子場次交錯（票券 11）。「子場次不能是第一個孩子」由 command 守。
+  content: "(sceneBlock | subscene)+",
   // isolating：跨場次的鍵盤選取／刪除不會把兩場合併（sceneId 錨點隨之消失）。
   isolating: true,
   // defining：貼上時保留自己的結構。
@@ -61,37 +92,45 @@ export const Scene = Node.create({
   marks: "",
   selectable: true,
   addAttributes() {
-    return {
-      sceneId: {
-        default: SCENE_ATTRS.sceneId.default,
-        parseHTML: (el) => el.getAttribute("data-scene-id"),
-        renderHTML: (attrs) =>
-          attrs.sceneId == null ? {} : { "data-scene-id": attrs.sceneId as string },
-      },
-      time: { default: SCENE_ATTRS.time.default },
-      intExt: { default: SCENE_ATTRS.intExt.default },
-      location: { default: SCENE_ATTRS.location.default, ...jsonAttr("location") },
-      appearingCharacters: {
-        default: SCENE_ATTRS.appearingCharacters.default,
-        ...jsonAttr("appearing-characters"),
-      },
-      extras: { default: [...SCENE_ATTRS.extras.default], ...jsonAttr("extras") },
-      dismissedCharacterIds: {
-        default: [...SCENE_ATTRS.dismissedCharacterIds.default],
-        ...jsonAttr("dismissed-character-ids"),
-      },
-      manualDraft: {
-        default: SCENE_ATTRS.manualDraft.default,
-        parseHTML: (el) => el.getAttribute("data-manual-draft") === "true",
-        renderHTML: (attrs) => (attrs.manualDraft ? { "data-manual-draft": "true" } : {}),
-      },
-    };
+    return sceneAttributes();
   },
   parseHTML() {
     return [{ tag: 'section[data-type="scene"]' }];
   },
   renderHTML({ HTMLAttributes }) {
     return ["section", { ...HTMLAttributes, "data-type": "scene" }, 0];
+  },
+});
+
+/**
+ * 子場次（票券 11）。內容規則不含 `subscene` —— 深度兩層由 schema 直接保證（不變式 ⑤）。
+ *
+ * `kind` 在 kernel 無 default、不允許 null；Tiptap 要求每個 attr 有 default，這裡給 `null`，
+ * 但子場次只由 `createSubscene` 生出來，它一律帶著編劇宣告的種類。
+ */
+export const Subscene = Node.create({
+  name: "subscene",
+  content: "sceneBlock+",
+  isolating: true,
+  defining: true,
+  marks: "",
+  selectable: true,
+  addAttributes() {
+    return {
+      ...sceneAttributes(),
+      kind: {
+        default: null as string | null,
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-kind"),
+        renderHTML: (attrs: Record<string, unknown>) =>
+          attrs.kind == null ? {} : { "data-kind": attrs.kind as string },
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'section[data-type="subscene"]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["section", { ...HTMLAttributes, "data-type": "subscene" }, 0];
   },
 });
 
@@ -155,7 +194,7 @@ export const InsertShot = sceneBlock("insertShot", "insert-shot");
  * schema-only 擴充集（無 node view）。真實編輯器用 `./nodes` 疊 view 後的版本；
  * 等價測試直接用這一組。`text` 由 StarterKit 提供（`group: "inline"`，與 kernel 一致）。
  */
-export const sceneSchemaNodes = [Doc, Scene, Action, Dialogue, InsertShot] as const;
+export const sceneSchemaNodes = [Doc, Scene, Subscene, Action, Dialogue, InsertShot] as const;
 
 /** kernel 的 scene attr 名（唯一事實來源在 `@scenephonie/schema` 的 schema.ts；這裡用於斷言）。 */
 export const SCENE_ATTR_NAMES = Object.keys(SCENE_ATTRS);

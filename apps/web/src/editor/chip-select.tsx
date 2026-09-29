@@ -101,10 +101,15 @@ type Props = {
    * `onChange`。回 `null`（或沒給）就照常寫入。
    */
   confirm?: (next: string) => ChipConfirm | null;
+  /**
+   * 某幾個值旁邊的註記（子場次的時間欄：主場次的值標「（原場次）」，票券 11）。
+   * 只是字，不改變值、不預選 —— 欄位仍然是空的。
+   */
+  notes?: Readonly<Record<string, string>>;
 };
 
 export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSelect(
-  { value, options, placeholder, onChange, className, describedBy, nav, terms, confirm },
+  { value, options, placeholder, onChange, className, describedBy, nav, terms, confirm, notes },
   ref,
 ) {
   const [open, setOpen] = useState(false);
@@ -348,6 +353,7 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
               {/* 只印那一顆鍵（`內景(i)`）。術語本身太長，會把這一列撐得比 chip 寬一大截
                   —— 它屬於 ⓘ 的說明框，不屬於選單（使用者回饋 2026-09-10，第四輪之二）。 */}
               {terms?.[row] && <span className="chip-select__key">({terms[row]![0]!.toLowerCase()})</span>}
+              {notes?.[row] && <span className="chip-select__note-tag">{notes[row]}</span>}
             </li>
           ))}
         </ul>

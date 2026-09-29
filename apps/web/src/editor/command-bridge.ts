@@ -16,7 +16,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { docFromJSON, type CommandResult } from "@scenephonie/schema";
 
-import type { BlockAddress } from "./address";
+import { allSceneIds, findSceneNode, type BlockAddress } from "./address";
 import { requestFocus, type PendingFocus } from "./focus";
 import { markSceneBorn } from "./scene-birth";
 
@@ -27,7 +27,7 @@ export interface RunOptions {
   readonly caretPlace?: BlockCaretPlace;
   /** replace 後排入一個欄位 focus 請求（node view 掛載時 claim）。 */
   readonly focusField?: PendingFocus;
-  /** true ＝ 把 focus 請求指向「新出現的那個場次」的 chip row（用 id 差集找出新場次）。 */
+  /** true ＝ 把 focus 請求指向「新出現的那個場次」的 chip row（用 id 差集找出新場次，子場次也算）。 */
   readonly focusNewSceneMeta?: boolean;
   /**
    * true ＝ 這次寫入來自 chip row 上的控制項（實體欄位、內外景下拉），**焦點留在原地**。
@@ -67,22 +67,22 @@ export type BlockCaretPlace = "start" | "end";
  */
 export const KERNEL_REPLACE = "kernelReplace";
 
-/** 場次內第 `blockIndex` 個區塊的內文起點／末端（doc 座標）；找不到回 `null`。 */
+/** 場次（或子場次）內第 `blockIndex` 個區塊的內文起點／末端（doc 座標）；找不到回 `null`。 */
 export function blockContentPos(
   doc: PMNode,
   sceneId: string,
   blockIndex: number,
   place: BlockCaretPlace = "start",
 ): number | null {
-  let found: number | null = null;
-  doc.forEach((scene, scenePos) => {
-    if (found != null || scene.type.name !== "scene" || scene.attrs.sceneId !== sceneId) return;
-    if (blockIndex < 0 || blockIndex >= scene.childCount) return;
-    let pos = scenePos + 1; // 進入場次內容
-    for (let i = 0; i < blockIndex; i++) pos += scene.child(i).nodeSize;
-    found = pos + 1 + (place === "end" ? scene.child(blockIndex).content.size : 0);
-  });
-  return found;
+  const hit = findSceneNode(doc, sceneId);
+  if (!hit) return null;
+  const scene = hit.node;
+  if (blockIndex < 0 || blockIndex >= scene.childCount) return null;
+  const block = scene.child(blockIndex);
+  if (!block.isTextblock) return null; // 主場次裡的子場次不是區塊
+  let pos = hit.pos + 1; // 進入場次內容
+  for (let i = 0; i < blockIndex; i++) pos += scene.child(i).nodeSize;
+  return pos + 1 + (place === "end" ? block.content.size : 0);
 }
 
 export function runKernelCommand(
@@ -99,7 +99,7 @@ export function runKernelCommand(
     return false;
   }
 
-  const before = new Set(topLevelSceneIds(state.doc));
+  const before = new Set(allSceneIds(state.doc));
   const nextDoc = editor.schema.nodeFromJSON(result.value.toJSON());
   const tr = state.tr
     .replaceWith(0, state.doc.content.size, nextDoc.content)
@@ -123,9 +123,9 @@ export function runKernelCommand(
     if (pos != null) tr.setSelection(TextSelection.near(tr.doc.resolve(pos)));
   }
 
-  /** 這次 command 生出來的新場次（id 差集）；沒有就是 `null`。 */
+  /** 這次 command 生出來的新場次（id 差集，子場次也算）；沒有就是 `null`。 */
   const added = options.focusNewSceneMeta
-    ? (topLevelSceneIds(tr.doc).find((id) => !before.has(id)) ?? null)
+    ? (allSceneIds(tr.doc).find((id) => !before.has(id)) ?? null)
     : null;
 
   // 選取範圍不該罩著剛誕生的場次 —— 把它收成游標，放進新場次的第一個區塊。

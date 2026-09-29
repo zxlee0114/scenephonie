@@ -11,6 +11,8 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 
 import { dedupeIdsPlugin, mintSceneId } from "@scenephonie/schema";
 
+import { isSceneNode } from "../address";
+
 const mintMissingKey = new PluginKey("scenephonie/mintMissingSceneIds");
 
 export const SceneIds = Extension.create({
@@ -22,10 +24,13 @@ export const SceneIds = Extension.create({
         appendTransaction(transactions, _oldState, newState) {
           if (!transactions.some((tr) => tr.docChanged)) return null;
           const tr = newState.tr;
-          newState.doc.forEach((node, offset) => {
-            if (node.type.name === "scene" && !node.attrs.sceneId) {
+          // 主場次與子場次都帶 sceneId（票券 11）；區塊裡不會有場次，不必往下走。
+          newState.doc.descendants((node, offset) => {
+            if (!isSceneNode(node)) return false;
+            if (!node.attrs.sceneId) {
               tr.setNodeMarkup(offset, undefined, { ...node.attrs, sceneId: mintSceneId() });
             }
+            return node.type.name === "scene";
           });
           if (!tr.steps.length) return null;
           tr.setMeta("addToHistory", false);

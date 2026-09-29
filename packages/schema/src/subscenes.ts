@@ -5,6 +5,7 @@
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import { sceneAppearingCharacters, sceneLocations } from "./entities";
+import { TIME_VALUES, type SceneTime, type SubsceneKind } from "./schema";
 
 /**
  * 這個孩子是不是**主場次自己的內容**。空區塊不算內容（§9.4）—— 不變式 ①（`createSubscene`）
@@ -29,7 +30,7 @@ export interface ReturnMarker {
  *
  * | 情況 | 印什麼 |
  * |---|---|
- * | 主場次一段**非空**內容，且之前出現過主場次內容 | `回到　公寓客廳` |
+ * | 主場次一段**非空**內容，且之前出現過主場次內容 | 「回到」＋全形空白＋主場次地點 |
  * | 兩個子場次相鄰（中間沒有非空主場次內容） | 不印 |
  *
  * 「本場次第一次出現主場次內容」因不變式 ① 而不可能發生，所以條件簡化為「前面隔著至少一個
@@ -75,4 +76,24 @@ export function subsceneEchoesParent(parent: ProseMirrorNode, subscene: ProseMir
     idsOf(sceneAppearingCharacters(a.appearingCharacters), (r) => r.characterId) ===
       idsOf(sceneAppearingCharacters(b.appearingCharacters), (r) => r.characterId)
   );
+}
+
+/**
+ * 子場次時間欄的下拉選單怎麼排（§7.4、ADR-0006 —— `kind` 的 v1 消費者）。
+ *
+ * | 種類 | 排法 |
+ * |---|---|
+ * | 接續 | 主場次的值**置頂**並標注「（原場次）」 |
+ * | 插入 | 只標注、**不置頂**（閃回的時間常刻意與主場次相反，置頂會推編劇往錯的方向走） |
+ *
+ * ⚠️ **這不是預填**：欄位仍然是空的，草稿防呆照常運作。地點欄沒有對應的東西 —— 兩種都不置頂，
+ * 接續的前提就是地點變了，主場次的地點保證是錯的答案。
+ */
+export function subsceneTimeOptions(
+  kind: SubsceneKind | null,
+  parentTime: SceneTime | null,
+): { readonly options: readonly SceneTime[]; readonly origin: SceneTime | null } {
+  const origin = parentTime && TIME_VALUES.includes(parentTime) ? parentTime : null;
+  if (!origin || kind !== "接續") return { options: TIME_VALUES, origin };
+  return { options: [origin, ...TIME_VALUES.filter((v) => v !== origin)], origin };
 }

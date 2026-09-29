@@ -90,7 +90,7 @@ export { splitNamesLive } from "./names";
 
 // 子場次的推導值（票券 11）：折返標記（編輯器 decoration，日後 PDF 同一支）與不變式 ② 的判準。
 // `subsceneEchoesParent` 的呼叫端是票券 14（草稿推導）；先出去是因為它是不變式 ② 的唯一定義點。
-export { returnMarkers, subsceneEchoesParent } from "./subscenes";
+export { returnMarkers, subsceneEchoesParent, subsceneTimeOptions } from "./subscenes";
 export type { ReturnMarker } from "./subscenes";
 
 export { projectScenes, docFromJSON } from "./project-scenes";

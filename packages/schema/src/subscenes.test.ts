@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { mintCharacterId, mintLocationId } from "./entities";
 import { projectScenes } from "./project-scenes";
-import { returnMarkers, subsceneEchoesParent } from "./subscenes";
+import { returnMarkers, subsceneEchoesParent, subsceneTimeOptions } from "./subscenes";
 import { block, makeDoc, sceneWith, subsceneWith } from "./testing";
 
 const living = { locationId: mintLocationId(), displayName: "公寓客廳" };
@@ -100,5 +100,19 @@ describe("不變式 ②：子場次的 metadata 不得與主場次完全相同",
   it("兩邊都空著也是相同（剛建立、沒動過的子場次本來就是草稿）", () => {
     const parent = sceneWith([block.action("a")]);
     expect(subsceneEchoesParent(parent, sub())).toBe(true);
+  });
+});
+
+describe("subsceneTimeOptions：時間下拉依種類排序（§7.4）", () => {
+  it("接續：主場次的值置頂並標注為原場次", () => {
+    expect(subsceneTimeOptions("接續", "夜")).toEqual({ options: ["夜", "日", "晨", "昏"], origin: "夜" });
+  });
+
+  it("插入：只標注，不置頂", () => {
+    expect(subsceneTimeOptions("插入", "夜")).toEqual({ options: ["日", "夜", "晨", "昏"], origin: "夜" });
+  });
+
+  it("主場次時間還沒填：照原本的順序，沒有標注", () => {
+    expect(subsceneTimeOptions("接續", null)).toEqual({ options: ["日", "夜", "晨", "昏"], origin: null });
   });
 });

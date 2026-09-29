@@ -31,7 +31,7 @@ import {
 } from "@scenephonie/schema";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { sceneContext, type BlockAddress } from "../address";
+import { findSceneNode, sceneContext, type BlockAddress } from "../address";
 import { AppearingPromptMenu } from "../appearing-prompt-menu";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { fieldEdge } from "../chip-nav";
@@ -152,11 +152,7 @@ function DialogueView(props: NodeViewProps) {
 
   /** 這一場**當下**在 doc 裡的節點（不是這次 render 拿到的那一份）。 */
   const sceneNow = (sceneId: string): PMNode | null => {
-    let found: PMNode | null = null;
-    editor.state.doc.forEach((n) => {
-      if (!found && n.type.name === "scene" && n.attrs.sceneId === sceneId) found = n;
-    });
-    return found;
+    return findSceneNode(editor.state.doc, sceneId)?.node ?? null;
   };
 
   /**
