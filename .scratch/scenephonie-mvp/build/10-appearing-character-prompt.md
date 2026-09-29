@@ -4,7 +4,7 @@
 
 **Blocked by:** 08, 09
 
-**Status:** in-review
+**Status:** verified
 
 - [x] 有「一般」對白但不在登場人物欄的人物觸發提示；V.O./O.S. 不觸發（後半只在測試裡量得到，見下）
 - [x] ESC 後同一場同一人下次仍提示
@@ -130,3 +130,6 @@ Standards 軸的採納：選單的兩個 handler 改在點擊當下讀 plugin st
 等票 59 的入口。`Status:` 維持 `in-review`，PR merge 後改 `verified`。驗收時另外撈到的三件與本票
 無關，開成票 60（人物欄游標在 chip 前面時版面位移）、61（人物欄最前面 ← 走不回上一個區塊）、
 62（空對白 Backspace 不收回）。
+
+**狀態校正（2026-09-29）** —— PR #71 已 merge，瀏覽器驗收已過（見上），`Status:` 從 `in-review` 改成
+`verified`。票 59 因此解鎖。
