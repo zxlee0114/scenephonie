@@ -1,14 +1,13 @@
 /**
- * 登場人物提示的選單（票券 10）—— 排在那一句對白的台詞底下。
+ * 登場人物提示的選單（票券 10）—— 浮在那一句對白的台詞底下。
  *
- * 時機與收起的規則在 `extensions/appearing-prompt`；這裡只負責畫出來、把三個出口接上。
+ * 時機與「問完接著走」在 `extensions/appearing-prompt`；這裡只負責畫出來、把出口接上。
  *
- * **不搶焦點**：列用 `onMouseDown` ＋ `preventDefault`，按下去時游標仍留在編劇正在寫的那一段
- * （同其他選單的做法），打字照舊落在內文。
+ * **焦點在選單上**（使用者裁決 2026-09-29，驗收回饋）：Enter 被攔下來、下一段還沒開，這一刻
+ * 選單就是編劇眼前唯一要回答的事。↑↓ 走列、Enter 選、Esc 跳過。**仍然沒有預選**：打開它的
+ * 正是一顆 Enter，連按兩下（或按住）不該等於在不知情下做了決定 —— 第一次 ↑↓ 才亮起一列。
  *
- * **鍵盤**：選單開著時 ↑↓ 歸它（使用者裁決 2026-09-29）—— 第一次按才亮起一列，**沒有預選**；
- * Enter 只在有亮起的列時才算選擇，否則照常屬於內文。預選第一列的話，順手一個 Enter 就等於在
- * 不知情下被加進登場人物欄。代價是選單開著時 ↑↓ 不移游標，要先 Esc。
+ * **不佔版面**：絕對定位浮在台詞底下（同日回饋）。下一段要等選完才開，那一格沒有人在寫字。
  */
 "use client";
 
@@ -24,26 +23,22 @@ interface Row {
 
 export function AppearingPromptMenu({
   speakers,
-  keyboardFrom,
   onAdd,
   onDismiss,
+  onSkip,
   onClose,
 }: {
   speakers: readonly DialogueCharacterRef[];
-  /** 編輯器內文的 contenteditable —— 焦點在它身上時，↑↓／Enter 才歸選單（人物欄等輸入框不算）。 */
-  keyboardFrom: HTMLElement;
   /** `＋ 新增為登場人物` —— 寫進本場的登場人物欄。 */
   onAdd: (speaker: DialogueCharacterRef) => void;
   /** `✕ 不新增 —— 他不入鏡` —— 明確判斷，記進本場的 `dismissedCharacterIds`。 */
   onDismiss: (speaker: DialogueCharacterRef) => void;
-  /** 點到別處 ＝ 現在別煩我，不記錄任何判斷。 */
+  /** Esc ＝ 現在別煩我：不記錄任何判斷，照樣開下一段。 */
+  onSkip: () => void;
+  /** 點到別處 ＝ 他要去別的地方了：不記錄、也不開下一段。 */
   onClose: () => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
-  // 讀最新的那一支：選單開著時 DialogueView 會重繪，effect 不必跟著重綁。
-  const close = useRef(onClose);
-  close.current = onClose;
-  useEffect(() => dismissOnOutsidePointer(() => root.current, () => close.current()), []);
 
   const rows: Row[] = speakers.flatMap((speaker) => [
     { speaker, choice: "add" as const },
@@ -53,15 +48,23 @@ export function AppearingPromptMenu({
 
   /** 亮起的那一列；`null` ＝ 還沒碰過鍵盤（沒有預選）。 */
   const [active, setActive] = useState<number | null>(null);
-  const keys = useRef({ rows, active, choose });
-  keys.current = { rows, active, choose };
+  // 讀最新的那一份：選單開著時 DialogueView 會重繪，監聽不必跟著重綁。
+  const latest = useRef({ rows, active, choose, onSkip, onClose });
+  latest.current = { rows, active, choose, onSkip, onClose };
+
+  useEffect(() => dismissOnOutsidePointer(() => root.current, () => latest.current.onClose()), []);
 
   useEffect(() => {
-    // window 的 capture 階段收：要搶在 ProseMirror 自己的 keydown（移游標、斷行）之前。
+    const el = root.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    // ProseMirror 本來就不收 node view 裡非內文元素上的鍵（Tiptap 的 `stopEvent`），Backspace
+    // 碰不到台詞；這裡再擋住往上冒，免得 window 上的全域快捷鍵把它當成內文的鍵。選單開著時
+    // 每一顆鍵都是它的。
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.target !== keyboardFrom || event.isComposing) return;
-      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-      const { rows, active, choose } = keys.current;
+      event.stopPropagation();
+      if (event.isComposing) return;
+      const { rows, active, choose, onSkip } = latest.current;
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         const step = event.key === "ArrowDown" ? 1 : -1;
         setActive(
@@ -69,20 +72,29 @@ export function AppearingPromptMenu({
             ? step === 1 ? 0 : rows.length - 1
             : (active + step + rows.length) % rows.length,
         );
-      } else if (event.key === "Enter" && active !== null && rows[active]) {
-        choose(rows[active]);
-      } else {
+      } else if (event.key === "Enter") {
+        if (active !== null && rows[active]) choose(rows[active]);
+      } else if (event.key === "Escape") {
+        onSkip();
+      } else if (event.key !== "Tab") {
         return;
       }
+      // Tab 也吞掉：焦點不該從一個還沒回答的問題上溜走。
       event.preventDefault();
-      event.stopPropagation();
     };
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [keyboardFrom]);
+    el.addEventListener("keydown", onKeyDown);
+    return () => el.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
-    <div ref={root} className="appearing-prompt" contentEditable={false}>
+    <div
+      ref={root}
+      className="appearing-prompt"
+      contentEditable={false}
+      tabIndex={-1}
+      role="dialog"
+      aria-label="登場人物提示"
+    >
       {speakers.map((speaker, s) => (
         <div key={speaker.id} role="group" aria-label={`${speaker.displayName}要不要列為登場人物`}>
           <p className="entity-field__note">

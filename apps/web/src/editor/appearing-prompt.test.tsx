@@ -6,10 +6,12 @@
  * 「某人物在本場有**一般**發聲方式的對白，且不在本場的登場人物欄」—— 判準住在 kernel
  * （`unlistedSpeakers`），這裡量的是**時機與出口**：
  *
- * - 編劇**離開一句對白**時才問，排在那一句的台詞底下；不搶焦點、不擋打字；
- * - 選單開著時 ↑↓ 歸它、沒有預選；Enter 只在有亮起的列時才算選擇；
+ * - 寫完一句對白**按 Enter** 時才問：Enter 被攔下、焦點交給選單，選完才開下一個區塊；
+ *   點走、方向鍵走出去都不問（使用者裁決 2026-09-29，驗收回饋）；
+ * - 選單浮在那一句的台詞底下；↑↓ 走列、**沒有預選**，Enter 只打在亮起的那一列上；
  * - `＋ 新增為登場人物` 寫進登場人物欄；`✕ 不新增 —— 他不入鏡` 寫進 `dismissedCharacterIds`；
- * - **Esc 不記錄任何判斷**（「現在別煩我」）—— 下次離開那一句還會再問。
+ * - **Esc 不記錄任何判斷**（「現在別煩我」）但照樣開下一段 —— 下次在那一句按 Enter 還會再問；
+ *   點到別處只收起，不開下一段。
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
@@ -82,10 +84,21 @@ function caretInto(editor: Editor, sceneId: string, blockIndex: number, place: "
   });
 }
 
-/** 寫完那句台詞、走到下一段 —— 「離開這句對白」。 */
-function writeThenLeave(editor: Editor, sceneId: string) {
+/**
+ * 內文裡按一顆鍵（焦點在編輯器上）。走真的 keydown，不走 `commands.keyboardShortcut` —— 後者
+ * 只把 handler dispatch 的 steps 抄過來，打開選單那一筆只有 meta，會整個被丟掉。
+ */
+function press(editor: Editor, key: string) {
+  act(() => {
+    editor.commands.focus();
+    fireEvent.keyDown(editor.view.dom, { key });
+  });
+}
+
+/** 寫完那句台詞、按 Enter。 */
+function writeThenEnter(editor: Editor, sceneId: string) {
   caretInto(editor, sceneId, 0);
-  caretInto(editor, sceneId, 1);
+  press(editor, "Enter");
 }
 
 const prompt = (root: HTMLElement) => root.querySelector<HTMLElement>(".appearing-prompt");
@@ -95,112 +108,77 @@ const row = (root: HTMLElement, text: string) =>
   [...(prompt(root)?.querySelectorAll<HTMLElement>("li") ?? [])].find((li) =>
     (li.textContent ?? "").includes(text),
   )!;
+const lit = (root: HTMLElement) =>
+  [...(prompt(root)?.querySelectorAll("li.is-active") ?? [])].map((li) => li.textContent ?? "");
+/** 選單上按一顆鍵（焦點在選單上）。 */
+const menuKey = (root: HTMLElement, key: string) => fireEvent.keyDown(prompt(root)!, { key });
 
-const sceneAttrs = (editor: Editor) => editor.state.doc.child(0).attrs;
+const scene = (editor: Editor) => editor.state.doc.child(0);
+const sceneAttrs = (editor: Editor) => scene(editor).attrs;
+const blockTypes = (editor: Editor) => {
+  const types: string[] = [];
+  scene(editor).forEach((b) => types.push(b.type.name));
+  return types;
+};
 
 afterEach(() => {
   cleanup();
 });
 
 describe("什麼時候問", () => {
-  it("離開一句「一般」對白、說話者不在登場人物欄 → 在那一句的台詞底下問", async () => {
+  it("寫完一句「一般」對白按 Enter → 台詞底下問、焦點在選單上、下一段還沒開", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);
 
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
 
     await waitFor(() => expect(prompt(container)).not.toBeNull());
-    // 錨在那一句對白上，不是下一段；排在台詞**之後**，不蓋住剛寫完的字。
     const dialogue = prompt(container)!.closest(".block--dialogue")!;
     expect(dialogue).not.toBeNull();
     const lines = dialogue.querySelector(".block__content")!;
     expect(lines.compareDocumentPosition(prompt(container)!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(prompt(container)!.textContent).toContain("小明");
     expect(rowsOf(container)).toEqual(["＋ 新增為登場人物", "✕ 不新增 —— 他不入鏡"]);
+    await waitFor(() => expect(document.activeElement).toBe(prompt(container)));
+    expect(blockTypes(editor)).toEqual(["dialogue", "action"]);
   });
 
-  it("還在那一句裡時不問 —— 他還沒寫完", async () => {
-    const { sceneId, doc } = sceneDoc();
-    const { container, editor } = await mount(doc);
-
-    caretInto(editor, sceneId, 0, "start");
-    caretInto(editor, sceneId, 0, "end");
-
-    expect(prompt(container)).toBeNull();
-  });
-
-  it.each(["V.O.", "O.S."])("標了 %s 絕不提示", async (voiceStyle) => {
+  it.each(["V.O.", "O.S."])("標了 %s 絕不提示 —— Enter 照常開下一段", async (voiceStyle) => {
     const { sceneId, doc } = sceneDoc({ voiceStyle });
     const { container, editor } = await mount(doc);
 
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
 
-    // 給它一次重繪的機會再斷言「沒有」。
     await act(async () => {});
     expect(prompt(container)).toBeNull();
+    expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]);
   });
 
-  it("已經在登場人物欄 → 不問", async () => {
+  it("已經在登場人物欄 → 不問，Enter 照常", async () => {
     const { sceneId, doc } = sceneDoc({
       attrs: { appearingCharacters: [{ characterId: xiaoming, displayName: "小明" }] },
     });
     const { container, editor } = await mount(doc);
 
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
 
     await act(async () => {});
     expect(prompt(container)).toBeNull();
+    expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]);
   });
 
-  it("人物欄定案那一刻不問 —— kernel command 整份 replace 不算「離開」（使用者否決過這個時機）", async () => {
+  it("只有 Enter 會問：游標從那一句走出去不問", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);
+
     caretInto(editor, sceneId, 0);
+    caretInto(editor, sceneId, 1);
 
-    const input = container.querySelector<HTMLInputElement>(".block__speaker-field input")!;
-    fireEvent.change(input, { target: { value: "小華" } });
-    fireEvent.blur(input);
-    await waitFor(() =>
-      expect(JSON.stringify(editor.state.doc.child(0).child(0).attrs.character)).toContain("小華"),
-    );
-
-    // 多等一下：定案之後還有 focus 相關的 transaction 接著進來，太早斷言會假性通過。
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
-    });
+    await act(async () => {});
     expect(prompt(container)).toBeNull();
   });
 
-  it("在對白開頭按 Backspace 併進上一段 —— 不把下一句的說話者掛到錯的地方", async () => {
-    const sceneId = mintSceneId();
-    const doc = kernelSchema
-      .node("doc", null, [
-        kernelSchema.node("scene", { sceneId }, [
-          kernelSchema.node("action", null, [kernelSchema.text("他走進來")]),
-          kernelSchema.node("dialogue", { character: { id: xiaoming, displayName: "小明" } }, [
-            kernelSchema.text("嗨"),
-          ]),
-          kernelSchema.node("dialogue", { character: { id: xiaohua, displayName: "小華" } }, [
-            kernelSchema.text("你好"),
-          ]),
-          // 初始焦點落在文件末端 —— 放一段動作，免得游標一開始就站在小華那一句裡。
-          kernelSchema.node("action", null, [kernelSchema.text("兩人握手")]),
-        ]),
-      ])
-      .toJSON() as object;
-    const { container, editor } = await mount(doc);
-    caretInto(editor, sceneId, 1, "start");
-
-    act(() => {
-      editor.commands.joinBackward();
-    });
-
-    await act(async () => {});
-    // 小明那一句併進動作裡了；就算要問，也不該問到小華（他那一句根本沒被碰過）。
-    expect(prompt(container)?.textContent ?? "").not.toContain("小華");
-  });
-
-  it("懸空引用不問 —— 目錄裡沒有那筆人物，「＋ 新增」會是一個按不下去的承諾", async () => {
+  it("懸空引用不問 —— 目錄裡沒有那筆人物，Enter 照常開下一段", async () => {
     const sceneId = mintSceneId();
     const doc = kernelSchema
       .node("doc", null, [
@@ -214,32 +192,21 @@ describe("什麼時候問", () => {
       .toJSON() as object;
     const { container, editor } = await mount(doc);
 
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
 
-    await act(async () => {});
-    expect(prompt(container)).toBeNull();
-  });
-
-  it("載入時不問 —— 編劇還沒走進任何一句對白", async () => {
-    const { doc } = sceneDoc();
-    const { container } = await mount(doc);
-
-    await act(async () => {});
+    await waitFor(() => expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]));
     expect(prompt(container)).toBeNull();
   });
 });
 
-describe("三個出口", () => {
-  it("＋ 新增為登場人物 → 接進登場人物欄，選單收起，游標留在他正在寫的地方", async () => {
+describe("出口：選完才開下一段", () => {
+  it("＋ 新增為登場人物 → 接進登場人物欄隊尾，選單收起，下一段對白開出來", async () => {
     const { sceneId, doc } = sceneDoc({
       attrs: { appearingCharacters: [{ characterId: xiaohua, displayName: "小華" }] },
     });
     const { container, editor } = await mount(doc);
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
     await waitFor(() => expect(prompt(container)).not.toBeNull());
-    // 游標**不在** doc 末端 —— 整份 replace 會把座標 map 到一端，停在末端量不出差別。
-    caretInto(editor, sceneId, 1, "start");
-    const caret = editor.state.selection.from;
 
     fireEvent.mouseDown(row(container, "新增為登場人物"));
 
@@ -250,13 +217,31 @@ describe("三個出口", () => {
       ]),
     );
     await waitFor(() => expect(prompt(container)).toBeNull());
-    expect(editor.state.selection.from).toBe(caret);
+    expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]);
+    expect(scene(editor).child(0).textContent).toBe("生日快樂");
   });
 
-  it("✕ 不新增 → 記進 dismissedCharacterIds、登場人物欄不動；之後離開那一句不再問", async () => {
+  it("Enter 被攔在台詞中間時，選完就在那個位置切開", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);
-    writeThenLeave(editor, sceneId);
+    const start = blockContentPos(editor.state.doc, sceneId, 0, "start")!;
+    act(() => {
+      editor.commands.setTextSelection(start + 2);
+    });
+    press(editor, "Enter");
+    await waitFor(() => expect(prompt(container)).not.toBeNull());
+
+    fireEvent.mouseDown(row(container, "不新增"));
+
+    await waitFor(() => expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]));
+    expect(scene(editor).child(0).textContent).toBe("生日");
+    expect(scene(editor).child(1).textContent).toBe("快樂");
+  });
+
+  it("✕ 不新增 → 記進 dismissedCharacterIds、登場人物欄不動；之後那一句按 Enter 不再問", async () => {
+    const { sceneId, doc } = sceneDoc();
+    const { container, editor } = await mount(doc);
+    writeThenEnter(editor, sceneId);
     await waitFor(() => expect(prompt(container)).not.toBeNull());
 
     fireEvent.mouseDown(row(container, "不新增"));
@@ -264,88 +249,91 @@ describe("三個出口", () => {
     await waitFor(() => expect(sceneAttrs(editor).dismissedCharacterIds).toEqual([xiaoming]));
     expect(sceneAttrs(editor).appearingCharacters).toBeNull();
     await waitFor(() => expect(prompt(container)).toBeNull());
+    expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]);
 
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
     await act(async () => {});
     expect(prompt(container)).toBeNull();
+    expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "dialogue", "action"]);
   });
 
-  it("Esc ＝ 現在別煩我：什麼都不記，下次離開那一句還會再問", async () => {
+  it("Esc ＝ 現在別煩我：什麼都不記、照樣開下一段；下次在那一句按 Enter 還會再問", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
     await waitFor(() => expect(prompt(container)).not.toBeNull());
-    const before = editor.state.doc.toJSON();
 
-    fireEvent.keyDown(editor.view.dom, { key: "Escape" });
+    menuKey(container, "Escape");
 
     await waitFor(() => expect(prompt(container)).toBeNull());
-    expect(editor.state.doc.toJSON()).toEqual(before);
+    expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]);
+    expect(sceneAttrs(editor).appearingCharacters).toBeNull();
+    expect(sceneAttrs(editor).dismissedCharacterIds).toEqual([]);
 
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
     await waitFor(() => expect(prompt(container)).not.toBeNull());
   });
 
-  it("點到別處也收起 —— 同樣不記錄", async () => {
+  it("點到別處 → 只收起：不記錄、也不開下一段", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
     await waitFor(() => expect(prompt(container)).not.toBeNull());
 
     fireEvent.pointerDown(document.body);
 
     await waitFor(() => expect(prompt(container)).toBeNull());
     expect(sceneAttrs(editor).dismissedCharacterIds).toEqual([]);
+    expect(blockTypes(editor)).toEqual(["dialogue", "action"]);
   });
 });
 
-describe("鍵盤", () => {
-  const key = (editor: Editor, k: string) => fireEvent.keyDown(editor.view.dom, { key: k });
-  const lit = (root: HTMLElement) =>
-    [...(prompt(root)?.querySelectorAll("li.is-active") ?? [])].map((li) => li.textContent ?? "");
-
-  it("沒有預選：選單出現時沒有任何一列亮著", async () => {
+describe("鍵盤（焦點在選單上）", () => {
+  it("沒有預選：選單出現時沒有任何一列亮著，Enter 什麼都不做", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
     await waitFor(() => expect(prompt(container)).not.toBeNull());
 
     expect(lit(container)).toEqual([]);
+    // 打開它的正是一顆 Enter —— 連按第二下不該替他做決定。
+    menuKey(container, "Enter");
+
+    await act(async () => {});
+    expect(prompt(container)).not.toBeNull();
+    expect(sceneAttrs(editor).appearingCharacters).toBeNull();
+    expect(sceneAttrs(editor).dismissedCharacterIds).toEqual([]);
+    expect(blockTypes(editor)).toEqual(["dialogue", "action"]);
   });
 
   it("↓ 亮起第一列、再 ↓ 換到下一列；↑ 從沒亮的狀態亮起最後一列", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
     await waitFor(() => expect(prompt(container)).not.toBeNull());
-    const caret = editor.state.selection.from;
 
-    key(editor, "ArrowDown");
+    menuKey(container, "ArrowDown");
     await waitFor(() => expect(lit(container)).toEqual(["＋ 新增為登場人物"]));
-    key(editor, "ArrowDown");
+    menuKey(container, "ArrowDown");
     await waitFor(() => expect(lit(container)).toEqual(["✕ 不新增 —— 他不入鏡"]));
-    // ↑↓ 歸選單：游標沒被移走。
-    expect(editor.state.selection.from).toBe(caret);
 
-    key(editor, "Escape");
+    fireEvent.pointerDown(document.body);
     await waitFor(() => expect(prompt(container)).toBeNull());
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
     await waitFor(() => expect(prompt(container)).not.toBeNull());
-    key(editor, "ArrowUp");
+    menuKey(container, "ArrowUp");
     await waitFor(() => expect(lit(container)).toEqual(["✕ 不新增 —— 他不入鏡"]));
   });
 
-  it("Enter 打在亮起的那一列上 ＝ 選它；游標不動", async () => {
+  it("Enter 打在亮起的那一列上 ＝ 選它，接著開下一段", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
     await waitFor(() => expect(prompt(container)).not.toBeNull());
-    caretInto(editor, sceneId, 1, "start");
-    const caret = editor.state.selection.from;
 
-    key(editor, "ArrowDown");
+    menuKey(container, "ArrowDown");
     await waitFor(() => expect(lit(container)).toEqual(["＋ 新增為登場人物"]));
-    key(editor, "Enter");
+    menuKey(container, "Enter");
 
     await waitFor(() =>
       expect(sceneAppearingCharacters(sceneAttrs(editor).appearingCharacters)).toEqual([
@@ -353,56 +341,19 @@ describe("鍵盤", () => {
       ]),
     );
     await waitFor(() => expect(prompt(container)).toBeNull());
-    expect(editor.state.selection.from).toBe(caret);
+    expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]);
   });
 
-  it("沒亮任何一列時 Enter 屬於內文 —— 順手一個 Enter 不會替他做決定", async () => {
+  it("選單開著時的其他鍵不碰內文 —— Backspace 不刪台詞", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);
-    writeThenLeave(editor, sceneId);
+    writeThenEnter(editor, sceneId);
     await waitFor(() => expect(prompt(container)).not.toBeNull());
 
-    key(editor, "Enter");
+    menuKey(container, "Backspace");
 
     await act(async () => {});
-    expect(sceneAttrs(editor).appearingCharacters).toBeNull();
-    expect(sceneAttrs(editor).dismissedCharacterIds).toEqual([]);
-  });
-});
-
-describe("可以完全忽略", () => {
-  it("選單開著時照樣打字 —— 字落在他寫的地方，選單不收也不搶", async () => {
-    const { sceneId, doc } = sceneDoc();
-    const { container, editor } = await mount(doc);
-    writeThenLeave(editor, sceneId);
-    await waitFor(() => expect(prompt(container)).not.toBeNull());
-
-    act(() => {
-      editor.commands.insertContent("，大家拍手");
-    });
-
-    expect(editor.state.doc.child(0).child(1).textContent).toBe("他吹熄蠟燭，大家拍手");
+    expect(scene(editor).child(0).textContent).toBe("生日快樂");
     expect(prompt(container)).not.toBeNull();
-    // 不回答就什麼都沒寫進去。
-    expect(sceneAttrs(editor).appearingCharacters).toBeNull();
-    expect(sceneAttrs(editor).dismissedCharacterIds).toEqual([]);
-  });
-
-  it("編劇自己在 chip row 補上了 → 落差不在了，選單自己收起", async () => {
-    const { sceneId, doc } = sceneDoc();
-    const { container, editor } = await mount(doc);
-    writeThenLeave(editor, sceneId);
-    await waitFor(() => expect(prompt(container)).not.toBeNull());
-
-    act(() => {
-      editor.commands.command(({ tr }) => {
-        tr.setNodeAttribute(0, "appearingCharacters", [
-          { characterId: xiaoming, displayName: "小明" },
-        ]);
-        return true;
-      });
-    });
-
-    await waitFor(() => expect(prompt(container)).toBeNull());
   });
 });

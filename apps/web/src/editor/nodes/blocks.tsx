@@ -40,6 +40,7 @@ import { forwardHistoryKey } from "../history-keys";
 import {
   appearingPrompt,
   closeAppearingPrompt,
+  resumeAfterAppearingPrompt,
   type AppearingPrompt,
 } from "../extensions/appearing-prompt";
 import { Action, Dialogue, InsertShot } from "../schema";
@@ -174,7 +175,7 @@ function DialogueView(props: NodeViewProps) {
   };
 
   /**
-   * 登場人物提示（票券 10）—— 編劇離開**這一句**時，說話者不在登場人物欄就在這裡問一聲。
+   * 登場人物提示（票券 10）—— 編劇寫完**這一句**按 Enter 時，說話者不在登場人物欄就在這裡問一聲。
    *
    * 時機在 `extensions/appearing-prompt` 的 plugin state，這個 view 只讀「問的是不是我」。
    * 訂閱 transaction 而不是等 props：plugin state 變了，這個 node 本身一個字都沒變。
@@ -200,10 +201,16 @@ function DialogueView(props: NodeViewProps) {
   const askable = isHere(prompt)
     ? prompt.speakers.filter((s) => catalog.directory.hasCharacter(s.id))
     : [];
+  // 問的全是懸空引用：沒有一列按得下去，就當沒攔過那一顆 Enter。
+  const nothingToAsk = isHere(prompt) && askable.length === 0;
+  useEffect(() => {
+    if (nothingToAsk) resumeAfterAppearingPrompt(editor);
+  }, [nothingToAsk, editor]);
 
   /**
-   * 選單的兩個出口都走 kernel command。**游標留在原地**：他正在下一段打字，按一下選單不該把
-   * 游標搬走 —— 這兩支只改場次 attr，doc 座標一個都沒動，所以原封放回去就是原來那個位置。
+   * 選單的兩個出口都走 kernel command，寫完就接著做那一顆被攔下來的 Enter。**游標留在原地**：
+   * 焦點在選單上時 selection 一直停在台詞裡，這兩支只改場次 attr、doc 座標一個都沒動，原封放回去
+   * 就是 Enter 要切的那個位置。
    *
    * 場次從 plugin **當下**的 state 讀，不從這次 render 拿到的 `prompt`（ref／doc 是真相）。
    */
@@ -211,6 +218,7 @@ function DialogueView(props: NodeViewProps) {
     const now = appearingPrompt(editor);
     if (!isHere(now)) return;
     runKernelCommand(editor, produce(now.sceneId), { keepFocus: true, keepCaret: true });
+    resumeAfterAppearingPrompt(editor);
   };
   const addAsAppearing = (speaker: DialogueCharacterRef) =>
     answerPrompt((sceneId) => (doc) =>
@@ -434,9 +442,9 @@ function DialogueView(props: NodeViewProps) {
           // 問的人換了就是另一份選單：亮起的列不該沿用到別人身上。
           key={askable.map((s) => s.id).join()}
           speakers={askable}
-          keyboardFrom={editor.view.dom}
           onAdd={addAsAppearing}
           onDismiss={dismissAsNotAppearing}
+          onSkip={() => resumeAfterAppearingPrompt(editor)}
           onClose={() => closeAppearingPrompt(editor)}
         />
       )}

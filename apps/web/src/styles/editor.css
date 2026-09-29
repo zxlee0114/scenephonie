@@ -910,12 +910,20 @@
 }
 
 /*
- * 登場人物提示（票券 10）：排在那一句的**台詞底下**、佔版面（使用者回饋 2026-09-29）。浮在人物欄
- * 下會蓋住剛寫完的台詞；浮在台詞下又會蓋住游標所在的下一段 —— 所以讓它把下一段往下推，
- * 誰的字都不遮。外框與 `entity-field__confirm` 同一套（同樣是「問一句、給幾條路」的面板）。
+ * 登場人物提示（票券 10）：浮在那一句的**台詞底下**，**不佔版面**（使用者回饋 2026-09-29）。
+ * 選單開著時 Enter 被攔著、下一段還沒開 —— 底下那一格沒有人在寫字，蓋住它不擋任何東西；
+ * 推開版面反而讓整頁在問與答之間跳兩次。外框與 `entity-field__confirm` 同一套（同樣是
+ * 「問一句、給幾條路」的面板）。
  */
+.block--dialogue {
+  position: relative;
+}
+
 .appearing-prompt {
-  margin-block-start: var(--space-2);
+  position: absolute;
+  z-index: 20;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-start: 0;
   inline-size: max(60%, 28ch);
   max-inline-size: 100%;
   padding: var(--space-2);
@@ -926,6 +934,10 @@
   font-family: var(--font-ui);
   font-size: 1rem;
   user-select: none;
+}
+
+.appearing-prompt:focus {
+  outline: none;
 }
 
 .appearing-prompt [role="group"] + [role="group"] {
