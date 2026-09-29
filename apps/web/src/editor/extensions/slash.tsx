@@ -17,19 +17,20 @@ import {
   canCreateSubscene,
   createSubscene,
   projectScenes,
-  sceneLocations,
+  sceneLocationLabel,
   type BlockType,
   type SubsceneAnchor,
   type SubsceneKind,
 } from "@scenephonie/schema";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { isSceneNode, sceneContext } from "../address";
+import { forEachScene, isSceneNode, sceneContext } from "../address";
 import { runKernelCommand } from "../command-bridge";
 import { BLOCK_META, setBlockTypeAt } from "../block-types";
 import { dismissOnOutsidePointer } from "../dismiss-on-outside-pointer";
 import { slashMenuPosition } from "../slash-menu-position";
 import { currentSceneId, requestNextScene } from "./next-scene";
+import { returnMarkerText } from "./return-markers";
 import { exitSubscene, subsceneDepth } from "./subscene-exit";
 
 /**
@@ -129,10 +130,7 @@ function createSubsceneAt(
 
 /** 一場的時空，選單上印成 `內景 公寓客廳 夜`（缺的欄位就不印）。 */
 function spaceTimeOf(scene: PMNode): string {
-  const place = sceneLocations(scene.attrs.location)
-    .map((r) => r.displayName)
-    .join("、");
-  return [scene.attrs.intExt, place, scene.attrs.time].filter(Boolean).join(" ");
+  return [scene.attrs.intExt, sceneLocationLabel(scene), scene.attrs.time].filter(Boolean).join(" ");
 }
 
 /**
@@ -142,10 +140,8 @@ function spaceTimeOf(scene: PMNode): string {
 function applyStep(kind: SubsceneKind) {
   return (editor: Editor): SlashItem[] => {
     const byId = new Map<string, PMNode>();
-    editor.state.doc.descendants((node) => {
-      if (!isSceneNode(node)) return false;
+    forEachScene(editor.state.doc, (node) => {
       byId.set(node.attrs.sceneId as string, node);
-      return node.type.name === "scene";
     });
     const rows: SlashItem[] = [
       {
@@ -170,13 +166,11 @@ function applyStep(kind: SubsceneKind) {
   };
 }
 
-/** 主場次的地點顯示名 —— `/back-to` 那一列的標籤「回到 公寓客廳」。 */
-function parentPlace(editor: Editor): string {
+/** `/back-to` 那一列的標籤 —— 與畫面上的折返標記同一串字（「回到」＋主場次地點）。 */
+function backToLabel(editor: Editor): string {
   const { $from } = editor.state.selection;
   const depth = subsceneDepth($from);
-  if (depth == null) return "主場次";
-  const names = sceneLocations($from.node(depth - 1).attrs.location).map((r) => r.displayName);
-  return names.length > 0 ? names.join("、") : "主場次";
+  return returnMarkerText(depth == null ? null : sceneLocationLabel($from.node(depth - 1)));
 }
 
 function convertBlock(editor: Editor, range: Range, type: BlockType) {
@@ -220,7 +214,7 @@ function slashItems(editor: Editor): SlashItem[] {
     ? [
         {
           key: "back-to",
-          label: `回到 ${parentPlace(editor)}`,
+          label: backToLabel(editor),
           hint: "不建立任何東西 —— 游標回到主場次（也可以在空行按 Enter）",
           run: (e, range) => {
             e.view.dispatch(e.state.tr.delete(range.from, range.to));

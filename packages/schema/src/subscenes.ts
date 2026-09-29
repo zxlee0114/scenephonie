@@ -15,6 +15,15 @@ export function hasOwnContent(node: ProseMirrorNode): boolean {
   return node.type.name !== "subscene" && node.textContent.trim() !== "";
 }
 
+/**
+ * 一場的地點印成一串字：顯示名，雜景多地點以頓號串起；還沒填回 `null`。折返標記、`/back-to` 的
+ * 標籤、套用清單都印這一串，所以只有一個定義點。
+ */
+export function sceneLocationLabel(scene: { readonly attrs: Record<string, unknown> }): string | null {
+  const names = sceneLocations(scene.attrs.location).map((r) => r.displayName);
+  return names.length > 0 ? names.join("、") : null;
+}
+
 export interface ReturnMarker {
   /** 標記印在主場次第幾個孩子的前面。傳遞值，不被儲存。 */
   readonly blockIndex: number;
@@ -38,8 +47,7 @@ export interface ReturnMarker {
  * 沒有出現過，畫面不會自己閃一下。
  */
 export function returnMarkers(scene: ProseMirrorNode): ReturnMarker[] {
-  const names = sceneLocations(scene.attrs.location).map((r) => r.displayName);
-  const location = names.length > 0 ? names.join("、") : null;
+  const location = sceneLocationLabel(scene);
 
   const out: ReturnMarker[] = [];
   let away = false; // 上一段非空主場次內容之後，是否走進過子場次

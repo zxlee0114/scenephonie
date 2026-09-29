@@ -43,16 +43,26 @@ export function sceneContext($pos: ResolvedPos): SceneContext | null {
   return null;
 }
 
+/**
+ * 依文件順序走過每一場（主場次，接著它底下的子場次）。`pos` 是節點之前的座標。
+ * 只走兩層：區塊裡沒有場次、子場次裡不會再有子場次（深度兩層）。回 `false` 就停。
+ */
+export function forEachScene(doc: PMNode, visit: (node: PMNode, pos: number) => boolean | void) {
+  let stopped = false;
+  doc.descendants((node, pos) => {
+    if (stopped || !isSceneNode(node)) return false;
+    if (visit(node, pos) === false) stopped = true;
+    return !stopped && node.type.name === "scene";
+  });
+}
+
 /** 以 `sceneId` 找場次（主場次或子場次）與它在 doc 裡的位置（節點之前）。 */
 export function findSceneNode(doc: PMNode, sceneId: string): { node: PMNode; pos: number } | null {
   let found: { node: PMNode; pos: number } | null = null;
-  doc.descendants((node, pos) => {
-    if (found) return false;
-    if (isSceneNode(node)) {
-      if (node.attrs.sceneId === sceneId) found = { node, pos };
-      return node.type.name === "scene"; // 子場次裡不會再有場次（深度兩層）
-    }
-    return false; // 區塊裡沒有場次
+  forEachScene(doc, (node, pos) => {
+    if (node.attrs.sceneId !== sceneId) return;
+    found = { node, pos };
+    return false;
   });
   return found;
 }
@@ -60,10 +70,8 @@ export function findSceneNode(doc: PMNode, sceneId: string): { node: PMNode; pos
 /** doc 裡每一場（主場次與子場次）的 `sceneId`，依文件順序。 */
 export function allSceneIds(doc: PMNode): string[] {
   const ids: string[] = [];
-  doc.descendants((node) => {
-    if (!isSceneNode(node)) return false;
+  forEachScene(doc, (node) => {
     ids.push(node.attrs.sceneId as string);
-    return node.type.name === "scene";
   });
   return ids;
 }

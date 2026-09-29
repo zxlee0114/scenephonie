@@ -33,25 +33,26 @@ import type {
 } from "../schema";
 import { MONTAGE } from "../schema";
 import { type CommandResult, ok, reject } from "./result";
-import { docFrom, findScene as locateScene, replaceChild, replaceScene, topLevelArray, type SceneHit as TreeHit } from "./tree";
+import { docFrom, findScene, replaceChild, replaceScene, topLevelArray, type SceneHit } from "./tree";
 
 /** 「先建立實體、再寫入 doc」—— 拒絕訊息刻意把這句話寫進去，因為它是這條規則的前提。 */
 const missing = (kind: string, id: string) =>
   reject(`實體「${id}」不存在，不能建立${kind}引用 —— 先建立實體、再寫入 doc（不變式 ⑧）`);
 
-interface SceneHit {
+/** 找到的那一場，連同它所在的 doc —— `rebuild` 要靠兩者重建。 */
+interface Target {
   readonly doc: ProseMirrorNode;
-  readonly at: TreeHit;
+  readonly at: SceneHit;
   readonly scene: ProseMirrorNode;
 }
 
 /** 以 `sceneId` 找場次 —— 主場次與子場次都算（票券 11：子場次有自己完整的 metadata）。 */
-function findScene(doc: ProseMirrorNode, sceneId: string): SceneHit | null {
-  const at = locateScene(doc, sceneId);
+function target(doc: ProseMirrorNode, sceneId: string): Target | null {
+  const at = findScene(doc, sceneId);
   return at ? { doc, at, scene: at.node } : null;
 }
 
-function rebuild(hit: SceneHit, nextScene: ProseMirrorNode, what: string): CommandResult {
+function rebuild(hit: Target, nextScene: ProseMirrorNode, what: string): CommandResult {
   try {
     return ok(replaceScene(hit.doc, hit.at, nextScene));
   } catch (err) {
@@ -92,7 +93,7 @@ export function setSceneLocations(
 ): CommandResult {
   const { sceneId, refs, directory } = options;
 
-  const hit = findScene(doc, sceneId);
+  const hit = target(doc, sceneId);
   if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
 
   for (const ref of refs) {
@@ -134,7 +135,7 @@ export function setSceneIntExt(
 ): CommandResult {
   const { sceneId, intExt } = options;
 
-  const hit = findScene(doc, sceneId);
+  const hit = target(doc, sceneId);
   if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
 
   const locations = sceneLocations(hit.scene.attrs.location);
@@ -168,7 +169,7 @@ export function setAppearingCharacters(
 ): CommandResult {
   const { sceneId, refs, directory } = options;
 
-  const hit = findScene(doc, sceneId);
+  const hit = target(doc, sceneId);
   if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
 
   for (const ref of refs) {
@@ -210,7 +211,7 @@ export function addAppearingCharacter(
 ): CommandResult {
   const { sceneId, ref, directory } = options;
 
-  const hit = findScene(doc, sceneId);
+  const hit = target(doc, sceneId);
   if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
   if (!directory.hasCharacter(ref.characterId)) return missing("人物", ref.characterId);
 
@@ -250,7 +251,7 @@ export function dismissAppearingPrompt(
 ): CommandResult {
   const { sceneId, characterId } = options;
 
-  const hit = findScene(doc, sceneId);
+  const hit = target(doc, sceneId);
   if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
   if (!isCharacterId(characterId)) return reject(`「${characterId}」不是人物 id —— 只有人物會被提示`);
 
@@ -293,7 +294,7 @@ export function setDialogueCharacters(
 ): CommandResult {
   const { sceneId, blockIndex, refs, directory } = options;
 
-  const hit = findScene(doc, sceneId);
+  const hit = target(doc, sceneId);
   if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
 
   const { scene } = hit;

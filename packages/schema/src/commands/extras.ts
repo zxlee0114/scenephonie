@@ -15,7 +15,7 @@ import { countAfterTakingOne, countValueOf } from "../count";
 import { isExtraId, sceneExtras } from "../extras";
 import type { ExtraRef } from "../schema";
 import { type CommandResult, ok, reject } from "./result";
-import { findScene as locateScene, replaceScene, withSceneAttrs } from "./tree";
+import { findScene, replaceScene, withSceneAttrs } from "./tree";
 
 export interface SetSceneExtrasOptions {
   readonly sceneId: string;
@@ -40,7 +40,7 @@ export function setSceneExtras(
 ): CommandResult {
   const { sceneId, extras } = options;
 
-  const hit = locateScene(doc, sceneId);
+  const hit = findScene(doc, sceneId);
   if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
 
   const seen = new Set<string>();
@@ -92,18 +92,18 @@ export function addSceneExtras(
   options: AddSceneExtrasOptions,
 ): CommandResult {
   const { sceneId, extras } = options;
-  const scene = findScene(doc, sceneId);
+  const scene = sceneNode(doc, sceneId);
   if (!scene) return reject(`找不到 sceneId「${sceneId}」`);
   const current = sceneExtras(scene.attrs.extras);
   return setSceneExtras(doc, { sceneId, extras: [...current, ...extras] });
 }
 
 /**
- * 那一場（主場次或子場次）。「讀現況再改」的那幾支 command 共用它（見 `addSceneExtras`
+ * 那一場（主場次或子場次）的節點。「讀現況再改」的那幾支 command 共用它（見 `addSceneExtras`
  * 檔頭那條理由）。
  */
-function findScene(doc: ProseMirrorNode, sceneId: string): ProseMirrorNode | null {
-  return locateScene(doc, sceneId)?.node ?? null;
+function sceneNode(doc: ProseMirrorNode, sceneId: string): ProseMirrorNode | null {
+  return findScene(doc, sceneId)?.node ?? null;
 }
 
 export interface TakeOneFromExtraOptions {
@@ -135,7 +135,7 @@ export function takeOneFromExtra(
   options: TakeOneFromExtraOptions,
 ): CommandResult {
   const { sceneId, extraId } = options;
-  const scene = findScene(doc, sceneId);
+  const scene = sceneNode(doc, sceneId);
   if (!scene) return reject(`找不到 sceneId「${sceneId}」`);
 
   const current = sceneExtras(scene.attrs.extras);

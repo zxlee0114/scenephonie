@@ -93,8 +93,8 @@ const TIME_TERMS: Readonly<Record<string, string>> = {
 };
 
 /**
- * 子場次的種類在 chip row 前面怎麼稱呼 —— 與 `/` 選單的用詞相同（ADR-0006：名字說概念不說結構），
- * 編劇在第二個場合重複同一課，不必再學新東西。
+ * 子場次的種類在 chip row 前面怎麼稱呼 —— 用詞取自 `/` 選單（「插入戲」／「接續到…」，去掉
+ * 那個指向下一步的「到…」；ADR-0006：名字說概念不說結構），編劇在第二個場合重複同一課。
  */
 const KIND_LABELS: Readonly<Record<SubsceneKind, string>> = {
   插入: "插入戲",
