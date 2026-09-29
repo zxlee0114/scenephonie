@@ -924,8 +924,9 @@
   z-index: 20;
   inset-block-start: calc(100% + var(--space-1));
   inset-inline-start: 0;
-  inline-size: max(60%, 28ch);
-  max-inline-size: 100%;
+  /* 寬度跟著那一行唯讀提示走，不斷行（使用者回饋 2026-09-29：斷成兩行時最後一個字孤零零
+   * 掛在第二行，面板看起來歪）。 */
+  inline-size: max-content;
   padding: var(--space-2);
   background: var(--surface-page);
   border: 1px solid var(--rule-strong);
@@ -934,6 +935,10 @@
   font-family: var(--font-ui);
   font-size: 1rem;
   user-select: none;
+}
+
+.appearing-prompt .entity-field__note {
+  white-space: nowrap;
 }
 
 .appearing-prompt:focus {

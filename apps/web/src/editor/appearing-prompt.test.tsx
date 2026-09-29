@@ -357,3 +357,25 @@ describe("鍵盤（焦點在選單上）", () => {
     expect(prompt(container)).not.toBeNull();
   });
 });
+
+describe("撤銷", () => {
+  it("選完之後 ⌘Z：判斷連同開出來的那一段一起撤掉，焦點回到台詞尾端 —— 不掉到頁面上", async () => {
+    const { sceneId, doc } = sceneDoc();
+    const { container, editor } = await mount(doc);
+    writeThenEnter(editor, sceneId);
+    await waitFor(() => expect(prompt(container)).not.toBeNull());
+    fireEvent.mouseDown(row(container, "不新增"));
+    await waitFor(() => expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]));
+    // 選完焦點在新那一段的人物欄（瀏覽器裡由 `requestFocus` 送過去；jsdom 自己放）。
+    const speaker = container.querySelectorAll<HTMLInputElement>(".block__speaker")[1]!;
+    act(() => speaker.focus());
+
+    expect(document.activeElement).toBe(speaker);
+    fireEvent.keyDown(speaker, { key: "z", metaKey: true });
+
+    await waitFor(() => expect(blockTypes(editor)).toEqual(["dialogue", "action"]));
+    expect(sceneAttrs(editor).dismissedCharacterIds).toEqual([]);
+    expect(document.activeElement).toBe(editor.view.dom);
+    expect(editor.state.selection.from).toBe(blockContentPos(editor.state.doc, sceneId, 0, "end"));
+  });
+});
