@@ -6,7 +6,7 @@
 
 **Blocked by:** 03（會改到 03 的測試 fixture；分支基於 03，PR 排在 03 合併之後 rebase 到 main）
 
-**Status:** in-review
+**Status:** done
 
 ## 對照表（本票券的權威來源；同表寫進 `schema.ts` 檔頭）
 
@@ -49,3 +49,5 @@
 **實作（2026-09-02）** —— 分支 `worktree-ticket-23-schema-attr-romanization` 基於票券 03，PR 排在 #03 之後，合併前 rebase 到 main。
 
 `enumValidator` 的 label 參數刻意留中文（`"時間"`／`"內外"`／`"發聲方式"`）—— 那只進 `RangeError` 訊息給人讀，不是識別碼。`nullableSceneAttrNames` 陣列值同步改成新鍵（`["time","intExt","location","appearingCharacters"]`）。`種類`／`kind` 只登記在對照表，schema 尚無該 attr（票券 11 才進）。`apps/web` 確認完全不觸及這些 attr。
+
+**狀態校正（2026-09-29）** —— PR #28 已 merge，`Status:` 從 `in-review` 改成 `done`（README 的 Frontier 靠這一行判斷）。

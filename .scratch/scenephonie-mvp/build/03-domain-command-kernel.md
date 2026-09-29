@@ -4,7 +4,7 @@
 
 **Blocked by:** 02
 
-**Status:** in-review
+**Status:** done
 
 - [x] command 是純函式、吃 doc 吐 doc、Node 可測；沒有可序列化訊息 log
 - [x] 去重：複製貼上觸發換新 id、剪下貼上保住 id；碰撞本身是唯一判別器
@@ -33,3 +33,5 @@
 **一個對規格的偏離（`setBlockType` 的定址）**：§6.3／ADR-0007 的範例簽名是 `setBlockType(blockId, type)`，但票券 02 的 schema 沒有給 `action`／`dialogue`／`insertShot` 任何 id（§5.1 節點表也沒有）。改用 `{ sceneId, blockIndex }` —— 場次以永久 id 定址，區塊以**呼叫當下算出、不被儲存的序**定址。這正是 §5.2 給 `assignFragmentToMember(groupId, fragmentIndex, …)` 的 `fragmentIndex` 立下的先例（保護規則 2／3 禁的是持久化的位置引用，傳遞參數不在此列）。若日後要給區塊永久 id，只需擴 schema，command 簽名換掉 `blockIndex` 一個參數。
 
 **驗收**：`pnpm lint`／`typecheck`／`test`（94 passed + 12 todo）／`build` 全綠。`/code-review` 跑過，無 correctness 缺陷；兩條 low-severity 效能建議（plugin 路徑重複走訪 doc、丟棄 `dedupeSceneIds` 重建的樹）已折入 —— 抽出 `planRemints` 讓純函式與 plugin 共用一次 `sceneIdNodes(doc)` 走訪，plugin 直接 `setNodeMarkup` 不重建整棵樹。
+
+**狀態校正（2026-09-29）** —— PR #27 已 merge，`Status:` 從 `in-review` 改成 `done`（README 的 Frontier 靠這一行判斷）。

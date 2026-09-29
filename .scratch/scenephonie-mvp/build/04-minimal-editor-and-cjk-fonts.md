@@ -4,7 +4,7 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] 在瀏覽器打一份多場次劇本，新增場次後後續場次號即時重算
 - [ ] Tab 環在任何場次深度都是同三個成員，不生成任何東西；欄位上的 Tab `stopPropagation`
@@ -16,3 +16,7 @@
 - [ ] 所有 UI 色彩走 semantic token、原始碼無 hex；僅 Light theme
 - [ ] `--text-base`／`--leading-base` 的定案值與實測理由記錄在 repo
 - [ ] 楷體／明體不進螢幕編輯器
+
+## Comments
+
+**狀態校正（2026-09-29）** —— PR #30 已 merge，`Status:` 從 `ready-for-agent` 改成 `done`（README 的 Frontier 靠這一行判斷）。驗收框沒有逐條回溯核對，所以維持未勾。

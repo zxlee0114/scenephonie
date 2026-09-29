@@ -4,7 +4,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] 乾淨 checkout 下 `install` → `build` 成功，空首頁開得起來
 - [ ] `test` 執行 vitest，至少一個 smoke 測試通過
@@ -14,3 +14,7 @@
 - [ ] 每個 PR 有一個可點開的 Vercel preview deployment；default branch 部署 production
 - [ ] preview／production 的 route handler 連得到 Postgres（`DATABASE_URL` 走 Supavisor transaction mode `:6543` + `prepare: false`；migration 走 `DIRECT_URL` session mode）
 - [ ] §13.1 的技術棧鎖定值與 region 意圖記錄在 repo
+
+## Comments
+
+**狀態校正（2026-09-29）** —— PR #24 已 merge，`Status:` 從 `ready-for-agent` 改成 `done`（README 的 Frontier 靠這一行判斷）。驗收框沒有逐條回溯核對，所以維持未勾。

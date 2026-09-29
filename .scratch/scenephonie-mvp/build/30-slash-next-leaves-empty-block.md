@@ -4,7 +4,7 @@
 
 **Blocked by:** 04（`extensions/slash.tsx` 在該票交付）
 
-**Status:** in-review
+**Status:** verified
 
 ## 根因（已定位，不必再查）
 
@@ -37,8 +37,10 @@ run: (editor, range) => {
 - [x] 內文後接 `/next`（「內文 /next」），該區塊的內文原封不動保留
 - [x] 本場唯一的區塊上打 `/next`，場次不會變成沒有內容（或依 schema 結論處理）
 - [x] ⌘+Enter 與場次腳部按鈕兩個入口的行為不回歸
-- [x] `pnpm lint` / `typecheck` / `test` / `build` 全綠（瀏覽器實地確認待驗收）
+- [x] `pnpm lint` / `typecheck` / `test` / `build` 全綠（瀏覽器實地確認：已驗過）
 
 ## Comments
 
 **開票（2026-09-04）** —— 票券 26 的本機驗收中由使用者順帶發現：「如果使用 slash 選單建下一場，會在原場次留下空白的一行」。與 26 無關，早於 26 就存在。
+
+**狀態校正（2026-09-29）** —— PR #36 已 merge，`Status:` 從 `in-review` 改成 `verified`（README 的 Frontier 靠這一行判斷）。瀏覽器實地確認使用者已驗過（2026-09-29 補記）。

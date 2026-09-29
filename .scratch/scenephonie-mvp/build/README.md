@@ -49,7 +49,7 @@
 
 ## Frontier
 
-blockers 全數 `Status:` 非 `ready-for-agent`（＝已完成）的票即可開工。純線性起點：01 → 02 → 03 → 04 → 05，之後分岔。
+blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即可開工。其餘狀態（`ready-for-agent`、`in-review`、`open`）一律算未完成 —— `open` 的 upkeep 票與 `in-review` 還沒 merge 的票都擋得住後面的票。純線性起點：01 → 02 → 03 → 04 → 05，之後分岔。
 
 ## Upkeep（不在 tracer-bullet 依賴圖裡）
 

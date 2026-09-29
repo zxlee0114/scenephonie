@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] schema 模組零瀏覽器相依，測試在 Node 跑
 - [ ] null 鐵律逐欄有測試：往返後 `default` 不會靜默改寫 null 欄位（票 19 的探針結果）
@@ -12,3 +12,7 @@
 - [ ] `projectScenes(doc)` 對一份多場次 doc 推導出 `1..N`
 - [ ] `sceneId` 全域唯一、`sc_` 前綴、使用者不可見
 - [ ] 同一份 schema 可餵給 `Node.fromJSON`（為 Yjs 路徑預留，不實作 Yjs）
+
+## Comments
+
+**狀態校正（2026-09-29）** —— PR #25 已 merge，`Status:` 從 `ready-for-agent` 改成 `done`（README 的 Frontier 靠這一行判斷）。驗收框沒有逐條回溯核對，所以維持未勾。
