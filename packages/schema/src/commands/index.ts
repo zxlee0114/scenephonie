@@ -18,6 +18,18 @@ export type { SetBlockTypeOptions, BlockType } from "./set-block-type";
 export { createSubscene, canCreateSubscene, deleteScene, subsceneCount } from "./subscenes";
 export type { CreateSubsceneOptions, DeleteSceneOptions, SubsceneAnchor } from "./subscenes";
 
+export {
+  intercutTo,
+  canIntercut,
+  assignFragmentToMember,
+  mergeAdjacentFragments,
+  normalizeFragmentsPlugin,
+  normalizeFragmentsPluginKey,
+} from "./groups";
+export type { IntercutOptions, AssignFragmentOptions } from "./groups";
+
+export type { ContainerAddress } from "./tree";
+
 export { moveScene } from "./move-scene";
 export type { MoveSceneOptions, MoveTarget } from "./move-scene";
 

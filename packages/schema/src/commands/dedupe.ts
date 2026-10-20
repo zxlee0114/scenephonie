@@ -24,7 +24,7 @@ import { Fragment, type Node as ProseMirrorNode } from "prosemirror-model";
 import { Plugin, PluginKey, type Transaction } from "prosemirror-state";
 import { Mapping, type StepMap } from "prosemirror-transform";
 
-import { mintSceneId } from "../ids";
+import { mintGroupId, mintSceneId } from "../ids";
 import { sceneIdNodes } from "./identity";
 
 export const dedupeIdsPluginKey = new PluginKey("scenephonie/dedupeIds");
@@ -62,37 +62,66 @@ function inAnyRange(pos: number, ranges: readonly Range[]): boolean {
 }
 
 /**
+ * 去重適用的兩種 id（§6.5：`scene`、`subscene`、`groupMember`、`sceneGroup` 完全相同處理）。
+ * 規則一套，只差 attr 名與鑄造函式。
+ */
+const ID_ATTRS = [
+  { attr: "sceneId", mint: mintSceneId },
+  { attr: "groupId", mint: mintGroupId },
+] as const;
+type IdAttr = (typeof ID_ATTRS)[number]["attr"];
+
+interface Entry {
+  readonly node: ProseMirrorNode;
+  readonly pos: number;
+}
+
+interface Planned extends Entry {
+  readonly attr: IdAttr;
+  readonly from: string;
+}
+
+/** doc 裡帶 `groupId` attr 的每個節點（頂層 `sceneGroup`）。 */
+function groupIdNodes(doc: ProseMirrorNode): Entry[] {
+  const out: Entry[] = [];
+  doc.forEach((node, pos) => {
+    if (typeof node.attrs.groupId === "string") out.push({ node, pos });
+  });
+  return out;
+}
+
+/**
  * 走訪的結果 → 「哪些節點該被改」的清單（依位置排序）。
  *
  * 純判斷、不鑄造、不重建 —— `dedupeSceneIds`（純函式路徑）與 `dedupeIdsPlugin`
- * （transaction 路徑）共用，各自只走一次 `sceneIdNodes(doc)`。
+ * （transaction 路徑）共用，各自只走一次 doc。
  */
-function planRemints(
-  entries: readonly { node: ProseMirrorNode; pos: number }[],
-  ranges: readonly Range[],
-): { node: ProseMirrorNode; pos: number; from: string }[] {
-  const groups = new Map<string, { node: ProseMirrorNode; pos: number }[]>();
-  for (const entry of entries) {
-    const id = entry.node.attrs.sceneId as string;
-    let arr = groups.get(id);
-    if (!arr) groups.set(id, (arr = []));
-    arr.push(entry);
-  }
+function planRemints(doc: ProseMirrorNode, ranges: readonly Range[]): Planned[] {
+  const plan: Planned[] = [];
+  for (const { attr } of ID_ATTRS) {
+    const entries = attr === "sceneId" ? sceneIdNodes(doc) : groupIdNodes(doc);
+    const groups = new Map<string, Entry[]>();
+    for (const entry of entries) {
+      const id = entry.node.attrs[attr] as string;
+      let arr = groups.get(id);
+      if (!arr) groups.set(id, (arr = []));
+      arr.push(entry);
+    }
 
-  const plan: { node: ProseMirrorNode; pos: number; from: string }[] = [];
-  for (const occ of groups.values()) {
-    if (occ.length < 2) continue;
+    for (const occ of groups.values()) {
+      if (occ.length < 2) continue;
 
-    const nonInserted = occ.filter((o) => !inAnyRange(o.pos, ranges));
-    // 「新插入的那份換新 id」只有在確實分得出新舊時才套用：有區間、有落在區間外的
-    // （保留對象）、且不是全部都在區間外。其餘一律後備規則：保留文件順序第一個。
-    const keeper =
-      ranges.length > 0 && nonInserted.length > 0 && nonInserted.length < occ.length
-        ? nonInserted[0]!
-        : occ[0]!;
+      const nonInserted = occ.filter((o) => !inAnyRange(o.pos, ranges));
+      // 「新插入的那份換新 id」只有在確實分得出新舊時才套用：有區間、有落在區間外的
+      // （保留對象）、且不是全部都在區間外。其餘一律後備規則：保留文件順序第一個。
+      const keeper =
+        ranges.length > 0 && nonInserted.length > 0 && nonInserted.length < occ.length
+          ? nonInserted[0]!
+          : occ[0]!;
 
-    for (const o of occ) {
-      if (o !== keeper) plan.push({ node: o.node, pos: o.pos, from: o.node.attrs.sceneId as string });
+      for (const o of occ) {
+        if (o !== keeper) plan.push({ ...o, attr, from: o.node.attrs[attr] as string });
+      }
     }
   }
 
@@ -100,33 +129,58 @@ function planRemints(
   return plan;
 }
 
+const mintFor = (attr: IdAttr) => ID_ATTRS.find((k) => k.attr === attr)!.mint();
+
+/**
+ * 群組成員換了 `sceneId`，**同一個群組裡**指向它的片段要跟著換 —— 否則片段會指向另一個群組的
+ * 成員（整份群組被複製貼上時正是如此）。回傳「群組節點之前的位置 → 舊 id → 新 id」。
+ */
+function memberRemaps(doc: ProseMirrorNode, remints: readonly Remint[]): Map<number, Map<string, string>> {
+  const byGroup = new Map<number, Map<string, string>>();
+  for (const r of remints) {
+    const node = doc.nodeAt(r.pos);
+    if (node?.type.name !== "groupMember") continue;
+    const $pos = doc.resolve(r.pos);
+    const groupPos = $pos.before($pos.depth);
+    let map = byGroup.get(groupPos);
+    if (!map) byGroup.set(groupPos, (map = new Map()));
+    map.set(r.from, r.to);
+  }
+  return byGroup;
+}
+
 export function dedupeSceneIds(doc: ProseMirrorNode, options: DedupeOptions = {}): DedupeResult {
-  const entries = sceneIdNodes(doc);
-  const plan = planRemints(entries, options.insertedRanges ?? []);
+  const plan = planRemints(doc, options.insertedRanges ?? []);
   if (plan.length === 0) return { changed: false, doc, remints: [] };
 
-  const newIds = new Map<ProseMirrorNode, string>();
-  const remints: Remint[] = plan.map(({ node, pos, from }) => {
-    const to = mintSceneId();
-    newIds.set(node, to);
+  // 以位置為鍵 —— 同一個節點物件可能在 doc 裡出現兩次（整份複製貼上），以物件為鍵會分不開。
+  const updates = new Map<number, Record<string, string>>();
+  const remints: Remint[] = plan.map(({ pos, attr, from }) => {
+    const to = mintFor(attr);
+    updates.set(pos, { ...updates.get(pos), [attr]: to });
     return { pos, from, to };
   });
+  const remaps = memberRemaps(doc, remints.filter((_r, i) => plan[i]!.attr === "sceneId"));
 
-  function rebuild(node: ProseMirrorNode): ProseMirrorNode {
+  function rebuild(node: ProseMirrorNode, pos: number, memberIds?: Map<string, string>): ProseMirrorNode {
     let out = node;
     if (node.childCount > 0) {
       const kids: ProseMirrorNode[] = [];
-      node.forEach((child) => kids.push(rebuild(child)));
+      const inner = remaps.get(pos);
+      node.forEach((child, offset) => kids.push(rebuild(child, pos + 1 + offset, inner)));
       out = node.copy(Fragment.fromArray(kids));
     }
-    const to = newIds.get(node);
-    if (to !== undefined) {
-      out = out.type.create({ ...out.attrs, sceneId: to }, out.content, out.marks);
+    const attrs: Record<string, unknown> = { ...updates.get(pos) };
+    const memberId = out.attrs.memberId as string | undefined;
+    if (memberId && memberIds?.has(memberId)) attrs.memberId = memberIds.get(memberId);
+    if (Object.keys(attrs).length > 0) {
+      out = out.type.create({ ...out.attrs, ...attrs }, out.content, out.marks);
     }
     return out;
   }
 
-  return { changed: true, doc: rebuild(doc), remints };
+  // doc 本身沒有「之前的位置」；孩子從 0 起算，所以傳 -1 讓 `pos + 1 + offset` 落在 offset。
+  return { changed: true, doc: rebuild(doc, -1), remints };
 }
 
 /** 把每個 transaction 的每個 step map 的「插入片段」映射到最終 doc 座標系。 */
@@ -151,22 +205,31 @@ export function dedupeIdsPlugin(): Plugin {
     appendTransaction(transactions, _oldState, newState) {
       if (!transactions.some((tr) => tr.docChanged)) return null;
 
-      const plan = planRemints(
-        sceneIdNodes(newState.doc),
-        collectInsertedRanges(transactions),
-      );
+      const plan = planRemints(newState.doc, collectInsertedRanges(transactions));
       if (plan.length === 0) return null;
 
       const tr = newState.tr;
       const remints: Remint[] = [];
-      for (const { pos, from } of plan) {
+      const memberRemints: Remint[] = [];
+      for (const { pos, attr, from } of plan) {
         // setNodeMarkup 不改節點大小 → 依序套用時，plan 裡的位置全程有效。
         const node = tr.doc.nodeAt(pos);
-        if (node && typeof node.attrs.sceneId === "string") {
-          const to = mintSceneId();
-          tr.setNodeMarkup(pos, undefined, { ...node.attrs, sceneId: to });
-          remints.push({ pos, from, to });
+        if (node && node.attrs[attr] === from) {
+          const to = mintFor(attr);
+          tr.setNodeMarkup(pos, undefined, { ...node.attrs, [attr]: to });
+          const remint = { pos, from, to };
+          remints.push(remint);
+          if (attr === "sceneId") memberRemints.push(remint);
         }
+      }
+      // 換了 id 的成員，同群組裡指向它的片段跟著換（見 `memberRemaps`）。
+      for (const [groupPos, ids] of memberRemaps(tr.doc, memberRemints)) {
+        const group = tr.doc.nodeAt(groupPos)!;
+        group.forEach((child, offset) => {
+          const memberId = child.attrs.memberId as string | undefined;
+          if (!memberId || !ids.has(memberId)) return;
+          tr.setNodeMarkup(groupPos + 1 + offset, undefined, { ...child.attrs, memberId: ids.get(memberId) });
+        });
       }
       if (!tr.steps.length) return null;
 

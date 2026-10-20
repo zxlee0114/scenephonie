@@ -14,20 +14,30 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 import { mintSceneId } from "../ids";
 import { hasOwnContent } from "../subscenes";
 import { schema, SUBSCENE_KINDS, type SubsceneKind } from "../schema";
+import { removeGroupMember } from "./groups";
 import { type CommandResult, ok, reject } from "./result";
-import { findScene, replaceScene, type SceneHit } from "./tree";
+import {
+  childrenOf,
+  findContainer,
+  findScene,
+  replaceAt,
+  replaceScene,
+  type ContainerAddress,
+  type TreePath,
+} from "./tree";
 
 /** 明確套用時複製的三欄（§4.4）。**登場人物不在其中** —— 那不是時空，換了地方人也可能換了。 */
 const APPLIED_ATTRS = ["intExt", "time", "location"] as const;
 
-export interface SubsceneAnchor {
+export interface SubsceneAnchor extends ContainerAddress {
   /**
-   * 游標所在的那一場 —— 主場次**或**子場次。兩處按下去語意不變：永遠是「在本主場次底下建立
-   * 一個子場次」；深度兩層讓「在子場次裡按」只有一種合法解讀（建立兄弟，接在那個子場次之後）。
+   * 游標所在的那一場 —— 主場次、群組成員（再加 `fragmentIndex`）**或**子場次。兩處按下去語意
+   * 不變：永遠是「在本主場次底下建立一個子場次」；深度兩層讓「在子場次裡按」只有一種合法解讀
+   * （建立兄弟，接在那個子場次之後）。
    */
   readonly sceneId: string;
   /**
-   * 在主場次裡：新子場次接在第幾個孩子之後（`-1` ＝ 當第一個孩子，永遠被不變式 ① 擋下）。
+   * 在主場次（或片段）裡：新子場次接在第幾個孩子之後（`-1` ＝ 當第一個孩子，永遠被不變式 ① 擋下）。
    * 傳遞參數，不被儲存（§5.2 `fragmentIndex` 先例）。在子場次裡按時不看這個值。
    */
   readonly afterBlockIndex: number;
@@ -43,8 +53,10 @@ export interface CreateSubsceneOptions extends SubsceneAnchor {
 }
 
 interface Placement {
-  readonly parent: SceneHit;
-  /** 新子場次在主場次孩子序列裡的位置。 */
+  /** 裝新子場次的那一段內容（主場次或片段）。 */
+  readonly container: ProseMirrorNode;
+  readonly path: TreePath;
+  /** 新子場次在那一段孩子序列裡的位置。 */
   readonly insertAt: number;
 }
 
@@ -52,25 +64,31 @@ function placement(doc: ProseMirrorNode, anchor: SubsceneAnchor): Placement | st
   const hit = findScene(doc, anchor.sceneId);
   if (!hit) return `找不到 sceneId「${anchor.sceneId}」`;
 
-  if (hit.parent) {
-    // 在子場次裡：兄弟，接在它之後。主場次那一層的座標從 hit 取。
-    const parent: SceneHit = { node: hit.parent, topIndex: hit.topIndex, childIndex: null, parent: null };
-    return { parent, insertAt: hit.childIndex! + 1 };
+  if (hit.containerPath) {
+    // 在子場次裡：兄弟，接在它之後。裝它的那一段（主場次或片段）從 hit 取。
+    let container = doc;
+    for (const i of hit.containerPath) container = container.child(i);
+    return { container, path: hit.containerPath, insertAt: hit.path[hit.path.length - 1]! + 1 };
   }
 
+  const at = findContainer(doc, anchor);
+  if (typeof at === "string") return at;
+  if (!at.hostsSubscenes) return `「${anchor.sceneId}」裡不能再建立子場次`;
+
   const { afterBlockIndex } = anchor;
-  if (afterBlockIndex < -1 || afterBlockIndex >= hit.node.childCount) {
-    return `場次「${anchor.sceneId}」沒有第 ${afterBlockIndex} 個孩子（共 ${hit.node.childCount} 個）`;
+  if (afterBlockIndex < -1 || afterBlockIndex >= at.node.childCount) {
+    return `場次「${anchor.sceneId}」沒有第 ${afterBlockIndex} 個孩子（共 ${at.node.childCount} 個）`;
   }
   const insertAt = afterBlockIndex + 1;
 
   // 不變式 ①：插入點之前必須已經有主場次自己的內容 —— 否則主場次就不是起點場次，結構在說謊。
+  // 片段比照辦理：一段以子場次開頭的片段，讀起來就是那個成員的內容沒有起點。
   let opened = false;
-  for (let i = 0; i < insertAt; i++) if (hasOwnContent(hit.node.child(i))) opened = true;
+  for (let i = 0; i < insertAt; i++) if (hasOwnContent(at.node.child(i))) opened = true;
   if (!opened) {
     return "主場次的內容必須以主場次自己的內容開始 —— 空場次裡不能建立子場次（不變式 ①）";
   }
-  return { parent: hit, insertAt };
+  return { container: at.node, path: at.path, insertAt };
 }
 
 /** `/insert`／`/continue-to` 在這個位置可不可用（選單據此決定列不列出來）。 */
@@ -108,14 +126,13 @@ export function createSubscene(
     schema.node("action", null, []),
   );
 
-  const { parent, insertAt } = where;
-  const kids: ProseMirrorNode[] = [];
-  parent.node.forEach((child) => kids.push(child));
+  const { container, path, insertAt } = where;
+  const kids = childrenOf(container);
   kids.splice(insertAt, 0, subscene);
 
   try {
-    const nextParent = parent.node.type.create(parent.node.attrs, kids, parent.node.marks);
-    return ok(replaceScene(doc, parent, nextParent));
+    const next = container.type.create(container.attrs, kids, container.marks);
+    return ok(replaceAt(doc, path, next));
   } catch (err) {
     return reject(`建立子場次後 doc 不符 schema：${(err as Error).message}`);
   }
@@ -136,6 +153,10 @@ export function deleteScene(doc: ProseMirrorNode, options: DeleteSceneOptions): 
   const hit = findScene(doc, options.sceneId);
   if (!hit) return reject(`找不到 sceneId「${options.sceneId}」`);
   try {
+    // 群組成員：它的片段一起走，剩一個成員時群組解散（票券 12）。
+    if (hit.node.type.name === "groupMember") {
+      return ok(removeGroupMember(doc, hit.path[0]!, options.sceneId));
+    }
     return ok(replaceScene(doc, hit, null));
   } catch (err) {
     return reject(`刪除場次後 doc 不符 schema：${(err as Error).message}`);

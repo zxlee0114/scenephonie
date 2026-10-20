@@ -98,10 +98,21 @@ export {
 } from "./subscenes";
 export type { ReturnMarker } from "./subscenes";
 
+// 場次群組的推導值（票券 12）：不變式 ③ 的判準。呼叫端是票券 14（草稿推導）；先出去的理由
+// 同 `subsceneEchoesParent` —— 它是那條不變式的唯一定義點。
+export { echoingMembers } from "./groups";
+
 export { projectScenes, docFromJSON } from "./project-scenes";
 export type { SceneNumber } from "./project-scenes";
 
-export { mintId, mintSceneId, isSceneId, SCENE_ID_PREFIX } from "./ids";
+export {
+  mintId,
+  mintSceneId,
+  isSceneId,
+  SCENE_ID_PREFIX,
+  mintGroupId,
+  GROUP_ID_PREFIX,
+} from "./ids";
 
 // 寫入邊界：domain command 層（票券 03）。§6.3 —— 編輯器對外只曝露 command 與 projection。
 export * from "./commands";

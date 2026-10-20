@@ -46,8 +46,12 @@ export interface ReturnMarker {
  * 子場次」。**空區塊不算內容** —— 編劇雙 Enter 跳出來、卻又改打 `/continue-to` 時，標記從頭到尾
  * 沒有出現過，畫面不會自己閃一下。
  */
-export function returnMarkers(scene: ProseMirrorNode): ReturnMarker[] {
-  const location = sceneLocationLabel(scene);
+export function returnMarkers(
+  scene: ProseMirrorNode,
+  /** 片段裡的子場次（票券 12）回到的是片段所屬的成員 —— 地點從它取。省略 ＝ `scene` 自己。 */
+  owner: ProseMirrorNode = scene,
+): ReturnMarker[] {
+  const location = sceneLocationLabel(owner);
 
   const out: ReturnMarker[] = [];
   let away = false; // 上一段非空主場次內容之後，是否走進過子場次
@@ -67,23 +71,33 @@ export function returnMarkers(scene: ProseMirrorNode): ReturnMarker[] {
 const idsOf = <T>(refs: readonly T[], id: (r: T) => string) => refs.map(id).sort().join("\u0000");
 
 /**
- * 不變式 ②：子場次的 metadata 與主場次**完全相同**嗎？相同的話依場次的定義它根本不是另一個
- * 場次 → 視為不完整 → 自動草稿 → 匯出前被攔（草稿的推導在票券 14 接上這一支）。
+ * 兩場的 metadata **完全相同**嗎？相同的話依場次的定義它們不是兩個場次 → 視為不完整 → 自動
+ * 草稿 → 匯出前被攔。不變式 ②（子場次 vs 主場次）與 ③（群組成員之間）共用這一個判準。
  *
  * 比的是 §4.3 的四欄 metadata（時間、內外、地點、登場人物）。實體引用比 **id** 不比顯示名：
  * 別名住在引用上（ADR-0005），同一個地點叫「客廳」或「公寓客廳」是同一個時空。
  */
-export function subsceneEchoesParent(parent: ProseMirrorNode, subscene: ProseMirrorNode): boolean {
-  const a = parent.attrs;
-  const b = subscene.attrs;
+export function sameSceneMeta(
+  a: { readonly attrs: Record<string, unknown> },
+  b: { readonly attrs: Record<string, unknown> },
+): boolean {
+  const x = a.attrs;
+  const y = b.attrs;
   return (
-    (a.time ?? null) === (b.time ?? null) &&
-    (a.intExt ?? null) === (b.intExt ?? null) &&
-    idsOf(sceneLocations(a.location), (r) => r.locationId) ===
-      idsOf(sceneLocations(b.location), (r) => r.locationId) &&
-    idsOf(sceneAppearingCharacters(a.appearingCharacters), (r) => r.characterId) ===
-      idsOf(sceneAppearingCharacters(b.appearingCharacters), (r) => r.characterId)
+    (x.time ?? null) === (y.time ?? null) &&
+    (x.intExt ?? null) === (y.intExt ?? null) &&
+    idsOf(sceneLocations(x.location), (r) => r.locationId) ===
+      idsOf(sceneLocations(y.location), (r) => r.locationId) &&
+    idsOf(sceneAppearingCharacters(x.appearingCharacters), (r) => r.characterId) ===
+      idsOf(sceneAppearingCharacters(y.appearingCharacters), (r) => r.characterId)
   );
+}
+
+/**
+ * 不變式 ②：子場次的 metadata 與主場次**完全相同**嗎？（草稿的推導在票券 14 接上這一支。）
+ */
+export function subsceneEchoesParent(parent: ProseMirrorNode, subscene: ProseMirrorNode): boolean {
+  return sameSceneMeta(parent, subscene);
 }
 
 /**

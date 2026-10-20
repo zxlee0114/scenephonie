@@ -19,6 +19,7 @@ import {
   dedupeIdsPlugin,
   dedupeSceneIds,
   duplicateSceneIds,
+  intercutTo,
   MINT_MOMENTS,
   moveScene,
   sceneIdNodes,
@@ -27,9 +28,19 @@ import {
 } from "./commands";
 import { entityDirectory, mintLocationId, referenceLabel, sceneLocations } from "./entities";
 import { schema } from "./schema";
+import { echoingMembers } from "./groups";
 import { hasEmptySceneMeta } from "./scene-meta";
 import { subsceneEchoesParent } from "./subscenes";
-import { block, makeDoc, makeScene, sceneWith, subsceneWith } from "./testing";
+import {
+  block,
+  fragmentOf,
+  groupWith,
+  makeDoc,
+  makeScene,
+  memberWith,
+  sceneWith,
+  subsceneWith,
+} from "./testing";
 
 const sceneCopy = (sceneId: string) =>
   schema.node("scene", { sceneId }, schema.node("action", null, [schema.text("副本")]));
@@ -71,11 +82,32 @@ describe("不變式 ②：子場次的 metadata 不得與主場次完全相同",
 
 // ── 票券 12（場次群組）────────────────────────────────────────────────────
 describe("不變式 ③：同一群組的成員之間，metadata 不得完全相同", () => {
-  it.todo("同 ② 的機制 —— 票券 12（場次群組）");
+  it("判準有人守：時空完全相同的成員被認出來（→ 自動草稿，票券 14 接上）", () => {
+    const meta = { time: "夜", intExt: "內景" };
+    const a = memberWith(meta);
+    const b = memberWith(meta);
+    expect(echoingMembers(groupWith([a, b], [fragmentOf(a, [block.action("x")])]))).toHaveLength(2);
+  });
+
+  it("建立時不預填：「對剪到…」新建的成員 metadata 全空", () => {
+    const here = sceneWith([block.action("a")], { time: "夜", intExt: "內景" });
+    const r = intercutTo(makeDoc(here), { sceneId: here.attrs.sceneId as string, withSceneId: null });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(hasEmptySceneMeta(r.value.child(0).child(1))).toBe(true);
+  });
 });
 
 describe("不變式 ④：群組不能巢狀，一個場次不能同時屬於兩個群組", () => {
-  it.todo("由 schema 保證（§5.1）：groupFragment 內容規則不含 sceneGroup —— 票券 12");
+  it("由 schema 保證（§5.1）：groupFragment 內容規則不含 sceneGroup", () => {
+    expect(schema.nodes.groupFragment.contentMatch.matchType(schema.nodes.sceneGroup)).toBeNull();
+  });
+
+  it("由 schema 保證：groupMember 只能住在 sceneGroup 裡（頂層、場次、片段都放不下它）", () => {
+    for (const parent of ["doc", "scene", "subscene", "groupFragment"] as const) {
+      expect(schema.nodes[parent].contentMatch.matchType(schema.nodes.groupMember)).toBeNull();
+    }
+  });
 });
 
 describe("不變式 ⑤：深度固定兩層", () => {

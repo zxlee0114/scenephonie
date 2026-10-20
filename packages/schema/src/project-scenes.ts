@@ -8,8 +8,9 @@
  * `sceneId`，沒有任何查詢用場次號 join。它只在渲染那一刻有意義，就該在渲染時才算。
  *
  * **範圍**：頂層 `scene` 依文件順序編 `1..N`；子場次（票券 11）編 `5.1`（父場次號 ＋ 點號 ＋
- * 該父場次底下第幾個子場次），緊接在主場次之後。群組成員各佔頂層號、草稿跳號另編 `S11[D1]`
- * —— 都在 §5.4 定義，隨對應節點型別在後續票券長出。
+ * 該父場次底下第幾個子場次），緊接在主場次之後。群組成員（票券 12）各佔一個頂層號、群組本身
+ * 不佔號；成員的子場次散在它的各個片段裡，依文件順序編在它底下。草稿跳號另編 `S11[D1]` ——
+ * 在 §5.4 定義，票券 14 長出。
  */
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
@@ -25,8 +26,10 @@ export interface SceneNumber {
    * ⚠️ 任何東西都不准引用它，只能引用 `sceneId`（ADR-0006 保護規則 2）。
    */
   label: string;
-  /** 子場次的主場次；主場次為 `undefined`。 */
+  /** 子場次的主場次（或成員）；主場次為 `undefined`。 */
   parentSceneId?: string;
+  /** 群組成員所屬群組的 `groupId`（票券 12）；不是成員為 `undefined`。 */
+  groupId?: string;
 }
 
 /**
@@ -37,21 +40,42 @@ export interface SceneNumber {
 export function projectScenes(doc: ProseMirrorNode): SceneNumber[] {
   const numbers: SceneNumber[] = [];
   let top = 0;
-  doc.forEach((node) => {
-    if (node.type.name !== "scene") return;
+
+  /** 一個頂層號：它自己，接著散在 `containers` 裡的子場次 `N.1`、`N.2`…。 */
+  const number = (scene: ProseMirrorNode, containers: ProseMirrorNode[], groupId?: string) => {
     top += 1;
-    const sceneId = node.attrs.sceneId as string;
-    numbers.push({ sceneId, number: top, label: String(top) });
+    const sceneId = scene.attrs.sceneId as string;
+    numbers.push({ sceneId, number: top, label: String(top), ...(groupId ? { groupId } : {}) });
     let sub = 0;
-    node.forEach((child) => {
-      if (child.type.name !== "subscene") return;
-      sub += 1;
-      numbers.push({
-        sceneId: child.attrs.sceneId as string,
-        number: top,
-        label: `${top}.${sub}`,
-        parentSceneId: sceneId,
+    for (const container of containers) {
+      container.forEach((child) => {
+        if (child.type.name !== "subscene") return;
+        sub += 1;
+        numbers.push({
+          sceneId: child.attrs.sceneId as string,
+          number: top,
+          label: `${top}.${sub}`,
+          parentSceneId: sceneId,
+        });
       });
+    }
+  };
+
+  doc.forEach((node) => {
+    if (node.type.name === "scene") {
+      number(node, [node]);
+      return;
+    }
+    if (node.type.name !== "sceneGroup") return;
+    const groupId = node.attrs.groupId as string;
+    const fragments: ProseMirrorNode[] = [];
+    node.forEach((child) => {
+      if (child.type.name === "groupFragment") fragments.push(child);
+    });
+    node.forEach((child) => {
+      if (child.type.name !== "groupMember") return;
+      const own = fragments.filter((f) => f.attrs.memberId === child.attrs.sceneId);
+      number(child, own, groupId);
     });
   });
   return numbers;

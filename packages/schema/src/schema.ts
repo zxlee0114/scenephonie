@@ -5,10 +5,10 @@
  * 住在 `apps/web` 的編輯器套件裡。這個模組要能在 Node 跑（PDF 匯出、場次表推導、
  * 伺服器端 command），也要能原封不動餵給日後的 `y-prosemirror`（票券 19 已驗證往返等價）。
  *
- * **範圍**：`doc`、`scene`、`subscene`（票券 11）、`sceneBlock`（`action`／`dialogue`／`insertShot`）。
- * **先不含**場次群組（`sceneGroup`／`groupMember`／`groupFragment`）—— 票券 12，屆時沿用同一份
- * schema、同一套 null 鐵律。`subscene` 的 `kind`（`插入｜接續`）比照 `voiceStyle` 走「不允許
- * null」，但**無 default、建立時必填**（它是編劇按下哪個入口的宣告，系統不代填）。
+ * **範圍**：`doc`、`scene`、`subscene`（票券 11）、場次群組 `sceneGroup`／`groupMember`／
+ * `groupFragment`（票券 12）、`sceneBlock`（`action`／`dialogue`／`insertShot`）。
+ * `subscene` 的 `kind`（`插入｜接續`）比照 `voiceStyle` 走「不允許 null」，但**無 default、
+ * 建立時必填**（它是編劇按下哪個入口的宣告，系統不代填）。
  *
  * ── 詞彙 ↔ 識別碼對照（票券 23）────────────────────────────────────────
  * 程式碼識別碼用英文小駝峰，領域詞彙（`CONTEXT.md` 詞條）維持中文，兩邊靠這張表對接。
@@ -154,9 +154,12 @@ function sceneMetaAttrs() {
  *
  * 內容規則：
  * ```
- * doc      := scene*                          （§5.1 意圖 scene+，見下方註解）
- * scene    := (sceneBlock | subscene)+        isolating, defining
- * subscene := sceneBlock+                     isolating, defining（不含 subscene → 深度兩層）
+ * doc           := (scene | sceneGroup)*        （§5.1 意圖 +，見下方註解）
+ * scene         := (sceneBlock | subscene)+     isolating, defining
+ * subscene      := sceneBlock+                  isolating, defining（不含 subscene → 深度兩層）
+ * sceneGroup    := groupMember* groupFragment*  isolating, defining（§5.1 意圖 +，見下方註解）
+ * groupMember   := （無內容）                    atom
+ * groupFragment := (sceneBlock | subscene)+     isolating, defining（不含 sceneGroup → 不能巢狀）
  * sceneBlock := action | dialogue | insertShot   （group，不是節點）
  * action / dialogue / insertShot := inline*
  * ```
@@ -172,7 +175,8 @@ export const schema = new Schema({
       // 而言就是「非 generatable」——放在必填位置（`scene+`）會讓 schema 建構直接失敗
       // （dead-end 檢查）。放寬成 `scene*`：schema 層允許空 doc，「劇本至少有一場」是
       // 編輯器初始化／command 層的責任（票券 03／04），不是 schema 能表達的不變式。
-      content: "scene*",
+      // 票券 12 放寬成 `(scene | sceneGroup)` —— 群組只是一群場次的容器，沒有自己的可編輯空間。
+      content: "(scene | sceneGroup)*",
     },
 
     scene: {
@@ -197,6 +201,45 @@ export const schema = new Schema({
         // 與 `sceneId` 同一個「建立時必須給」的強制版本。系統不代填：那一欄的全部價值就在於
         // 它是編劇的宣告。
         kind: { validate: enumValidator("種類", SUBSCENE_KINDS, { nullable: false }) },
+      },
+    },
+
+    // 場次群組（票券 12、ADR-0004、§5.2）。**是節點不是旗標** —— 「群組不能巢狀」與「一個場次
+    // 不能同時屬於兩個群組」（不變式 ④）由樹結構免費保證：成員只住在唯一一個群組節點裡，片段的
+    // 內容規則不含 `sceneGroup`。
+    //
+    // §5.1 意圖 `groupMember+ groupFragment+`，但兩者都帶無 default 的 id attr（非 generatable），
+    // 放在必填位置會讓 schema 建構失敗（與 `doc` 同一顆雷）。放寬成 `*`：「至少兩個成員、至少
+    // 一個片段」是 command 層的責任（`intercutTo`／`deleteScene`）。
+    sceneGroup: {
+      content: "groupMember* groupFragment*",
+      isolating: true,
+      defining: true,
+      attrs: {
+        // `gr_` 前綴 nanoid，使用者永遠看不到。群組要 id 是因為 command 要定址它而不能用位置
+        // （§6.3 准入判準）；無 default ＝ 建立時必須鑄造，同 `sceneId`。
+        groupId: {},
+      },
+    },
+
+    // 成員場次（§5.2）：普通的場次 —— 完整的 metadata、自己的永久 id、自己一個頂層場次號 ——
+    // 但**沒有自己的內容**（內容在片段裡）。這是真實的結構差異，所以是另一種節點，而不是把
+    // `scene` 的內容規則放寬成可為空。
+    groupMember: {
+      atom: true,
+      attrs: sceneMetaAttrs(),
+    },
+
+    // 片段（§4.5）：閱讀的單位。**沒有 id、不給任何東西引用**（ADR-0006 保護規則 3）——
+    // 片段會被切開（插入子場次、`⌘+N` 從游標切開），一個會被切開的東西沒有身分可言。
+    // 成員可以有自己的子場次（階層裝得進平行裡面），所以內容規則與 `scene` 相同。
+    groupFragment: {
+      content: "(sceneBlock | subscene)+",
+      isolating: true,
+      defining: true,
+      attrs: {
+        // 指向同群組某個 `groupMember` 的 `sceneId`。無 default —— 片段不能不屬於任何成員。
+        memberId: {},
       },
     },
 

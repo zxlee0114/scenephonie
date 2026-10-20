@@ -17,9 +17,9 @@ describe("內容規則（§5.1，本票券範圍：doc / scene / sceneBlock）",
     expect(() => schema.node("scene", { sceneId: mintSceneId() }, [])).toThrow();
   });
 
-  it("doc 內容放寬成 scene*（空 doc 由 schema 放行，「至少一場」是 command／編輯器初始化的責任）", () => {
+  it("doc 內容放寬成 (scene | sceneGroup)*（空 doc 由 schema 放行，「至少一場」是 command／編輯器初始化的責任）", () => {
     expect(() => schema.node("doc", null, [])).not.toThrow();
-    expect(schema.nodes.doc.spec.content).toBe("scene*");
+    expect(schema.nodes.doc.spec.content).toBe("(scene | sceneGroup)*");
   });
 
   it("sceneBlock 涵蓋 action / dialogue / insertShot", () => {

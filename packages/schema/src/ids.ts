@@ -43,3 +43,14 @@ export function mintSceneId(): string {
 export function isSceneId(value: unknown): value is string {
   return typeof value === "string" && value.startsWith(SCENE_ID_PREFIX) && value.length > SCENE_ID_PREFIX.length;
 }
+
+/** 場次群組 `groupId` 的固定前綴（§5.2）。 */
+export const GROUP_ID_PREFIX = "gr_";
+
+/**
+ * 鑄造一個新的 `groupId`。群組的 id 只給 command 定址，使用者永遠看不到；去重規則與
+ * `sceneId` 走同一套（§6.5）。
+ */
+export function mintGroupId(): string {
+  return mintId(GROUP_ID_PREFIX);
+}

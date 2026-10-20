@@ -75,10 +75,25 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
       "五個鑄造時刻之一（createSubscene）；空場次裡拒絕建立（不變式 ①）。以游標所在場次的 sceneId 定址，套用來源也以 id 定址。",
   },
   {
+    name: "intercutTo",
+    enforces: ["④", "⑦"],
+    addressesById: true,
+    rationale:
+      "五個鑄造時刻之一（createGroupMember，只在「建立新的一場」時鑄）；只收編頂層場次 —— 一個場次不能同時屬於兩個群組（不變式 ④）。以 sceneId 定址。",
+  },
+  {
+    name: "assignFragmentToMember",
+    enforces: [],
+    addressesById: true,
+    rationale:
+      "以 groupId ＋ memberId 定址；fragmentIndex／fromBlockIndex 是傳遞參數（§5.2），不是本群組成員的 id 一律拒絕 —— 永遠不憑空建立場次。",
+  },
+  {
     name: "deleteScene",
     enforces: [],
     addressesById: true,
-    rationale: "以 sceneId 定址；刪主場次連帶子樹（一個節點），⌘Z 一步整棵回來、sceneId 一起回來。",
+    rationale:
+      "以 sceneId 定址；刪主場次連帶子樹（一個節點），⌘Z 一步整棵回來、sceneId 一起回來。刪群組成員連帶它的片段，剩一個成員時群組解散。",
   },
   {
     name: "setBlockType",
@@ -162,6 +177,7 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     name: "dedupeSceneIds",
     enforces: ["⑥"],
     addressesById: true,
-    rationale: "同一份 doc 內 id 不重複；appendTransaction 最後一道防線，標 addToHistory: false。",
+    rationale:
+      "同一份 doc 內 id（sceneId 與 groupId）不重複；appendTransaction 最後一道防線，標 addToHistory: false。",
   },
 ];
