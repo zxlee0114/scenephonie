@@ -12,9 +12,9 @@ describe("projectScenes", () => {
     const doc = makeDoc(...ids.map(sceneWithId));
 
     expect(projectScenes(doc)).toEqual([
-      { sceneId: ids[0], number: 1 },
-      { sceneId: ids[1], number: 2 },
-      { sceneId: ids[2], number: 3 },
+      { sceneId: ids[0], number: 1, label: "1" },
+      { sceneId: ids[1], number: 2, label: "2" },
+      { sceneId: ids[2], number: 3, label: "3" },
     ]);
   });
 
@@ -48,6 +48,6 @@ describe("docFromJSON（讀取邊界入口）", () => {
     const persisted = makeDoc(sceneWithId(id)).toJSON();
 
     const doc = docFromJSON(persisted);
-    expect(projectScenes(doc)).toEqual([{ sceneId: id, number: 1 }]);
+    expect(projectScenes(doc)).toEqual([{ sceneId: id, number: 1, label: "1" }]);
   });
 });

@@ -36,6 +36,8 @@ function eachRef(doc: PMNode, visit: (entityId: string, displayName: string, sce
       note(ref.characterId, ref.displayName, sceneId);
     }
     node.descendants((child) => {
+      // 子場次的對白算它自己那一場，不算主場次（子場次會在外層走訪輪到自己）。
+      if (child.type.name === "subscene") return false;
       if (child.type.name !== "dialogue") return;
       // 齊聲的每一個人都算一次引用 —— 走正規化，因為 attr 是「單值 ｜ 陣列 ｜ null」。
       for (const speaker of dialogueCharacters(child.attrs.character)) {

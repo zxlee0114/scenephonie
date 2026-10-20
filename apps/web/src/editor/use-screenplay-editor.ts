@@ -21,11 +21,12 @@ import { claimFocus, requestFocus } from "./focus";
 import { StrayHistoryKey } from "./history-keys";
 import { resetSceneBirth } from "./scene-birth";
 import { ActionNode, DialogueNode, InsertShotNode } from "./nodes/blocks";
-import { SceneNode } from "./nodes/scene";
+import { SceneNode, SubsceneNode } from "./nodes/scene";
 import { AppearingPromptPlugin } from "./extensions/appearing-prompt";
 import { BlockCycle } from "./extensions/block-cycle";
 import { ContinueBlock } from "./extensions/continue-block";
 import { NextScene } from "./extensions/next-scene";
+import { ReturnMarkers } from "./extensions/return-markers";
 import { SceneIds } from "./extensions/scene-ids";
 import { SceneNumbers } from "./extensions/scene-numbers";
 import { SelectScope } from "./extensions/select-scope";
@@ -117,11 +118,13 @@ export function useScreenplayEditor(
       baseStarterKit(),
       Doc,
       SceneNode,
+      SubsceneNode,
       ActionNode,
       DialogueNode,
       InsertShotNode,
       SceneIds,
       SceneNumbers,
+      ReturnMarkers,
       BlockCycle,
       ContinueBlock,
       SelectScope,

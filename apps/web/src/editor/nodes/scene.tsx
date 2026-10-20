@@ -20,6 +20,7 @@ import {
 import { TextSelection } from "@tiptap/pm/state";
 import type { Decoration } from "@tiptap/pm/view";
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -30,7 +31,7 @@ import {
 import {
   INT_EXT_VALUES,
   MONTAGE,
-  TIME_VALUES,
+  deleteScene,
   sceneAppearingCharacters,
   sceneExtras,
   sceneLocations,
@@ -38,9 +39,12 @@ import {
   setSceneExtras,
   setSceneIntExt,
   setSceneLocations,
+  subsceneTimeOptions,
   type CommandResult,
   type ExtraRef,
   type SceneIntExt,
+  type SceneTime,
+  type SubsceneKind,
 } from "@scenephonie/schema";
 
 import type { Node as PMNode } from "@tiptap/pm/model";
@@ -61,7 +65,8 @@ import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
 import { scrollToWritingPosition } from "../typewriter-scroll";
 import { requestNextScene } from "../extensions/next-scene";
 import { sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
-import { Scene } from "../schema";
+import { SceneMenu, deleteSceneLabel } from "../scene-menu";
+import { Scene, Subscene } from "../schema";
 
 /**
  * 兩個封閉列舉的**劇本術語** —— 也是速記鍵的來源（使用者回饋 2026-09-10 第四輪）。
@@ -85,6 +90,15 @@ const TIME_TERMS: Readonly<Record<string, string>> = {
   夜: "NIGHT",
   晨: "DAWN",
   昏: "DUSK",
+};
+
+/**
+ * 子場次的種類在 chip row 前面怎麼稱呼 —— 用詞取自 `/` 選單（「插入戲」／「接續到…」，去掉
+ * 那個指向下一步的「到…」；ADR-0006：名字說概念不說結構），編劇在第二個場合重複同一課。
+ */
+const KIND_LABELS: Readonly<Record<SubsceneKind, string>> = {
+  插入: "插入戲",
+  接續: "接續",
 };
 
 /** 欄位裡的 Tab 不能冒泡到 BlockCycle —— 否則會把游標所在區塊轉成別的型別，欄位當場消失。 */
@@ -185,6 +199,12 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   const extrasField = useRef<HTMLInputElement>(null);
   const sceneId = node.attrs.sceneId as string;
   const catalog = useEntityCatalog();
+  // 子場次（票券 11）與主場次共用這一支 node view —— 它有自己完整的 metadata，差別只在
+  // 號碼（5.1）、種類標籤、時間下拉的排法、沒有腳部按鈕、刪除選單的字。
+  const isSubscene = node.type.name === "subscene";
+  const kind = isSubscene ? ((node.attrs.kind as SubsceneKind | null) ?? null) : null;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   // 「新增下一場」的即時回饋：這一場若剛被建立出來，短暫掛上 .scene--just-added（CSS 自己淡出）。
   // 掛載時領一次（append 情境），並訂閱 markSceneBorn（中間插入時 node view 被沿用、不重新掛載，
@@ -276,6 +296,11 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
 
   const intExt = (node.attrs.intExt as string | null) ?? "";
   const time = (node.attrs.time as string | null) ?? "";
+  // 時間下拉依種類排序（§7.4）：接續把主場次的值置頂、插入只標注。**不是預填** —— 欄位照樣空著。
+  const timeChoices = subsceneTimeOptions(
+    kind,
+    isSubscene ? ((spec?.parentTime ?? null) as SceneTime | null) : null,
+  );
 
   const locationRefs = sceneLocations(node.attrs.location).map((r) =>
     toFieldRef(r.locationId, r.displayName),
@@ -291,6 +316,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
     <NodeViewWrapper
       className={[
         "scene",
+        isSubscene && "scene--sub",
         justBorn && "scene--just-added",
         spec?.selected && "is-node-selected",
         // 位置旗標走 decoration，不靠 :first-child／:last-child（見 extensions/scene-numbers）。
@@ -303,10 +329,31 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
       // 但那時本來就沒有動畫可播，class 留著不影響外觀。
       onAnimationEnd={() => setJustBorn(false)}
     >
-      {/* 場次號 decoration：gutter、不可編輯、不可 select、不吃指標事件（CSS 也再擋一層）。 */}
-      <div className="scene__number" contentEditable={false} aria-hidden="true">
+      {/* 場次號 decoration：gutter、不可編輯、不可 select、不進 tab 序。點下去開 SceneMenu（§7.1）。 */}
+      <div
+        className="scene__number"
+        contentEditable={false}
+        aria-hidden="true"
+        onMouseDown={(e) => {
+          e.preventDefault(); // 不把游標從內文拉走
+          setMenuOpen((open) => !open);
+        }}
+      >
         {label}
       </div>
+      {menuOpen && (
+        <SceneMenu
+          onClose={closeMenu}
+          rows={[
+            {
+              key: "delete",
+              label: deleteSceneLabel(isSubscene, spec?.subscenes ?? 0),
+              // 刪主場次一併刪子場次；⌘Z 一步整棵回來（bridge 是一個 transaction）。
+              run: () => runKernelCommand(editor, (doc) => deleteScene(doc, { sceneId })),
+            },
+          ]}
+        />
+      )}
 
       {/* 內嵌簡表 —— 常駐。缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）。
           下拉比照 slash 選單外觀（ChipSelect），不用原生 <select>。 */}
@@ -319,6 +366,11 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           swallowTab(e);
         }}
       >
+        {kind && (
+          <span className={`scene__kind scene__kind--${kind === "插入" ? "insert" : "continue"}`}>
+            {KIND_LABELS[kind]}
+          </span>
+        )}
         <FieldInfo info="intExt" className={`scene__chip${intExt ? "" : " scene__chip--empty"}`}>
           {(describedBy) => (
           <ChipSelect
@@ -385,7 +437,8 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
               placeholder="時間"
               describedBy={describedBy}
               value={time}
-              options={TIME_VALUES}
+              options={timeChoices.options}
+              notes={timeChoices.origin ? { [timeChoices.origin]: "（原場次）" } : undefined}
               terms={TIME_TERMS}
               nav={{
                 ...exits,
@@ -506,50 +559,63 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
 
       <NodeViewContent className="scene__body" />
 
-      {/* 場次之外沒有可點的空間，「新增下一場」按鈕住在腳部。滑鼠點的入口自己傳 sceneId。 */}
-      <div className="scene__foot" contentEditable={false}>
-        <button
-          type="button"
-          tabIndex={-1}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            requestNextScene(editor, sceneId);
-          }}
-        >
-          ＋ 新增下一場
-        </button>
-      </div>
+      {/* 場次之外沒有可點的空間，「新增下一場」按鈕住在腳部。滑鼠點的入口自己傳 sceneId。
+          子場次沒有腳部：場次是序列，子場次不在那條序列上（⌘Enter 照樣接在主場次之後）。 */}
+      {!isSubscene && (
+        <div className="scene__foot" contentEditable={false}>
+          <button
+            type="button"
+            tabIndex={-1}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              requestNextScene(editor, sceneId);
+            }}
+          >
+            ＋ 新增下一場
+          </button>
+        </div>
+      )}
     </NodeViewWrapper>
   );
 }
 
-/** 重繪判斷：號碼、整場選取狀態或首尾位置變了才重繪這一場（不比整個 decoration 陣列）。 */
+/**
+ * 重繪判斷：號碼、整場選取狀態、首尾位置、主場次的時間（子場次）、子場次數（主場次）變了才重繪
+ * 這一場（不比整個 decoration 陣列）。
+ */
 function sigOf(decorations: readonly Decoration[]): string {
   const spec = sceneNumberOf(decorations);
   return `${spec?.sceneNo ?? ""}:${spec?.selected ? 1 : 0}:${spec?.isFirst ? 1 : 0}${
     spec?.isLast ? 1 : 0
-  }`;
+  }:${spec?.parentTime ?? ""}:${spec?.subscenes ?? ""}`;
+}
+
+function sceneNodeView() {
+  return ReactNodeViewRenderer(SceneView, {
+    // SceneView 只畫 metadata（chip row）、場次號與整場選取狀態 —— 內文由 `NodeViewContent`
+    // 交給 ProseMirror 直接維護，React 不必參與。所以「內文改了」（`oldNode !== newNode` 但
+    // markup 相同）**不重繪**：否則場次裡打每一個字都會整棵 SceneView（兩個 select、兩個實體欄、
+    // 腳部按鈕）reconcile 一次，dev 疊上 StrictMode 雙跑會變成每鍵兩次無謂重繪。
+    // 只有 attr（intExt／time／location／sceneId）或號碼／選取簽章變了才 `updateProps()`。§7.7。
+    update: ({ oldNode, newNode, oldDecorations, newDecorations, updateProps }) => {
+      if (oldNode.type !== newNode.type) return false;
+      if (
+        !oldNode.sameMarkup(newNode) ||
+        sigOf(oldDecorations as unknown as readonly Decoration[]) !==
+          sigOf(newDecorations as unknown as readonly Decoration[])
+      ) {
+        updateProps();
+      }
+      return true;
+    },
+  });
 }
 
 export const SceneNode = Scene.extend({
-  addNodeView() {
-    return ReactNodeViewRenderer(SceneView, {
-      // SceneView 只畫 metadata（chip row）、場次號與整場選取狀態 —— 內文由 `NodeViewContent`
-      // 交給 ProseMirror 直接維護，React 不必參與。所以「內文改了」（`oldNode !== newNode` 但
-      // markup 相同）**不重繪**：否則場次裡打每一個字都會整棵 SceneView（兩個 select、兩個實體欄、
-      // 腳部按鈕）reconcile 一次，dev 疊上 StrictMode 雙跑會變成每鍵兩次無謂重繪。
-      // 只有 attr（intExt／time／location／sceneId）或號碼／選取簽章變了才 `updateProps()`。§7.7。
-      update: ({ oldNode, newNode, oldDecorations, newDecorations, updateProps }) => {
-        if (oldNode.type !== newNode.type) return false;
-        if (
-          !oldNode.sameMarkup(newNode) ||
-          sigOf(oldDecorations as unknown as readonly Decoration[]) !==
-            sigOf(newDecorations as unknown as readonly Decoration[])
-        ) {
-          updateProps();
-        }
-        return true;
-      },
-    });
-  },
+  addNodeView: sceneNodeView,
+});
+
+/** 子場次與主場次共用同一支 node view（票券 11）。 */
+export const SubsceneNode = Subscene.extend({
+  addNodeView: sceneNodeView,
 });

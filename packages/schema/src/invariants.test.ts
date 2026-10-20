@@ -13,7 +13,9 @@ import { EditorState } from "prosemirror-state";
 import { describe, expect, it } from "vitest";
 
 import {
+  canCreateSubscene,
   createNextScene,
+  createSubscene,
   dedupeIdsPlugin,
   dedupeSceneIds,
   duplicateSceneIds,
@@ -25,22 +27,49 @@ import {
 } from "./commands";
 import { entityDirectory, mintLocationId, referenceLabel, sceneLocations } from "./entities";
 import { schema } from "./schema";
-import { block, makeDoc, makeScene, sceneWith } from "./testing";
+import { hasEmptySceneMeta } from "./scene-meta";
+import { subsceneEchoesParent } from "./subscenes";
+import { block, makeDoc, makeScene, sceneWith, subsceneWith } from "./testing";
 
 const sceneCopy = (sceneId: string) =>
   schema.node("scene", { sceneId }, schema.node("action", null, [schema.text("副本")]));
 const idsOf = (doc: ReturnType<typeof makeDoc>) =>
   sceneIdNodes(doc).map((e) => e.node.attrs.sceneId as string);
 
-// ── schema 保證的（本票券範圍外，落點在票券 11／12）─────────────────────
+// ── 票券 11（子場次）；深入的行為測試在 commands/subscenes.test.ts 與 subscenes.test.ts ────
 describe("不變式 ①：主場次的內容必須以主場次自己的內容開始（子場次不能是第一個孩子）", () => {
-  it.todo("command：空場次裡 /insert、/continue-to 不可用 —— 票券 11（子場次）");
+  it("command：空場次裡 /insert、/continue-to 不可用", () => {
+    const empty = sceneWith([block.action("")]);
+    const doc = makeDoc(empty);
+    const anchor = { sceneId: empty.attrs.sceneId as string, afterBlockIndex: 0 };
+    expect(canCreateSubscene(doc, anchor)).toBe(false);
+    expect(createSubscene(doc, { ...anchor, kind: "插入" }).ok).toBe(false);
+  });
 });
 
 describe("不變式 ②：子場次的 metadata 不得與主場次完全相同", () => {
-  it.todo("command → 視為不完整 → 自動草稿 → 匯出前被攔 —— 票券 11 + 14");
+  it("判準有人守：完全相同的子場次被認出來（→ 自動草稿，票券 14 接上）", () => {
+    const meta = { time: "夜", intExt: "內景" };
+    const parent = sceneWith([block.action("a")], meta);
+    const echo = subsceneWith([block.action("b")], { kind: "接續", ...meta });
+    expect(subsceneEchoesParent(parent, echo)).toBe(true);
+  });
+
+  it("建立時不預填：新子場次的 metadata 全空，不會安靜地等於主場次", () => {
+    const parent = sceneWith([block.action("a")], { time: "夜", intExt: "內景" });
+    const r = createSubscene(makeDoc(parent), {
+      sceneId: parent.attrs.sceneId as string,
+      afterBlockIndex: 0,
+      kind: "接續",
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const sub = r.value.child(0).child(1);
+    expect(hasEmptySceneMeta(sub)).toBe(true);
+  });
 });
 
+// ── 票券 12（場次群組）────────────────────────────────────────────────────
 describe("不變式 ③：同一群組的成員之間，metadata 不得完全相同", () => {
   it.todo("同 ② 的機制 —— 票券 12（場次群組）");
 });
@@ -50,10 +79,12 @@ describe("不變式 ④：群組不能巢狀，一個場次不能同時屬於兩
 });
 
 describe("不變式 ⑤：深度固定兩層", () => {
-  it.todo("由 schema 保證：subscene 內容規則不含 subscene —— 票券 11");
+  it("由 schema 保證：subscene 內容規則不含 subscene", () => {
+    expect(schema.nodes.subscene.contentMatch.matchType(schema.nodes.subscene)).toBeNull();
+  });
 });
 
-// ── 本票券實作 ────────────────────────────────────────────────────────
+// ── 票券 03 ────────────────────────────────────────────────────────
 describe("不變式 ⑥：同一份 doc 內 id 不得重複（appendTransaction，addToHistory: false）", () => {
   it("純函式 dedupeSceneIds 消掉重複、且不改動輸入 doc", () => {
     const a = makeScene();

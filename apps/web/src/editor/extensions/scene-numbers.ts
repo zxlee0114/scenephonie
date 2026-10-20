@@ -10,13 +10,15 @@
  * 每次重繪會把 ProseMirror 加的 class 洗掉（§7.7）。node view 從 `props.decorations` 讀 spec。
  *
  * decoration 在每次 state 變動都會被呼叫（含只移動游標）——doc 與選取範圍都沒變就回快取。
+ *
+ * 子場次（票券 11）走同一個 decoration，號碼是 `5.1`；兩邊的 node view 是同一支 `SceneView`。
  */
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { projectScenes } from "@scenephonie/schema";
+import { projectScenes, subsceneCount } from "@scenephonie/schema";
 
 export const sceneNumbersKey = new PluginKey("scenephonie/sceneNumbers");
 
@@ -31,6 +33,14 @@ export interface SceneNumberSpec {
    * （腳部按鈕因此永遠不收起、場次間距也套錯）。位置只有文件知道，所以走 decoration。 */
   isFirst: boolean;
   isLast: boolean;
+  /**
+   * 子場次專用：主場次的時間欄（票券 11）。時間下拉依種類排序要用它 —— 走 decoration 而不是
+   * 讓 node view 自己往上讀，是因為主場次改了時間時**子場次的節點沒變**，node view 不會重繪。
+   * 主場次為 `undefined`。
+   */
+  parentTime?: string | null;
+  /** 主場次專用：底下有幾個子場次（刪除選單的標籤）。理由同上 —— 加一個子場次不改主場次的 attr。 */
+  subscenes?: number;
 }
 
 /** 給 node view 用：從它收到的 decorations 取出本場的 spec。 */
@@ -53,30 +63,40 @@ export const SceneNumbers = Extension.create({
               return cache.set;
             }
 
-            const numberBySceneId = new Map(
-              projectScenes(state.doc).map((s) => [s.sceneId, s.number] as const),
+            const labelBySceneId = new Map(
+              projectScenes(state.doc).map((s) => [s.sceneId, s.label] as const),
             );
 
             const decos: Decoration[] = [];
             const last = state.doc.childCount - 1;
-            state.doc.forEach((node, pos, index) => {
-              if (node.type.name !== "scene") return;
-              const n = numberBySceneId.get(node.attrs.sceneId as string);
-              const label = n == null ? "?" : String(n);
+            const push = (node: PMNode, pos: number, spec: Omit<SceneNumberSpec, "sceneNo" | "selected">) => {
+              const label = labelBySceneId.get(node.attrs.sceneId as string) ?? "?";
               const covered = from <= pos && to >= pos + node.nodeSize;
               decos.push(
                 Decoration.node(
                   pos,
                   pos + node.nodeSize,
                   { "data-scene-no": label },
-                  {
-                    sceneNo: label,
-                    selected: covered,
-                    isFirst: index === 0,
-                    isLast: index === last,
-                  } satisfies SceneNumberSpec,
+                  { sceneNo: label, selected: covered, ...spec } satisfies SceneNumberSpec,
                 ),
               );
+            };
+            state.doc.forEach((node, pos, index) => {
+              if (node.type.name !== "scene") return;
+              push(node, pos, {
+                isFirst: index === 0,
+                isLast: index === last,
+                subscenes: subsceneCount(node),
+              });
+              // 子場次也有自己的號碼（5.1）。座標：主場次之前 + 1 進入內容，再加孩子的 offset。
+              node.forEach((child, offset) => {
+                if (child.type.name !== "subscene") return;
+                push(child, pos + 1 + offset, {
+                  isFirst: false,
+                  isLast: false,
+                  parentTime: (node.attrs.time as string | null) ?? null,
+                });
+              });
             });
 
             const set = DecorationSet.create(state.doc, decos);

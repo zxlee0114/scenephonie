@@ -17,6 +17,9 @@
  * **例外**：還什麼都沒寫的對白／插入畫面（`isBlankBlock`）按 `Enter` ＝ 取消型別、退回描述
  * （action）——選錯型別時的退路，不是再生一個同樣空的區塊。
  *
+ * **雙 Enter**：子場次最後一個區塊是空的動作時，`Enter` 把它提升出去、回到主場次（票券 11，
+ * 見 `./subscene-exit`）。
+ *
  * `Shift+Enter` 不歸這裡管 —— 那是 `extensions/soft-break` 的區塊內軟換行。
  */
 import { Extension, type Editor } from "@tiptap/core";
@@ -25,6 +28,7 @@ import { TextSelection } from "@tiptap/pm/state";
 import { sceneContext } from "../address";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { requestFocus } from "../focus";
+import { canLiftEmptyBlock, exitSubscene } from "./subscene-exit";
 
 const SCENE_BLOCKS = new Set(["action", "dialogue", "insertShot"]);
 
@@ -54,6 +58,12 @@ export function continueBlock(editor: Editor): boolean {
       { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex },
       "action",
     );
+  }
+
+  // 雙 Enter：子場次末尾的空動作區塊再按一次 Enter ＝ 走出子場次、回到主場次（§7.1，
+  // `liftEmptyBlock` 語意）。空的對白／插入畫面先走上面那條退回動作，再按一次才出去。
+  if (parent.type.name === "action" && canLiftEmptyBlock($from)) {
+    return exitSubscene(editor);
   }
 
   const split = editor.commands.command(({ tr, dispatch }) => {

@@ -68,6 +68,19 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     rationale: "五個鑄造時刻之一（createScene）；以 afterSceneId 定址，不靠 selection 推算。",
   },
   {
+    name: "createSubscene",
+    enforces: ["①", "⑦"],
+    addressesById: true,
+    rationale:
+      "五個鑄造時刻之一（createSubscene）；空場次裡拒絕建立（不變式 ①）。以游標所在場次的 sceneId 定址，套用來源也以 id 定址。",
+  },
+  {
+    name: "deleteScene",
+    enforces: [],
+    addressesById: true,
+    rationale: "以 sceneId 定址；刪主場次連帶子樹（一個節點），⌘Z 一步整棵回來、sceneId 一起回來。",
+  },
+  {
     name: "setBlockType",
     enforces: [],
     addressesById: true,

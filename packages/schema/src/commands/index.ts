@@ -15,6 +15,9 @@ export type { CreateNextSceneOptions } from "./create-next-scene";
 export { setBlockType, BLOCK_TYPES } from "./set-block-type";
 export type { SetBlockTypeOptions, BlockType } from "./set-block-type";
 
+export { createSubscene, canCreateSubscene, deleteScene, subsceneCount } from "./subscenes";
+export type { CreateSubsceneOptions, DeleteSceneOptions, SubsceneAnchor } from "./subscenes";
+
 export { moveScene } from "./move-scene";
 export type { MoveSceneOptions, MoveTarget } from "./move-scene";
 

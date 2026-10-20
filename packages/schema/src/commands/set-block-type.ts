@@ -16,7 +16,7 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import { schema } from "../schema";
 import { type CommandResult, ok, reject } from "./result";
-import { docFrom, replaceChild, topLevelArray } from "./tree";
+import { findScene, replaceChild, replaceScene } from "./tree";
 
 /** `sceneBlock` group 的三個成員（規格 §4.6）。 */
 export const BLOCK_TYPES = ["action", "dialogue", "insertShot"] as const;
@@ -36,27 +36,28 @@ export function setBlockType(doc: ProseMirrorNode, options: SetBlockTypeOptions)
     return reject(`未知的區塊型別「${type}」，只能是 ${BLOCK_TYPES.join("／")}`);
   }
 
-  const children = topLevelArray(doc);
-  const sceneIdx = children.findIndex((n) => n.attrs.sceneId === sceneId);
-  if (sceneIdx === -1) return reject(`找不到 sceneId「${sceneId}」`);
+  // 主場次與子場次都以自己的 sceneId 定址；區塊序是在**那一場裡**的序（票券 11）。
+  const hit = findScene(doc, sceneId);
+  if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
 
-  const scene = children[sceneIdx]!;
+  const scene = hit.node;
   if (blockIndex < 0 || blockIndex >= scene.childCount) {
     return reject(`場次「${sceneId}」沒有第 ${blockIndex} 個區塊（共 ${scene.childCount} 個）`);
   }
 
   const block = scene.child(blockIndex);
+  // 主場次裡的子場次不是區塊 —— Tab 只改變區塊的型別，永遠不動容器（§7.3）。
+  if (!(BLOCK_TYPES as readonly string[]).includes(block.type.name)) {
+    return reject(`場次「${sceneId}」的第 ${blockIndex} 個孩子不是區塊（是「${block.type.name}」）`);
+  }
   if (block.type.name === type) return ok(doc); // 已經是目標型別 —— no-op
 
   // 保留 inline 內容；不搬 attr（型別換了，`character`／`voiceStyle` 由新節點的 schema 預設補）。
   const nextBlock = schema.node(type, null, block.content);
   const nextScene = replaceChild(scene, blockIndex, nextBlock);
 
-  const nextChildren = [...children];
-  nextChildren[sceneIdx] = nextScene;
-
   try {
-    return ok(docFrom(nextChildren));
+    return ok(replaceScene(doc, hit, nextScene));
   } catch (err) {
     return reject(`換區塊型別後 doc 不符 schema：${(err as Error).message}`);
   }

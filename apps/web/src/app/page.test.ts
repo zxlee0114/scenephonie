@@ -13,6 +13,6 @@ describe("apps/web ↔ @scenephonie/schema 邊界", () => {
       .node("doc", null, [schema.node("scene", { sceneId: id }, schema.node("action"))])
       .toJSON();
 
-    expect(projectScenes(docFromJSON(persisted))).toEqual([{ sceneId: id, number: 1 }]);
+    expect(projectScenes(docFromJSON(persisted))).toEqual([{ sceneId: id, number: 1, label: "1" }]);
   });
 });

@@ -23,7 +23,7 @@ import { SceneIds } from "./extensions/scene-ids";
 import { SceneNumbers } from "./extensions/scene-numbers";
 import { Slash } from "./extensions/slash";
 import { SoftBreak } from "./extensions/soft-break";
-import { Action, Dialogue, Doc, InsertShot, Scene } from "./schema";
+import { Action, Dialogue, Doc, InsertShot, Scene, Subscene } from "./schema";
 import { baseStarterKit } from "./starter-kit";
 
 let editor: Editor;
@@ -35,6 +35,7 @@ function build(...blocks: object[]) {
       baseStarterKit(),
       Doc,
       Scene,
+      Subscene,
       Action,
       Dialogue,
       InsertShot,
@@ -141,6 +142,19 @@ describe("`/next` 不留下承載指令的空區塊（票券 30）", () => {
     expect(editor.state.doc.childCount).toBe(2);
     expect(blockTypes()).toEqual(["action"]);
     expect(editor.state.doc.child(0).child(0).textContent).toBe("內文 ");
+  });
+
+  it("打完整個 `/next` 再按 Enter：整串指令字都刪掉，不只第一個 `/`（票券 11 撈到）", async () => {
+    // 選單在 `/` 那一刻開（onStart），之後每打一個字是 onUpdate。只在 onStart 綁定選取動作的話，
+    // Suggestion 帶過來的 range 停在 `/` 那一格 —— 按下去只刪 `/`，`next` 留在內文裡。
+    await build(withText("內文"), { type: "action" });
+    editor.commands.insertContent("next");
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    pressEnter();
+
+    expect(editor.state.doc.childCount).toBe(2);
+    expect(editor.state.doc.child(0).textContent).toBe("內文");
   });
 
   it("新的一場接在原場次之後，不是接在全劇最後", async () => {

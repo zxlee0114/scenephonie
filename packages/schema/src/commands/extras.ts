@@ -15,7 +15,7 @@ import { countAfterTakingOne, countValueOf } from "../count";
 import { isExtraId, sceneExtras } from "../extras";
 import type { ExtraRef } from "../schema";
 import { type CommandResult, ok, reject } from "./result";
-import { docFrom, topLevelArray } from "./tree";
+import { findScene, replaceScene, withSceneAttrs } from "./tree";
 
 export interface SetSceneExtrasOptions {
   readonly sceneId: string;
@@ -40,9 +40,8 @@ export function setSceneExtras(
 ): CommandResult {
   const { sceneId, extras } = options;
 
-  const children = topLevelArray(doc);
-  const index = children.findIndex((n) => n.attrs.sceneId === sceneId);
-  if (index === -1) return reject(`找不到 sceneId「${sceneId}」`);
+  const hit = findScene(doc, sceneId);
+  if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
 
   const seen = new Set<string>();
   const normalized: ExtraRef[] = [];
@@ -67,15 +66,8 @@ export function setSceneExtras(
     });
   }
 
-  const scene = children[index]!;
-  const next = [...children];
-  next[index] = scene.type.create(
-    { ...scene.attrs, extras: normalized },
-    scene.content,
-    scene.marks,
-  );
   try {
-    return ok(docFrom(next));
+    return ok(replaceScene(doc, hit, withSceneAttrs(hit.node, { extras: normalized })));
   } catch (err) {
     return reject(`寫入群演後 doc 不符 schema：${(err as Error).message}`);
   }
@@ -100,22 +92,18 @@ export function addSceneExtras(
   options: AddSceneExtrasOptions,
 ): CommandResult {
   const { sceneId, extras } = options;
-  const scene = findScene(doc, sceneId);
+  const scene = sceneNode(doc, sceneId);
   if (!scene) return reject(`找不到 sceneId「${sceneId}」`);
   const current = sceneExtras(scene.attrs.extras);
   return setSceneExtras(doc, { sceneId, extras: [...current, ...extras] });
 }
 
 /**
- * 頂層那一場。**不用 `topLevelArray`**：要讀的只是一個 attr，把整份 doc 攤成陣列是多的。
- * 「讀現況再改」的那幾支 command 共用它（見 `addSceneExtras` 檔頭那條理由）。
+ * 那一場（主場次或子場次）的節點。「讀現況再改」的那幾支 command 共用它（見 `addSceneExtras`
+ * 檔頭那條理由）。
  */
-function findScene(doc: ProseMirrorNode, sceneId: string): ProseMirrorNode | null {
-  let found: ProseMirrorNode | null = null;
-  doc.forEach((node) => {
-    if (!found && node.type.name === "scene" && node.attrs.sceneId === sceneId) found = node;
-  });
-  return found;
+function sceneNode(doc: ProseMirrorNode, sceneId: string): ProseMirrorNode | null {
+  return findScene(doc, sceneId)?.node ?? null;
 }
 
 export interface TakeOneFromExtraOptions {
@@ -147,7 +135,7 @@ export function takeOneFromExtra(
   options: TakeOneFromExtraOptions,
 ): CommandResult {
   const { sceneId, extraId } = options;
-  const scene = findScene(doc, sceneId);
+  const scene = sceneNode(doc, sceneId);
   if (!scene) return reject(`找不到 sceneId「${sceneId}」`);
 
   const current = sceneExtras(scene.attrs.extras);

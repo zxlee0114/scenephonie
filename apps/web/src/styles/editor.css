@@ -196,11 +196,105 @@
   font-size: 1rem;
   line-height: var(--leading-sm);
   color: var(--text-faint);
-  /* interaction boundary：不可選、不吃指標事件、不進 tab 序。 */
+  /* interaction boundary：不可選、不進 tab 序。唯一吃得到的指標事件是「點下去開 SceneMenu」
+   * （§7.1、票券 11）—— 它仍然不是 canonical text insertion point。 */
   user-select: none;
   -webkit-user-select: none;
-  pointer-events: none;
+  cursor: pointer;
   font-variant-numeric: tabular-nums;
+}
+
+.scene__number:hover {
+  color: var(--text-secondary);
+}
+
+/* ── 子場次（票券 11）——住在主場次的內文裡，號碼（5.1）回到同一條 gutter 對齊主場次號。
+ * 層級由一條細直線表達，**線對齊主場次的內容邊**，子場次內容在線的右側略縮一階 —— 線的起訖
+ * 就是子場次的範圍，線斷了就是回到主場次，與折返標記互相呼應（ADR-0006）。
+ * 使用者回饋 2026-10-20：縮一大階讓號碼與內容脫節；完全不縮、線放在 gutter 裡又讓子場次比
+ * 主場次更顯眼。結構提示、不是框，不變式 G 不受影響。 */
+.scene--sub {
+  --scene-pad-block: var(--space-1);
+  --subscene-rule: 3px;
+  margin-inline-start: calc(-1 * var(--space-gutter));
+  padding-inline-start: calc(var(--space-gutter) + var(--subscene-rule) + var(--space-3));
+  margin-block: var(--space-3);
+}
+
+.scene--sub::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: var(--space-gutter);
+  inset-block: var(--scene-pad-block);
+  inline-size: var(--subscene-rule);
+  border-radius: var(--subscene-rule);
+  background: var(--rule-strong);
+  pointer-events: none;
+}
+
+/* 子場次的種類 —— 用詞與 `/` 選單相同（插入戲／接續），住在 chip row 最前面。
+ * 是標籤不是欄位：不給底色與框，免得讀成又一個可填的控制項。 */
+.scene__kind {
+  display: inline-flex;
+  align-items: center;
+  block-size: var(--field-block-size);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.scene__kind::after {
+  content: "·";
+  margin-inline-start: var(--space-2);
+  color: var(--text-faint);
+}
+
+/* ── 折返標記 `回到　公寓客廳`（票券 11、§9.4）——decoration，不進資料模型、不可選、不可編輯。 */
+.return-marker {
+  margin-block: var(--space-2);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── SceneMenu（點場次號開）── */
+.scene-menu {
+  position: absolute;
+  z-index: 20;
+  inset-inline-start: var(--space-2);
+  inset-block-start: calc(var(--scene-pad-block, 0px) + var(--space-6));
+  min-inline-size: 12rem;
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-2);
+  box-shadow: var(--shadow-popover);
+  padding: var(--space-1);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  outline: none;
+}
+
+.scene-menu button {
+  display: block;
+  inline-size: 100%;
+  text-align: start;
+  background: transparent;
+  border: 0;
+  border-radius: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.scene-menu button.is-active {
+  background: var(--selection-bg);
 }
 
 /* ── 內嵌簡表（chip row）——常駐，不可被預設 UI 收合（§7.11）── */
@@ -485,6 +579,13 @@
 
 .chip-select__rows li {
   white-space: normal;
+}
+
+/* 子場次時間欄的「（原場次）」註記（票券 11）—— 只是字，不是預選。 */
+.chip-select__note-tag {
+  margin-inline-start: 2px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
 }
 
 .chip-select__rows li.is-active,
