@@ -25,10 +25,12 @@
 - 不可用 Cloudflare Workers 純執行模式（票券 05，PDF 相關）。
 - Supabase Auth／RLS／Storage／Realtime **不作為 domain/application 授權權威**（不變式 I、
   [ADR-0012](./adr/0012-infrastructure-provides-mechanism-not-authority.md)）。Supabase 在 v1 僅是 Postgres 託管。
+  唯一的例外是**關門**：Data API 在 dashboard 關閉，且每張表都 `.enableRLS()`、**不寫任何 policy** ——
+  `anon`／`authenticated` 經 PostgREST 一列都碰不到，app 以 owner 連線不受影響。守衛擋的是 policy，不是 RLS 本身。
 - **auth library 不得成為授權真理來源**（不變式 H、[ADR-0011](./adr/0011-authentication-identity-is-not-domain-authority.md)）。
   可 grep 的守衛在 `apps/web/src/authorization/authority-boundary.test.ts`：domain 永不讀 `accounts`、
   不得出現 `createAccessControl`／`hasPermission`／`organizationRole`／`activeOrganizationId`、
-  不得有影子表、repo 內不得有 `invitations` 表。
+  不得有影子表、repo 內不得有 `invitations` 表、不得有 RLS policy、每張表都要開 RLS。
 
 ## 認證與授權（票券 06）
 

@@ -15,6 +15,12 @@ import {
  * doc（ProseMirror JSON）是唯一權威，這些欄位永遠不是它的第二份副本。
  *
  * ⚠️ 這裡沒有 `scenes` 表，而且日後也不會有：場次「存在」就是它在那棵樹上。
+ *
+ * **每張表都 `.enableRLS()`、而且一條 policy 都不寫** —— 這是關門，不是授權。Supabase 會把
+ * `public` 的表經 PostgREST（Data API）開給 `anon`／`authenticated`；沒有 policy ＝ 那兩個角色
+ * 一列都碰不到。app 以表的 owner（`postgres`）連線，owner 不受 RLS 約束（我們不 `FORCE`），
+ * 所以執行期行為不變。授權仍然只在 gate（ADR-0012 §②：RLS 只能是 defense-in-depth）；
+ * `src/authorization/authority-boundary.test.ts` 守著「每張表都有開」與「沒有任何 policy」。
  */
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -68,7 +74,7 @@ export const users = pgTable("users", {
     .defaultNow()
     .$onUpdate(() => new Date())
     .notNull(),
-});
+}).enableRLS();
 
 export const sessions = pgTable(
   "sessions",
@@ -87,7 +93,7 @@ export const sessions = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
   },
   (table) => [index("sessions_userId_idx").on(table.userId)],
-);
+).enableRLS();
 
 /**
  * provider identity 的隔離位置（Google `sub` 落在 `account_id`，1.7.0 起唯一鍵是
@@ -119,7 +125,7 @@ export const accounts = pgTable(
     uniqueIndex("accounts_issuer_accountId_uidx").on(table.issuer, table.accountId),
     index("accounts_userId_idx").on(table.userId),
   ],
-);
+).enableRLS();
 
 export const verifications = pgTable(
   "verifications",
@@ -135,7 +141,7 @@ export const verifications = pgTable(
       .notNull(),
   },
   (table) => [index("verifications_identifier_idx").on(table.identifier)],
-);
+).enableRLS();
 
 /**
  * 一個專案一列（§4.2）。
@@ -166,7 +172,7 @@ export const projects = pgTable(
   },
   // gate 與專案 hub 問的都是同一件事：這個人有哪些專案。
   (table) => [index("projects_owner_id_idx").on(table.ownerId)],
-);
+).enableRLS();
 
 /**
  * 人物與地點 —— **append-only 的名字目錄**（票券 08、[ADR-0005](../../../../docs/adr/0005-entities-exist-by-reference.md)）。
@@ -213,7 +219,7 @@ export const characters = pgTable(
   // 同名不同實體是合法的（同一個房間的「二十年前」與「現在」是兩筆；人物同理），
   // 身分判準不是名字。
   (table) => [index("characters_project_id_idx").on(table.projectId)],
-);
+).enableRLS();
 
 /**
  * 地點。欄位比人物少一個：**沒有描述欄**。
@@ -238,7 +244,7 @@ export const locations = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("locations_project_id_idx").on(table.projectId)],
-);
+).enableRLS();
 
 /**
  * 一個劇本一列。
@@ -279,7 +285,7 @@ export const screenplays = pgTable(
   // 這個 type 的定義（§4.2），不是全表的永久事實；系列劇本專案那天是新增一種 type，
   // 而不是回頭拆掉一條資料庫約束。1:1 由建立劇本的那條路（application layer）保證。
   (table) => [index("screenplays_project_id_idx").on(table.projectId)],
-);
+).enableRLS();
 
 /**
  * append-only before-image —— 被某次存檔覆蓋掉的那一份 doc（§6.7 自動備份）。
@@ -315,5 +321,5 @@ export const screenplayBackups = pgTable(
       table.createdAt.desc(),
     ),
   ],
-);
+).enableRLS();
 

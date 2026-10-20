@@ -2,7 +2,11 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { is } from "drizzle-orm";
+import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
+
+import * as schema from "@/db/schema";
 
 /**
  * 不變式 H／I 的可 grep 邊界（[ADR-0011](../../../../docs/adr/0011-authentication-identity-is-not-domain-authority.md)、
@@ -80,8 +84,23 @@ describe("不變式 I —— infrastructure 提供機制，不提供授權真理
   it("Supabase 只是 PostgreSQL 託管 —— 它的 Auth／RLS 不參與授權", () => {
     // ADR-0012 §③。連線字串指向 Supabase 是正常的（那是託管），但 `@supabase/*` client、
     // RLS policy 或 `auth.uid()` 一出現，就代表授權判斷開始有第二個家。
-    const banned = /@supabase\/|createRLSPolicy|ENABLE ROW LEVEL SECURITY|auth\.uid\(\)/;
-    expect(offencesIn(sourceFiles(), banned, [])).toEqual([]);
+    //
+    // 擋的是 **policy**，不是 `ENABLE ROW LEVEL SECURITY`：開了 RLS 卻不寫 policy ＝ 對
+    // PostgREST 全拒、對 owner 連線透明，它不回答「誰能做什麼」，只是把一扇我們不用的門關上
+    // （ADR-0012 §② 的 defense-in-depth）。policy 才是會長出判斷的地方。
+    const banned = /@supabase\/|createRLSPolicy|pgPolicy|CREATE POLICY|auth\.uid\(\)/i;
+    const files = [...sourceFiles(), ...filesUnder(MIGRATIONS, /\.sql$/)];
+    expect(offencesIn(files, banned, [])).toEqual([]);
+  });
+
+  it("每張表都開 RLS —— PostgREST 那扇門對 `anon`／`authenticated` 是關的", () => {
+    // Supabase 預設經 Data API 曝露 `public` 的每張表；漏開一張，那張就能被 anon key 讀寫。
+    // 新表忘了 `.enableRLS()` 會在這裡紅，而不是等 Supabase Advisor 來講。
+    const unprotected = Object.entries(schema)
+      .filter(([, value]) => is(value, PgTable))
+      .filter(([, table]) => !getTableConfig(table as PgTable).enableRLS)
+      .map(([name]) => name);
+    expect(unprotected).toEqual([]);
   });
 
   it("沒有影子表 —— `users.id` 就是 domain 的 UserId", () => {

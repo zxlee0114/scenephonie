@@ -43,6 +43,13 @@
       "when": 1788659885939,
       "tag": "0005_character_and_location_entities",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791326520512,
+      "tag": "0006_enable_rls",
+      "breakpoints": true
     }
   ]
 }
