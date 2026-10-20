@@ -12,17 +12,15 @@ import type { Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { Decoration, NodeView } from "@tiptap/pm/view";
 
+import { groupMembersOf } from "../address";
 import { requestNextScene } from "../extensions/next-scene";
 import { fragmentLabelOf, type FragmentLabelSpec } from "../extensions/scene-numbers";
 import { GroupFragment, SceneGroup } from "../schema";
 
 /** 群組最後一個成員的 `sceneId` —— 「＋ 新增下一場」用它定址（滑鼠點的入口自己傳位置，§7.1）。 */
 function lastMemberId(group: PMNode): string | null {
-  let id: string | null = null;
-  group.forEach((child) => {
-    if (child.type.name === "groupMember") id = child.attrs.sceneId as string;
-  });
-  return id;
+  const members = groupMembersOf(group);
+  return (members[members.length - 1]?.attrs.sceneId as string | undefined) ?? null;
 }
 
 function groupView(editor: Editor, node: PMNode): NodeView {

@@ -20,8 +20,9 @@
  * 與 projection（讀）。**
  *
  * ⚠️ 這條**不是**「不准用 ProseMirror」—— 編輯器套件**內部**照常直接用 PM API。
- * 規則管的是**跨出編輯器邊界**的線。`dedupeIdsPlugin()` 是唯一跨在邊界上的東西，
- * 它回傳一個 `Plugin` 給編輯器掛載，本身不把 `EditorState`／`Transaction` 這些
+ * 規則管的是**跨出編輯器邊界**的線。跨在邊界上的只有兩個 `appendTransaction` 修復：
+ * `dedupeIdsPlugin()`（id 去重）與 `normalizeFragmentsPlugin()`（片段正規化，票券 12）——
+ * 它們回傳一個 `Plugin` 給編輯器掛載，本身不把 `EditorState`／`Transaction` 這些
  * PM-state 內部型別再匯出去。`edge-boundary.test.ts` 檢查套件 barrel 沒有漏。
  */
 

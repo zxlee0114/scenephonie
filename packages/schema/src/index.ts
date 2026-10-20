@@ -111,7 +111,6 @@ export {
   isSceneId,
   SCENE_ID_PREFIX,
   mintGroupId,
-  GROUP_ID_PREFIX,
 } from "./ids";
 
 // 寫入邊界：domain command 層（票券 03）。§6.3 —— 編輯器對外只曝露 command 與 projection。

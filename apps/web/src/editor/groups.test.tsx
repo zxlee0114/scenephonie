@@ -242,6 +242,17 @@ describe("⌘+1／⌘+2／⌘+3：直接定址切換片段歸屬", () => {
     expect(allSceneIds(editor.state.doc)).toEqual(ids);
   });
 
+  it("游標在成員的子場次裡：⌘+N 是無效鍵（片段不能從子場次切開）", async () => {
+    const a = member({ location: room });
+    const b = member({ location: dock });
+    const sub = k.node("subscene", { sceneId: mintSceneId(), kind: "插入" }, [action("閃回")]);
+    const { editor } = await mount(docOf(group([a, b], [fragment(a, [action("偵訊室。"), sub])])));
+    caretAtEndOfBlock(editor, 1);
+    const before = editor.state.doc.toJSON();
+    await press(editor, "2", mod);
+    expect(editor.state.doc.toJSON()).toEqual(before);
+  });
+
   it("切回來再切走：相鄰同成員的片段自動合併，⌘Z 也不會退回到相鄰同成員的狀態", async () => {
     const { a, content } = threeWay();
     const { editor } = await mount(content);

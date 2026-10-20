@@ -61,24 +61,9 @@ function inAnyRange(pos: number, ranges: readonly Range[]): boolean {
   return ranges.some((r) => pos >= r.from && pos < r.to);
 }
 
-/**
- * 去重適用的兩種 id（§6.5：`scene`、`subscene`、`groupMember`、`sceneGroup` 完全相同處理）。
- * 規則一套，只差 attr 名與鑄造函式。
- */
-const ID_ATTRS = [
-  { attr: "sceneId", mint: mintSceneId },
-  { attr: "groupId", mint: mintGroupId },
-] as const;
-type IdAttr = (typeof ID_ATTRS)[number]["attr"];
-
 interface Entry {
   readonly node: ProseMirrorNode;
   readonly pos: number;
-}
-
-interface Planned extends Entry {
-  readonly attr: IdAttr;
-  readonly from: string;
 }
 
 /** doc 裡帶 `groupId` attr 的每個節點（頂層 `sceneGroup`）。 */
@@ -91,6 +76,21 @@ function groupIdNodes(doc: ProseMirrorNode): Entry[] {
 }
 
 /**
+ * 去重適用的兩種 id（§6.5：`scene`、`subscene`、`groupMember`、`sceneGroup` 完全相同處理）。
+ * 規則一套，只差 attr 名、怎麼找到帶它的節點、怎麼鑄造。
+ */
+const ID_ATTRS = [
+  { attr: "sceneId", mint: mintSceneId, nodes: sceneIdNodes },
+  { attr: "groupId", mint: mintGroupId, nodes: groupIdNodes },
+] as const;
+type IdAttr = (typeof ID_ATTRS)[number]["attr"];
+
+interface Planned extends Entry {
+  readonly attr: IdAttr;
+  readonly from: string;
+}
+
+/**
  * 走訪的結果 → 「哪些節點該被改」的清單（依位置排序）。
  *
  * 純判斷、不鑄造、不重建 —— `dedupeSceneIds`（純函式路徑）與 `dedupeIdsPlugin`
@@ -98,8 +98,8 @@ function groupIdNodes(doc: ProseMirrorNode): Entry[] {
  */
 function planRemints(doc: ProseMirrorNode, ranges: readonly Range[]): Planned[] {
   const plan: Planned[] = [];
-  for (const { attr } of ID_ATTRS) {
-    const entries = attr === "sceneId" ? sceneIdNodes(doc) : groupIdNodes(doc);
+  for (const { attr, nodes } of ID_ATTRS) {
+    const entries = nodes(doc);
     const groups = new Map<string, Entry[]>();
     for (const entry of entries) {
       const id = entry.node.attrs[attr] as string;

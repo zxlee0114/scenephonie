@@ -5,6 +5,7 @@
  */
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
+import { groupMembers } from "./commands/tree";
 import { sameSceneMeta } from "./subscenes";
 
 /**
@@ -15,10 +16,7 @@ import { sameSceneMeta } from "./subscenes";
  * 保證 —— 顯示名相同時補印區別欄位，前提是一定有欄位不同（ADR-0004）。
  */
 export function echoingMembers(group: ProseMirrorNode): string[] {
-  const members: ProseMirrorNode[] = [];
-  group.forEach((child) => {
-    if (child.type.name === "groupMember") members.push(child);
-  });
+  const members = groupMembers(group);
   return members
     .filter((m) => members.some((other) => other !== m && sameSceneMeta(m, other)))
     .map((m) => m.attrs.sceneId as string);

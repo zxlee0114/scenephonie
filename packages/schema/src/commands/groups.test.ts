@@ -19,7 +19,6 @@ import {
   assignFragmentToMember,
   canIntercut,
   intercutTo,
-  mergeAdjacentFragments,
   normalizeFragmentsPlugin,
 } from "./groups";
 import { deleteScene } from "./subscenes";
@@ -123,6 +122,13 @@ describe("intercutTo（/ →「對剪到…」）", () => {
     expect(intercutTo(makeDoc(here), { sceneId: id(here), withSceneId: pick(id(here)) }).ok).toBe(false);
   });
 
+  it("在群組裡按：fragmentIndex 指的片段必須屬於 sceneId 那個成員", () => {
+    const a = memberWith();
+    const b = memberWith();
+    const group = groupWith([a, b], [fragmentOf(a, [block.action("A1")]), fragmentOf(b, [block.action("B1")])]);
+    expect(intercutTo(makeDoc(group), { sceneId: id(a), fragmentIndex: 1, withSceneId: null }).ok).toBe(false);
+  });
+
   it("拒絕收編子場次與別的群組的成員 —— 一個場次不能同時屬於兩個群組（不變式 ④）", () => {
     const sub = subsceneWith([block.action("x")], { kind: "插入" });
     const withSub = sceneWith([block.action("a"), sub]);
@@ -224,19 +230,6 @@ describe("assignFragmentToMember（⌘+1／⌘+2／⌘+3）", () => {
 });
 
 describe("片段正規化：相鄰同成員的片段合併", () => {
-  it("純函式：把相鄰同成員的片段併成一段", () => {
-    const a = memberWith();
-    const b = memberWith();
-    const group = groupWith(
-      [a, b],
-      [fragmentOf(a, [block.action("1")]), fragmentOf(a, [block.action("2")]), fragmentOf(b, [block.action("3")])],
-    );
-    expect(shape(mergeAdjacentFragments(makeDoc(group)).child(0)).fragments).toEqual([
-      [id(a), "12"],
-      [id(b), "3"],
-    ]);
-  });
-
   it("appendTransaction：刪掉夾在中間的那一段之後自動合併，標 addToHistory: false", () => {
     const a = memberWith();
     const b = memberWith();
@@ -257,6 +250,23 @@ describe("片段正規化：相鄰同成員的片段合併", () => {
     const { state: next, transactions } = state.applyTransaction(state.tr.delete(from, to));
     expect(shape(next.doc.child(0)).fragments).toEqual([[id(a), "13"]]);
     expect(transactions).toHaveLength(2);
+    expect(transactions[1]!.getMeta("addToHistory")).toBe(false);
+  });
+});
+
+describe("孤兒片段：memberId 不是本群組成員（例如單一片段被貼進別的群組）", () => {
+  it("appendTransaction 把它歸給前一段的成員（第一段就歸給第一個成員），再照常合併", () => {
+    const a = memberWith();
+    const b = memberWith();
+    const group = groupWith([a, b], [fragmentOf(a, [block.action("A")]), fragmentOf(b, [block.action("B")])]);
+    const stray = schema.node("groupFragment", { memberId: "sc_elsewhere" }, [block.action("貼上")]);
+    const state = EditorState.create({ schema, doc: makeDoc(group), plugins: [normalizeFragmentsPlugin()] });
+    const end = state.doc.child(0).nodeSize - 1; // 群組內容的末端
+    const { state: next, transactions } = state.applyTransaction(state.tr.insert(end, stray));
+    expect(shape(next.doc.child(0)).fragments).toEqual([
+      [id(a), "A"],
+      [id(b), "B貼上"],
+    ]);
     expect(transactions[1]!.getMeta("addToHistory")).toBe(false);
   });
 });

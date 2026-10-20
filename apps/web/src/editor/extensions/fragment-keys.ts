@@ -29,7 +29,7 @@ import { assignFragmentToMember } from "@scenephonie/schema";
 import { fragmentIndexOf, groupMembersOf } from "../address";
 import { runKernelCommand } from "../command-bridge";
 
-/** 游標所在片段（depth）；不在片段裡回 `null`。在片段裡的子場次裡也算 —— 那時切點是子場次。 */
+/** 游標所在片段（depth）；不在片段裡回 `null`。在片段裡的子場次裡也算「在片段裡」。 */
 function fragmentDepth($pos: ResolvedPos): number | null {
   for (let d = $pos.depth; d > 0; d--) {
     if ($pos.node(d).type.name === "groupFragment") return d;
@@ -39,22 +39,22 @@ function fragmentDepth($pos: ResolvedPos): number | null {
 
 /**
  * 游標所在 textblock 是群組裡第幾個 textblock、在它裡面的偏移。切開與合併只增減片段的邊界，
- * 不動任何一個 textblock —— 所以「群組裡第 k 個 textblock」在 command 前後指的是同一行。
+ * 不動任何一個 textblock —— 所以「群組裡第幾個 textblock」在 command 前後指的是同一行。
  */
 function caretInGroup(group: PMNode, groupStart: number, $from: ResolvedPos) {
-  let k = 0;
-  let found = -1;
+  let seen = 0;
+  let textblockIndex = -1;
   group.descendants((node, pos) => {
-    if (found >= 0) return false;
+    if (textblockIndex >= 0) return false;
     if (!node.isTextblock) return true;
-    if (groupStart + pos === $from.before()) found = k;
-    k++;
+    if (groupStart + pos === $from.before()) textblockIndex = seen;
+    seen++;
     return false;
   });
-  return { k: found, offset: $from.parentOffset };
+  return { textblockIndex, offset: $from.parentOffset };
 }
 
-function restoreCaret(editor: Editor, groupId: string, k: number, offset: number) {
+function restoreCaret(editor: Editor, groupId: string, textblockIndex: number, offset: number) {
   const { doc } = editor.state;
   let target: number | null = null;
   doc.forEach((top, topPos) => {
@@ -63,7 +63,7 @@ function restoreCaret(editor: Editor, groupId: string, k: number, offset: number
     top.descendants((node, pos) => {
       if (target != null) return false;
       if (!node.isTextblock) return true;
-      if (i++ === k) target = topPos + 1 + pos + 1 + Math.min(offset, node.content.size);
+      if (i++ === textblockIndex) target = topPos + 1 + pos + 1 + Math.min(offset, node.content.size);
       return false;
     });
   });
@@ -83,6 +83,9 @@ export function assignFragmentAtCaret(editor: Editor, ordinal: number): boolean 
   const member = groupMembersOf(group)[ordinal - 1];
   // 無效鍵：吞掉，什麼都不做。
   if (!member) return true;
+  // 片段裡的子場次：它是成員自己的子場次，不是片段的一行 —— 片段不能從子場次切開（同不變式 ①），
+  // 所以這裡同樣是無效鍵。要改歸屬，先回到片段的一般區塊（`/back-to` 或雙 Enter）。
+  if ($from.depth - 1 > depth) return true;
 
   const groupId = group.attrs.groupId as string;
   const caret = caretInGroup(group, $from.start(depth - 1), $from);
@@ -98,7 +101,9 @@ export function assignFragmentAtCaret(editor: Editor, ordinal: number): boolean 
     { keepFocus: true },
   );
   // 整份 replace 把游標沖到 doc 的一端 —— 放回同一行的同一個位置。
-  if (ran && caret.k >= 0) restoreCaret(editor, groupId, caret.k, caret.offset);
+  if (ran && caret.textblockIndex >= 0) {
+    restoreCaret(editor, groupId, caret.textblockIndex, caret.offset);
+  }
   return true;
 }
 

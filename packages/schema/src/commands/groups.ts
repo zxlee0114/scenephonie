@@ -56,7 +56,7 @@ interface IntercutPlan {
   readonly adoptIndex: number | null;
 }
 
-function plan(doc: ProseMirrorNode, options: IntercutOptions): IntercutPlan | string {
+function planIntercut(doc: ProseMirrorNode, options: IntercutOptions): IntercutPlan | string {
   const hit = findScene(doc, options.sceneId);
   if (!hit) return `找不到 sceneId「${options.sceneId}」`;
 
@@ -70,6 +70,11 @@ function plan(doc: ProseMirrorNode, options: IntercutOptions): IntercutPlan | st
     afterFragment = fromPath ?? options.fragmentIndex ?? fragments - 1;
     if (afterFragment < 0 || afterFragment >= fragments) {
       return `群組沒有第 ${afterFragment} 個片段（共 ${fragments} 個）`;
+    }
+    // 同 `ContainerAddress` 的契約：呼叫端給的那一段必須屬於 `sceneId` 那個成員。
+    if (fromPath == null && options.fragmentIndex != null) {
+      const owner = groupFragments(top)[afterFragment]!.attrs.memberId;
+      if (owner !== options.sceneId) return `第 ${afterFragment} 個片段不屬於成員「${options.sceneId}」`;
     }
   }
 
@@ -88,7 +93,7 @@ function plan(doc: ProseMirrorNode, options: IntercutOptions): IntercutPlan | st
 
 /** 「對剪到…」在這個位置、對這個選擇可不可用（選單據此決定列不列出來）。 */
 export function canIntercut(doc: ProseMirrorNode, options: IntercutOptions): boolean {
-  return typeof plan(doc, options) !== "string";
+  return typeof planIntercut(doc, options) !== "string";
 }
 
 /**
@@ -99,7 +104,7 @@ export function canIntercut(doc: ProseMirrorNode, options: IntercutOptions): boo
  * 離開頂層序列（它的頂層號跟著群組走）。
  */
 export function intercutTo(doc: ProseMirrorNode, options: IntercutOptions): CommandResult {
-  const where = plan(doc, options);
+  const where = planIntercut(doc, options);
   if (typeof where === "string") return reject(where);
 
   const tops = topLevelArray(doc);
@@ -128,7 +133,7 @@ export function intercutTo(doc: ProseMirrorNode, options: IntercutOptions): Comm
     const members = [...groupMembers(current), member];
     const fragments = groupFragments(current);
     fragments.splice(where.afterFragment! + 1, 0, fragment);
-    group = current.type.create(current.attrs, [...members, ...fragments], current.marks);
+    group = rebuildGroup(current, members, fragments);
   }
 
   tops[where.topIndex] = group;
@@ -161,6 +166,18 @@ function findGroup(doc: ProseMirrorNode, groupId: string): number {
   return at;
 }
 
+/** 同一個群組（attrs 不變）換一組成員與片段 —— 成員在前、片段在後（內容規則 `groupMember* groupFragment*`）。 */
+function rebuildGroup(
+  group: ProseMirrorNode,
+  members: readonly ProseMirrorNode[],
+  fragments: readonly ProseMirrorNode[],
+): ProseMirrorNode {
+  return group.type.create(group.attrs, [...members, ...fragments], group.marks);
+}
+
+/** 相鄰兩段片段該不該併成一段 —— 純函式路徑與 plugin 共用同一個判準。 */
+const sameOwner = (a: ProseMirrorNode, b: ProseMirrorNode) => a.attrs.memberId === b.attrs.memberId;
+
 /** 把一個群組裡相鄰、同成員的片段併起來（其餘原封不動；沒有可併的就回原節點）。 */
 function mergeGroup(group: ProseMirrorNode): ProseMirrorNode {
   const members = groupMembers(group);
@@ -168,14 +185,14 @@ function mergeGroup(group: ProseMirrorNode): ProseMirrorNode {
   let changed = false;
   for (const fragment of groupFragments(group)) {
     const prev = merged[merged.length - 1];
-    if (prev && prev.attrs.memberId === fragment.attrs.memberId) {
+    if (prev && sameOwner(prev, fragment)) {
       merged[merged.length - 1] = prev.copy(prev.content.append(fragment.content));
       changed = true;
     } else {
       merged.push(fragment);
     }
   }
-  return changed ? group.type.create(group.attrs, [...members, ...merged], group.marks) : group;
+  return changed ? rebuildGroup(group, members, merged) : group;
 }
 
 /**
@@ -217,58 +234,63 @@ export function assignFragmentToMember(
   fragments.splice(fragmentIndex, 1, ...pieces);
 
   try {
-    const next = mergeGroup(group.type.create(group.attrs, [...members, ...fragments], group.marks));
+    const next = mergeGroup(rebuildGroup(group, members, fragments));
     return ok(replaceAt(doc, [topIndex], next));
   } catch (err) {
     return reject(`切換片段歸屬後 doc 不符 schema：${(err as Error).message}`);
   }
 }
 
-/**
- * 片段的正規化（§5.2）：相鄰兩個片段若歸屬同一個成員，合併成一個。那個區別在模型裡沒有意義，
- * 而 ADR-0006 寫下的重疊群組遷移路徑假設片段是**極大的**。純函式版本。
- */
-export function mergeAdjacentFragments(doc: ProseMirrorNode): ProseMirrorNode {
-  let changed = false;
-  const tops = topLevelArray(doc).map((node) => {
-    if (node.type.name !== "sceneGroup") return node;
-    const next = mergeGroup(node);
-    if (next !== node) changed = true;
-    return next;
-  });
-  return changed ? docFrom(tops) : doc;
-}
-
-export const normalizeFragmentsPluginKey = new PluginKey("scenephonie/normalizeFragments");
+const normalizeFragmentsPluginKey = new PluginKey("scenephonie/normalizeFragments");
 
 /**
- * 同一條規則接到 `appendTransaction`：任何來源（刪掉夾在中間的片段、貼上、⌘Z、我們自己的 bug）
- * 留下相鄰同成員的片段，都補一筆 `join` 合併，標 **`addToHistory: false`** —— 理由與去重相同，
- * 它不是使用者的動作，是模型的修復。
+ * 片段的正規化（§5.2），接在 `appendTransaction`：任何來源（刪掉夾在中間的片段、貼上、⌘Z、我們
+ * 自己的 bug）留下的不正規形狀都補一筆修復，標 **`addToHistory: false`** —— 理由與去重相同，它不是
+ * 使用者的動作，是模型的修復。兩件事：
+ *
+ * 1. **孤兒片段**（`memberId` 不是本群組成員 —— 單一片段被貼進別的群組時就是這樣）歸給**前一段**
+ *    的成員（第一段就歸給第一個成員）。片段不能不屬於任何成員；接在誰後面就讀作誰的延續，
+ *    寫錯了編劇用 `⌘+N` 一鍵改掉。
+ * 2. **相鄰同成員**的片段 `join` 成一段。那個區別在模型裡沒有意義，而 ADR-0006 寫下的重疊群組
+ *    遷移路徑假設片段是極大的。
  */
 export function normalizeFragmentsPlugin(): Plugin {
   return new Plugin({
     key: normalizeFragmentsPluginKey,
     appendTransaction(transactions, _oldState, newState) {
       if (!transactions.some((tr) => tr.docChanged)) return null;
+      const tr = newState.tr;
 
-      // 兩個片段之間的邊界位置（前一段之後 ＝ 後一段之前）。由後往前 join，前面的位置不受影響。
-      const joins: number[] = [];
+      // ① 孤兒：setNodeMarkup 不改節點大小，位置全程有效。
       newState.doc.forEach((top, topPos) => {
+        if (top.type.name !== "sceneGroup") return;
+        const members = groupMembers(top).map((m) => m.attrs.sceneId as string);
+        let prevOwner: string | null = null;
+        top.forEach((child, offset) => {
+          if (child.type.name !== "groupFragment") return;
+          let owner = child.attrs.memberId as string;
+          if (!members.includes(owner) && members.length > 0) {
+            owner = prevOwner ?? members[0]!;
+            tr.setNodeMarkup(topPos + 1 + offset, undefined, { ...child.attrs, memberId: owner });
+          }
+          prevOwner = owner;
+        });
+      });
+
+      // ② 相鄰同成員：兩段之間的邊界位置（前一段之後 ＝ 後一段之前）。由後往前 join，前面的位置不受影響。
+      const joins: number[] = [];
+      tr.doc.forEach((top, topPos) => {
         if (top.type.name !== "sceneGroup") return;
         let prev: ProseMirrorNode | null = null;
         top.forEach((child, offset) => {
           const isFragment = child.type.name === "groupFragment";
-          if (isFragment && prev && prev.attrs.memberId === child.attrs.memberId) {
-            joins.push(topPos + 1 + offset);
-          }
+          if (isFragment && prev && sameOwner(prev, child)) joins.push(topPos + 1 + offset);
           prev = isFragment ? child : null;
         });
       });
-      if (joins.length === 0) return null;
-
-      const tr = newState.tr;
       for (const pos of joins.reverse()) tr.join(pos);
+
+      if (!tr.steps.length) return null;
       tr.setMeta("addToHistory", false);
       return tr;
     },
@@ -302,7 +324,7 @@ export function removeGroupMember(
     );
   } else {
     if (fragments.length === 0) fragments = [emptyFragment(members[0]!.attrs.sceneId as string)];
-    next = mergeGroup(group.type.create(group.attrs, [...members, ...fragments], group.marks));
+    next = mergeGroup(rebuildGroup(group, members, fragments));
   }
   return replaceAt(doc, [topIndex], next);
 }
