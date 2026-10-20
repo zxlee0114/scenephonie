@@ -16,7 +16,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { docFromJSON, type CommandResult } from "@scenephonie/schema";
 
-import { allSceneIds, findSceneNode, type BlockAddress } from "./address";
+import { allSceneIds, findContainerNode, type BlockAddress } from "./address";
 import { requestFocus, type PendingFocus } from "./focus";
 import { markSceneBorn } from "./scene-birth";
 
@@ -67,14 +67,14 @@ export type BlockCaretPlace = "start" | "end";
  */
 export const KERNEL_REPLACE = "kernelReplace";
 
-/** 場次（或子場次）內第 `blockIndex` 個區塊的內文起點／末端（doc 座標）；找不到回 `null`。 */
+/** 場次、子場次或片段內第 `blockIndex` 個區塊的內文起點／末端（doc 座標）；找不到回 `null`。 */
 export function blockContentPos(
   doc: PMNode,
-  sceneId: string,
-  blockIndex: number,
+  at: BlockAddress,
   place: BlockCaretPlace = "start",
 ): number | null {
-  const hit = findSceneNode(doc, sceneId);
+  const { blockIndex } = at;
+  const hit = findContainerNode(doc, at);
   if (!hit) return null;
   const scene = hit.node;
   if (blockIndex < 0 || blockIndex >= scene.childCount) return null;
@@ -114,12 +114,7 @@ export function runKernelCommand(
   }
 
   if (options.caretAt) {
-    const pos = blockContentPos(
-      tr.doc,
-      options.caretAt.sceneId,
-      options.caretAt.blockIndex,
-      options.caretPlace,
-    );
+    const pos = blockContentPos(tr.doc, options.caretAt, options.caretPlace);
     if (pos != null) tr.setSelection(TextSelection.near(tr.doc.resolve(pos)));
   }
 
@@ -136,7 +131,7 @@ export function runKernelCommand(
   // 「閃一下然後底色固定」，直到使用者點進內文才消失（使用者回饋 2026-09-04，票券 32）。
   // ⌘+A 全選整份之後按 ⌘+Enter 是同一回事。游標已經收合的情形不動它 —— 那沒有東西在畫。
   if (added && !tr.selection.empty) {
-    const pos = blockContentPos(tr.doc, added, 0);
+    const pos = blockContentPos(tr.doc, { sceneId: added, blockIndex: 0 });
     if (pos != null) tr.setSelection(TextSelection.near(tr.doc.resolve(pos)));
   }
 

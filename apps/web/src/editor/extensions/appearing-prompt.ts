@@ -24,7 +24,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { unlistedSpeakers, type DialogueCharacterRef } from "@scenephonie/schema";
 
-import { sceneContext, type BlockAddress } from "../address";
+import { blockAddressOf, findSceneNode, sameBlock, sceneContext, type BlockAddress } from "../address";
 import { isBlankBlock } from "../block-types";
 import { blockContentPos, KERNEL_REPLACE } from "../command-bridge";
 import { continueBlock } from "./continue-block";
@@ -47,9 +47,11 @@ function promptAt(doc: PMNode, pos: number): AppearingPrompt | null {
   const $pos = doc.resolve(pos);
   const ctx = sceneContext($pos);
   if (!ctx) return null;
-  // 區塊節點之前那個座標的 parent 就是它所在的場次。
-  const speakers = unlistedSpeakers($pos.parent, ctx.blockIndex);
-  return speakers.length > 0 ? { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex, pos, speakers } : null;
+  // 區塊節點之前那個座標的 parent 就是它所在的那段內容；登場人物欄屬於那一場（片段的話是它的成員）。
+  const owner = ctx.fragmentIndex == null ? $pos.parent : findSceneNode(doc, ctx.sceneId)?.node;
+  if (!owner) return null;
+  const speakers = unlistedSpeakers(owner, ctx.blockIndex, $pos.parent);
+  return speakers.length > 0 ? { ...blockAddressOf(ctx), pos, speakers } : null;
 }
 
 /**
@@ -60,7 +62,7 @@ function promptAt(doc: PMNode, pos: number): AppearingPrompt | null {
  */
 function follow(tr: Transaction, doc: PMNode, at: AppearingPrompt): AppearingPrompt | null {
   if (tr.getMeta(KERNEL_REPLACE)) {
-    const content = blockContentPos(doc, at.sceneId, at.blockIndex);
+    const content = blockContentPos(doc, at);
     return content == null ? null : promptAt(doc, content - 1);
   }
   const mapped = tr.mapping.mapResult(at.pos, 1);
@@ -73,8 +75,7 @@ const samePrompt = (a: AppearingPrompt | null, b: AppearingPrompt | null) =>
   (a !== null &&
     b !== null &&
     a.pos === b.pos &&
-    a.sceneId === b.sceneId &&
-    a.blockIndex === b.blockIndex &&
+    sameBlock(a, b) &&
     a.speakers.length === b.speakers.length &&
     a.speakers.every((s, i) => s.id === b.speakers[i]!.id && s.displayName === b.speakers[i]!.displayName));
 

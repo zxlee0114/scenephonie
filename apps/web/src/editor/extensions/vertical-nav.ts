@@ -28,7 +28,7 @@ import { Extension } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
 import type { Node as PMNode, ResolvedPos } from "@tiptap/pm/model";
 
-import { sceneContext, type SceneContext } from "../address";
+import { blockAddressOf, groupMembersOf, sceneContext, type SceneContext } from "../address";
 import { requestFocus } from "../focus";
 
 /**
@@ -46,12 +46,27 @@ function sceneBelow($from: ResolvedPos, ctx: SceneContext): PMNode | null {
 
   const parent = $from.node(ctx.sceneDepth - 1);
   const sibling = parent.maybeChild($from.index(ctx.sceneDepth - 1) + 1);
-  if (container.type.name !== "subscene") return sibling?.type.name === "scene" ? sibling : null;
+  // 片段（票券 12）：下一段片段是一般的行間移動；最後一段下面是群組之後的那一場。
+  if (container.type.name === "groupFragment") {
+    if (sibling) return null;
+    const after = $from.node(ctx.sceneDepth - 2).maybeChild($from.index(ctx.sceneDepth - 2) + 1);
+    return firstSceneOf(after);
+  }
+  if (container.type.name !== "subscene") return firstSceneOf(sibling);
   if (sibling) return sibling.type.name === "subscene" ? sibling : null;
 
+  // 子場次的主場次可能是片段（成員的子場次）—— 往上一層是群組，不是 doc。
+  if (parent.type.name === "groupFragment") return null;
   const doc = $from.node(ctx.sceneDepth - 2);
   const nextTop = doc.maybeChild($from.index(ctx.sceneDepth - 2) + 1);
-  return nextTop?.type.name === "scene" ? nextTop : null;
+  return firstSceneOf(nextTop);
+}
+
+/** 頂層節點的第一排 chip row 屬於哪一場：主場次就是它，群組是它的第一個成員。 */
+function firstSceneOf(top: PMNode | null | undefined): PMNode | null {
+  if (top?.type.name === "scene") return top;
+  if (top?.type.name === "sceneGroup") return top.firstChild;
+  return null;
 }
 
 export const VerticalNav = Extension.create({
@@ -93,12 +108,21 @@ export const VerticalNav = Extension.create({
       if ($from.parent.type.name === "dialogue") {
         // 這個對白的 node view 已經掛著了 —— 它訂閱了 focus 請求，收到就把 DOM 焦點移進人物欄。
         // 回傳「有沒有人領走」：沒人領走就不該攔這顆鍵（見 `../focus` 的 `requestFocus`）。
-        return requestFocus({ kind: "speaker", sceneId: ctx.sceneId, blockIndex: ctx.blockIndex });
+        return requestFocus({ kind: "speaker", ...blockAddressOf(ctx) });
       }
 
       // 場次開頭再往上就是本場的 metadata。**不是上一場的內文** —— chip row 在畫面上就
       // 夾在兩者之間，跳過它等於「看得到卻到不了」（票券 34）。
       if (ctx.blockIndex === 0) {
+        // 片段（票券 12）：只有第一段的上面是 chip row（群組最後一個成員的那一排）；其餘片段
+        // 上面是前一段片段，交給原生的行間移動。
+        if (ctx.fragmentIndex != null) {
+          if (ctx.fragmentIndex > 0) return false;
+          const group = $from.node(ctx.sceneDepth - 1);
+          const members = groupMembersOf(group);
+          const last = members[members.length - 1];
+          return !!last && requestFocus({ kind: "sceneChipsEnd", sceneId: last.attrs.sceneId as string });
+        }
         return requestFocus({ kind: "sceneChipsEnd", sceneId: ctx.sceneId });
       }
 

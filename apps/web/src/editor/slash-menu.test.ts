@@ -23,7 +23,7 @@ import { SceneIds } from "./extensions/scene-ids";
 import { SceneNumbers } from "./extensions/scene-numbers";
 import { Slash } from "./extensions/slash";
 import { SoftBreak } from "./extensions/soft-break";
-import { Action, Dialogue, Doc, InsertShot, Scene, Subscene } from "./schema";
+import { Action, Dialogue, Doc, InsertShot, GroupFragment, GroupMember, Scene, SceneGroup, Subscene } from "./schema";
 import { baseStarterKit } from "./starter-kit";
 
 let editor: Editor;
@@ -36,6 +36,9 @@ function build(...blocks: object[]) {
       Doc,
       Scene,
       Subscene,
+      SceneGroup,
+      GroupMember,
+      GroupFragment,
       Action,
       Dialogue,
       InsertShot,

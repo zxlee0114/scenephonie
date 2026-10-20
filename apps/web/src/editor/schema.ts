@@ -45,9 +45,9 @@ function jsonAttr(name: string) {
 export const Doc = Node.create({
   name: "doc",
   topNode: true,
-  // §5.1 意圖 scene+；kernel 因 sceneId 無 default（非 generatable）放寬為 scene*。
+  // §5.1 意圖 (scene | sceneGroup)+；kernel 因 sceneId 無 default（非 generatable）放寬為 *。
   // 「至少一場」由編輯器初始 doc 保證（use-screenplay-editor.ts），不是 schema 能表達的。
-  content: "scene*",
+  content: "(scene | sceneGroup)*",
 });
 
 /** 場次與子場次共用的 metadata attr 綁定（§5.1：`subscene` 的 attrs「同 `scene` ＋ `kind`」）。 */
@@ -134,6 +134,78 @@ export const Subscene = Node.create({
   },
 });
 
+/**
+ * 場次群組（票券 12、ADR-0004）。只是一群場次的容器，沒有自己的可編輯空間 —— 成員在前、片段在後。
+ * 內容規則與 kernel 逐字相同（`schema-equivalence.test.ts`）；「至少兩個成員、一個片段」由 command 守。
+ */
+export const SceneGroup = Node.create({
+  name: "sceneGroup",
+  group: "block",
+  content: "groupMember* groupFragment*",
+  isolating: true,
+  defining: true,
+  marks: "",
+  selectable: false,
+  addAttributes() {
+    return {
+      groupId: {
+        default: null as string | null,
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-group-id"),
+        renderHTML: (attrs: Record<string, unknown>) =>
+          attrs.groupId == null ? {} : { "data-group-id": attrs.groupId as string },
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'section[data-type="scene-group"]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["section", { ...HTMLAttributes, "data-type": "scene-group" }, 0];
+  },
+});
+
+/** 群組成員：場次的 metadata、沒有內容（atom）。node view 與主場次共用 `SceneView`。 */
+export const GroupMember = Node.create({
+  name: "groupMember",
+  atom: true,
+  marks: "",
+  selectable: false,
+  addAttributes() {
+    return sceneAttributes();
+  },
+  parseHTML() {
+    return [{ tag: 'section[data-type="group-member"]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["section", { ...HTMLAttributes, "data-type": "group-member" }];
+  },
+});
+
+/** 片段：閱讀的單位，沒有 id，`memberId` 指向同群組某個成員。 */
+export const GroupFragment = Node.create({
+  name: "groupFragment",
+  content: "(sceneBlock | subscene)+",
+  isolating: true,
+  defining: true,
+  marks: "",
+  addAttributes() {
+    return {
+      memberId: {
+        default: null as string | null,
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-member-id"),
+        renderHTML: (attrs: Record<string, unknown>) =>
+          attrs.memberId == null ? {} : { "data-member-id": attrs.memberId as string },
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'section[data-type="group-fragment"]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["section", { ...HTMLAttributes, "data-type": "group-fragment" }, 0];
+  },
+});
+
 /** 三種 sceneBlock 共用的建構 —— priority 1100 壓過 StarterKit Paragraph 的 1000（§7.7）。 */
 function sceneBlock(name: string, dataType: string, attributes?: () => Record<string, unknown>) {
   return Node.create({
@@ -194,7 +266,17 @@ export const InsertShot = sceneBlock("insertShot", "insert-shot");
  * schema-only 擴充集（無 node view）。真實編輯器用 `./nodes` 疊 view 後的版本；
  * 等價測試直接用這一組。`text` 由 StarterKit 提供（`group: "inline"`，與 kernel 一致）。
  */
-export const sceneSchemaNodes = [Doc, Scene, Subscene, Action, Dialogue, InsertShot] as const;
+export const sceneSchemaNodes = [
+  Doc,
+  Scene,
+  Subscene,
+  SceneGroup,
+  GroupMember,
+  GroupFragment,
+  Action,
+  Dialogue,
+  InsertShot,
+] as const;
 
 /** kernel 的 scene attr 名（唯一事實來源在 `@scenephonie/schema` 的 schema.ts；這裡用於斷言）。 */
 export const SCENE_ATTR_NAMES = Object.keys(SCENE_ATTRS);

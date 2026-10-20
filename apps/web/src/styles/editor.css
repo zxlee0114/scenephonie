@@ -263,6 +263,74 @@
   -webkit-user-select: none;
 }
 
+/* ── 場次群組（票券 12、ADR-0004）——成員的 chip row 疊在上面，「以下對剪」宣告，片段接在下面。
+ * 群組本身不佔號、不畫框（不變式 G）：邊界靠間距與腳部那條虛線，跟主場次一樣。 */
+.scene-group {
+  position: relative;
+  margin-block: var(--space-3);
+}
+
+/* 成員：完整的 chip row 與頂層號，但沒有內文 —— 上下收緊，讓幾個成員讀起來是同一組。 */
+.scene--member {
+  --scene-pad-block: var(--space-1);
+  margin-block: 0;
+}
+
+/* 成員是第幾個（⌘1／⌘2…）—— 與子場次的種類標籤同一個位置、同一種「標籤不是欄位」的樣子。 */
+.scene__kind--member {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 「以下對剪」—— editorial annotation：它在編輯器裡是 decoration，卻要印進 PDF，
+ * 所以比折返標記重一階（§9）。不進資料模型、不可選、不可編輯。 */
+.intercut-marker {
+  margin-block: var(--space-3) var(--space-2);
+  padding-inline-start: var(--space-gutter);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--leading-sm);
+  color: var(--text-primary);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 片段：號碼回到同一條 gutter 對齊場次號，地點是片段開頭的一行小字（讓交錯看得見）。 */
+.group-fragment {
+  position: relative;
+  padding-inline-start: var(--space-gutter);
+  margin-block: var(--space-2);
+}
+
+.group-fragment__label {
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.group-fragment__no {
+  position: absolute;
+  inset-inline-start: 0;
+  inline-size: var(--space-gutter);
+  box-sizing: border-box; /* 同 .scene__number：沒有全域 reset */
+  padding-inline-end: var(--space-5);
+  text-align: end;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.group-fragment__where.is-empty {
+  color: var(--text-faint);
+}
+
+/* 群組的腳部：「＋ 新增下一場」接在整個群組之後（群組裡的 /next 是結束群組）。 */
+.scene-group:hover > .scene__foot button {
+  opacity: 1;
+}
+
 /* ── SceneMenu（點場次號開）── */
 .scene-menu {
   position: absolute;

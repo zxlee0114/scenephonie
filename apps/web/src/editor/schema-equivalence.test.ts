@@ -5,7 +5,7 @@
  * 編輯器存出來的 doc 就餵不進 command 層／`projectScenes`／PDF 匯出。
  */
 import { Editor } from "@tiptap/core";
-import { docFromJSON, mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
+import { docFromJSON, mintGroupId, mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { describe, expect, it } from "vitest";
 
 import { sceneSchemaNodes } from "./schema";
@@ -34,6 +34,29 @@ function kernelDoc() {
       },
       [kernelSchema.node("action", null, [])],
     ),
+    groupDoc(),
+  ]);
+}
+
+/** 一個對剪群組（票券 12）：兩個成員、三個片段，其中一段帶著成員自己的子場次。 */
+function groupDoc() {
+  const a = mintSceneId();
+  const b = mintSceneId();
+  return kernelSchema.node("sceneGroup", { groupId: mintGroupId() }, [
+    kernelSchema.node("groupMember", { sceneId: a, time: "夜", intExt: "內景" }),
+    kernelSchema.node("groupMember", { sceneId: b }),
+    kernelSchema.node("groupFragment", { memberId: a }, [
+      kernelSchema.node("action", null, [kernelSchema.text("若晴推出照片。")]),
+    ]),
+    kernelSchema.node("groupFragment", { memberId: b }, [
+      kernelSchema.node("action", null, [kernelSchema.text("志豪貼著鐵皮牆。")]),
+      kernelSchema.node("subscene", { sceneId: mintSceneId(), kind: "插入" }, [
+        kernelSchema.node("action", null, [kernelSchema.text("閃回。")]),
+      ]),
+    ]),
+    kernelSchema.node("groupFragment", { memberId: a }, [
+      kernelSchema.node("dialogue", { character: null }, [kernelSchema.text("我再問一次。")]),
+    ]),
   ]);
 }
 
@@ -99,14 +122,15 @@ describe("Tiptap schema ↔ @scenephonie/schema 相容", () => {
     }
   });
 
-  it("doc、scene 與 subscene 的內容規則一致", () => {
+  it("doc、scene、subscene 與群組三節點的內容規則一致", () => {
     const editor = makeEditor(kernelDoc().toJSON());
     try {
-      expect(editor.schema.nodes.doc!.spec.content).toBe(kernelSchema.nodes.doc!.spec.content);
-      expect(editor.schema.nodes.scene!.spec.content).toBe(kernelSchema.nodes.scene!.spec.content);
-      expect(editor.schema.nodes.subscene!.spec.content).toBe(
-        kernelSchema.nodes.subscene!.spec.content,
-      );
+      for (const name of ["doc", "scene", "subscene", "sceneGroup", "groupMember", "groupFragment"]) {
+        expect([name, editor.schema.nodes[name]!.spec.content]).toEqual([
+          name,
+          kernelSchema.nodes[name]!.spec.content,
+        ]);
+      }
     } finally {
       editor.destroy();
     }

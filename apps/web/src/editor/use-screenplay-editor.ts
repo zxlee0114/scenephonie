@@ -21,10 +21,12 @@ import { claimFocus, requestFocus } from "./focus";
 import { StrayHistoryKey } from "./history-keys";
 import { resetSceneBirth } from "./scene-birth";
 import { ActionNode, DialogueNode, InsertShotNode } from "./nodes/blocks";
-import { SceneNode, SubsceneNode } from "./nodes/scene";
+import { GroupFragmentNode, SceneGroupNode } from "./nodes/group";
+import { GroupMemberNode, SceneNode, SubsceneNode } from "./nodes/scene";
 import { AppearingPromptPlugin } from "./extensions/appearing-prompt";
 import { BlockCycle } from "./extensions/block-cycle";
 import { ContinueBlock } from "./extensions/continue-block";
+import { FragmentKeys } from "./extensions/fragment-keys";
 import { NextScene } from "./extensions/next-scene";
 import { ReturnMarkers } from "./extensions/return-markers";
 import { SceneIds } from "./extensions/scene-ids";
@@ -119,6 +121,9 @@ export function useScreenplayEditor(
       Doc,
       SceneNode,
       SubsceneNode,
+      SceneGroupNode,
+      GroupMemberNode,
+      GroupFragmentNode,
       ActionNode,
       DialogueNode,
       InsertShotNode,
@@ -129,6 +134,7 @@ export function useScreenplayEditor(
       ContinueBlock,
       SelectScope,
       NextScene,
+      FragmentKeys,
       Slash,
       SoftBreak,
       VerticalNav,
