@@ -46,6 +46,11 @@ async function mount(content: object) {
   const view = render(<Harness content={content} onEditor={(e) => (editor = e)} />);
   await waitFor(() => expect(editor).not.toBeNull());
   await waitFor(() => expect(view.container.querySelector(".scene")).not.toBeNull());
+  // 等建立時的焦點落定：Tiptap 在 setTimeout 裡發 `create`，`onCreate`（documentEnd）的
+  // `focus("end")` 又延到下一個 animation frame。不等的話，那一幀可能落在測試按鍵之後，把焦點
+  // 從 chip 搶回編輯器（2026-10-20 main CI 的 flake）。
+  await waitFor(() => expect(editor!.isInitialized).toBe(true));
+  await act(() => new Promise((r) => requestAnimationFrame(r)));
   return { editor: editor!, container: view.container };
 }
 
