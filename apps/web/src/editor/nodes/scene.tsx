@@ -70,6 +70,7 @@ import { requestNextScene } from "../extensions/next-scene";
 import { sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
 import { SceneMenu, deleteSceneLabel } from "../scene-menu";
 import { GroupMember, Scene, Subscene } from "../schema";
+import { ignoreReactChromeMutation } from "./react-mutations";
 
 /**
  * 兩個封閉列舉的**劇本術語** —— 也是速記鍵的來源（使用者回饋 2026-09-10 第四輪）。
@@ -639,6 +640,8 @@ function sigOf(decorations: readonly Decoration[]): string {
 
 function sceneNodeView() {
   return ReactNodeViewRenderer(SceneView, {
+    // React 畫的外殼不讀回 —— 見 `./react-mutations`（開著 DevTools 時的失控重繪）。
+    ignoreMutation: ignoreReactChromeMutation,
     // SceneView 只畫 metadata（chip row）、場次號與整場選取狀態 —— 內文由 `NodeViewContent`
     // 交給 ProseMirror 直接維護，React 不必參與。所以「內文改了」（`oldNode !== newNode` 但
     // markup 相同）**不重繪**：否則場次裡打每一個字都會整棵 SceneView（兩個 select、兩個實體欄、

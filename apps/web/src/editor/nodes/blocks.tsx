@@ -56,6 +56,7 @@ import { EntityField, type EntityOption, type EntityRef } from "../entity-field"
 import { entityUsage } from "../entity-usage";
 import { retitleOthersIn } from "../retitle-others";
 import { claimFocus, requestFocus, subscribeFocusRequest } from "../focus";
+import { ignoreReactChromeMutation } from "./react-mutations";
 
 /** 從 node view 反推它所在場次的 id 與自己在場次裡的序（給 pending-focus 比對用）。 */
 function locateBlock(props: NodeViewProps): BlockAddress | null {
@@ -462,7 +463,7 @@ export const ActionNode = Action.extend({
 
 export const DialogueNode = Dialogue.extend({
   addNodeView() {
-    return ReactNodeViewRenderer(DialogueView);
+    return ReactNodeViewRenderer(DialogueView, { ignoreMutation: ignoreReactChromeMutation });
   },
 });
 
