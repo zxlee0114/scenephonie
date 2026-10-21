@@ -6,8 +6,8 @@
  * 其中一邊壞了。列的形狀不同（sidebar 含草稿、印簡稱），所以由呼叫端交出要比的那幾格字。
  */
 /**
- * 拿來比的那幾格字：場次號（不帶 `S`）、景、時間、地點、人物、群演。都是字 —— sidebar 的草稿
- * 可能還沒填景與時間（`""`）。
+ * 拿來比的那幾格字：場次號（不帶 `S`）、內外、時間、地點、人物、群演。都是字 —— sidebar 的草稿
+ * 可能還沒填內外與時間（`""`）。
  */
 export type SceneFilterFields = Record<
   "label" | "intExt" | "time" | "location" | "appearingCharacters" | "extras",

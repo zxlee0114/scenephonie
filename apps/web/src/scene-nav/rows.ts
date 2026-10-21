@@ -5,10 +5,10 @@
  * 兩者唯一的分歧 —— 所以這裡不讀 `projectSceneTable`（它濾掉草稿），而是吃編輯器那一份場次號
  * （`editorSceneNumbers`，套上「離開時才判定」的鎖），gutter 印 `S5[D1]` 時 sidebar 也印 `S5[D1]`。
  *
- * 每列形如 `S1 內 日 廚房`（欄序比照 §8：場次號、景、光、地點）。地點印**這一場的顯示名** ——
+ * 每列形如 `S1 內 日 廚房`（欄序比照 §8：場次號、內外、時間、地點）。地點印**這一場的顯示名** ——
  * 編劇在 chip row 裡看到的那個字；實體名只進篩選。
  */
-import type { SceneNumber } from "@scenephonie/schema";
+import type { SceneIntExt, SceneNumber } from "@scenephonie/schema";
 import {
   extrasLabel,
   referenceLabel,
@@ -23,9 +23,10 @@ import { forEachScene } from "@/editor/address";
 import type { SceneFilterFields } from "@/scene-table/filter";
 
 /**
- * 景的簡稱。sidebar 一列要短，但 `內外景` 不能取首字 —— 會跟 `內景` 撞成同一個 `內`。
+ * 內外的簡稱。sidebar 一列要短，但 `內外景` 不能取首字 —— 會跟 `內景` 撞成同一個 `內`。
+ * key 綁 `SceneIntExt`：內外多一個值時，這裡漏寫簡稱會在編譯期被抓到。
  */
-const INT_EXT_SHORT: Readonly<Record<string, string>> = {
+const INT_EXT_SHORT: Readonly<Record<SceneIntExt, string>> = {
   內景: "內",
   外景: "外",
   內外景: "內外",
@@ -53,13 +54,13 @@ export interface SceneNavRow {
    * 不佔一列（它不佔號，§7.10）。不在群組裡是 `undefined`。
    */
   groupId?: string;
-  /** 景的簡稱；還沒填是 `""`。 */
+  /** 內外的簡稱；還沒填是 `""`。 */
   intExt: string;
   time: string;
   /** 這一場的地點顯示名（雜景多地點以頓號串起）；還沒填是 `""`。 */
   location: string;
   /**
-   * 篩選比的字（`filterScenes`）—— 與場次表同一組欄、同一種寫法：景是全稱、地點與人物是
+   * 篩選比的字（`filterScenes`）—— 與場次表同一組欄、同一種寫法：內外是全稱、地點與人物是
    * `實體名（這一場的顯示名）`，所以畫面上沒印的實體名也找得到。
    */
   search: SceneFilterFields;
@@ -95,7 +96,7 @@ export function sceneNavRows(
         draft: scene.draft,
         sub: scene.parentSceneId !== undefined,
         ...(groupId ? { groupId } : {}),
-        intExt: INT_EXT_SHORT[node.attrs.intExt as string] ?? "",
+        intExt: INT_EXT_SHORT[node.attrs.intExt as SceneIntExt] ?? "",
         time: (node.attrs.time as string | null) ?? "",
         location: sceneLocationLabel(node) ?? "",
         search: searchFields(scene, node, names),
