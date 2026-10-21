@@ -1570,8 +1570,19 @@
 
 .scene-table td {
   border-block-end: 1px solid var(--rule);
-  /* 沒有斷點的長名字（拉丁字母）也能折行，不把整張表撐寬。 */
-  overflow-wrap: anywhere;
+}
+
+/*
+ * 窄螢幕不硬擠：場次／景／光與欄名不折行，地點／人物／群演至少留一段可讀的寬度（在「、」與
+ * 空白處折）。放不下就讓表在 `.scene-table__scroll` 裡橫捲 —— 頁面本身不出 x 軸。
+ */
+.scene-table th,
+.scene-table td:nth-child(-n + 3) {
+  white-space: nowrap;
+}
+
+.scene-table td:nth-child(n + 4) {
+  min-inline-size: 8em;
 }
 
 .scene-table tbody tr {
