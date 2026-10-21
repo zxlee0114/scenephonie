@@ -33,14 +33,30 @@
   font-weight: 600;
 }
 
-.editor-shell__crumb {
-  color: var(--text-secondary);
+/*
+ * 「劇本／場次表」segmented control（票券 15，§7.10）。是導覽（兩個網址），不是表單元件 ——
+ * 目前那一個以 `aria-current="page"` 標出，字重與底線之外不畫框。
+ */
+.view-switch {
+  display: flex;
+  gap: var(--space-3);
 }
 
-.editor-shell__crumb::before {
+.view-switch::before {
   content: "/";
-  margin-inline-end: var(--space-3);
   color: var(--text-faint);
+}
+
+.view-switch__item {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.view-switch__item[aria-current="page"] {
+  color: var(--text-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
 }
 
 .sr-only {
@@ -1503,4 +1519,79 @@
   font-family: var(--font-ui);
   font-size: var(--text-sm);
   text-align: center;
+}
+
+/* ─────────────────────────────────────────── 場次表（票券 15，§8） */
+
+/*
+ * 交付用的投影，給製作端讀、可印。是 UI 不是輸出預覽：不模擬紙本順場表（不變式 G），
+ * 列之間只有細線。子場次縮排僅作視覺次級 —— 它仍是自己的一列。
+ */
+.scene-table {
+  padding: var(--space-5);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-primary);
+}
+
+.scene-table__search {
+  inline-size: min(100%, 24em);
+  margin-block-end: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--control-border);
+  border-radius: var(--space-1);
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.scene-table table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.scene-table th {
+  text-align: start;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-block-end: 1px solid var(--rule-strong);
+}
+
+.scene-table th,
+.scene-table td {
+  padding: var(--space-2) var(--space-3);
+  vertical-align: baseline;
+}
+
+.scene-table td {
+  border-block-end: 1px solid var(--rule);
+}
+
+.scene-table tbody tr {
+  cursor: pointer;
+}
+
+.scene-table tbody tr:hover {
+  background: var(--surface-raised);
+}
+
+/* 切換進來時對位的那一列（游標所在場次）。 */
+.scene-table tbody tr[aria-current="location"] {
+  background: var(--selection-bg);
+}
+
+.scene-table__open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.scene-table__row--sub .scene-table__open {
+  padding-inline-start: var(--space-4);
+  color: var(--text-secondary);
 }

@@ -104,6 +104,16 @@ interface Entry {
   scene: SceneNumber;
   /** 自動草稿原因成不成立 —— `hold` 鎖的就是這一半。 */
   autoDraft: boolean;
+  /** 這一場的節點（主場次、子場次或成員）—— 交付投影從這裡讀 metadata。 */
+  node: ProseMirrorNode;
+}
+
+/**
+ * 那一次走訪的原始輸出，給同套件的交付投影用（場次表，票券 15；日後 PDF、匯出前清單）——
+ * 它們要的是場次號**加上**節點，而不是再走一次樹。不從 `index.ts` 對外曝露。
+ */
+export function sceneEntries(doc: ProseMirrorNode): readonly { scene: SceneNumber; node: ProseMirrorNode }[] {
+  return walk(doc);
 }
 
 /** 那一次走訪：場次號、草稿判定、群組成員展開（§6.4）。 */
@@ -130,6 +140,7 @@ function walk(doc: ProseMirrorNode, hold?: DraftHold): Entry[] {
     entries.push({
       scene: { sceneId, ...next.topLevel(draft), draft, ...(groupId ? { groupId } : {}) },
       autoDraft,
+      node: scene,
     });
     for (const container of containers) {
       container.forEach((child) => {
@@ -145,6 +156,7 @@ function walk(doc: ProseMirrorNode, hold?: DraftHold): Entry[] {
             parentSceneId: sceneId,
           },
           autoDraft: childAuto,
+          node: child,
         });
       });
     }
