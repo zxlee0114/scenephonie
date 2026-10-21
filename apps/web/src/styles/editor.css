@@ -1585,16 +1585,27 @@
   min-inline-size: 8em;
 }
 
+/*
+ * 橫捲時場次號釘在左側，看人物欄時仍知道是哪一場。釘住的格子要有不透明底色才蓋得住捲過去的
+ * 格子 —— 所以列的底色（hover、對位）也畫在格子上而不是 `tr` 上，釘住那格才跟著變。
+ */
+.scene-table th:first-child,
+.scene-table td:first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  background: var(--surface-page);
+}
+
 .scene-table tbody tr {
   cursor: pointer;
 }
 
-.scene-table tbody tr:hover {
+.scene-table tbody tr:hover > td {
   background: var(--surface-raised);
 }
 
 /* 切換進來時對位的那一列（游標所在場次）。 */
-.scene-table tbody tr[aria-current="location"] {
+.scene-table tbody tr[aria-current="location"] > td {
   background: var(--selection-bg);
 }
 
