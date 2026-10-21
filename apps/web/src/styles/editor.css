@@ -1528,6 +1528,9 @@
  * 列之間只有細線。子場次縮排僅作視覺次級 —— 它仍是自己的一列。
  */
 .scene-table {
+  /* 釘住的場次欄寬：snap 的對齊線要知道它在哪裡。 */
+  --scene-table-pin: 5em;
+
   padding: var(--space-5);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
@@ -1548,6 +1551,19 @@
 
 .scene-table__scroll {
   overflow-x: auto;
+}
+
+/*
+ * 橫捲時一欄一欄停：每欄的起點對齊釘住的場次欄右緣，不會停在半欄。比 snapport 寬的欄（人物多的
+ * 那一格）瀏覽器仍讓它在欄內自由捲，mandatory 不會把內容卡住看不到。
+ */
+.scene-table__scroll {
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline-start: var(--scene-table-pin);
+}
+
+.scene-table th {
+  scroll-snap-align: start;
 }
 
 .scene-table table {
@@ -1593,6 +1609,9 @@
 .scene-table td:first-child {
   position: sticky;
   inset-inline-start: 0;
+  box-sizing: border-box;
+  inline-size: var(--scene-table-pin);
+  min-inline-size: var(--scene-table-pin);
   background: var(--surface-page);
 }
 
