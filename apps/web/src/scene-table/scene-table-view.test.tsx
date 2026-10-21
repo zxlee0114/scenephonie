@@ -211,6 +211,18 @@ describe("場次表檢視", () => {
     expect(current?.hasAttribute("data-just-revealed")).toBe(true);
   });
 
+  it("直接打開場次表（重新整理、深連結）不對位 —— 還沒從劇本過來，游標沒有意義", async () => {
+    const doc = k.node("doc", null, [scene("煮麵"), scene("吃麵")]);
+    const { container, show } = mount(doc, "table");
+    await ready(container);
+    expect(container.querySelector('.scene-table tr[aria-current="location"]')).toBeNull();
+
+    await show("script");
+    await show("table");
+    const current = container.querySelector('.scene-table tr[aria-current="location"]');
+    expect(current?.getAttribute("data-scene-id")).toBe(doc.child(1).attrs.sceneId);
+  });
+
   it("游標在草稿裡（草稿不進表）：對位到它前面最近的一列", async () => {
     const doc = k.node("doc", null, [scene("煮麵"), scene("吃麵"), scene("想一想", filled({ manualDraft: true }))]);
     const { container, show } = mount(doc);

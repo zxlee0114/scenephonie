@@ -1656,6 +1656,22 @@
   cursor: pointer;
 }
 
+/*
+ * 鍵盤焦點標在**整列**上，不框場次號那顆小按鈕（框起來只有一個字寬，又擠又不好看）：
+ * 列底色同 hover，左緣一條焦點色的線。
+ */
+.scene-table__open:focus-visible {
+  outline: none;
+}
+
+.scene-table tbody tr:has(.scene-table__open:focus-visible) > td {
+  background: var(--surface-raised);
+}
+
+.scene-table tbody tr:has(.scene-table__open:focus-visible) > td:first-child {
+  box-shadow: inset 2px 0 0 var(--focus-ring);
+}
+
 .scene-table__row--sub .scene-table__open {
   padding-inline-start: var(--space-4);
   color: var(--text-secondary);

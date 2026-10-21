@@ -9,7 +9,7 @@
 
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 
 import type { SaveToken } from "@/persistence";
 
@@ -194,6 +194,14 @@ export function ScreenplayEditor({
   /** 場次表上點的那一列，等切回劇本後再把游標送過去 —— 藏起來的編輯器拿不到焦點。 */
   const pendingReveal = useRef<string | null>(null);
   const previousView = useRef(view);
+  /**
+   * 劇本這一輪顯示過沒有。直接打開場次表（重新整理、深連結）時編輯器是藏著建起來的，拿不到
+   * 初始聚焦，游標停在文件開頭 —— 那不是編劇放的，場次表不該拿它對位。
+   */
+  const [scriptShown, setScriptShown] = useState(view === "script");
+  useEffect(() => {
+    if (view === "script") setScriptShown(true);
+  }, [view]);
 
   useEffect(() => {
     const from = previousView.current;
@@ -237,6 +245,7 @@ export function ScreenplayEditor({
       {view === "table" && editor && (
         <SceneTableView
           editor={editor}
+          anchorToCursor={scriptShown}
           onOpenScene={(sceneId) => {
             pendingReveal.current = sceneId;
             onShowScript?.();

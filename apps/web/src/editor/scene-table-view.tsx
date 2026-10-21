@@ -20,9 +20,12 @@ import { cursorSceneId } from "./scene-anchor";
 
 export function SceneTableView({
   editor,
+  anchorToCursor,
   onOpenScene,
 }: {
   editor: Editor;
+  /** 拿游標所在的場次對位嗎 —— 劇本還沒顯示過時，游標不是編劇放的，不對位。 */
+  anchorToCursor: boolean;
   onOpenScene: (sceneId: string) => void;
 }) {
   const catalog = useEntityCatalog();
@@ -37,7 +40,10 @@ export function SceneTableView({
     return labelSceneTable(projectSceneTable(doc), names).rows;
   }, [doc, catalog.characters, catalog.locations]);
 
-  const anchor = useMemo(() => tableAnchor(doc, cursorSceneId(editor.state), rows), [doc, editor, rows]);
+  const anchor = useMemo(
+    () => (anchorToCursor ? tableAnchor(doc, cursorSceneId(editor.state), rows) : null),
+    [anchorToCursor, doc, editor, rows],
+  );
 
   // 點一列先開預覽，不直接跳 —— 整列可點太容易誤按（票券 15 驗收）。
   const [previewing, setPreviewing] = useState<string | null>(null);
