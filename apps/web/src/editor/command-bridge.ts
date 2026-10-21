@@ -43,6 +43,9 @@ export interface RunOptions {
    * 整份 replace 會把舊的 selection map 到 doc 的一端 —— 游標在內文裡、卻按了一個浮在旁邊的
    * 選單（登場人物提示，票券 10）時，那一下不該把他正在寫的位置搬走。只給**不改 doc 座標**的
    * command 用（只動 attr 的那幾支）；座標超出新 doc 時不放，交給 map 過來的那一個。
+   *
+   * 同理不 `scrollIntoView`：游標沒有移動，而編劇按的那一列可能離游標很遠（點了視窗下方某一場的
+   * 場次號，游標還在上面那一場）—— 捲回游標會把他正在看的那一場甩出視窗（使用者回饋 2026-10-21）。
    */
   readonly keepCaret?: boolean;
 }
@@ -137,7 +140,7 @@ export function runKernelCommand(
 
   // 新場次的落點由 node view 自己決定（打字餘裕，票券 27）—— 這裡不要先用原生 `scrollIntoView`
   // 把它推到視窗底緣，否則畫面會跳兩下。其他 command 照舊「捲進可視範圍」就好。
-  view.dispatch(options.focusNewSceneMeta || options.keepFocus ? tr : tr.scrollIntoView());
+  view.dispatch(options.focusNewSceneMeta || options.keepFocus || options.keepCaret ? tr : tr.scrollIntoView());
 
   if (added) {
     markSceneBorn(added); // 新場次的短暫浮現回饋（SceneView 掛載時領取）

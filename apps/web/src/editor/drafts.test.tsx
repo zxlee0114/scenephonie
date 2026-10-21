@@ -164,6 +164,17 @@ describe("場次號選單：手動標記為草稿", () => {
 });
 
 describe("手動標記與自動草稿分得出來（使用者回饋 2026-10-21）", () => {
+  it("切換草稿標記不捲動畫面 —— 游標沒動，不該把視窗拉回游標那一場（使用者回饋 2026-10-21）", async () => {
+    const { editor, container } = await mount(docOf(scene("第一場"), scene("第二場"), scene("第三場")));
+    await caretInScene(editor, 0);
+    const scrolled: boolean[] = [];
+    editor.on("transaction", ({ transaction }) => scrolled.push(transaction.scrolledIntoView));
+
+    await pickFromMenu(container, 2, "標記為草稿");
+    expect(editor.state.doc.child(2).attrs.manualDraft).toBe(true);
+    expect(scrolled).not.toContain(true);
+  });
+
   it("手動標記的草稿另掛 scene--draft-manual；自動草稿沒有", async () => {
     const { container } = await mount(
       docOf(scene("第一場"), scene("手動", { ...filled(), manualDraft: true }), scene("沒填完", { ...filled(), time: null })),
