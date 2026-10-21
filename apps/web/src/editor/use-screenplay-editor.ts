@@ -13,13 +13,12 @@ import { useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { hasEmptySceneMeta } from "@scenephonie/schema";
-
 import { topLevelSceneIds } from "./command-bridge";
 import { emptyScreenplay } from "./empty-screenplay";
 import { claimFocus, requestFocus } from "./focus";
 import { StrayHistoryKey } from "./history-keys";
 import { resetSceneBirth } from "./scene-birth";
+import { isUnstartedScene } from "./unstarted-scene";
 import { ActionNode, DialogueNode, InsertShotNode } from "./nodes/blocks";
 import { GroupFragmentNode, SceneGroupNode } from "./nodes/group";
 import { GroupMemberNode, SceneNode, SubsceneNode } from "./nodes/scene";
@@ -57,22 +56,6 @@ export type InitialFocus = "sceneMeta" | "documentEnd";
 function lastScene(doc: PMNode): PMNode | null {
   const last = doc.lastChild;
   return last && last.type.name === "scene" ? last : null;
-}
-
-/**
- * 「這一場還沒開工」——`/next` 剛建完、人還沒填任何東西的樣子（票券 31）。
- *
- * metadata 全空**且**沒有內文兩條都要成立：
- * - 填了一半代表人已經在處理這一場，把游標搶回 chip 會打斷他；
- * - 有內文（先寫戲再回頭填表）代表工作已經在內文裡，一樣不該搶。
- */
-function isUnstartedScene(scene: PMNode): boolean {
-  if (!hasEmptySceneMeta(scene)) return false;
-  // 「沒有內文」＝ 還是 `/next` 剛產出的形狀：單一空 `action` 區塊（kernel 的 `emptyScene()`）。
-  // 用 `textContent === ""` 判會太寬 —— 空的對白或插入畫面區塊也沒有文字，但那是人已經把
-  // 游標帶進內文、按過 Tab 的痕跡，一樣不該把焦點搶回 chip。
-  const only = scene.childCount === 1 ? scene.firstChild : null;
-  return only != null && only.type.name === "action" && only.content.size === 0;
 }
 
 /**

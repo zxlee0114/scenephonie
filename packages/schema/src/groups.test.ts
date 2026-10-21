@@ -7,6 +7,7 @@ import { echoingMembers } from "./groups";
 import { projectScenes } from "./project-scenes";
 import {
   block,
+  filled,
   fragmentOf,
   groupWith,
   makeDoc,
@@ -17,10 +18,10 @@ import {
 
 describe("projectScenes：成員各佔頂層場次號，群組不佔號", () => {
   it("25 → 群組（26／27）→ 28；子場次編在它的成員底下", () => {
-    const before = makeScene();
-    const a = memberWith();
-    const b = memberWith();
-    const sub = subsceneWith([block.action("閃回")], { kind: "插入" });
+    const before = makeScene(filled());
+    const a = memberWith(filled());
+    const b = memberWith(filled());
+    const sub = subsceneWith([block.action("閃回")], { ...filled(), kind: "插入" });
     const group = groupWith(
       [a, b],
       [
@@ -29,7 +30,7 @@ describe("projectScenes：成員各佔頂層場次號，群組不佔號", () => 
         fragmentOf(a, [block.action("回偵訊室")]),
       ],
     );
-    const after = makeScene();
+    const after = makeScene(filled());
 
     const labels = projectScenes(makeDoc(before, group, after)).map((s) => [s.sceneId, s.label]);
     expect(labels).toEqual([

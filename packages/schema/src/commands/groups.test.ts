@@ -6,6 +6,7 @@ import { projectScenes } from "../project-scenes";
 import { schema } from "../schema";
 import {
   block,
+  filled,
   fragmentOf,
   groupWith,
   makeDoc,
@@ -43,8 +44,8 @@ function shape(group: ReturnType<typeof makeDoc>) {
 
 describe("intercutTo（/ →「對剪到…」）", () => {
   it("建立新的一場：目前場次就地變成成員 1、已寫的內容變成片段 1；新成員鑄新 id、metadata 全空", () => {
-    const before = makeScene({}, "前一場");
-    const here = sceneWith([block.action("若晴推出照片。")], { time: "夜", intExt: "內景" });
+    const before = makeScene(filled(), "前一場");
+    const here = sceneWith([block.action("若晴推出照片。")], filled({ time: "夜", intExt: "內景" }));
     const r = intercutTo(makeDoc(before, here), { sceneId: id(here), withSceneId: null });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -63,14 +64,15 @@ describe("intercutTo（/ →「對剪到…」）", () => {
     // 成員 1 帶著原本的 metadata；新成員不繼承（§4.5「同時發生」不是交叉場次的定義）。
     expect(group.child(0).attrs.time).toBe("夜");
     expect(group.child(1).attrs.time).toBe(null);
-    expect(projectScenes(r.value).map((s) => s.label)).toEqual(["1", "2", "3"]);
+    // 新成員的時空還空著：它是草稿，錨定前一個正式場次（票券 14）。
+    expect(projectScenes(r.value).map((s) => s.label)).toEqual(["1", "2", "S2[D1]"]);
   });
 
   it("選既有場次：那一場被收編成成員 2（保住 sceneId 與 metadata），它的內容（含子場次）變成片段", () => {
-    const here = sceneWith([block.action("偵訊室")]);
-    const middle = makeScene({}, "中間");
-    const sub = subsceneWith([block.action("閃回")], { kind: "插入" });
-    const there = sceneWith([block.action("倉庫"), sub], { time: "夜", intExt: "外景" });
+    const here = sceneWith([block.action("偵訊室")], filled());
+    const middle = makeScene(filled(), "中間");
+    const sub = subsceneWith([block.action("閃回")], { ...filled(), kind: "插入" });
+    const there = sceneWith([block.action("倉庫"), sub], filled({ time: "夜", intExt: "外景" }));
     const r = intercutTo(makeDoc(here, middle, there), { sceneId: id(here), withSceneId: id(there) });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -245,8 +247,8 @@ describe("ungroupMember（成員選單「移出對剪」）", () => {
 
 describe("dissolveGroup（「解散對剪」）", () => {
   it("每個成員依成員順序變回普通場次，各自的片段依閱讀順序接起來；sceneId 與 metadata 都保住", () => {
-    const a = memberWith({ time: "日" });
-    const b = memberWith({ time: "夜" });
+    const a = memberWith(filled({ time: "日" }));
+    const b = memberWith(filled({ time: "夜" }));
     const group = groupWith(
       [a, b],
       [
@@ -255,7 +257,7 @@ describe("dissolveGroup（「解散對剪」）", () => {
         fragmentOf(a, [block.action("A2")]),
       ],
     );
-    const before = makeScene({}, "前一場");
+    const before = makeScene(filled(), "前一場");
     const r = dissolveGroup(makeDoc(before, group), { groupId: group.attrs.groupId as string });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -448,10 +450,10 @@ describe("deleteScene 對群組成員", () => {
 
 describe("群組裡的既有 command", () => {
   const twoMembers = () => {
-    const a = memberWith();
-    const b = memberWith();
+    const a = memberWith(filled());
+    const b = memberWith(filled());
     const group = groupWith([a, b], [fragmentOf(a, [block.action("A")]), fragmentOf(b, [block.action("B")])]);
-    return { a, b, doc: makeDoc(makeScene(), group, makeScene()) };
+    return { a, b, doc: makeDoc(makeScene(filled()), group, makeScene(filled())) };
   };
 
   it("/next 在群組裡：結束群組、接在整個群組之後，不是新增成員", () => {
@@ -478,7 +480,7 @@ describe("群組裡的既有 command", () => {
     const r = createSubscene(doc, { sceneId: id(b), fragmentIndex: 1, afterBlockIndex: 0, kind: "插入" });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(projectScenes(r.value).map((s) => s.label)).toEqual(["1", "2", "3", "3.1", "4"]);
+    expect(projectScenes(r.value).map((s) => s.label)).toEqual(["1", "2", "3", "S3[D1]", "4"]); // 新子場次的時空還空著 → 草稿
   });
 });
 

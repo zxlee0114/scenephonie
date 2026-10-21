@@ -165,6 +165,29 @@ export function setSceneIntExt(
   );
 }
 
+export interface SetManualDraftOptions {
+  readonly sceneId: string;
+  readonly manualDraft: boolean;
+}
+
+/**
+ * 手動標記為草稿／取消標記（票券 14，§4.8）。資料模型只多這一個布林值 —— **不存狀態機**：
+ * 「是不是草稿」永遠是推導出來的（`projectScenes`），這裡寫的只是編劇的宣告。取消標記不保證
+ * 變回正式場次：metadata 不完整的場次照樣是草稿。
+ */
+export function setManualDraft(doc: ProseMirrorNode, options: SetManualDraftOptions): CommandResult {
+  const { sceneId, manualDraft } = options;
+
+  const hit = target(doc, sceneId);
+  if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
+
+  return rebuild(
+    hit,
+    hit.scene.type.create({ ...hit.scene.attrs, manualDraft }, hit.scene.content, hit.scene.marks),
+    "寫入草稿標記",
+  );
+}
+
 export interface SetAppearingCharactersOptions {
   readonly sceneId: string;
   /** 這一場的登場人物引用。空陣列 ＝ 清空（寫回 `null`＝尚未填）。 */

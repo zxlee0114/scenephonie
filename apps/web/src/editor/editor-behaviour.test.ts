@@ -6,7 +6,13 @@
  */
 import { Editor } from "@tiptap/core";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
-import { docFromJSON, mintSceneId, projectScenes, schema as kernelSchema } from "@scenephonie/schema";
+import {
+  docFromJSON,
+  mintLocationId,
+  mintSceneId,
+  projectScenes,
+  schema as kernelSchema,
+} from "@scenephonie/schema";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { cycleBlock } from "./extensions/block-cycle";
@@ -19,14 +25,21 @@ import { SelectScope } from "./extensions/select-scope";
 import { Action, Dialogue, Doc, InsertShot, GroupFragment, GroupMember, Scene, SceneGroup, Subscene } from "./schema";
 import { baseStarterKit } from "./starter-kit";
 
+/** 填完的 metadata —— 不填的話兩場都是草稿，場次號就沒有東西可算（票券 14）。 */
+const filled = () => ({
+  time: "日",
+  intExt: "內景",
+  location: { locationId: mintLocationId(), displayName: "客廳" },
+});
+
 function startDoc() {
   return kernelSchema
     .node("doc", null, [
-      kernelSchema.node("scene", { sceneId: mintSceneId() }, [
+      kernelSchema.node("scene", { sceneId: mintSceneId(), ...filled() }, [
         kernelSchema.node("action", null, [kernelSchema.text("第一場的動作")]),
         kernelSchema.node("action", null, [kernelSchema.text("第一場的第二段")]),
       ]),
-      kernelSchema.node("scene", { sceneId: mintSceneId() }, [
+      kernelSchema.node("scene", { sceneId: mintSceneId(), ...filled() }, [
         kernelSchema.node("action", null, [kernelSchema.text("第二場的動作")]),
       ]),
     ])
@@ -60,7 +73,7 @@ beforeEach(() => {
 afterEach(() => editor.destroy());
 
 const sceneIds = () => projectScenes(editor.state.doc).map((s) => s.sceneId);
-const sceneNumbers = () => projectScenes(editor.state.doc).map((s) => s.number);
+const sceneLabels = () => projectScenes(editor.state.doc).map((s) => s.label);
 
 /** 把游標放進第 `sceneIndex` 場的第 `blockIndex` 個區塊內。 */
 function caretInBlock(sceneIndex: number, blockIndex: number) {
@@ -91,7 +104,8 @@ describe("新增下一場（三入口共用一條路徑）", () => {
     expect(after[0]).toBe(a); // 保住身分
     expect(after[2]).toBe(b);
     expect(after[1]).not.toBe(a);
-    expect(sceneNumbers()).toEqual([1, 2, 3]); // 推導序號重算
+    // 推導序號重算：新的一場時空還空著，是草稿、不佔號；後面那一場保住 2。
+    expect(sceneLabels()).toEqual(["1", "S1[D1]", "2"]);
   });
 
   it("不傳 afterSceneId 時接在游標所在場次之後", () => {

@@ -18,7 +18,6 @@ import {
   canIntercut,
   createSubscene,
   intercutTo,
-  projectScenes,
   sceneLocationLabel,
   type BlockType,
   type SubsceneAnchor,
@@ -38,6 +37,7 @@ import { BLOCK_META, setBlockTypeAt } from "../block-types";
 import { dismissOnOutsidePointer } from "../dismiss-on-outside-pointer";
 import { slashMenuPosition } from "../slash-menu-position";
 import { currentSceneId, requestNextScene } from "./next-scene";
+import { editorSceneNumbers } from "./scene-numbers";
 import { returnMarkerText } from "./return-markers";
 import { exitSubscene, subsceneDepth } from "./subscene-exit";
 
@@ -163,7 +163,7 @@ function applyStep(kind: SubsceneKind) {
         run: (e, range) => createSubsceneAt(e, range, kind, null),
       },
     ];
-    for (const { sceneId, label } of projectScenes(editor.state.doc)) {
+    for (const { sceneId, label } of editorSceneNumbers(editor.state)) {
       const scene = byId.get(sceneId);
       const spaceTime = scene ? spaceTimeOf(scene) : "";
       if (!spaceTime) continue;
@@ -225,7 +225,7 @@ function intercutStep(editor: Editor): SlashItem[] {
   ];
   if (!at) return rows;
   const { doc } = editor.state;
-  const labels = new Map(projectScenes(doc).map((s) => [s.sceneId, s.label] as const));
+  const labels = new Map(editorSceneNumbers(editor.state).map((s) => [s.sceneId, s.label] as const));
   doc.forEach((top) => {
     if (top.type.name !== "scene") return;
     const sceneId = top.attrs.sceneId as string;

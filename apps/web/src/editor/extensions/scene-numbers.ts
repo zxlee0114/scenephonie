@@ -14,19 +14,92 @@
  * 子場次（票券 11）走同一個 decoration，號碼是 `5.1`；兩邊的 node view 是同一支 `SceneView`。
  * 群組成員（票券 12）也是：各佔一個頂層號。片段另有一份 spec（`FragmentLabelSpec`）—— 片段左側的
  * 常駐標籤要印它的成員是誰，而成員改了地點時**片段節點沒變**，只有 decoration 叫得動它重繪。
+ *
+ * 草稿（票券 14）也走這裡：`projectScenes` 那一次走訪順帶推導出 `draft`，標籤就是 `S11[D1]`。
+ * 一場是不是草稿可能因為**別的節點**變了而變（主場次標成草稿 → 子場次跟著是；成員之間撞時空），
+ * 理由同上，只有 decoration 叫得動它重繪。
+ *
+ * **離開時才判定**（使用者裁決 2026-10-21）：正在寫的那一場，畫面上是不是草稿在游標**進入時
+ * 鎖住**、移到別場時才重新判定 —— 進場時鎖的就是**畫面上正顯示的那個值**，所以點進一場不會
+ * 讓它變樣。新建的場次（kernel command 鑄出新 id）與新劇本那唯一一場還沒開工的場次
+ * （`isUnstartedScene`）起步是正式。鎖是這個 plugin 的
+ * state（`DraftHold`），推導走 `projectScenesWhileEditing` —— doc 不寫任何東西，交付投影讀的
+ * 照樣是真實狀態。「進入」有兩條路：內文的游標移進別場（焦點在內文時），或焦點進某一場的
+ * chip row。**編輯器整個失焦不算離開** —— 標籤不趁編劇不在時變形。
+ *
+ * ⚠️ **程式自己搬動的游標不算「移到別場」**：kernel command 整份 replace 會把舊 selection map
+ * 到 doc 的一端，bridge 接著 `view.focus()`。那一下不是編劇把游標帶走 —— 在 A 寫字時從選單
+ * 標記 B 為草稿，A 的鎖不該動。所以 kernel replace（含它 append 的修復 transaction）之後的
+ * selection 與 focusin 都不看，等下一筆編劇自己的 transaction。
  */
 import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { projectScenes, sceneLocationLabel, subsceneCount } from "@scenephonie/schema";
+import {
+  autoDraftOf,
+  projectScenesWhileEditing,
+  sceneLocationLabel,
+  subsceneCount,
+  type DraftHold,
+  type SceneNumber,
+} from "@scenephonie/schema";
 
-export const sceneNumbersKey = new PluginKey("scenephonie/sceneNumbers");
+import { allSceneIds, sceneContext } from "../address";
+import { KERNEL_REPLACE } from "../command-bridge";
+import { isUnstartedScene } from "../unstarted-scene";
+
+export const sceneNumbersKey = new PluginKey<SceneNumbersState>("scenephonie/sceneNumbers");
+
+interface SceneNumbersState {
+  /** 游標所在那一場鎖住的自動草稿值；還沒有人進過任何一場是 `null`。 */
+  hold: DraftHold | null;
+  /** 最近一筆是 kernel command 的整份 replace —— 那之後的游標位置是程式搬的，不算編劇移動。 */
+  afterKernel: boolean;
+}
+
+/**
+ * 編輯器畫面上的場次號（套上「離開時才判定」的鎖）。編輯器裡任何要印場次號的地方都讀這一支，
+ * 才不會 gutter 印 `2`、選單卻列 `S1[D1]`。
+ */
+export function editorSceneNumbers(state: EditorState): SceneNumber[] {
+  return projectScenesWhileEditing(state.doc, sceneNumbersKey.getState(state)?.hold ?? null);
+}
+
+/** 焦點進了 `sceneId` 那一場：跟目前鎖住的不同才發一筆 meta（值是 sceneId，不進 history）。 */
+function enter(view: EditorView, sceneId: string) {
+  if (sceneNumbersKey.getState(view.state)?.hold?.sceneId === sceneId) return;
+  view.dispatch(view.state.tr.setMeta(sceneNumbersKey, sceneId).setMeta("addToHistory", false));
+}
+
+/**
+ * 進場時鎖住的值：沒被鎖住的場次畫面上顯示的就是當下的自動草稿原因，鎖住它 ＝ 畫面不變
+ * （使用者回饋 2026-10-21：游標進入不重新判定，只有離開才判定）。
+ */
+function holdOn(doc: PMNode, sceneId: string): DraftHold {
+  return { sceneId, autoDraft: autoDraftOf(doc, sceneId) };
+}
+
+/** 新劇本：唯一的一場還沒開工 —— 等同剛新增，起步是正式。其餘文件一打開沒有鎖。 */
+function initialHold(doc: PMNode): DraftHold | null {
+  const only = doc.childCount === 1 ? doc.firstChild : null;
+  if (!only || only.type.name !== "scene" || !isUnstartedScene(only)) return null;
+  return { sceneId: only.attrs.sceneId as string, autoDraft: false };
+}
+
+/** 焦點在內文時，游標所在的那一場（片段算它的成員）。焦點不在內文回 `null`。 */
+function caretScene(view: EditorView): string | null {
+  if (view.dom.ownerDocument.activeElement !== view.dom) return null;
+  return sceneContext(view.state.selection.$from)?.sceneId ?? null;
+}
 
 export interface SceneNumberSpec {
-  /** 推導出來的顯示序號（字串），未知時為 "?"。 */
+  /** 推導出來的顯示序號（字串；草稿是 `S11[D1]`），未知時為 "?"。 */
   sceneNo: string;
+  /** 是不是草稿（推導的，票券 14）—— node view 據此掛視覺區隔。 */
+  draft: boolean;
   /** 整場被選取範圍完整涵蓋（⌘+A 第三段）——整塊反白由 node view 畫，不靠瀏覽器原生。 */
   selected: boolean;
   /** 全劇第一場／最後一場。
@@ -83,33 +156,101 @@ export function sceneNumberOf(decorations: readonly Decoration[]): SceneNumberSp
 export const SceneNumbers = Extension.create({
   name: "sceneNumbers",
   addProseMirrorPlugins() {
-    let cache: { doc: PMNode; from: number; to: number; set: DecorationSet } | null = null;
+    let cache: {
+      doc: PMNode;
+      from: number;
+      to: number;
+      hold: DraftHold | null;
+      set: DecorationSet;
+    } | null = null;
 
     return [
-      new Plugin({
+      new Plugin<SceneNumbersState>({
         key: sceneNumbersKey,
+        state: {
+          init: (_, state) => ({ hold: initialHold(state.doc), afterKernel: false }),
+          apply: (tr, value, oldState, newState) => {
+            const entered = tr.getMeta(sceneNumbersKey) as string | undefined;
+            if (entered) return { hold: holdOn(newState.doc, entered), afterKernel: false };
+            // kernel replace 之後 append 的修復（id 去重、片段正規化）仍算同一下。
+            const afterKernel = tr.getMeta("appendedTransaction")
+              ? value.afterKernel
+              : Boolean(tr.getMeta(KERNEL_REPLACE));
+            // 新建的場次起步是正式：只有 kernel command 鑄得出新 id。undo／redo、貼上都不是
+            // 「新增」—— redo 一個 `/next` 與 undo 一次刪除分不出來，兩者都是把舊的帶回來。
+            if (tr.docChanged && tr.getMeta(KERNEL_REPLACE)) {
+              const before = new Set(allSceneIds(oldState.doc));
+              const born = allSceneIds(newState.doc).find((id) => !before.has(id));
+              if (born) return { hold: { sceneId: born, autoDraft: false }, afterKernel };
+            }
+            return value.afterKernel === afterKernel ? value : { ...value, afterKernel };
+          },
+        },
+        // 內文的游標移進別場。在 `update` 裡不能同步 dispatch，排到 microtask。
+        view: () => ({
+          update: (view) => {
+            const state = sceneNumbersKey.getState(view.state);
+            if (!state || state.afterKernel) return;
+            const sceneId = caretScene(view);
+            if (!sceneId || sceneId === state.hold?.sceneId) return;
+            queueMicrotask(() => {
+              if (!view.isDestroyed && caretScene(view) === sceneId) enter(view, sceneId);
+            });
+          },
+        }),
         props: {
+          handleDOMEvents: {
+            // 焦點進某一場的 chip row；或從外面回到內文（selection 沒變，`update` 不會跑）。
+            focusin: (view, event) => {
+              const target = event.target as HTMLElement;
+              if (target === view.dom) {
+                // bridge 在 kernel replace 之後的 `view.focus()` 不算 —— 游標是被搬過去的。
+                const sceneId = sceneNumbersKey.getState(view.state)?.afterKernel ? null : caretScene(view);
+                if (sceneId) enter(view, sceneId);
+                return false;
+              }
+              const sceneId =
+                target.closest(".scene__chips")?.closest<HTMLElement>("[data-scene-id]")?.dataset.sceneId;
+              if (sceneId) enter(view, sceneId);
+              return false;
+            },
+          },
           decorations: (state) => {
             const { from, to } = state.selection;
-            if (cache && cache.doc === state.doc && cache.from === from && cache.to === to) {
+            const hold = sceneNumbersKey.getState(state)?.hold ?? null;
+            if (
+              cache &&
+              cache.doc === state.doc &&
+              cache.from === from &&
+              cache.to === to &&
+              cache.hold === hold
+            ) {
               return cache.set;
             }
 
-            const labelBySceneId = new Map(
-              projectScenes(state.doc).map((s) => [s.sceneId, s.label] as const),
-            );
+            const bySceneId = new Map(editorSceneNumbers(state).map((s) => [s.sceneId, s] as const));
 
             const decos: Decoration[] = [];
             const last = state.doc.childCount - 1;
-            const push = (node: PMNode, pos: number, spec: Omit<SceneNumberSpec, "sceneNo" | "selected">) => {
-              const label = labelBySceneId.get(node.attrs.sceneId as string) ?? "?";
+            const push = (
+              node: PMNode,
+              pos: number,
+              spec: Omit<SceneNumberSpec, "sceneNo" | "draft" | "selected">,
+            ) => {
+              const projected = bySceneId.get(node.attrs.sceneId as string);
+              const label = projected?.label ?? "?";
               const covered = from <= pos && to >= pos + node.nodeSize;
               decos.push(
                 Decoration.node(
                   pos,
                   pos + node.nodeSize,
                   { "data-scene-no": label },
-                  { sceneNo: label, selected: covered, ...spec } satisfies SceneNumberSpec,
+                  {
+                    sceneNo: label,
+                    draft: projected?.draft ?? false,
+                    selected: covered,
+                    ...spec,
+                  } satisfies SceneNumberSpec,
                 ),
               );
             };
@@ -157,7 +298,7 @@ export const SceneNumbers = Extension.create({
                 decos.push(
                   Decoration.node(at, at + child.nodeSize, {}, {
                     memberOrdinal: member.ordinal,
-                    memberNo: labelBySceneId.get(member.node.attrs.sceneId as string) ?? "?",
+                    memberNo: bySceneId.get(member.node.attrs.sceneId as string)?.label ?? "?",
                     location: sceneLocationLabel(member.node),
                   } satisfies FragmentLabelSpec),
                 );
@@ -166,7 +307,7 @@ export const SceneNumbers = Extension.create({
             });
 
             const set = DecorationSet.create(state.doc, decos);
-            cache = { doc: state.doc, from, to, set };
+            cache = { doc: state.doc, from, to, hold, set };
             return set;
           },
         },

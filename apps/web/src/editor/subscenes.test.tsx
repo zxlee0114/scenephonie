@@ -111,7 +111,8 @@ describe("/insert、/continue-to：兩步建立帶種類的子場次", () => {
     expect(created.attrs.location).toBeNull();
     expect(editor.state.doc.textContent).not.toContain("/insert");
 
-    // 子場次號 1.1 畫在它的 gutter 上，種類標籤用 `/` 選單的用詞。
+    // 子場次號 1.1 畫在它的 gutter 上 —— 時空還空著，但剛新增、編劇還在它身上，畫面上先是正式號
+    // （離開時才判定，票券 14）；種類標籤用 `/` 選單的用詞。
     await waitFor(() =>
       expect([...container.querySelectorAll(".scene__number")].map((n) => n.textContent)).toEqual([
         "1",
@@ -280,8 +281,9 @@ describe("刪除主場次一併刪子場次，⌘Z 一步還原", () => {
 
     const number = container.querySelector(".scene__number")!;
     fireEvent.mouseDown(number);
+    // 刪除排最後（前面是草稿標記那一列，票券 14）。
     const item = await waitFor(() => {
-      const el = container.querySelector(".scene-menu button");
+      const el = container.querySelector(".scene-menu button:last-child");
       expect(el).not.toBeNull();
       return el!;
     });

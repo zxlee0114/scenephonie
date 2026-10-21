@@ -37,6 +37,7 @@ import {
   sceneExtras,
   sceneLocations,
   setAppearingCharacters,
+  setManualDraft,
   setSceneExtras,
   setSceneIntExt,
   setSceneLocations,
@@ -316,6 +317,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
     decorations as unknown as readonly Decoration[],
   );
   const label = spec?.sceneNo ?? "?";
+  const manualDraft = node.attrs.manualDraft === true;
 
   const intExt = (node.attrs.intExt as string | null) ?? "";
   const time = (node.attrs.time as string | null) ?? "";
@@ -337,11 +339,17 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
 
   return (
     <NodeViewWrapper
+      // 「焦點進了哪一場」從 chip row 往上找這個（離開時才判定，見 extensions/scene-numbers）。
+      data-scene-id={sceneId}
       className={[
         "scene",
         isSubscene && "scene--sub",
         isMember && "scene--member",
         justBorn && "scene--just-added",
+        // 草稿（票券 14）：推導的，填完 metadata 它自己就卸掉。手動標記的另掛一個 class —— 編劇
+        // 要分得出「我說它是草稿」與「它還沒寫完」（使用者回饋 2026-10-21）。
+        spec?.draft && "scene--draft",
+        spec?.draft && manualDraft && "scene--draft-manual",
         spec?.selected && "is-node-selected",
         // 位置旗標走 decoration，不靠 :first-child／:last-child（見 extensions/scene-numbers）。
         spec?.isFirst && "scene--first",
@@ -363,7 +371,8 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           setMenuOpen((open) => !open);
         }}
       >
-        {label}
+        {/* 標籤自己一個盒：手動草稿的淡底只包住字，不連 gutter 的內距一起塗。 */}
+        <span className="scene__label">{label}</span>
       </div>
       {menuOpen && (
         <SceneMenu
@@ -387,6 +396,20 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
                   },
                 ]
               : []),
+            // 手動標記（票券 14）：只寫 manualDraft 這個宣告；取消後 metadata 沒填完照樣是草稿。
+            // 已經自動是草稿的一場說「標記為草稿」會像沒反應 —— 那一列的作用是填完了也不轉正式。
+            {
+              key: "draft",
+              label: manualDraft ? "取消草稿標記" : spec?.draft ? "固定為草稿" : "標記為草稿",
+              // 只動 attr、不動座標：游標留在編劇正在寫的地方（否則整份 replace 把它 map 到 doc 尾，
+              // 「離開時才判定」也會把那一下讀成他移到了末場）。
+              run: () =>
+                runKernelCommand(
+                  editor,
+                  (doc) => setManualDraft(doc, { sceneId, manualDraft: !manualDraft }),
+                  { keepCaret: true },
+                ),
+            },
             {
               key: "delete",
               label: isMember ? "刪除這一場（連同它的片段）" : deleteSceneLabel(isSubscene, spec?.subscenes ?? 0),
@@ -628,12 +651,12 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
 }
 
 /**
- * 重繪判斷：號碼、整場選取狀態、首尾位置、主場次的時間（子場次）、子場次數（主場次）變了才重繪
+ * 重繪判斷：號碼、是不是草稿、整場選取狀態、首尾位置、主場次的時間（子場次）、子場次數（主場次）變了才重繪
  * 這一場（不比整個 decoration 陣列）。
  */
 function sigOf(decorations: readonly Decoration[]): string {
   const spec = sceneNumberOf(decorations);
-  return `${spec?.sceneNo ?? ""}:${spec?.selected ? 1 : 0}:${spec?.isFirst ? 1 : 0}${
+  return `${spec?.sceneNo ?? ""}:${spec?.draft ? 1 : 0}:${spec?.selected ? 1 : 0}:${spec?.isFirst ? 1 : 0}${
     spec?.isLast ? 1 : 0
   }:${spec?.parentTime ?? ""}:${spec?.subscenes ?? ""}:${spec?.memberOrdinal ?? ""}`;
 }
