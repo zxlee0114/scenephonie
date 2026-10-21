@@ -13,6 +13,8 @@ import type { ComponentProps } from "react";
 
 import { ScreenplayEditor, type ScreenplayView } from "@/editor/ScreenplayEditor";
 
+import type { createDeliveryAction } from "./actions";
+
 const TABLE_SEGMENT = "table";
 
 function useView(): ScreenplayView {
@@ -22,10 +24,8 @@ function useView(): ScreenplayView {
 export function ScreenplayWorkspace(
   props: Omit<ComponentProps<typeof ScreenplayEditor>, "view" | "onShowScript" | "exportPdf"> & {
     base: string;
-    /** 匯出意圖（`createDeliveryAction`）。 */
-    createDelivery: (request: {
-      screenplayId: string;
-    }) => Promise<{ status: "delivered"; deliveryId: string } | { status: "forbidden" }>;
+    /** 匯出意圖。型別跟著 action 走，不另抄一份。 */
+    createDelivery: typeof createDeliveryAction;
   },
 ) {
   const { base, createDelivery, ...editorProps } = props;

@@ -116,13 +116,7 @@ export type { LabeledSceneTableRow } from "./scene-table";
 // persistence 的 `createDelivery`／`loadDelivery`。元素型別與 `DELIVERY_PAYLOAD_VERSION` 的讀者是
 // 票券 18 的渲染器 —— 它認得哪一版形狀、照元素印字，不重算任何一個值。
 export { projectDelivery, DELIVERY_PAYLOAD_VERSION } from "./delivery";
-export type {
-  DeliveryPayload,
-  DeliveredScene,
-  DeliveredRef,
-  DisambiguatingField,
-  ScriptElement,
-} from "./delivery";
+export type { DeliveryPayload, DeliveredScene, ScriptElement } from "./delivery";
 
 export {
   mintId,

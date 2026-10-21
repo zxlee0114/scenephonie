@@ -31,12 +31,14 @@ type Phase =
   | { kind: "working"; text: string }
   | { kind: "unsaved" }
   | { kind: "refused" }
+  | { kind: "deliveryFailed" }
   | { kind: "printFailed"; deliveryId: string; url: string }
   | { kind: "done" };
 
 const MESSAGE: Record<Exclude<Phase["kind"], "idle" | "working">, { text: string; alert: boolean }> = {
   unsaved: { text: "還有修改沒存進去，這次沒有匯出 —— 等存檔恢復再試。", alert: true },
   refused: { text: "沒有權限匯出這份劇本，請重新登入。", alert: true },
+  deliveryFailed: { text: "交付沒有建立起來（連線問題？），這次沒有匯出 —— 再按一次匯出。", alert: true },
   printFailed: { text: "交付已經建立，但 PDF 沒有印出來。", alert: true },
   done: { text: "已下載。", alert: false },
 };
@@ -77,7 +79,13 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
     if (!(await flush())) return setPhase({ kind: "unsaved" });
 
     setPhase({ kind: "working", text: "正在建立交付…" });
-    const deliveryId = await createDelivery().catch(() => null);
+    let deliveryId: string | null;
+    try {
+      deliveryId = await createDelivery();
+    } catch {
+      // 斷線或伺服器出錯 —— 不是權限問題，別叫人重新登入。
+      return setPhase({ kind: "deliveryFailed" });
+    }
     if (!deliveryId) return setPhase({ kind: "refused" });
 
     await print(deliveryId, pdfUrl(deliveryId, exportOptionsToQuery(options)));
@@ -144,7 +152,7 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
                   checked={options.timestamp}
                   onChange={(e) => setOptions({ ...options, timestamp: e.target.checked })}
                 />
-                頁尾印時間戳（這次匯出的時間）
+                頁尾印時間戳（交付建立的時間）
               </label>
 
               {phase.kind === "working" && (

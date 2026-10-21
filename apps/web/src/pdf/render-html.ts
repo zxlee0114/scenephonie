@@ -61,7 +61,9 @@ ${body}
 /**
  * 模板的 CSS。頁碼與時間戳掛在 `@page` 的邊界盒（margin box）—— 頁碼因此天然**跨區段連續**
  * （`counter(page)` 是整份文件的計數，不是某個容器的）。浮水印是 `position: fixed` 的一層：
- * 列印時它在每一頁重複，蓋在頁面上而不是某個內文容器裡（§9.7：要蓋滿每個區段）。
+ * 列印時它在每一頁重複，蓋在頁面上而不是某個內文容器裡（§9.7：要蓋滿每個區段）。規格寫「掛
+ * `@page`」，要的就是這個性質；Chromium 的 `@page` 不畫背景圖、邊界盒也蓋不到版心，fixed 是
+ * 同一件事在 Chromium 上做得到的寫法。
  */
 function stylesheet(timestamp: string | null): string {
   const { page, heading } = format;
@@ -139,7 +141,7 @@ function renderElement(
 ): string {
   switch (element.type) {
     case "heading": {
-      const scene = scenes.get(element.sceneId)!;
+      const scene = sceneOf(element.sceneId, scenes);
       const location = scene.locations.map((r) => r.displayName).join("、");
       const suffix = scene.parentSceneId ? format.heading.numberSuffix.subscene : format.heading.numberSuffix.scene;
       // 雜景的地點可以留空 —— 那一欄就不印（使用者裁決 2026-10-22），不補「參照敘述」那種產品用語。
@@ -166,7 +168,7 @@ function renderElement(
       return `<p class="marker">以下對剪</p>`;
     case "fragment": {
       // 補印哪幾欄是交付算好的（`disambiguateBy`），這裡只把那幾欄的值印進括號。
-      const scene = scenes.get(element.sceneId)!;
+      const scene = sceneOf(element.sceneId, scenes);
       const extra = element.disambiguateBy.map((field) => scene[field]).join(" ");
       return `<p class="marker">${escape(placeOf(element, scenes) + (extra ? `（${extra}）` : ""))}</p>`;
     }
@@ -180,7 +182,14 @@ function renderElement(
  * 內外（＝「雜景」）—— 紙上只出現編劇寫過的字與格式本來就有的值（使用者裁決 2026-10-22）。
  */
 function placeOf(element: { sceneId: string; location: string | null }, scenes: ReadonlyMap<string, DeliveredScene>) {
-  return element.location ?? scenes.get(element.sceneId)!.intExt;
+  return element.location ?? sceneOf(element.sceneId, scenes).intExt;
+}
+
+/** payload 裡元素指到的場次。找不到＝payload 壞了 —— 大聲失敗，不猜著印。 */
+function sceneOf(sceneId: string, scenes: ReadonlyMap<string, DeliveredScene>): DeliveredScene {
+  const scene = scenes.get(sceneId);
+  if (!scene) throw new Error(`交付 payload 的內文指到不存在的場次 ${sceneId}`);
+  return scene;
 }
 
 function escape(text: string): string {

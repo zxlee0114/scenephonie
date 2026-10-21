@@ -4,15 +4,15 @@
 
 **Blocked by:** 17
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] 一筆 fixture 交付渲染成 PDF，版面對齊 GHSA 4 頁範本（可被投稿接受）
-- [ ] 場次／子場次標題、行內式對白、發聲方式、INS、折返、對剪印法都符合 §9.4
-- [ ] 頁碼跨區段連續；時間戳 ＝ 交付建立時間（重新渲染印出同樣的字）
-- [ ] 浮水印文字是可輸入參數；登場人物／時間戳是匯出選項（預設關／開）
-- [ ] 折返標記依結構推導，兩子場次相鄰不印，空區塊不算內容
-- [ ] 渲染在 `@sparticuz/chromium` 環境跑得動；CJK 折行與避頭尾正確
-- [ ] CSS 模板結構按 §9.8 維度組織，換格式 ＝ 換模板
+- [x] 一筆 fixture 交付渲染成 PDF，版面對齊 GHSA 4 頁範本（可被投稿接受）
+- [x] 場次／子場次標題、行內式對白、發聲方式、INS、折返、對剪印法都符合 §9.4
+- [x] 頁碼跨區段連續；時間戳 ＝ 交付建立時間（重新渲染印出同樣的字）
+- [x] 浮水印文字是可輸入參數；登場人物／時間戳是匯出選項（預設關／開）
+- [x] 折返標記依結構推導，兩子場次相鄰不印，空區塊不算內容
+- [x] 渲染在 `@sparticuz/chromium` 環境跑得動；CJK 折行與避頭尾正確
+- [x] CSS 模板結構按 §9.8 維度組織，換格式 ＝ 換模板
 
 ## Comments
 
@@ -23,3 +23,33 @@
 
 **待本票裁定（使用者 2026-10-22 交辦）**：雜景且地點留空的場次，payload 的 `locations` 是空陣列。場次表那一格印「參照敘述」，
 但 **PDF 場次標題要印什麼**規格沒寫 —— 純印法，不動 payload 形狀。
+
+**2026-10-22 實作（PR 待開）。** 落點：
+
+- `apps/web/src/pdf/render-html.ts`：交付 → HTML。只讀 payload、只決定印成什麼字（不變式 E）；「回到」「以下對剪」「（INS）」只住在這裡。
+  不認得的 `payload.version` 大聲失敗。
+- `apps/web/src/pdf/format.ts`：§9.8 的維度先長成 `PrintFormat`，只有 `GHSA` 一組值（12pt、A4、邊界 2 cm、行高 1.5、
+  Noto Sans TC、標題前空兩行、元素間空一行、連續對白不空行）。
+- `apps/web/src/pdf/print-pdf.ts`：puppeteer-core 一趟 `page.pdf()`。本機找裝好的 Chrome，Vercel／Lambda 用
+  `@sparticuz/chromium`（`CHROMIUM_EXECUTABLE_PATH` 可覆寫）。**字型不賭執行環境**：頁面掛在假 origin，印表端從
+  `public/fonts` 送出票券 29 的 self-host subset；除此之外一律不准出網。
+- 頁碼 `@bottom-center { counter(page) }`、時間戳 `@bottom-left`（交付的 `createdAt`，台北時間 `2026-10-22 14:30`）——
+  `@page` 邊界盒，天然跨區段連續。浮水印是 `position: fixed` 的一層（Chromium 的 `@page` 不畫背景圖）。
+- 端點 `GET …/deliveries/[deliveryId]/pdf?watermark=&characters=&timestamp=`：gate → `loadDelivery` → 印。匯出選項是
+  **渲染參數不是交付內容**，走 query（`pdf/export-options.ts` 編解碼同一份）。
+- 匯出按鈕（`editor/export-pdf.tsx`）：先存檔（`useAutosave().flush()` 回報是否落地）→ `createDeliveryAction` → 印；
+  印壞了「再印一次」用同一筆交付。
+- 驗證：`print-pdf.test.ts` 在本機 Chrome 與 AWS Lambda `nodejs:22`（AL2023）容器＋`@sparticuz/chromium` 都跑過；
+  `next build` 的追蹤清單確認帶上 `bin/*.br` 與字型（`outputFileTracingIncludes` 的鍵是 picomatch glob，
+  寫 `[projectId]` 會被當字元類別而永遠對不上）。
+
+裁定（使用者 2026-10-22）：**雜景留空地點 → 標題省略那一欄（`3. 雜景 夜`），折返與片段標記補「雜景」**（`回到　雜景`）。
+
+實作時自定、待使用者驗收時確認：
+- 插入畫面印 `（INS）桌上的信。`（台灣慣例 `△（INS）` 去掉 △）。
+- 登場人物打開時印在標題下一行 `人物：男子、阿強`（這一場的顯示名），不塞進標題列。
+- 對白沒有說話者時只印對白本身，不補名字。
+- 片段標記補印區別欄位的樣子：`阿強家客廳（夜）`、`阿強家客廳（內景 夜）`。
+
+留給後續：§9.8 還沒長成欄位的維度（中英文字型分開、頁碼位置、場次編號攤平、投稿包裝頁）等第二種格式出現時再加；
+標題頁／大綱／人物介紹三個區段歸票 21（`section + section { break-before: page }` 已經在模板裡）。

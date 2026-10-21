@@ -100,6 +100,17 @@ describe("匯出 PDF", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("建立交付時斷線：說是連線問題、不叫人重新登入，也不印", async () => {
+    mount({ createDelivery: vi.fn(async () => Promise.reject(new Error("network"))) });
+    open();
+    await submit();
+
+    const alert = (await screen.findByRole("alert")).textContent;
+    expect(alert).toMatch(/連線/);
+    expect(alert).not.toMatch(/登入/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("印壞了：「再印一次」用同一筆交付重印，不建立第二筆", async () => {
     const { createDelivery } = mount();
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 500 }));
