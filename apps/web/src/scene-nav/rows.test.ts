@@ -99,7 +99,7 @@ describe("sceneNavRows", () => {
     ]);
   });
 
-  it("篩選比的是表上那幾欄：景的全稱、實體名與這一場的顯示名、人物、群演（草稿也篩得到）", () => {
+  it("篩選比的是表上那幾欄：內外的全稱、實體名與這一場的顯示名、人物、群演（草稿也篩得到）", () => {
     const doc = k.node("doc", null, [
       scene("煮麵", filled({ appearingCharacters: [{ characterId: ming.id, displayName: "男子" }] })),
       scene("吃麵", filled({ intExt: "內外景", time: null })),
@@ -110,6 +110,7 @@ describe("sceneNavRows", () => {
     expect(shown("小明")).toEqual(["S1"]);
     expect(shown("男子")).toEqual(["S1"]);
     expect(shown("內外景")).toEqual(["S1[D1]"]);
-    expect(shown("S1")).toEqual(["S1"]);
+    // 草稿以它錨定的場次號找得到（`S1[D1]` 錨在第 1 場）。
+    expect(shown("S1")).toEqual(["S1", "S1[D1]"]);
   });
 });

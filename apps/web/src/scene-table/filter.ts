@@ -35,13 +35,22 @@ export function filterScenes<Row>(
   });
 }
 
+/** 草稿標籤 `S5[D1]`／`S5.1[D2]` 錨定的那個場次號（`5`／`5.1`）；不是草稿、或排在全劇第一場之前（`[D1]`）回 `null`。 */
+function draftAnchor(label: string): string | null {
+  return /^S(.+)\[D\d+\]$/.exec(label)?.[1] ?? null;
+}
+
 function matches(row: SceneFilterFields, term: string): boolean {
   // sidebar 印的是 `S5`（票券 16）—— 照著畫面打也要找得到。
   const number = /^[Ss]\d/.test(term) ? term.slice(1) : term;
+  // 草稿不佔號，以它錨定的場次號比（票券 16 使用者裁決）：打 `5` 也帶出 `S5[D1]`、`S5.1[D1]`，
+  // 跟正式的 `5.1` 被 `5` 帶出來是同一條規則。sidebar 印的是「草稿」，標籤要滑過才看得到，
+  // 不能要求編劇把 `S5[D1]` 整串打出來。
+  const anchored = draftAnchor(row.label) ?? row.label;
   return (
     row.label === term ||
-    row.label === number ||
-    row.label.startsWith(`${number}.`) ||
+    anchored === number ||
+    anchored.startsWith(`${number}.`) ||
     row.intExt.includes(term) ||
     row.time.includes(term) ||
     row.location.includes(term) ||

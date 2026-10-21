@@ -38,6 +38,17 @@ describe("filterScenes", () => {
     expect(labels("1")).toEqual([]);
   });
 
+  it("草稿以它錨定的場次號找得到（sidebar 才有草稿，票券 16）：`5` 也帶出 `S5[D1]` 與 `S5.1[D1]`", () => {
+    const withDrafts = [...rows, row("S5[D1]"), row("S5.1[D1]"), row("S15[D1]"), row("[D1]")];
+    const found = (query: string) => filterScenes(withDrafts, query, (r) => r).map((r) => r.label);
+    expect(found("5")).toEqual(["5", "5.1", "S5[D1]", "S5.1[D1]"]);
+    expect(found("S5")).toEqual(["5", "5.1", "S5[D1]", "S5.1[D1]"]);
+    expect(found("5.1")).toEqual(["5.1", "S5.1[D1]"]);
+    expect(found("15")).toEqual(["15", "S15[D1]"]);
+    // 整串照打也找得到。
+    expect(found("S5[D1]")).toEqual(["S5[D1]"]);
+  });
+
   it("場次號前面帶 `S` 也算（sidebar 印的是 `S5`，票券 16）", () => {
     expect(labels("S5")).toEqual(["5", "5.1"]);
     expect(labels("s5.1")).toEqual(["5.1"]);
