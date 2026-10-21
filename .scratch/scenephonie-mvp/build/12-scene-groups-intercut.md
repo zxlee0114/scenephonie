@@ -4,7 +4,7 @@
 
 **Blocked by:** 11
 
-**Status:** in-review
+**Status:** verified
 
 - [x] `/` →「對剪到…」建立群組；成員各得一個頂層場次號
 - [x] schema 保證群組不能巢狀、一個場次不屬於兩個群組
@@ -44,9 +44,19 @@
    - 「移出對剪」（`ungroupMember`）：那一場變回普通場次、**接在群組後面**，`sceneId`／metadata／子場次保住，片段依閱讀順序接成它的內文；其餘成員的交錯不動，只剩一個成員時群組也解散。
    - 「解散對剪」（`dissolveGroup`）：每個成員依成員順序變回普通場次。
    - 兩者 ⌘Z 一步回來。
-5. **開 DevTools 偶發當機（RESULT_CODE_HUNG）**：未解。`main` 上沒重現到，但偶發、不能排除。程式裡沒看到會不收斂的 `appendTransaction` 或 resize 迴圈；之前那次 CPU 飆高的紀錄在 repo／PR／對話紀錄裡都沒找到。下次發生時用 Chrome 工作管理員（Shift+Esc）看飆高的是分頁還是 DevTools。
+5. **開 DevTools 偶發當機（RESULT_CODE_HUNG）**：已解（見本條最後）。`main` 上沒重現到，但偶發、不能排除。程式裡沒看到會不收斂的 `appendTransaction` 或 resize 迴圈；之前那次 CPU 飆高的紀錄在 repo／PR／對話紀錄裡都沒找到。下次發生時用 Chrome 工作管理員（Shift+Esc）看飆高的是分頁還是 DevTools。
    - 追加（使用者提供前一次的總結）：前一次的根因是 `@tiptap/react` 在 ProseMirror 更新途中掛新 React node view 時無條件 `flushSync`；動作／插入畫面已改原生，但 `SceneView`（場次、子場次、**群組成員**）與對白仍是 React。本票多出幾個在更新途中新掛它們的時機（建立成員、移出／解散、⌘+N 切開與合併重排片段裡的對白）—— 推論，未重現。
    - 使用者裁決：**先加斷路器抓觸發點**。開發環境掛 `RunawayGuard`：沒有輸入、一秒重繪超過 300 次 → 把輸入、transaction 摘要、游標節點路徑、React node view 數寫進 `localStorage["scenephonie:runaway"]`，並設成唯讀斷迴圈（`syncEditable` 讀它的 storage，不會再改回可編輯）。已在本機瀏覽器用 400 次強制重繪驗過會跳閘並保持唯讀。拿到紀錄再決定要不要 patch `@tiptap/react` 的 `flushSync`。
    - **根因找到並修掉**（第三份紀錄的 `accepted`）：ProseMirror 讀回的全是 React 畫外殼（`div.block`、`div.scene`）與 Tiptap 搬 contentDOM 的變動。Tiptap 預設 `ignoreMutation` 的行動裝置分支（`isiOS() || isAndroid()`、有焦點、增刪節點都 `isContentEditable` → 不忽略）在開著 DevTools 的 Mac Chrome 上誤中 —— `isiOS()` 用 `userAgent` 含 Mac ＋ `ontouchend in document` 認 iPad。於是每掛一個 React node view 就整個節點標髒 → 重建 → React 再掛 → 再讀回。修法：場次與對白的 `ReactNodeViewRenderer` 改用 `ignoreReactChromeMutation`（`nodes/react-mutations.ts`），只讀回 node view 自己 contentDOM 裡的變動。回歸測試在 jsdom 讓 `isiOS()` 成立，拿掉修正會紅。
    - 同一個根因很可能也是「按 Enter 新行出現、游標留在原處、重新整理就好」那一次：節點被重建時 DOM 選取跟丟。
    - 斷路器留著（開發環境）當保險；前一次「動作區塊改原生 node view」的修法其實是繞過同一個問題。
+
+**2026-10-21 驗收第二輪（使用者）**：第一輪回饋 1–5 全部複驗通過（含開著 DevTools）。
+
+使用者裁決：
+
+- 實作判斷 6「只剩一個成員時群組解散」：**同意**。
+- 實作判斷 9「票券 15 的點標籤修正歸屬不做」：**同意**（⌘+N 在第一行就是同一件事）。
+- 成員事後被手動改成同地點、同時間：**不在編輯當下擋**，接進票券 14 的草稿推導（已記到票券 14）。
+- 開發環境斷路器（`RunawayGuard`）：**留著**（只在開發環境載入；代價是包了 ProseMirror 私有的 `domObserver.registerMutation`，升級後失效只少一欄紀錄）。
+- 實作判斷 5「群組裡按『對剪到…』＝加入成員」：**維持現狀**（成員選單不另加「新增對剪成員」入口）。
