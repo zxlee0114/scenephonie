@@ -57,15 +57,15 @@ describe("場次導覽 sidebar", () => {
     localStorage.clear();
   });
 
-  it("列出每一場，形如 `S1 內 日 廚房`；草稿也列", async () => {
+  it("列出每一場，形如 `S1 內 日 廚房`；草稿也列，場次號欄印「草稿」", async () => {
     const doc = k.node("doc", null, [scene("煮麵"), scene("草稿", filled({ manualDraft: true })), scene("吃麵")]);
     const { container } = mount(doc);
     await ready(container);
 
-    expect(navRows(container)).toEqual(["S1 內 日 廚房", "S1[D1] 內 日 廚房", "S2 內 日 廚房"]);
+    expect(navRows(container)).toEqual(["S1 內 日 廚房", "草稿 內 日 廚房", "S2 內 日 廚房"]);
   });
 
-  it("草稿標示出來；子場次縮排；群組成員收在同一組裡，群組本身不佔一列", async () => {
+  it("草稿的標籤滑過看得到；子場次縮排；群組成員收在同一組裡，群組本身不佔一列", async () => {
     const a = k.node("groupMember", { sceneId: mintSceneId(), ...filled({ time: "夜" }) });
     const b = k.node("groupMember", { sceneId: mintSceneId(), ...filled({ time: "晨" }) });
     const fragment = (m: PMNode, text: string) =>
@@ -83,8 +83,8 @@ describe("場次導覽 sidebar", () => {
     await ready(container);
     const item = (id: unknown) => nav(container)!.querySelector<HTMLElement>(`[data-scene-id="${id as string}"]`)!;
 
-    expect(navRows(container)).toEqual(["S1 內 日 廚房", "S1.1 內 昏 廚房", "S1[D1] 內 日 廚房", "S2 內 夜 廚房", "S3 內 晨 廚房"]);
-    expect(item(draft.attrs.sceneId).querySelector(".scene-nav__draft")?.textContent).toBe("草稿");
+    expect(navRows(container)).toEqual(["S1 內 日 廚房", "S1.1 內 昏 廚房", "草稿 內 日 廚房", "S2 內 夜 廚房", "S3 內 晨 廚房"]);
+    expect(item(draft.attrs.sceneId).querySelector(".scene-nav__no")?.getAttribute("title")).toBe("S1[D1]");
     expect(item(inserted.attrs.sceneId).classList.contains("scene-nav__item--sub")).toBe(true);
     const group = item(a.attrs.sceneId).closest('[role="group"]');
     expect(group?.getAttribute("aria-label")).toBe("對剪");
@@ -139,7 +139,11 @@ describe("場次導覽 sidebar", () => {
 
     fireEvent.click(toggle(first.container));
     expect(toggle(first.container).getAttribute("aria-expanded")).toBe("false");
-    expect(navRows(first.container)).toHaveLength(0);
+    // 收起來的清單還掛著（滑出去的過渡要有東西可滑），但碰不到也唸不到。
+    const body = first.container.querySelector(".scene-nav__body")!;
+    expect(body.hasAttribute("inert")).toBe(true);
+    // 搜尋框打的字收合之間不丟。
+    expect(body.querySelector("input")).not.toBeNull();
 
     first.unmount();
     const again = mount(doc);
@@ -147,7 +151,7 @@ describe("場次導覽 sidebar", () => {
     expect(toggle(again.container).getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.click(toggle(again.container));
-    expect(navRows(again.container)).toHaveLength(2);
+    expect(again.container.querySelector(".scene-nav__body")!.hasAttribute("inert")).toBe(false);
   });
 
   it("窄螢幕是抽屜：載入時收著；同一顆鈕打開，跳到一場就收回去；開合不記", async () => {

@@ -18,6 +18,13 @@
 /** 作用中那一場的上緣要停在視窗高度的幾成處。偏上 —— 寫作工具的慣例。 */
 export const TYPEWRITER_ANCHOR = 0.4;
 
+/**
+ * 跳到某一場（場次導覽、場次表的「到劇本」）時，那一場的上緣停在哪 —— 比打字餘裕線再高一些
+ * （使用者回饋 2026-10-22，票券 16）：跳過去是要從那一場的開頭讀起，下方該留給那一場自己的內容，
+ * 不是留給接下來要寫的。
+ */
+export const JUMP_ANCHOR = 0.25;
+
 export interface WritingScrollInput {
   /** 目標元素上緣相對視窗的位置（`getBoundingClientRect().top`）。 */
   readonly elementTop: number;
@@ -26,6 +33,8 @@ export interface WritingScrollInput {
   readonly viewportHeight: number;
   /** 這份文件最多能捲到哪（可能為負 —— 內容不足一畫面）。 */
   readonly maxScrollTop: number;
+  /** 停在視窗高度的幾成處。省略 ＝ 打字餘裕線（`TYPEWRITER_ANCHOR`）。 */
+  readonly anchor?: number;
 }
 
 /** 要把捲軸帶到哪，才能讓目標元素停在打字餘裕線上。夾在 `[0, maxScrollTop]`。 */
@@ -34,8 +43,9 @@ export function writingScrollTop({
   scrollY,
   viewportHeight,
   maxScrollTop,
+  anchor = TYPEWRITER_ANCHOR,
 }: WritingScrollInput): number {
-  const wanted = scrollY + elementTop - viewportHeight * TYPEWRITER_ANCHOR;
+  const wanted = scrollY + elementTop - viewportHeight * anchor;
   return Math.max(0, Math.min(wanted, maxScrollTop));
 }
 
@@ -45,10 +55,11 @@ export function writingScrollTop({
  *
  * 「動起來」照 `prefers-reduced-motion` 決定；`matchMedia` 在測試環境可能不存在，故是選擇性呼叫。
  * `instant`：直接落在那裡、不捲過去 —— 從場次表跳回時，一路捲過整份劇本只是噪音（票券 15）。
+ * `anchor`：停在哪一條線，省略是打字餘裕線；跳轉用 `JUMP_ANCHOR`。
  */
 export function scrollToWritingPosition(
   element: Element | null | undefined,
-  { instant = false }: { instant?: boolean } = {},
+  { instant = false, anchor }: { instant?: boolean; anchor?: number } = {},
 ): void {
   if (!element || typeof window === "undefined") return;
 
@@ -57,6 +68,7 @@ export function scrollToWritingPosition(
     scrollY: window.scrollY,
     viewportHeight: window.innerHeight,
     maxScrollTop: document.documentElement.scrollHeight - window.innerHeight,
+    anchor,
   });
 
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;

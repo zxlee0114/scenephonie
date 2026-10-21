@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { TYPEWRITER_ANCHOR, writingScrollTop } from "./typewriter-scroll";
+import { JUMP_ANCHOR, TYPEWRITER_ANCHOR, writingScrollTop } from "./typewriter-scroll";
 
 /** 1000px 高的視窗、可捲動空間充裕 —— 落點不會被夾住的基準情境。 */
 const roomy = { viewportHeight: 1000, maxScrollTop: 100_000 };
@@ -18,6 +18,12 @@ describe("writingScrollTop", () => {
     // 目標：元素上緣落在 1000 * 0.4 = 400px 處 → 再往下捲 500px。
     expect(top).toBe(2500);
     expect(TYPEWRITER_ANCHOR).toBeLessThan(0.5); // 偏上：下方要留給即將寫出來的內容
+  });
+
+  it("跳轉落點比打字餘裕線高（票券 16）：跳過去是要讀那一場，不是接著往下寫", () => {
+    // 元素在視窗 900px 處；跳轉的落點是 1000 * 0.25 = 250px → 往下捲 650px。
+    expect(writingScrollTop({ elementTop: 900, scrollY: 2000, ...roomy, anchor: JUMP_ANCHOR })).toBe(2650);
+    expect(JUMP_ANCHOR).toBeLessThan(TYPEWRITER_ANCHOR);
   });
 
   it("元素已經在餘裕線上時不動", () => {

@@ -91,40 +91,40 @@ export function SceneNav({
       >
         <span aria-hidden="true">{open ? "‹" : "›"}</span> 場次
       </button>
-      {open && !wide && (
-        // 點稿子那一側收回抽屜。不是按鈕：鍵盤用 Esc 或同一顆開關。
+      {!wide && (
+        // 點稿子那一側收回抽屜。不是按鈕：鍵盤用 Esc 或同一顆開關。一直掛著，淡入淡出靠 CSS。
         <div className="scene-nav__scrim" aria-hidden="true" onClick={() => setOpen(false)} />
       )}
-      {open && (
-        <div className="scene-nav__body" id={bodyId}>
-          <input
-            type="search"
-            className="scene-nav__search"
-            placeholder="篩選：場次號、地點、人物、時間"
-            aria-label="篩選場次"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          {shown.length === 0 && rows.length > 0 ? (
-            <p className="scene-nav__empty">沒有對得上的場次</p>
-          ) : (
-            <ol className="scene-nav__list">
-              {runs(shown).map((run) =>
-                // 群組本身不佔一列（它不佔號）—— 但成員要看得出同組：收進同一條框線裡。
-                run.groupId ? (
-                  <li key={run.groupId + run.rows[0]!.sceneId} className="scene-nav__group">
-                    <ol role="group" aria-label="對剪">
-                      {run.rows.map(item)}
-                    </ol>
-                  </li>
-                ) : (
-                  run.rows.map(item)
-                ),
-              )}
-            </ol>
-          )}
-        </div>
-      )}
+      {/* 收起來時清單照樣掛著、只是 `inert` —— 開合才有東西滑進滑出（使用者回饋 2026-10-22），
+          搜尋框打的字也不會因為收一下就丟了。 */}
+      <div className="scene-nav__body" id={bodyId} inert={!open}>
+        <input
+          type="search"
+          className="scene-nav__search"
+          placeholder="篩選：場次號、地點、人物、時間"
+          aria-label="篩選場次"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {shown.length === 0 && rows.length > 0 ? (
+          <p className="scene-nav__empty">沒有對得上的場次</p>
+        ) : (
+          <ol className="scene-nav__list">
+            {runs(shown).map((run) =>
+              // 群組本身不佔一列（它不佔號）—— 但成員要看得出同組：收進同一個淡底塊裡。
+              run.groupId ? (
+                <li key={run.groupId + run.rows[0]!.sceneId} className="scene-nav__group">
+                  <ol role="group" aria-label="對剪">
+                    {run.rows.map(item)}
+                  </ol>
+                </li>
+              ) : (
+                run.rows.map(item)
+              ),
+            )}
+          </ol>
+        )}
+      </div>
     </nav>
   );
 }
@@ -147,9 +147,9 @@ function runs(rows: readonly SceneNavRow[]): { groupId?: string; rows: SceneNavR
 function SceneNavLine({ row }: { row: SceneNavRow }) {
   return (
     <>
-      <span className="scene-nav__no">{row.label}</span>
-      {/* 看得見的區隔是場次號換成草稿色（同 gutter）；`S1[D1]` 的 `D` 不是人人讀得懂，唸出來要說。 */}
-      {row.draft && <span className="scene-nav__draft sr-only">草稿</span>}
+      <span className="scene-nav__no" title={row.title}>
+        {row.label}
+      </span>
       <span className="scene-nav__int-ext">{row.intExt}</span>
       <span className="scene-nav__time">{row.time}</span>
       <span className="scene-nav__location">{row.location}</span>

@@ -3,7 +3,7 @@
  *
  * **sidebar ＝ 創作中的定位**（跟隨游標高亮、含草稿、只為了跳）；場次表 ＝ 交付用的投影。草稿是
  * 兩者唯一的分歧 —— 所以這裡不讀 `projectSceneTable`（它濾掉草稿），而是吃編輯器那一份場次號
- * （`editorSceneNumbers`，套上「離開時才判定」的鎖），gutter 印 `S5[D1]` 時 sidebar 也印 `S5[D1]`。
+ * （`editorSceneNumbers`，套上「離開時才判定」的鎖），gutter 是草稿時 sidebar 也是草稿。
  *
  * 每列形如 `S1 內 日 廚房`（欄序比照 §8：場次號、內外、時間、地點）。地點印**這一場的顯示名** ——
  * 編劇在 chip row 裡看到的那個字；實體名只進篩選。
@@ -20,6 +20,7 @@ import {
 import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { forEachScene } from "@/editor/address";
+import { DRAFT_MARK } from "@/editor/extensions/scene-numbers";
 import type { SceneFilterFields } from "@/scene-table/filter";
 
 /**
@@ -43,8 +44,10 @@ export interface SceneNavNames {
 export interface SceneNavRow {
   /** 永久 id。點擊跳轉掛在這裡，不掛場次號。 */
   sceneId: string;
-  /** `S5`／`S5.1`；草稿是它自己的推導標籤 `S5[D1]`。 */
+  /** `S5`／`S5.1`；草稿不佔號，印「草稿」（同 gutter）。 */
   label: string;
+  /** 草稿點名用的標籤 `S5[D1]`，滑過才看得到；正式場次是 `undefined`。 */
+  title?: string;
   /** 是不是草稿（推導的，§4.8）—— 草稿也列，但要看得出來。 */
   draft: boolean;
   /** 子場次 —— 縮排一級。 */
@@ -92,7 +95,8 @@ export function sceneNavRows(
     return [
       {
         sceneId: scene.sceneId,
-        label: scene.draft ? scene.label : `S${scene.label}`,
+        label: scene.draft ? DRAFT_MARK : `S${scene.label}`,
+        ...(scene.draft ? { title: scene.label } : {}),
         draft: scene.draft,
         sub: scene.parentSceneId !== undefined,
         ...(groupId ? { groupId } : {}),

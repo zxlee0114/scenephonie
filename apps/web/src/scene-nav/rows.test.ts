@@ -58,7 +58,7 @@ describe("sceneNavRows", () => {
     ]);
   });
 
-  it("草稿也列（場次表不列的那些），並標示是草稿；空欄就不印", () => {
+  it("草稿也列（場次表不列的那些），場次號欄印「草稿」；空欄就不印", () => {
     const doc = k.node("doc", null, [
       scene("煮麵"),
       scene("還沒想好", filled({ time: null, location: null })),
@@ -66,7 +66,9 @@ describe("sceneNavRows", () => {
       scene("吃麵", filled({ intExt: "外景" })),
     ]);
     const rows = rowsOf(doc);
-    expect(rows.map(line)).toEqual(["S1 內 日 廚房", "S1[D1] 內", "S1[D2] 內 夜 廚房", "S2 外 日 廚房"]);
+    // 草稿不佔號，場次號欄印「草稿」；點名用的標籤在 `title`（同 gutter，票券 16 使用者裁決）。
+    expect(rows.map(line)).toEqual(["S1 內 日 廚房", "草稿 內", "草稿 內 夜 廚房", "S2 外 日 廚房"]);
+    expect(rows.map((r) => r.title)).toEqual([undefined, "S1[D1]", "S1[D2]", undefined]);
     expect(rows.map((r) => r.draft)).toEqual([false, true, true, false]);
   });
 
@@ -103,7 +105,7 @@ describe("sceneNavRows", () => {
       scene("吃麵", filled({ intExt: "內外景", time: null })),
     ]);
     const shown = (query: string) =>
-      filterScenes(rowsOf(doc), query, (r) => r.search).map((r) => r.label);
+      filterScenes(rowsOf(doc), query, (r) => r.search).map((r) => r.title ?? r.label);
     expect(shown("海豚公寓")).toEqual(["S1", "S1[D1]"]);
     expect(shown("小明")).toEqual(["S1"]);
     expect(shown("男子")).toEqual(["S1"]);
