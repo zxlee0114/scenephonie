@@ -323,3 +323,38 @@ export const screenplayBackups = pgTable(
   ],
 ).enableRLS();
 
+
+/**
+ * 交付 —— 一則承諾：「這份內容，在你之後改稿時仍保持不變。」（票券 17，§4.9、§6.2、ADR-0008）
+ *
+ * **唯一刻意不可變的表**：程式碼只 `INSERT` 與 `SELECT`，沒有 `updated_at`。
+ *
+ * - **沒有 `doc_seq`／`doc_schema_version`**（§10.4）：交付不被載入編輯、不被遷移。`payload` 裡
+ *   有它自己的形狀版本（`DELIVERY_PAYLOAD_VERSION`），那是讀取端的相容契約，不是遷移鏈的一節。
+ * - **`payload` 存推導的結果，不存推導的輸入**（`projectDelivery`）：場次號、草稿排除、折返、對剪
+ *   都在建立那一刻算完。存 doc 等於讓編號演算法一改就回頭改寫紙上的字。
+ * - **事件，不是狀態**：同一份劇本匯出兩次＝兩列，不去重；「產物還沒成功產生」是合法狀態，
+ *   **不設狀態機旗標**（旗標會說謊）—— 重試＝拿同一列重新渲染。
+ * - `created_at` 是承諾的時刻，也是 PDF 頁尾印的那個時間戳（票券 18）—— 不是渲染當下的 now。
+ *
+ * **與 `screenplay_backups` 不共用**（§10.4）：備份是 before-image、可被清理策略碰；交付不可碰。
+ * 混用會讓「唯一刻意不可變」這條分野失效。
+ *
+ * ⚠️ 同 `screenplay_backups` 的誠實話：FK 的 `onDelete: "cascade"` 是一條刪除路徑，只在整列劇本
+ * 被刪掉時觸發（v1 產品面沒有刪劇本；整合測試與訪客 TTL 清理靠它）。不可變在 v1 是程式碼層的
+ * 規則，不是資料庫權限層的保證。
+ */
+export const deliveries = pgTable(
+  "deliveries",
+  {
+    /** `dl_` ＋ nanoid。 */
+    id: text("id").primaryKey(),
+    screenplayId: text("screenplay_id")
+      .notNull()
+      .references(() => screenplays.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    payload: jsonb("payload").notNull(),
+  },
+  // 凍結分享（票券 20）與編劇自己的分享清單問的是「這份劇本有哪些交付」。
+  (table) => [index("deliveries_screenplay_id_created_at_idx").on(table.screenplayId, table.createdAt.desc())],
+).enableRLS();

@@ -4,12 +4,36 @@
 
 **Blocked by:** 14, 05
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] 匯出意圖觸發時建立一筆 `deliveries`，payload 是推導結果（含場次號），非場次樹
-- [ ] 同一劇本連續兩次匯出 → 兩列，不去重
-- [ ] 重試用同一筆交付重跑，不產生第二列；無「產物未產生」的狀態機旗標
-- [ ] `deliveries` 無 `doc_seq`／`doc_schema_version`，不被遷移
-- [ ] 建立交付是單一交易，是 atomicity 邊界；語意推導在交易內完成
-- [ ] 不變式 D／E 有測試：語意推導值一旦承諾就不被重算
-- [ ] 交付路徑與備份路徑在程式碼中分離，不共用寫入機制
+- [x] 匯出意圖觸發時建立一筆 `deliveries`，payload 是推導結果（含場次號），非場次樹
+- [x] 同一劇本連續兩次匯出 → 兩列，不去重
+- [x] 重試用同一筆交付重跑，不產生第二列；無「產物未產生」的狀態機旗標
+- [x] `deliveries` 無 `doc_seq`／`doc_schema_version`，不被遷移
+- [x] 建立交付是單一交易，是 atomicity 邊界；語意推導在交易內完成
+- [x] 不變式 D／E 有測試：語意推導值一旦承諾就不被重算
+- [x] 交付路徑與備份路徑在程式碼中分離，不共用寫入機制
+
+## Comments
+
+**2026-10-22 實作（使用者裁決：payload 裝完整可讀稿）。** 「一筆交付必須能獨立重建它承諾的語意」—— 只存
+`sceneId → 場次號` 單獨讀不出是哪場戲，所以 payload v1 是：
+
+- `scenes`：正式場次依文件順序（同場次表列序），每場帶場次號、主場次／群組歸屬、景、光、地點與登場人物的
+  `{ name（交付當時的實體名，懸空為 null）, displayName }` 快照、群演印好的字。
+- `script`：閱讀順序的元素 —— `heading`（只記 `sceneId`）、`action`、`dialogue`（說話者顯示名＋發聲方式）、
+  `insertShot`、`returnTo`（折返，帶地點顯示名）、`intercut`（以下對剪的宣告）、`fragment`（片段歸屬的成員）。
+  只記結構事實，「以下對剪」「回到」「INS」的字由渲染器決定（約束 2）。
+- `version`：payload 形狀版本，**不是** doc 的 schema 版本 —— 交付不被遷移，讀取端靠它認舊形狀。
+
+落點：`packages/schema/src/delivery.ts` 的 `projectDelivery(doc, names)`（純函式）；
+`apps/web/src/persistence/delivery-store.ts` 的 `createDelivery`／`loadDelivery`（`repeatable read` 單一交易：
+讀已存檔的 doc ＋ 實體名 → 推導 → 寫入）；`createDeliveryAction`（先過 gate）。沒有 UI —— 匯出按鈕歸票 18，
+它要先把編輯器手上的存掉再呼叫（承諾的是 canonical state）。
+
+延伸裁定（實作時順手定的，留給 18 檢查）：
+- **草稿整場不進交付**，含草稿子場次；草稿子場次不算「走開過」，它前後的主場次內容之間不記折返。
+- **空區塊不算內容**，不進 `script`。
+- 群組只剩一個正式成員時不宣告對剪，那一場像一般場次一樣印。
+- 歸屬標記「顯示名相同時補印區別欄位」**沒有**在這裡預先算好 —— 渲染器從 `scenes` 裡成員的 metadata 取。
+  若 18 認為那是語意推導值（不變式 E），升 `version` 把它加進 `fragment`。

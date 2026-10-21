@@ -50,6 +50,13 @@
       "when": 1791326520512,
       "tag": "0006_enable_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792607937966,
+      "tag": "0007_deliveries",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,7 @@ import { authorizeProject, authorizeScreenplay } from "@/authorization";
 import { createCharacter, createLocation, renameCharacter, renameLocation } from "@/entities";
 import type { CreateEntityRequest, RenameEntityRequest } from "@/editor/entity-capability";
 import type { SaveOutcome, SaveScreenplayRequest } from "@/editor/save-capability";
-import { saveScreenplay } from "@/persistence";
+import { createDelivery, saveScreenplay } from "@/persistence";
 
 /**
  * 編輯器的存檔入口。
@@ -37,6 +37,27 @@ export async function saveScreenplayAction(
   docFromJSON(request.doc);
 
   return saveScreenplay({ screenplay, doc: request.doc, token: request.token });
+}
+
+/**
+ * 匯出意圖：建立一筆交付（票券 17，不變式 D）。
+ *
+ * **先提交交付，再渲染**（§9.2）—— 這支只做前一半：一個交易、寫進推導的結果，回傳那一筆的 id。
+ * 渲染器（票券 18）與凍結分享（票券 20）拿這個 id 讀交付，不讀 live doc；渲染失敗就再讀同一筆，
+ * 不會再呼叫這支（那會多一筆交付）。
+ *
+ * 讀的是**已存檔**的 doc —— 呼叫端要先把手上的存掉，承諾的是 canonical state。
+ */
+export async function createDeliveryAction(request: {
+  screenplayId: string;
+}): Promise<{ status: "delivered"; deliveryId: string } | { status: "forbidden" }> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return { status: "forbidden" };
+
+  const delivery = await createDelivery(screenplay);
+  // 劇本在授權之後才不見：與「不是你的」同一個答案（不給存在性探針）。
+  if (!delivery) return { status: "forbidden" };
+  return { status: "delivered", deliveryId: delivery.deliveryId };
 }
 
 /**

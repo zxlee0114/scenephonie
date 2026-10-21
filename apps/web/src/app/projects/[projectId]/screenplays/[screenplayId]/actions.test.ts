@@ -11,11 +11,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { SaveToken } from "@/persistence";
 
 const saveScreenplay = vi.hoisted(() => vi.fn());
+const createDelivery = vi.hoisted(() => vi.fn());
 const authorizeScreenplay = vi.hoisted(() => vi.fn());
-vi.mock("@/persistence", () => ({ saveScreenplay }));
+vi.mock("@/persistence", () => ({ saveScreenplay, createDelivery }));
 vi.mock("@/authorization", () => ({ authorizeScreenplay }));
 
-const { saveScreenplayAction } = await import("./actions");
+const { saveScreenplayAction, createDeliveryAction } = await import("./actions");
 
 const token = "st_0" as SaveToken;
 
@@ -90,5 +91,40 @@ describe("saveScreenplayAction 的寫入邊界驗證", () => {
       saveScreenplayAction({ screenplayId: "sp_x", doc: goodDoc, token }),
     ).resolves.toEqual({ status: "saved", token: "st_1" });
     expect(saveScreenplay).toHaveBeenCalledOnce();
+  });
+});
+
+/**
+ * 匯出意圖的入口（票券 17）：建立一筆交付。它和存檔一樣是公開端點 —— 先過 gate，
+ * persistence 收到的是 handle。
+ */
+describe("createDeliveryAction", () => {
+  it("不是自己的劇本建不出交付，而且沒有碰到 persistence", async () => {
+    createDelivery.mockClear();
+    authorizeScreenplay.mockResolvedValue(null);
+
+    await expect(createDeliveryAction({ screenplayId: "sp_someone_else" })).resolves.toEqual({
+      status: "forbidden",
+    });
+    expect(createDelivery).not.toHaveBeenCalled();
+  });
+
+  it("用 gate 給的 handle 建立交付，回傳那一筆交付的 id", async () => {
+    createDelivery.mockClear();
+    authorizeScreenplay.mockResolvedValue(granted);
+    createDelivery.mockResolvedValue({ deliveryId: "dl_1", createdAt: new Date(), payload: {} });
+
+    await expect(createDeliveryAction({ screenplayId: "sp_x" })).resolves.toEqual({
+      status: "delivered",
+      deliveryId: "dl_1",
+    });
+    expect(createDelivery).toHaveBeenCalledWith(granted);
+  });
+
+  it("劇本在授權之後才不見 —— 與「不是你的」同一個答案", async () => {
+    authorizeScreenplay.mockResolvedValue(granted);
+    createDelivery.mockResolvedValue(null);
+
+    await expect(createDeliveryAction({ screenplayId: "sp_x" })).resolves.toEqual({ status: "forbidden" });
   });
 });
