@@ -1642,3 +1642,142 @@
   padding-inline-start: var(--space-4);
   color: var(--text-secondary);
 }
+
+/* ─────────────────────────────────────────── 場次預覽（票券 15，點場次表一列開的） */
+
+/*
+ * 讀稿用的唯讀預覽：字體與閱讀語意跟編輯器一致（動作全寬、對白縮排、插入畫面帶結構標籤），
+ * 不模擬紙本（不變式 G）。開關的外殼照快捷鍵總覽。
+ */
+.scene-preview__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: color-mix(in srgb, var(--surface-page) 72%, transparent);
+}
+
+.scene-preview {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(40rem, 100%);
+  max-block-size: 100%;
+  padding: var(--space-5);
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-3);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
+}
+
+.scene-preview:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}
+
+.scene-preview__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-family: var(--font-ui);
+}
+
+.scene-preview__title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.scene-preview__close {
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.scene-preview__close:hover {
+  color: var(--text-primary);
+}
+
+.scene-preview__cast {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* 內文自己捲：標題與「到劇本」一直看得到。 */
+.scene-preview__body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  margin-block: var(--space-4);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--rule);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
+
+.scene-preview__body p {
+  margin: 0 0 var(--space-3);
+}
+
+.scene-preview__dialogue {
+  margin-inline-start: var(--space-5);
+}
+
+.scene-preview__dialogue .scene-preview__speaker {
+  margin-block-end: 0;
+  font-weight: 600;
+}
+
+.scene-preview__insert-shot {
+  margin-inline-start: var(--space-5);
+}
+
+.scene-preview__tag,
+.scene-preview__subscene-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.scene-preview__body .scene-preview__tag {
+  margin-block-end: 0;
+}
+
+.scene-preview__subscene {
+  margin-block: var(--space-4);
+  /* 場次不畫邊框（不變式 G）：子場次只靠縮排與標籤。 */
+  padding-inline-start: var(--space-4);
+}
+
+.scene-preview__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.scene-preview__open {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--control-border);
+  border-radius: var(--space-1);
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.scene-preview__open:hover {
+  background: var(--surface-raised);
+}

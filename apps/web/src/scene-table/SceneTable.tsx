@@ -2,7 +2,7 @@
  * 場次表（票券 15，§8）—— 交付用的投影：零新增資訊、給製作端、可印。
  *
  * 這個元件只負責**畫**：列由呼叫端從 `projectSceneTable` ＋ `labelSceneTable` 推導好交進來。
- * **沒有寫入路徑** —— 要改就回頭改 doc（點一列跳回編輯器），所以格子都是純文字。
+ * **沒有寫入路徑** —— 要改就回頭改 doc（點一列開預覽，從預覽跳回編輯器），所以格子都是純文字。
  * `missingRefs` 不進這裡：它是診斷輸出，不參與渲染（§6.6）。
  */
 "use client";
@@ -15,13 +15,13 @@ import { filterSceneTable } from "./filter";
 export function SceneTable({
   rows,
   anchorSceneId,
-  onOpenScene,
+  onSelect,
 }: {
   rows: readonly LabeledSceneTableRow[];
   /** 切換進來時對位的那一列（游標所在場次，§7.10）；`null` ＝ 不對位。 */
   anchorSceneId: string | null;
-  /** 點一列：跳回編輯器並定位到該場 —— 掛在永久 id 上，重排場次也不跳錯。 */
-  onOpenScene: (sceneId: string) => void;
+  /** 點一列：開那一場的預覽（呼叫端決定怎麼呈現）。 */
+  onSelect: (sceneId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const shown = useMemo(() => filterSceneTable(rows, query), [rows, query]);
@@ -66,7 +66,7 @@ export function SceneTable({
                   data-scene-id={row.sceneId}
                   aria-current={anchored ? "location" : undefined}
                   className={row.parentSceneId ? "scene-table__row--sub" : undefined}
-                  onClick={() => onOpenScene(row.sceneId)}
+                  onClick={() => onSelect(row.sceneId)}
                 >
                   <td>
                     {/* 鍵盤也點得到：整列可點，但 Tab 只停在場次號這一格。 */}

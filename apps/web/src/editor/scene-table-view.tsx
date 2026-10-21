@@ -9,9 +9,11 @@
 
 import type { Editor } from "@tiptap/core";
 import { labelSceneTable, projectScenes, projectSceneTable } from "@scenephonie/schema";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { SceneTable } from "@/scene-table/SceneTable";
+import { ScenePreview } from "@/scene-table/ScenePreview";
+import { scenePreview } from "@/scene-table/scene-preview";
 
 import { useEntityCatalog } from "./entity-catalog";
 import { cursorSceneId } from "./scene-anchor";
@@ -37,7 +39,24 @@ export function SceneTableView({
 
   const anchor = useMemo(() => tableAnchor(doc, cursorSceneId(editor.state), rows), [doc, editor, rows]);
 
-  return <SceneTable rows={rows} anchorSceneId={anchor} onOpenScene={onOpenScene} />;
+  // 點一列先開預覽，不直接跳 —— 整列可點太容易誤按（票券 15 驗收）。
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  const previewRow = rows.find((r) => r.sceneId === previewing);
+
+  return (
+    <>
+      <SceneTable rows={rows} anchorSceneId={anchor} onSelect={setPreviewing} />
+      {previewRow && (
+        <ScenePreview
+          row={previewRow}
+          segments={scenePreview(doc, previewRow.sceneId)}
+          labelOf={(id) => rows.find((r) => r.sceneId === id)?.label}
+          onClose={() => setPreviewing(null)}
+          onOpenScene={onOpenScene}
+        />
+      )}
+    </>
+  );
 }
 
 /**
