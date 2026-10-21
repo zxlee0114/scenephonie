@@ -93,6 +93,23 @@ export function sameSceneMeta(
   );
 }
 
+/** 地點的比對鍵：連到實體的比 id，還沒連的比顯示名（打字當下 chip 還沒落成實體）。 */
+const placeKey = (location: unknown) =>
+  idsOf(sceneLocations(location), (r) => r.locationId ?? `name:${r.displayName}`);
+
+/**
+ * 兩場是不是**同一個時空**（地點與時間都填了、而且都一樣）？對剪是「同一時間、不同地方」的戲 ——
+ * 同地同時的兩場其實是同一場，不能對剪（使用者驗收 2026-10-21）。有一欄沒填的不算：還不知道。
+ */
+export function sameSpaceTime(
+  a: { readonly attrs: Record<string, unknown> },
+  b: { readonly attrs: Record<string, unknown> },
+): boolean {
+  const place = placeKey(a.attrs.location);
+  if (a.attrs.time == null || place === "") return false;
+  return a.attrs.time === b.attrs.time && place === placeKey(b.attrs.location);
+}
+
 /**
  * 不變式 ②：子場次的 metadata 與主場次**完全相同**嗎？（草稿的推導在票券 14 接上這一支。）
  */

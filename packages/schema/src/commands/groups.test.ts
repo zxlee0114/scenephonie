@@ -18,8 +18,10 @@ import { duplicateSceneIds } from "./identity";
 import {
   assignFragmentToMember,
   canIntercut,
+  dissolveGroup,
   intercutTo,
   normalizeFragmentsPlugin,
+  ungroupMember,
 } from "./groups";
 import { deleteScene } from "./subscenes";
 import { dedupeIdsPlugin, dedupeSceneIds } from "./dedupe";
@@ -140,6 +142,132 @@ describe("intercutTo（/ →「對剪到…」）", () => {
     expect(intercutTo(doc, { sceneId: id(here), withSceneId: id(sub) }).ok).toBe(false);
     expect(intercutTo(doc, { sceneId: id(here), withSceneId: id(a) }).ok).toBe(false);
     expect(canIntercut(doc, { sceneId: id(here), withSceneId: id(a) })).toBe(false);
+  });
+
+  it("同地點、同時間的兩場是同一場戲 —— 不能對剪；有一欄沒填、或差一欄就可以", () => {
+    const riverbank = { locationId: "lo_river", displayName: "河堤" };
+    const here = sceneWith([block.action("a")], { time: "夜", location: riverbank });
+    const same = sceneWith([block.action("b")], { time: "夜", intExt: "外景", location: riverbank });
+    const day = sceneWith([block.action("c")], { time: "日", location: riverbank });
+    const noTime = sceneWith([block.action("d")], { location: riverbank });
+    const doc = makeDoc(here, same, day, noTime);
+    expect(canIntercut(doc, { sceneId: id(here), withSceneId: id(same) })).toBe(false);
+    expect(intercutTo(doc, { sceneId: id(here), withSceneId: id(same) }).ok).toBe(false);
+    expect(canIntercut(doc, { sceneId: id(here), withSceneId: id(day) })).toBe(true);
+    expect(canIntercut(doc, { sceneId: id(here), withSceneId: id(noTime) })).toBe(true);
+  });
+
+  it("在群組裡按：跟任何一個既有成員同地點、同時間都不行", () => {
+    const riverbank = { locationId: "lo_river", displayName: "河堤" };
+    const a = memberWith({ time: "日" });
+    const b = memberWith({ time: "夜", location: riverbank });
+    const group = groupWith([a, b], [fragmentOf(a, [block.action("A")]), fragmentOf(b, [block.action("B")])]);
+    const there = sceneWith([block.action("x")], { time: "夜", location: riverbank });
+    expect(canIntercut(makeDoc(group, there), { sceneId: id(a), fragmentIndex: 0, withSceneId: id(there) })).toBe(
+      false,
+    );
+  });
+
+  it("地點沒連到實體時以顯示名比對", () => {
+    const here = sceneWith([block.action("a")], { time: "夜", location: { locationId: null, displayName: "河堤" } });
+    const same = sceneWith([block.action("b")], { time: "夜", location: { locationId: null, displayName: "河堤" } });
+    expect(canIntercut(makeDoc(here, same), { sceneId: id(here), withSceneId: id(same) })).toBe(false);
+  });
+});
+
+describe("ungroupMember（成員選單「移出對剪」）", () => {
+  it("那一場變回普通場次、接在群組後面（保住 sceneId 與 metadata），它的片段依閱讀順序接起來；其餘成員的交錯不動", () => {
+    const a = memberWith();
+    const b = memberWith({ time: "夜" });
+    const c = memberWith();
+    const group = groupWith(
+      [a, b, c],
+      [
+        fragmentOf(a, [block.action("A1")]),
+        fragmentOf(b, [block.action("B1")]),
+        fragmentOf(c, [block.action("C1")]),
+        fragmentOf(b, [block.action("B2")]),
+        fragmentOf(a, [block.action("A2")]),
+      ],
+    );
+    const after = makeScene({}, "後一場");
+    const r = ungroupMember(makeDoc(group, after), { sceneId: id(b) });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    expect(r.value.childCount).toBe(3);
+    expect(shape(r.value.child(0))).toEqual({
+      members: [id(a), id(c)],
+      fragments: [
+        [id(a), "A1"],
+        [id(c), "C1"],
+        [id(a), "A2"],
+      ],
+    });
+    const out = r.value.child(1);
+    expect(out.type.name).toBe("scene");
+    expect(id(out)).toBe(id(b));
+    expect(out.attrs.time).toBe("夜");
+    expect(out.textContent).toBe("B1B2");
+    expect(id(r.value.child(2))).toBe(id(after));
+  });
+
+  it("移出後只剩一個成員：群組也解散 —— 留下的那一場在前、移出的那一場在後", () => {
+    const a = memberWith();
+    const b = memberWith();
+    const group = groupWith(
+      [a, b],
+      [fragmentOf(a, [block.action("A1")]), fragmentOf(b, [block.action("B")]), fragmentOf(a, [block.action("A2")])],
+    );
+    const r = ungroupMember(makeDoc(group), { sceneId: id(a) });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.childCount).toBe(2);
+    expect([id(r.value.child(0)), r.value.child(0).textContent]).toEqual([id(b), "B"]);
+    expect([id(r.value.child(1)), r.value.child(1).textContent]).toEqual([id(a), "A1A2"]);
+  });
+
+  it("一段片段都沒有的成員移出來是一場空的", () => {
+    const [a, b, c] = [memberWith(), memberWith(), memberWith()];
+    const group = groupWith([a, b, c], [fragmentOf(a, [block.action("A")]), fragmentOf(b, [block.action("B")])]);
+    const r = ungroupMember(makeDoc(group), { sceneId: id(c) });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.child(1).type.name).toBe("scene");
+    expect(r.value.child(1).textContent).toBe("");
+  });
+
+  it("不是群組成員就拒絕", () => {
+    const here = makeScene();
+    expect(ungroupMember(makeDoc(here), { sceneId: id(here) }).ok).toBe(false);
+  });
+});
+
+describe("dissolveGroup（「解散對剪」）", () => {
+  it("每個成員依成員順序變回普通場次，各自的片段依閱讀順序接起來；sceneId 與 metadata 都保住", () => {
+    const a = memberWith({ time: "日" });
+    const b = memberWith({ time: "夜" });
+    const group = groupWith(
+      [a, b],
+      [
+        fragmentOf(a, [block.action("A1")]),
+        fragmentOf(b, [block.action("B1")]),
+        fragmentOf(a, [block.action("A2")]),
+      ],
+    );
+    const before = makeScene({}, "前一場");
+    const r = dissolveGroup(makeDoc(before, group), { groupId: group.attrs.groupId as string });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.childCount).toBe(3);
+    const [, x, y] = [0, 1, 2].map((i) => r.value.child(i));
+    expect([id(x!), x!.attrs.time, x!.textContent]).toEqual([id(a), "日", "A1A2"]);
+    expect([id(y!), y!.attrs.time, y!.textContent]).toEqual([id(b), "夜", "B1"]);
+    expect(projectScenes(r.value).map((s) => s.label)).toEqual(["1", "2", "3"]);
+  });
+
+  it("找不到群組就拒絕", () => {
+    expect(dissolveGroup(makeDoc(makeScene()), { groupId: "gr_nope" }).ok).toBe(false);
   });
 });
 

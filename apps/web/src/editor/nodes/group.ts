@@ -14,7 +14,11 @@ import type { Decoration, NodeView } from "@tiptap/pm/view";
 
 import { groupMembersOf } from "../address";
 import { requestNextScene } from "../extensions/next-scene";
-import { fragmentLabelOf, type FragmentLabelSpec } from "../extensions/scene-numbers";
+import {
+  fragmentLabelOf,
+  groupSelectedOf,
+  type FragmentLabelSpec,
+} from "../extensions/scene-numbers";
 import { GroupFragment, SceneGroup } from "../schema";
 
 /** 群組最後一個成員的 `sceneId` —— 「＋ 新增下一場」用它定址（滑鼠點的入口自己傳位置，§7.1）。 */
@@ -23,12 +27,16 @@ function lastMemberId(group: PMNode): string | null {
   return (members[members.length - 1]?.attrs.sceneId as string | undefined) ?? null;
 }
 
-function groupView(editor: Editor, node: PMNode): NodeView {
+function groupView(editor: Editor, node: PMNode, decorations: readonly Decoration[]): NodeView {
   let current = node;
 
   const dom = document.createElement("section");
   dom.className = "scene-group";
   dom.dataset.type = "scene-group";
+  // 整個群組被選起來時的反白（同 `.scene.is-node-selected`）—— 片段沒有自己的反白可畫。
+  const paint = (decos: readonly Decoration[]) =>
+    dom.classList.toggle("is-node-selected", groupSelectedOf(decos));
+  paint(decorations);
 
   const contentDOM = document.createElement("div");
   contentDOM.className = "scene-group__body";
@@ -51,9 +59,10 @@ function groupView(editor: Editor, node: PMNode): NodeView {
   return {
     dom,
     contentDOM,
-    update(next) {
+    update(next, decos) {
       if (next.type !== current.type) return false;
       current = next;
+      paint(decos);
       return true;
     },
     // 腳部不是內容：它的事件與 DOM 變動不歸 ProseMirror 管。
@@ -111,7 +120,8 @@ function fragmentView(node: PMNode, decorations: readonly Decoration[]): NodeVie
 
 export const SceneGroupNode = SceneGroup.extend({
   addNodeView() {
-    return ({ editor, node }) => groupView(editor, node);
+    return ({ editor, node, decorations }) =>
+      groupView(editor, node, decorations as unknown as readonly Decoration[]);
   },
 });
 

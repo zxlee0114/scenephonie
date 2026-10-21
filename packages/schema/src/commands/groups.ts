@@ -16,6 +16,7 @@ import { Plugin, PluginKey } from "prosemirror-state";
 
 import { mintGroupId, mintSceneId } from "../ids";
 import { schema } from "../schema";
+import { sameSpaceTime } from "../subscenes";
 import { type CommandResult, ok, reject } from "./result";
 import {
   childrenOf,
@@ -86,6 +87,10 @@ function planIntercut(doc: ProseMirrorNode, options: IntercutOptions): IntercutP
       return "只能收編頂層場次 —— 一個場次不能同時屬於兩個群組（不變式 ④），子場次不在場次序列上";
     }
     if (adopt.path[0] === hit.path[0]) return "不能把一場跟它自己對剪";
+    const already = top.type.name === "sceneGroup" ? groupMembers(top) : [top];
+    if (already.some((m) => sameSpaceTime(m, adopt.node))) {
+      return "同地點、同時間的兩場是同一場戲 —— 不能對剪";
+    }
     adoptIndex = adopt.path[0]!;
   }
   return { topIndex: hit.path[0]!, afterFragment, adoptIndex };
@@ -297,34 +302,80 @@ export function normalizeFragmentsPlugin(): Plugin {
   });
 }
 
+/** 成員變回普通場次：同 id 同 metadata，它的片段依閱讀順序接起來（一段都沒有就是一場空的）。 */
+function memberAsScene(group: ProseMirrorNode, member: ProseMirrorNode): ProseMirrorNode {
+  const content = groupFragments(group)
+    .filter((f) => f.attrs.memberId === member.attrs.sceneId)
+    .reduce((acc, f) => acc.append(f.content), Fragment.empty);
+  return schema.node("scene", member.attrs, content.size > 0 ? content : schema.node("action", null, []));
+}
+
 /**
- * 刪掉一個群組成員（`deleteScene` 的群組分支）：它的片段一起走。
+ * 少了 `sceneId` 那個成員（連同它的片段）之後的群組。
  *
- * 群組少於兩個成員就不是對剪了 —— 只剩一個時**解散**：那個成員變回普通場次（保住 `sceneId`
- * 與 metadata），它的片段依閱讀順序接起來。剩下的成員一段片段都沒有時給一個空的動作區塊，
- * 群組不能沒有可以寫字的地方。
+ * 群組少於兩個成員就不是對剪了 —— 只剩一個時**解散**：那個成員變回普通場次。剩下的成員一段
+ * 片段都沒有時給一個空的，群組不能沒有可以寫字的地方。
  */
+function groupWithout(group: ProseMirrorNode, sceneId: string): ProseMirrorNode {
+  const members = groupMembers(group).filter((m) => m.attrs.sceneId !== sceneId);
+  if (members.length === 1) return memberAsScene(group, members[0]!);
+  let fragments = groupFragments(group).filter((f) => f.attrs.memberId !== sceneId);
+  if (fragments.length === 0) fragments = [emptyFragment(members[0]!.attrs.sceneId as string)];
+  return mergeGroup(rebuildGroup(group, members, fragments));
+}
+
+/** 刪掉一個群組成員（`deleteScene` 的群組分支）：它的片段一起走。 */
 export function removeGroupMember(
   doc: ProseMirrorNode,
   topIndex: number,
   sceneId: string,
 ): ProseMirrorNode {
-  const group = doc.child(topIndex);
-  const members = groupMembers(group).filter((m) => m.attrs.sceneId !== sceneId);
-  let fragments = groupFragments(group).filter((f) => f.attrs.memberId !== sceneId);
+  return replaceAt(doc, [topIndex], groupWithout(doc.child(topIndex), sceneId));
+}
 
-  let next: ProseMirrorNode;
-  if (members.length === 1) {
-    const [only] = members;
-    const content = fragments.reduce((acc, f) => acc.append(f.content), Fragment.empty);
-    next = schema.node(
-      "scene",
-      only!.attrs,
-      content.size > 0 ? content : schema.node("action", null, []),
-    );
-  } else {
-    if (fragments.length === 0) fragments = [emptyFragment(members[0]!.attrs.sceneId as string)];
-    next = mergeGroup(rebuildGroup(group, members, fragments));
+export interface UngroupMemberOptions {
+  /** 要移出對剪的那個成員。 */
+  readonly sceneId: string;
+}
+
+/**
+ * 成員選單「移出對剪」：那一場離開群組、變回普通場次，**接在群組後面**；`sceneId`、metadata、
+ * 子場次都保住，它散在群組各處的片段依閱讀順序接成它的內文。其餘成員之間的交錯不動；只剩一個
+ * 成員時群組也解散（同刪除）。
+ */
+export function ungroupMember(doc: ProseMirrorNode, options: UngroupMemberOptions): CommandResult {
+  const hit = findScene(doc, options.sceneId);
+  if (!hit) return reject(`找不到 sceneId「${options.sceneId}」`);
+  if (hit.node.type.name !== "groupMember") return reject(`「${options.sceneId}」不是群組成員`);
+
+  const topIndex = hit.path[0]!;
+  const group = doc.child(topIndex);
+  const tops = topLevelArray(doc);
+  tops.splice(topIndex, 1, groupWithout(group, options.sceneId), memberAsScene(group, hit.node));
+  try {
+    return ok(docFrom(tops));
+  } catch (err) {
+    return reject(`移出對剪後 doc 不符 schema：${(err as Error).message}`);
   }
-  return replaceAt(doc, [topIndex], next);
+}
+
+export interface DissolveGroupOptions {
+  readonly groupId: string;
+}
+
+/**
+ * 「解散對剪」：整個群組拆掉，每個成員依成員順序變回普通場次，各自的片段依閱讀順序接起來。
+ * 交錯全部消失 —— ⌘Z 一步整組回來。
+ */
+export function dissolveGroup(doc: ProseMirrorNode, options: DissolveGroupOptions): CommandResult {
+  const topIndex = findGroup(doc, options.groupId);
+  if (topIndex < 0) return reject(`找不到 groupId「${options.groupId}」`);
+  const group = doc.child(topIndex);
+  const tops = topLevelArray(doc);
+  tops.splice(topIndex, 1, ...groupMembers(group).map((m) => memberAsScene(group, m)));
+  try {
+    return ok(docFrom(tops));
+  } catch (err) {
+    return reject(`解散對剪後 doc 不符 schema：${(err as Error).message}`);
+  }
 }

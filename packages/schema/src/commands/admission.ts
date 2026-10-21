@@ -90,6 +90,19 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
       "以 groupId ＋ memberId 定址；fragmentIndex／fromBlockIndex 是傳遞參數（§5.2），不是本群組成員的 id 一律拒絕 —— 永遠不憑空建立場次。",
   },
   {
+    name: "ungroupMember",
+    enforces: [],
+    addressesById: true,
+    rationale:
+      "以 sceneId 定址；成員變回普通場次、接在群組後面（保住 id 與 metadata），只剩一個成員時群組解散。",
+  },
+  {
+    name: "dissolveGroup",
+    enforces: [],
+    addressesById: true,
+    rationale: "以 groupId 定址；每個成員變回普通場次（保住 id 與 metadata），⌘Z 一步整組回來。",
+  },
+  {
     name: "deleteScene",
     enforces: [],
     addressesById: true,

@@ -363,6 +363,23 @@ type MenuState = {
 
 let menu: MenuState = { open: false, items: [], index: 0, caret: null };
 let pick: ((item: SlashItem) => void) | null = null;
+
+/**
+ * 進了第二步之後的清單，與進去那一刻的指令字。之後再打的字（`/intercut河堤`）篩**第二步**，
+ * 不是回頭篩第一步 —— 場次一多，第二步就得能打字找（驗收 2026-10-21）。刪回進去之前的字
+ * （或換成別的指令）就退回第一步。
+ */
+let step: { query: string; items: SlashItem[] } | null = null;
+
+/** 這一刻要畫的清單：在第二步裡就篩第二步，否則是 Suggestion 依指令字篩好的第一步。 */
+function itemsFor(props: SuggestionProps<SlashItem>): SlashItem[] {
+  if (step && props.query.startsWith(step.query)) {
+    const rest = props.query.slice(step.query.length);
+    return rest ? step.items.filter((i) => i.label.includes(rest)) : step.items;
+  }
+  step = null;
+  return props.items;
+}
 const listeners = new Set<() => void>();
 
 /** 合併一段 menu state 並通知訂閱者。 */
@@ -441,6 +458,11 @@ export function SlashMenu() {
     );
   }, [open]);
 
+  // 清單比選單高時（場次一多，第二步就是這樣）：方向鍵走到哪，那一列就捲進來。
+  useLayoutEffect(() => {
+    ref.current?.querySelector(".is-active")?.scrollIntoView?.({ block: "nearest" });
+  }, [state.index, items]);
+
   if (!open || !caret || items.length === 0) return null;
 
   return (
@@ -471,10 +493,11 @@ export function SlashMenu() {
  * 選到一列要做什麼。有第二步的列：換清單，不執行（指令字還留著，Esc 或繼續打字都回得去）。
  */
 function pickFor(props: SuggestionProps<SlashItem>) {
-  return (item: SlashItem) =>
-    item.next
-      ? patchMenu({ items: item.next(props.editor), index: 0 })
-      : props.command(item);
+  return (item: SlashItem) => {
+    if (!item.next) return props.command(item);
+    step = { query: props.query, items: item.next(props.editor) };
+    patchMenu({ items: step.items, index: 0 });
+  };
 }
 
 export const Slash = Extension.create({
@@ -502,6 +525,7 @@ export const Slash = Extension.create({
           // `pick` 每次都重新綁：Suggestion 的 `props.command` 帶的是**那一刻**的 range。只在
           // onStart 綁的話，打完 `/insert` 再按 Enter 只會刪掉 `/` 那一個字（range 停在起點）。
           onStart: (props) => {
+            step = null;
             pick = pickFor(props);
             patchMenu({
               open: true,
@@ -512,7 +536,7 @@ export const Slash = Extension.create({
           },
           onUpdate: (props) => {
             pick = pickFor(props);
-            patchMenu({ items: props.items, index: 0, caret: props.clientRect ?? null });
+            patchMenu({ items: itemsFor(props), index: 0, caret: props.clientRect ?? null });
           },
           onKeyDown: ({ event }) => {
             if (!menu.open) return false;
@@ -538,6 +562,7 @@ export const Slash = Extension.create({
           },
           onExit: () => {
             pick = null;
+            step = null;
             patchMenu({ open: false, items: [], caret: null });
           },
         }),

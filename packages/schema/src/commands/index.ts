@@ -22,9 +22,16 @@ export {
   intercutTo,
   canIntercut,
   assignFragmentToMember,
+  ungroupMember,
+  dissolveGroup,
   normalizeFragmentsPlugin,
 } from "./groups";
-export type { IntercutOptions, AssignFragmentOptions } from "./groups";
+export type {
+  IntercutOptions,
+  AssignFragmentOptions,
+  UngroupMemberOptions,
+  DissolveGroupOptions,
+} from "./groups";
 
 export { moveScene } from "./move-scene";
 export type { MoveSceneOptions, MoveTarget } from "./move-scene";

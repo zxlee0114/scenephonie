@@ -32,6 +32,7 @@ import {
   INT_EXT_VALUES,
   MONTAGE,
   deleteScene,
+  dissolveGroup,
   sceneAppearingCharacters,
   sceneExtras,
   sceneLocations,
@@ -40,6 +41,7 @@ import {
   setSceneIntExt,
   setSceneLocations,
   subsceneTimeOptions,
+  ungroupMember,
   type CommandResult,
   type ExtraRef,
   type SceneIntExt,
@@ -233,6 +235,13 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
     return subscribeSceneBirth(claim);
   }, [sceneId]);
 
+  /** 成員所在群組的 `groupId`（「解散對剪」用）；不是成員時回 `null`。 */
+  const enclosingGroupId = (): string | null => {
+    const pos = typeof getPos === "function" ? getPos() : undefined;
+    if (!isMember || pos == null) return null;
+    return (editor.state.doc.resolve(pos).parent.attrs.groupId as string | undefined) ?? null;
+  };
+
   /**
    * 把游標送進本場第一個區塊的內文開頭（getPos → 場次前；+1 進場次、+1 進首區塊）。
    * 群組成員沒有內文 —— 去它的第一個片段。
@@ -359,6 +368,24 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
         <SceneMenu
           onClose={closeMenu}
           rows={[
+            // 群組成員：先給「離開對剪」的兩條路（內容保住），刪除排最後（驗收 2026-10-21）。
+            ...(isMember
+              ? [
+                  {
+                    key: "ungroup",
+                    label: "移出對剪（接在群組後面）",
+                    run: () => runKernelCommand(editor, (doc) => ungroupMember(doc, { sceneId })),
+                  },
+                  {
+                    key: "dissolve",
+                    label: "解散對剪（全部變回普通場次）",
+                    run: () => {
+                      const groupId = enclosingGroupId();
+                      if (groupId) runKernelCommand(editor, (doc) => dissolveGroup(doc, { groupId }));
+                    },
+                  },
+                ]
+              : []),
             {
               key: "delete",
               label: isMember ? "刪除這一場（連同它的片段）" : deleteSceneLabel(isSubscene, spec?.subscenes ?? 0),

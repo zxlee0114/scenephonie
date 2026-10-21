@@ -60,6 +60,16 @@ export interface FragmentLabelSpec {
   location: string | null;
 }
 
+/** 群組的 decoration spec：整個群組是不是被選取範圍蓋住（群組 node view 據此畫反白）。 */
+export interface GroupSelectionSpec {
+  groupSelected: boolean;
+}
+
+/** 給群組的 node view 用：它是不是整個被選起來了。 */
+export function groupSelectedOf(decorations: readonly Decoration[]): boolean {
+  return decorations.some((d) => (d.spec as Partial<GroupSelectionSpec> | undefined)?.groupSelected === true);
+}
+
 /** 給片段的 node view 用：從它收到的 decorations 取出標籤 spec。 */
 export function fragmentLabelOf(decorations: readonly Decoration[]): FragmentLabelSpec | undefined {
   return decorations.find((d) => d.spec && "memberNo" in d.spec)?.spec as FragmentLabelSpec | undefined;
@@ -126,6 +136,11 @@ export const SceneNumbers = Extension.create({
                 return;
               }
               if (node.type.name !== "sceneGroup") return;
+              decos.push(
+                Decoration.node(pos, pos + node.nodeSize, {}, {
+                  groupSelected: from <= pos && to >= pos + node.nodeSize,
+                } satisfies GroupSelectionSpec),
+              );
               // 群組（票券 12）：成員各佔一個頂層號；片段帶著它成員的標籤。
               const members = new Map<string, { node: PMNode; ordinal: number }>();
               node.forEach((child, offset) => {

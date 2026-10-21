@@ -270,6 +270,17 @@
   margin-block: var(--space-3);
 }
 
+/* 整個群組被選取（⌘+A 在片段裡的第三段，或整份）：整塊一個反白，與 .scene.is-node-selected
+ * 同一種底色。裡面的成員不再各自疊一層 —— 疊起來會比片段深，讀起來像只選到成員（驗收 2026-10-21）。 */
+.scene-group.is-node-selected {
+  background: var(--selection-bg);
+  border-radius: var(--space-1);
+}
+
+.scene-group.is-node-selected .scene.is-node-selected {
+  background: transparent;
+}
+
 /* 成員：完整的 chip row 與頂層號，但沒有內文 —— 上下收緊，讓幾個成員讀起來是同一組。 */
 .scene--member {
   --scene-pad-block: var(--space-1);
@@ -1225,6 +1236,11 @@
   box-shadow: var(--shadow-popover);
   padding: var(--space-1);
   font-family: var(--font-ui);
+  /* 場次一多，第二步（對剪到…、套用…）就比視窗還長：限高、自己捲（驗收 2026-10-21）。
+     定位量的是這個限高後的尺寸，所以上下翻轉的判斷照舊成立。 */
+  max-block-size: min(22rem, 60vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .slash-menu button {

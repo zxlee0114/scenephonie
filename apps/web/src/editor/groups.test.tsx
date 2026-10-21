@@ -8,9 +8,9 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { TextSelection } from "@tiptap/pm/state";
+import { AllSelection, NodeSelection, TextSelection } from "@tiptap/pm/state";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import {
   mintGroupId,
   mintLocationId,
@@ -19,10 +19,11 @@ import {
   schema as k,
 } from "@scenephonie/schema";
 import { useEffect } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { allSceneIds } from "./address";
 import { EntityCatalogProvider } from "./entity-catalog";
+import { SlashMenu } from "./extensions/slash";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
 const room = { locationId: mintLocationId(), displayName: "警局偵訊室" };
@@ -46,6 +47,7 @@ function Harness({ content, onEditor }: { content: object; onEditor: (e: Editor)
   return (
     <EntityCatalogProvider>
       <EditorContent editor={editor} />
+      <SlashMenu />
     </EntityCatalogProvider>
   );
 }
@@ -298,5 +300,116 @@ describe("片段裡照常寫字", () => {
     expect(editor.state.doc.child(2).type.name).toBe("scene");
     expect(shapeOf(editor.state.doc.child(1)).members).toHaveLength(2);
     expect(projectScenes(editor.state.doc).map((s) => s.label)).toEqual(["1", "2", "3", "4"]);
+  });
+});
+
+describe("⌘+A 在片段裡：區塊 → 片段內文 → 整個群組 → 整份", () => {
+  it("每一步畫面上都看得到；已經是整份時再按就停在整份，不對 doc 建 TextSelection", async () => {
+    const a = member({ location: room });
+    const b = member({ location: dock });
+    const g = group([a, b], [fragment(a, [action("偵訊室。"), action("若晴不說話。")]), fragment(b, [action("倉庫。")])]);
+    const { editor, container } = await mount(docOf(g, scene([action("後一場")])));
+    caretAtEndOfBlock(editor, 0);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await press(editor, "a", mod);
+    expect(editor.state.selection.$from.parent.textContent).toBe("偵訊室。");
+    await press(editor, "a", mod);
+    expect(editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to)).toBe(
+      "偵訊室。若晴不說話。",
+    );
+    await press(editor, "a", mod);
+    const sel = editor.state.selection;
+    expect(sel instanceof NodeSelection && sel.node.type.name).toBe("sceneGroup");
+    await waitFor(() => expect(container.querySelector(".scene-group")?.classList).toContain("is-node-selected"));
+    await press(editor, "a", mod);
+    expect(editor.state.selection instanceof AllSelection).toBe(true);
+    await press(editor, "a", mod);
+    expect(editor.state.selection instanceof AllSelection).toBe(true);
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
+describe("成員選單：離開對剪", () => {
+  const threeWay = () => {
+    const a = member({ location: room });
+    const b = member({ location: dock });
+    const c = member();
+    const g = group(
+      [a, b, c],
+      [fragment(a, [action("A1")]), fragment(b, [action("B1")]), fragment(c, [action("C1")]), fragment(b, [action("B2")])],
+    );
+    return { a, b, c, content: docOf(g) };
+  };
+
+  async function pickMenuRow(container: HTMLElement, memberIndex: number, label: RegExp) {
+    fireEvent.mouseDown(container.querySelectorAll(".scene--member .scene__number")[memberIndex]!);
+    const row = await waitFor(() => {
+      const el = [...container.querySelectorAll(".scene-menu button")].find((b) => label.test(b.textContent ?? ""));
+      expect(el).toBeDefined();
+      return el!;
+    });
+    await act(async () => {
+      fireEvent.mouseDown(row);
+    });
+  }
+
+  it("移出對剪：那一場接在群組後面、片段接成一段；⌘Z 一步回來", async () => {
+    const { a, b, c, content } = threeWay();
+    const { editor, container } = await mount(content);
+    const before = editor.getJSON();
+    await pickMenuRow(container, 1, /^移出對剪/);
+
+    expect(editor.state.doc.childCount).toBe(2);
+    expect(shapeOf(editor.state.doc.child(0)).members).toEqual([a.attrs.sceneId, c.attrs.sceneId]);
+    const out = editor.state.doc.child(1);
+    expect([out.type.name, out.attrs.sceneId, out.textContent]).toEqual(["scene", b.attrs.sceneId, "B1B2"]);
+
+    await act(async () => {
+      editor.commands.undo();
+    });
+    expect(editor.getJSON()).toEqual(before);
+  });
+
+  it("解散對剪：每個成員都變回普通場次", async () => {
+    const { a, b, c, content } = threeWay();
+    const { editor, container } = await mount(content);
+    await pickMenuRow(container, 0, /^解散對剪/);
+    const tops: [string, unknown, string][] = [];
+    editor.state.doc.forEach((n) => tops.push([n.type.name, n.attrs.sceneId, n.textContent]));
+    expect(tops).toEqual([
+      ["scene", a.attrs.sceneId, "A1"],
+      ["scene", b.attrs.sceneId, "B1B2"],
+      ["scene", c.attrs.sceneId, "C1"],
+    ]);
+  });
+});
+
+describe("「對剪到…」第二步", () => {
+  it("同地點、同時間的場次不列；打字篩第二步，不會退回第一步", async () => {
+    const here = scene([action("河堤。"), action()], { location: room, time: "夜" });
+    const twin = scene([action("也是河堤。")], { location: room, time: "夜" });
+    const far = scene([action("倉庫。")], { location: dock, time: "夜" });
+    const near = scene([action("白天的偵訊室。")], { location: room, time: "日" });
+    const { editor, container } = await mount(docOf(here, twin, far, near));
+    caretAtEndOfBlock(editor, 1);
+    await type(editor, "/intercut");
+    await press(editor, "Enter");
+
+    const rows = () => [...container.querySelectorAll(".slash-menu button strong")].map((n) => n.textContent);
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    expect(rows()[0]).toBe("建立新的一場");
+    expect(rows().some((r) => r?.includes("港邊倉庫"))).toBe(true);
+    expect(rows().filter((r) => r?.includes("警局偵訊室"))).toHaveLength(1); // 只有白天那一場
+
+    await type(editor, "港邊");
+    await waitFor(() => expect(rows()).toEqual([expect.stringContaining("港邊倉庫")]));
+    await press(editor, "Enter");
+
+    expect(editor.state.doc.child(0).type.name).toBe("sceneGroup");
+    expect(shapeOf(editor.state.doc.child(0)).members).toEqual([here.attrs.sceneId, far.attrs.sceneId]);
+    expect(editor.state.doc.textContent).not.toContain("港邊");
   });
 });
