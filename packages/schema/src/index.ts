@@ -96,9 +96,10 @@ export { splitNamesLive } from "./names";
 export { returnMarkers, sceneLocationLabel, subsceneTimeOptions } from "./subscenes";
 export type { ReturnMarker } from "./subscenes";
 
-// `hold`／`autoDraftOf`：編輯器的「離開時才判定」（票券 14）—— 只有編輯器的場次號 decoration 用。
-export { projectScenes, autoDraftOf, docFromJSON } from "./project-scenes";
-export type { SceneNumber, DraftHold, ProjectScenesOptions } from "./project-scenes";
+// `projectScenesWhileEditing`／`autoDraftOf`：編輯器的「離開時才判定」（票券 14）—— 只有編輯器用
+// （場次號 decoration 與 slash 選單列的場次號，兩邊讀同一份才一致）。
+export { projectScenes, projectScenesWhileEditing, autoDraftOf, docFromJSON } from "./project-scenes";
+export type { SceneNumber, DraftHold } from "./project-scenes";
 
 export {
   mintId,

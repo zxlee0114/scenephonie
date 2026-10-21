@@ -396,9 +396,13 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
             {
               key: "draft",
               label: node.attrs.manualDraft ? "取消草稿標記" : "標記為草稿",
+              // 只動 attr、不動座標：游標留在編劇正在寫的地方（否則整份 replace 把它 map 到 doc 尾，
+              // 「離開時才判定」也會把那一下讀成他移到了末場）。
               run: () =>
-                runKernelCommand(editor, (doc) =>
-                  setManualDraft(doc, { sceneId, manualDraft: !node.attrs.manualDraft }),
+                runKernelCommand(
+                  editor,
+                  (doc) => setManualDraft(doc, { sceneId, manualDraft: !node.attrs.manualDraft }),
+                  { keepCaret: true },
                 ),
             },
             {

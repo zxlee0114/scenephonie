@@ -66,19 +66,21 @@ export interface SceneNumber {
  * 群組成員的子場次散在片段裡，依**成員順序**編（同正式子場次號），所以錨的是自己成員的上一個
  * 正式號，不是閱讀順序上的前一段。
  *
+ * ⚠️ **簽名裡沒有 doc 以外的輸入**（ADR-0007）：交付投影（場次表、PDF、匯出前清單）讀的是當下
+ * 的真實狀態。編輯器「離開時才判定」的那一層走 `projectScenesWhileEditing`。
+ *
  * @param doc 已 hydrate 的 ProseMirror doc 節點（用本模組的 `schema`；見 `docFromJSON`）。
- * @param options.hold 只有編輯器傳 —— 見 `DraftHold`。交付投影（場次表、PDF、匯出前清單）一律
- *   不傳：它們讀的是當下的真實狀態。
  */
-export function projectScenes(doc: ProseMirrorNode, options: ProjectScenesOptions = {}): SceneNumber[] {
-  return walk(doc, options.hold).map(({ sceneId, number, label, draft, parentSceneId, groupId }) => ({
-    sceneId,
-    number,
-    label,
-    draft,
-    ...(parentSceneId ? { parentSceneId } : {}),
-    ...(groupId ? { groupId } : {}),
-  }));
+export function projectScenes(doc: ProseMirrorNode): SceneNumber[] {
+  return walk(doc).map((entry) => entry.scene);
+}
+
+/**
+ * 編輯器畫面上的場次號：同 `projectScenes`，但游標所在那一場的自動草稿原因用鎖住的值（見
+ * `DraftHold`）。**只有編輯器呼叫** —— 交付投影永遠不知道編劇的游標在哪。
+ */
+export function projectScenesWhileEditing(doc: ProseMirrorNode, hold: DraftHold | null): SceneNumber[] {
+  return walk(doc, hold ?? undefined).map((entry) => entry.scene);
 }
 
 /**
@@ -93,16 +95,13 @@ export interface DraftHold {
   readonly autoDraft: boolean;
 }
 
-export interface ProjectScenesOptions {
-  readonly hold?: DraftHold;
-}
-
 /** 這一場的**自動**草稿原因現在成不成立（不含手動標記與主場次連帶）。找不到場次回 `false`。 */
 export function autoDraftOf(doc: ProseMirrorNode, sceneId: string): boolean {
-  return walk(doc).find((entry) => entry.sceneId === sceneId)?.autoDraft ?? false;
+  return walk(doc).find((entry) => entry.scene.sceneId === sceneId)?.autoDraft ?? false;
 }
 
-interface Entry extends SceneNumber {
+interface Entry {
+  scene: SceneNumber;
   /** 自動草稿原因成不成立 —— `hold` 鎖的就是這一半。 */
   autoDraft: boolean;
 }
@@ -112,32 +111,38 @@ function walk(doc: ProseMirrorNode, hold?: DraftHold): Entry[] {
   const entries: Entry[] = [];
   const next = numberer();
 
-  /** 自動原因 → 套上 hold → 再與手動標記合起來。`inherited` ＝ 主場次是草稿。 */
-  const judge = (scene: ProseMirrorNode, autoDraft: boolean, inherited = false) => {
+  /** 是不是草稿：自動原因（套上 hold）、手動標記、主場次連帶（`inherited`）三者之一。 */
+  const isDraft = (scene: ProseMirrorNode, autoDraft: boolean, inherited = false) => {
     const held = hold && hold.sceneId === scene.attrs.sceneId ? hold.autoDraft : autoDraft;
-    return { autoDraft, draft: inherited || scene.attrs.manualDraft === true || held };
+    return inherited || scene.attrs.manualDraft === true || held;
   };
 
   /** 一個頂層場次：它自己，接著散在 `containers` 裡的子場次。 */
   const number = (
     scene: ProseMirrorNode,
     containers: ProseMirrorNode[],
-    auto: boolean,
+    autoDraft: boolean,
     groupId?: string,
   ) => {
     const sceneId = scene.attrs.sceneId as string;
-    const own = judge(scene, auto);
-    entries.push({ sceneId, ...next.topLevel(own.draft), ...own, ...(groupId ? { groupId } : {}) });
+    const draft = isDraft(scene, autoDraft);
+    entries.push({
+      scene: { sceneId, ...next.topLevel(draft), draft, ...(groupId ? { groupId } : {}) },
+      autoDraft,
+    });
     for (const container of containers) {
       container.forEach((child) => {
         if (child.type.name !== "subscene") return;
         const childAuto = isSceneMetaIncomplete(child) || subsceneEchoesParent(scene, child);
-        const judged = judge(child, childAuto, own.draft);
+        const childDraft = isDraft(child, childAuto, draft);
         entries.push({
-          sceneId: child.attrs.sceneId as string,
-          ...next.subscene(judged.draft),
-          ...judged,
-          parentSceneId: sceneId,
+          scene: {
+            sceneId: child.attrs.sceneId as string,
+            ...next.subscene(childDraft),
+            draft: childDraft,
+            parentSceneId: sceneId,
+          },
+          autoDraft: childAuto,
         });
       });
     }

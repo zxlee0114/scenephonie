@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { mintCharacterId } from "./entities";
-import { autoDraftOf, projectScenes } from "./project-scenes";
+import { autoDraftOf, projectScenes, projectScenesWhileEditing } from "./project-scenes";
 import {
   block,
   filled,
@@ -199,7 +199,7 @@ describe("hold：編輯器的「離開時才判定」（使用者裁決 2026-10-
     expect(labels(doc)).toEqual(["1", "S1[D1]", "2"]);
 
     const hold = { sceneId: fresh.attrs.sceneId as string, autoDraft: false };
-    expect(projectScenes(doc, { hold }).map(({ label, draft }) => ({ label, draft }))).toEqual([
+    expect(projectScenesWhileEditing(doc, hold).map(({ label, draft }) => ({ label, draft }))).toEqual([
       { label: "1", draft: false },
       { label: "2", draft: false },
       { label: "3", draft: false },
@@ -211,21 +211,21 @@ describe("hold：編輯器的「離開時才判定」（使用者裁決 2026-10-
     const doc = makeDoc(scene(), done);
     const hold = { sceneId: done.attrs.sceneId as string, autoDraft: true };
     expect(labels(makeDoc(scene(), done))).toEqual(["1", "2"]);
-    expect(projectScenes(doc, { hold }).map((s) => s.label)).toEqual(["1", "S1[D1]"]);
+    expect(projectScenesWhileEditing(doc, hold).map((s) => s.label)).toEqual(["1", "S1[D1]"]);
   });
 
   it("手動標記不受鎖影響 —— 立即生效", () => {
     const marked = scene(filled({ manualDraft: true }));
     const doc = makeDoc(scene(), marked);
     const hold = { sceneId: marked.attrs.sceneId as string, autoDraft: false };
-    expect(projectScenes(doc, { hold }).map((s) => s.draft)).toEqual([false, true]);
+    expect(projectScenesWhileEditing(doc, hold).map((s) => s.draft)).toEqual([false, true]);
   });
 
   it("主場次是草稿時，鎖住的子場次照樣連帶是草稿", () => {
     const child = sub({});
     const doc = makeDoc(sceneWith([block.action("客廳"), child], filled({ manualDraft: true })));
     const hold = { sceneId: child.attrs.sceneId as string, autoDraft: false };
-    expect(projectScenes(doc, { hold }).map((s) => s.draft)).toEqual([true, true]);
+    expect(projectScenesWhileEditing(doc, hold).map((s) => s.draft)).toEqual([true, true]);
   });
 
   it("autoDraftOf：自動草稿原因（不完整、與主場次相同、成員撞時空）成不成立，不含手動標記", () => {

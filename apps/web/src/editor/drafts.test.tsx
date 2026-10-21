@@ -247,4 +247,43 @@ describe("離開時才判定（使用者裁決 2026-10-21）：正在寫的那�
     expect(gutter(container)[1]).toEqual(["2", false]);
     outside.remove();
   });
+
+  it("焦點在內文時從中段 /next：新場次照樣起步是正式號 —— 整份 replace 把游標 map 走不算「移到別場」", async () => {
+    const first = scene("第一場");
+    const { editor, container } = await mount(docOf(first, scene("第二場")));
+    await caretInScene(editor, 0);
+    await act(async () => {
+      requestNextScene(editor);
+    });
+    await act(() => new Promise((r) => requestAnimationFrame(r)));
+    expect(gutter(container)).toEqual([
+      ["1", false],
+      ["2", false],
+      ["3", false],
+    ]);
+  });
+
+  it("在 A 寫字時從選單標記 B 為草稿：A 的鎖不動", async () => {
+    const first = scene("第一場");
+    const { editor, container } = await mount(docOf(first, scene("第二場"), scene("第三場")));
+    await act(async () => {
+      requestNextScene(editor, first.attrs.sceneId as string);
+    });
+    // 新場次（第 2 個）時空還空著、但還在它身上 → 正式號；游標進它的內文繼續寫。
+    await caretInScene(editor, 1);
+    await pickFromMenu(container, 3, "標記為草稿");
+    await act(() => new Promise((r) => requestAnimationFrame(r)));
+    expect(gutter(container)).toEqual([
+      ["1", false],
+      ["2", false],
+      ["3", false],
+      ["S3[D1]", true],
+    ]);
+  });
+
+  it("新劇本的第一場還沒開工：一打開就是正式號，不是 [D1]", async () => {
+    const { container } = await mount(docOf(scene("", {})));
+    await act(() => new Promise((r) => requestAnimationFrame(r)));
+    expect(gutter(container)).toEqual([["1", false]]);
+  });
 });
