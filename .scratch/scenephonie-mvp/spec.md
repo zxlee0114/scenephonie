@@ -649,10 +649,14 @@ domain command（意圖） → ProseMirror Step（機械變更／日後的傳輸
 **場次表不建投影表**，在讀取當下由純函式推導：
 
 ```ts
-projectSceneTable(doc): { rows: SceneTableRow[], missingRefs: MissingRef[] }
+projectSceneTable(doc): { rows: SceneTableRow[] }
+labelSceneTable(table, names: { characters: Map<id, name>, locations: Map<id, name> }):
+  { rows: LabeledSceneTableRow[], missingRefs: MissingRef[] }
 ```
 
-**這個簽名裡沒有 doc 以外的輸入，型別本身在強制「場次表是零新增資訊的投影」** —— 有人想加一欄製作端另填的東西時會發現簽名裝不下，比文件裡的一句話有力。
+**第一段的簽名裡沒有 doc 以外的輸入，型別本身在強制「場次表是零新增資訊的投影」** —— 有人想加一欄製作端另填的東西時會發現簽名裝不下，比文件裡的一句話有力。
+
+**第二段只多吃實體 id → 實體名的查表**：場次表的 `實體名（這一場的顯示名）`（§8）與懸空引用的判斷（§6.6）都要實體名，而實體住在實體表不在 doc（ADR-0005）。實體名是編劇寫的，不是新資訊；一張 id → 名字的表也裝不下製作端另填的欄。（2026-10-22 票券 15 修訂：原本是單一的 `projectSceneTable(doc): { rows, missingRefs }`，只吃 doc 卻要回傳只有看得到實體表才算得出的東西。見 ADR-0007。）
 
 PDF、場次表、匯出前草稿清單**共用同一次走訪**（場次號、草稿判定、群組成員展開），不會長出兩套會分歧的實作。
 
@@ -704,7 +708,7 @@ PDF、場次表、匯出前草稿清單**共用同一次走訪**（場次號、�
 
 **❌ 否決「載入時用顯示名自癒補一筆」**：(1) 它是**讀取路徑的寫入**（外人打開唯讀分享連結時寫我們的資料庫）；(2) 補出來的名字**是錯的** —— 漸進揭露下前 8 場的顯示名是「未知大樓房間」，自癒會把假名鑄成正式名字，而製片要知道去哪裡拍。**用一筆說謊的資料換掉一個誠實的缺口，是虧的。**
 
-**引用缺失只做診斷**：`projectSceneTable` 額外回傳 `missingRefs`。
+**引用缺失只做診斷**：`labelSceneTable` 額外回傳 `missingRefs`（判斷懸空要查實體表，§6.4）。
 
 > **`missingRefs` 是 projection 的診斷輸出（diagnostic output），不是業務輸出。**
 > 不參與渲染、不被持久化、消費者的業務邏輯不得讀它。
@@ -1286,7 +1290,7 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | 對白行內式 vs 置中分行式 | CSS 模板（§9.5） |
 | 編輯器的字型／字級／行高／色彩 | semantic token（§7.11）—— **不繼承 PDF 模板的數字** |
 
-**型別本身在強制這條**：`projectSceneTable(doc)` 的簽名裡沒有 doc 以外的輸入，有人想加一欄製作端另填的東西時會發現簽名裝不下（§6.4）。
+**型別本身在強制這條**：`projectSceneTable(doc)` 的簽名裡沒有 doc 以外的輸入，接實體名的 `labelSceneTable` 也只多吃一張 id → 名字的查表，有人想加一欄製作端另填的東西時會發現兩段都裝不下（§6.4）。
 
 **兩次被擋下的漏水口**：通用備註欄（[15](./issues/15-multi-spacetime-scenes.md)，沒有消費者）、專案自訂欄位的界線（[20](./issues/20-submission-docs-product-shape.md)，只能裝文件層級的散文）。
 
@@ -1335,7 +1339,7 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 
 | 階段 | 內容 | 為什麼在這裡 |
 |---|---|---|
-| **0** | **isomorphic schema 模組**（node spec，node view 分家）＋ `projectScenes()` ＋ `projectSceneTable()` | 所有東西的地基。純函式、無瀏覽器相依，可在 Node 裡跑測試 |
+| **0** | **isomorphic schema 模組**（node spec，node view 分家）＋ `projectScenes()` ＋ `projectSceneTable()`／`labelSceneTable()` | 所有東西的地基。純函式、無瀏覽器相依，可在 Node 裡跑測試 |
 | **1** | **domain command 層**＋不變式測試（§11 全部） | 不變式的家。**在有 UI 之前先寫**，否則它們會散進最難測的那一層 |
 | **2** | **編輯器**：場次 ＋ 三種區塊 ＋ 內嵌簡表 ＋ `/next` ＋ Tab 環 ＋ IME。**呈現、前端結構、typography／色彩 token、字型載入見 §7.9–§7.12**（票券 26／27／29 擋在此階段之前） | 最小可寫作單元。⚠️ 六個 bug 家族在這裡 |
 | **3** | **persistence 模組**（存／載入／`doc_seq`／自動備份，全部藏在一個模組後面） | Yjs 保護規則 3 |

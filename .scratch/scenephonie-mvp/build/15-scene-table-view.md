@@ -21,8 +21,9 @@
 但實體名住在專案的 `characters`／`locations` 表（ADR-0005），`missingRefs` 也只有看得到實體表才判斷得了。
 裁決：`projectSceneTable(doc) → { rows }` **維持只吃 doc**（列上帶原始引用 `{ id, displayName }`）；
 另一支純函式 `labelSceneTable(table, names)` 只多吃一份 id → 名字的查表，印出格子裡的字並產出 `missingRefs`。
-「零新增資訊」的強制力完整留在投影上 —— 第二段加不出新的欄。（§6.4／ADR-0007 寫的
-`projectSceneTable(doc): { rows, missingRefs }` 因此與實作差一個欄位，`missingRefs` 搬到第二段。）
+「零新增資訊」的強制力完整留在投影上 —— 第二段加不出新的欄。（§6.4／ADR-0007 原本寫的
+`projectSceneTable(doc): { rows, missingRefs }` 因此與實作差一個欄位，`missingRefs` 搬到第二段 —— 2026-10-22 收票後
+已修訂 ADR-0007 與 spec §6.4／§6.6／§8。）
 
 **實作落點與幾個規格沒寫死的選擇**：
 - **編輯器搬進 `[screenplayId]/layout.tsx`**，`page.tsx`／`table/page.tsx` 是空頁、只決定網址。layout 跨子路由不重新掛載
