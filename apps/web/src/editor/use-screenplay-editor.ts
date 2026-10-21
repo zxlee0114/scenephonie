@@ -25,12 +25,14 @@ import { GroupMemberNode, SceneNode, SubsceneNode } from "./nodes/scene";
 import { AppearingPromptPlugin } from "./extensions/appearing-prompt";
 import { BlockCycle } from "./extensions/block-cycle";
 import { ContinueBlock } from "./extensions/continue-block";
+import { DragReorder } from "./extensions/drag-reorder";
 import { FragmentKeys } from "./extensions/fragment-keys";
 import { NextScene } from "./extensions/next-scene";
 import { RunawayGuard } from "./extensions/runaway-guard";
 import { ReturnMarkers } from "./extensions/return-markers";
 import { SceneIds } from "./extensions/scene-ids";
 import { SceneNumbers } from "./extensions/scene-numbers";
+import { ScopedDelete } from "./extensions/scoped-delete";
 import { SelectScope } from "./extensions/select-scope";
 import { Slash } from "./extensions/slash";
 import { SoftBreak } from "./extensions/soft-break";
@@ -126,6 +128,8 @@ export function useScreenplayEditor(
       VerticalNav,
       StrayHistoryKey,
       AppearingPromptPlugin,
+      DragReorder,
+      ScopedDelete,
       // 開 DevTools 偶發的失控重繪（RESULT_CODE_HUNG）還沒抓到觸發點 —— 開發環境掛斷路器記下現場。
       ...(process.env.NODE_ENV === "development" ? [RunawayGuard] : []),
     ],

@@ -33,8 +33,17 @@ export type {
   DissolveGroupOptions,
 } from "./groups";
 
-export { moveScene } from "./move-scene";
-export type { MoveSceneOptions, MoveTarget } from "./move-scene";
+export { moveScene, moveGroup } from "./move-scene";
+export type {
+  MoveSceneOptions,
+  MoveGroupOptions,
+  MoveTarget,
+  TopLevelTarget,
+  InsideTarget,
+} from "./move-scene";
+
+export { moveBlock } from "./move-block";
+export type { MoveBlockOptions, BlockLocation, BlockDestination } from "./move-block";
 
 export {
   addAppearingCharacter,

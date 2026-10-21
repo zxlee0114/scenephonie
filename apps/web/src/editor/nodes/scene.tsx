@@ -377,6 +377,13 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           {spec?.draft ? DRAFT_MARK : label}
         </span>
       </div>
+      {/* 拖曳把手（票券 13）：主場次與子場次各一個 —— 拖到哪裡決定升級、降級還是平移。群組成員
+          沒有：成員不單獨進出群組，整組由群組的把手拖。 */}
+      {!isMember && (
+        <span className="drag-handle drag-handle--scene" contentEditable={false} draggable aria-hidden="true">
+          ⠿
+        </span>
+      )}
       {menuOpen && (
         <SceneMenu
           onClose={closeMenu}

@@ -1,0 +1,240 @@
+// @vitest-environment jsdom
+/**
+ * 拖曳排序的手勢接線（票券 13、§7.5）—— 用真的編輯器組裝跑，派發原生拖放事件。
+ *
+ * 規則（什麼落點合法、搬完長什麼樣）在 kernel（`packages/schema/src/commands/move-*.test.ts`）與
+ * 落點解析（`drop-intent.test.ts`）；這裡測的是**跟 ProseMirror 原生拖放搶事件**那一層（§7.5
+ * 成本 3、§7.7「拖曳吃字、跑版、偶爾拖不動」）：
+ * - 拖曳期間的 `dragover`／`drop` 一律 `preventDefault()` —— 瀏覽器的預設放置不准發生；
+ * - 不合法的落點不畫線（`dropEffect = "none"`），放下去什麼都不變；
+ * - 落點**從 drop 事件重算**，不讀指示線的狀態（中途的 `dragleave` 清不掉它）。
+ *
+ * jsdom 沒有版面：每個元素的矩形都是 0，所以 `clientY < 0` 是上半、`clientY > 0` 是下半。
+ */
+import { EditorContent } from "@tiptap/react";
+import type { Editor } from "@tiptap/core";
+import type { Node as PMNode } from "@tiptap/pm/model";
+import { act, cleanup, createEvent, fireEvent, render, waitFor } from "@testing-library/react";
+import { mintSceneId, schema as k } from "@scenephonie/schema";
+import { useEffect } from "react";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { EntityCatalogProvider } from "./entity-catalog";
+import { DemoteKindMenu } from "./extensions/drag-reorder";
+import { useScreenplayEditor } from "./use-screenplay-editor";
+
+const action = (text = "") => k.node("action", null, text ? [k.text(text)] : []);
+const scene = (blocks: PMNode[]) => k.node("scene", { sceneId: mintSceneId() }, blocks);
+const sub = (blocks: PMNode[]) => k.node("subscene", { sceneId: mintSceneId(), kind: "插入" }, blocks);
+
+function Harness({ content, onEditor }: { content: object; onEditor: (e: Editor) => void }) {
+  const editor = useScreenplayEditor(content, "documentEnd");
+  useEffect(() => {
+    if (editor) onEditor(editor);
+  }, [editor, onEditor]);
+  return (
+    <EntityCatalogProvider>
+      <EditorContent editor={editor} />
+      <DemoteKindMenu />
+    </EntityCatalogProvider>
+  );
+}
+
+/** A：客廳 ＋ 子場次（回憶）＋ 回來；B：街上；C：夜。 */
+async function mount() {
+  const content = k.node("doc", null, [
+    scene([action("客廳"), sub([action("回憶")]), action("回來")]),
+    scene([action("街上")]),
+    scene([action("夜")]),
+  ]).toJSON() as object;
+  let editor: Editor | null = null;
+  const view = render(<Harness content={content} onEditor={(e) => (editor = e)} />);
+  await waitFor(() => expect(editor).not.toBeNull());
+  await waitFor(() => expect(editor!.isInitialized).toBe(true));
+  await act(() => new Promise((r) => requestAnimationFrame(r)));
+  return { editor: editor!, container: view.container };
+}
+
+afterEach(cleanup);
+
+const dataTransfer = () => ({
+  dropEffect: "none",
+  effectAllowed: "all",
+  types: [] as string[],
+  setData() {},
+  getData: () => "",
+  setDragImage() {},
+});
+
+/** 內文是 `text` 的那個區塊。 */
+const blockOf = (container: HTMLElement, text: string) =>
+  [...container.querySelectorAll<HTMLElement>(".block")].find((b) => b.textContent?.includes(text))!;
+
+/** 第 `n` 個頂層場次（`.scene` 但不是子場次）。 */
+const topScene = (container: HTMLElement, n: number) =>
+  container.querySelectorAll<HTMLElement>(".scene:not(.scene--sub)")[n]!;
+
+const ownHandle = (el: HTMLElement) => el.querySelector<HTMLElement>(":scope > .drag-handle")!;
+
+/** 頂層每一場的內文（子場次以 `[…]` 標出）。 */
+function outline(editor: Editor): string[][] {
+  const out: string[][] = [];
+  editor.state.doc.forEach((top) => {
+    const row: string[] = [];
+    top.forEach((c) => row.push(c.type.name === "subscene" ? `[${c.textContent}]` : c.textContent));
+    out.push(row);
+  });
+  return out;
+}
+
+function drag(handle: HTMLElement) {
+  const dt = dataTransfer();
+  fireEvent.dragStart(handle, { dataTransfer: dt });
+  return dt;
+}
+
+/**
+ * 派發一個帶座標的拖放事件，回傳它有沒有被 `preventDefault()`。jsdom 沒有 `DragEvent`，
+ * testing-library 退回一般 `Event`、把 `clientY` 丟掉 —— 自己補上。
+ */
+function fireDrag(
+  type: "dragOver" | "drop",
+  el: HTMLElement,
+  clientY: number,
+  dt: ReturnType<typeof dataTransfer>,
+): boolean {
+  const event = createEvent[type](el, { dataTransfer: dt });
+  Object.defineProperty(event, "clientY", { value: clientY });
+  Object.defineProperty(event, "clientX", { value: 0 });
+  return !fireEvent(el, event);
+}
+
+const over = (el: HTMLElement, clientY: number, dt: ReturnType<typeof dataTransfer>) =>
+  fireDrag("dragOver", el, clientY, dt);
+function drop(el: HTMLElement, clientY: number, dt: ReturnType<typeof dataTransfer>): boolean {
+  let prevented = false;
+  act(() => {
+    prevented = fireDrag("drop", el, clientY, dt);
+  });
+  return prevented;
+}
+
+const indicator = () => document.querySelector<HTMLElement>(".drop-indicator");
+const lineShown = () => !!indicator() && !indicator()!.hidden;
+
+describe("拖曳排序：接上 ProseMirror 的事件", () => {
+  it("區塊跨場次：拖到別場區塊的下半 → 接在它之後；搬空的那場補一個空動作區塊", async () => {
+    const { editor, container } = await mount();
+    const dt = drag(ownHandle(blockOf(container, "街上")));
+    const target = blockOf(container, "夜").querySelector<HTMLElement>(".block__content")!;
+
+    expect(over(target, 1, dt)).toBe(true);
+    expect(lineShown()).toBe(true);
+    expect(dt.dropEffect).toBe("move");
+
+    expect(drop(target, 1, dt)).toBe(true);
+    expect(outline(editor)).toEqual([["客廳", "[回憶]", "回來"], [""], ["夜", "街上"]]);
+    expect(lineShown()).toBe(false);
+  });
+
+  it("帶子場次的主場次拖向別場的區塊之間：不畫線、照樣攔下預設放置、放下去什麼都不變", async () => {
+    const { editor, container } = await mount();
+    const before = editor.state.doc.toJSON();
+    const dt = drag(ownHandle(topScene(container, 0)));
+    const target = blockOf(container, "夜");
+
+    expect(over(target, 1, dt)).toBe(true); // 仍 preventDefault：瀏覽器的預設放置不准發生
+    expect(dt.dropEffect).toBe("none");
+    expect(lineShown()).toBe(false);
+
+    expect(drop(target, 1, dt)).toBe(true);
+    expect(editor.state.doc.toJSON()).toEqual(before);
+  });
+
+  it("升級：子場次拖到下一場外框的上半 → 變成兩場之間的主場次", async () => {
+    const { editor, container } = await mount();
+    const subscene = container.querySelector<HTMLElement>(".scene--sub")!;
+    const dt = drag(ownHandle(subscene));
+    const chips = topScene(container, 1).querySelector<HTMLElement>(".scene__chips")!;
+
+    expect(over(chips, -1, dt)).toBe(true);
+    expect(lineShown()).toBe(true);
+    drop(chips, -1, dt);
+    expect(outline(editor)).toEqual([["客廳", "回來"], ["回憶"], ["街上"], ["夜"]]);
+  });
+
+  it("降級：主場次拖進別場 → 放下時問種類，選了才搬；⌘Z 一步回來", async () => {
+    const { editor, container } = await mount();
+    const before = editor.state.doc.toJSON();
+    const dt = drag(ownHandle(topScene(container, 2)));
+    const target = blockOf(container, "客廳");
+
+    expect(over(target, 1, dt)).toBe(true);
+    drop(target, 1, dt);
+    expect(editor.state.doc.toJSON()).toEqual(before); // 還沒選種類，什麼都沒動
+
+    const pick = await waitFor(() => {
+      const button = [...document.querySelectorAll<HTMLElement>(".scene-menu button")].find((b) =>
+        b.textContent?.includes("接續"),
+      );
+      expect(button).toBeDefined();
+      return button!;
+    });
+    act(() => {
+      fireEvent.mouseDown(pick);
+    });
+    expect(outline(editor)).toEqual([["客廳", "[夜]", "[回憶]", "回來"], ["街上"]]);
+    expect(editor.state.doc.child(0).child(1).attrs.kind).toBe("接續");
+
+    act(() => {
+      editor.commands.undo();
+    });
+    expect(editor.state.doc.toJSON()).toEqual(before);
+  });
+
+  it("降級選單按 Esc：取消，不搬", async () => {
+    const { editor, container } = await mount();
+    const before = editor.state.doc.toJSON();
+    const dt = drag(ownHandle(topScene(container, 2)));
+    drop(blockOf(container, "客廳"), 1, dt);
+    const menu = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>(".scene-menu");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    act(() => {
+      fireEvent.keyDown(menu, { key: "Escape" });
+    });
+    expect(document.querySelector(".scene-menu")).toBeNull();
+    expect(editor.state.doc.toJSON()).toEqual(before);
+  });
+
+  it("落點從 drop 事件重算：中途的 dragleave 清不掉、指示線停在別處也照實際放下的位置搬", async () => {
+    const { editor, container } = await mount();
+    const dt = drag(ownHandle(blockOf(container, "夜")));
+    expect(over(blockOf(container, "街上"), 1, dt)).toBe(true);
+    // 滑過區塊內部的子元素會發 dragleave —— 不准把這次拖曳清掉
+    const inner = blockOf(container, "街上").querySelector<HTMLElement>(".block__content")!;
+    const leave = createEvent.dragLeave(inner, { dataTransfer: dt });
+    Object.defineProperty(leave, "relatedTarget", { value: blockOf(container, "街上") });
+    fireEvent(inner, leave);
+    expect(lineShown()).toBe(true);
+
+    drop(blockOf(container, "客廳"), -1, dt);
+    expect(outline(editor)).toEqual([["夜", "客廳", "[回憶]", "回來"], ["街上"], [""]]);
+  });
+
+  it("拖曳把手不交給 ProseMirror：它不啟動自己的拖放（不會拖走選取的文字）", async () => {
+    const { editor, container } = await mount();
+    drag(ownHandle(blockOf(container, "街上")));
+    expect(editor.view.dragging).toBeNull();
+  });
+
+  it("不是從把手開始的拖曳（例如拖選取的文字）不歸這裡管", async () => {
+    const { container } = await mount();
+    const dt = dataTransfer();
+    over(blockOf(container, "夜"), 1, dt); // 要不要 preventDefault 是 ProseMirror 自己的事
+    expect(dt.dropEffect).toBe("none");
+    expect(lineShown()).toBe(false);
+  });
+});

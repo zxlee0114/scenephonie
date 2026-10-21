@@ -117,9 +117,23 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
   },
   {
     name: "moveScene",
-    enforces: ["⑦"],
+    enforces: ["①", "⑤", "⑦"],
     addressesById: true,
-    rationale: "全程保住 sceneId；自己拒絕非法目標（縱深，不靠 UI 落點線）。",
+    rationale:
+      "全程保住 sceneId（升級／降級也是）；自己拒絕非法目標（縱深，不靠 UI 落點線）：帶子場次的主場次不能降級（第三層，⑤），子場次不能放在主場次自己的內容之前（①）。",
+  },
+  {
+    name: "moveGroup",
+    enforces: [],
+    addressesById: true,
+    rationale: "以 groupId 定址；群組在頂層整體搬移，成員與片段原封不動。",
+  },
+  {
+    name: "moveBlock",
+    enforces: ["①"],
+    addressesById: true,
+    rationale:
+      "以 sceneId 定址（blockIndex／index 是傳遞參數）；搬空的內容補空動作區塊，主場次被搬到只剩子場次時補在最前面（①）。",
   },
   {
     name: "setSceneLocations",

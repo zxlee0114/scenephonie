@@ -7,7 +7,8 @@
  * - `hardBreak`：佔用 `Mod-Enter`，會跟「新增下一場」搶（§7.1）。區塊內軟換行改走
  *   `extensions/soft-break`（`Shift-Enter` 插一個 `\n` text，不是節點）。
  * - `gapcursor`：會在場次之間放一個（非文字）游標位 —— 與「場次之外不存在 canonical text
- *   insertion point」相斥（§7.9）。`dropcursor`：拖曳排序延到票券 13。
+ *   insertion point」相斥（§7.9）。`dropcursor`：拖曳排序（票券 13）畫自己的落點線（`extensions/drag-reorder`）——
+ *   PM 的 drop cursor 只認它自己的拖放，而我們不走那條路。
  */
 import { StarterKit } from "@tiptap/starter-kit";
 

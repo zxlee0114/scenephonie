@@ -459,6 +459,78 @@
   background: var(--selection-bg);
 }
 
+/* ── 拖曳排序（票券 13、§7.5）──
+ * 把手平常不畫（常駐的 ⠿ 一頁幾十個，是噪音），滑過那一場／那個區塊才浮現。場次的把手住 gutter
+ * 最左、與場次號同一行；區塊的把手貼在區塊左緣外側。都是 decoration：不可選、不進 content flow。 */
+.block {
+  position: relative;
+}
+
+.drag-handle {
+  position: absolute;
+  inset-block-start: 0;
+  inline-size: var(--space-4);
+  text-align: center;
+  font-family: var(--font-ui);
+  line-height: inherit;
+  color: var(--text-faint);
+  cursor: grab;
+  opacity: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: opacity 120ms ease;
+}
+
+.block > .drag-handle {
+  inset-inline-start: calc(-1 * var(--space-5));
+}
+
+.drag-handle--scene {
+  inset-inline-start: 0;
+  inset-block-start: var(--scene-pad-block, 0px);
+  z-index: 1;
+}
+
+.block:hover > .drag-handle,
+.scene:hover > .drag-handle,
+.scene-group:hover > .drag-handle,
+.drag-handle:hover {
+  opacity: 1;
+}
+
+.drag-handle:hover {
+  color: var(--text-secondary);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* 落點指示線：全編輯器一條，fixed 定位、用視窗座標畫；不吃滑鼠，才不會變成自己的落點。 */
+.drop-indicator {
+  position: fixed;
+  z-index: 30;
+  block-size: 2px;
+  margin-block-start: -1px;
+  background: var(--focus-ring);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.drop-indicator[hidden] {
+  display: none;
+}
+
+/* 降級時問種類的選單：貼在放下的那一點（沿用 SceneMenu 的外觀與鍵盤）。 */
+.drop-kind-menu {
+  position: fixed;
+  z-index: 30;
+}
+
+.drop-kind-menu > .scene-menu {
+  inset: 0 auto auto 0;
+}
+
 /* ── 內嵌簡表（chip row）——常駐，不可被預設 UI 收合（§7.11）── */
 
 .scene__chips {
