@@ -37,8 +37,9 @@ export { unlistedSpeakers } from "./appearing-prompt";
 
 // 實體（人物／地點）：id 鑄造、command 問存在性用的目錄，與讀取路徑的正規化（票券 08）。
 //
-// ⚠️ 只出去有呼叫端的東西。`referenceLabel`（場次表那一格的文字）的呼叫端是同套件的
-// `labelSceneTable`（票券 15），套件外不必再拼一次；`isCharacterId`／`isLocationId`、
+// ⚠️ 只出去有呼叫端的東西。`referenceLabel`（`實體名（這一場的顯示名）`）除了同套件的
+// `labelSceneTable`（票券 15），場次導覽 sidebar 的篩選（票券 16）也要拼同一串字 —— 同一個詞在
+// 場次表找得到、在 sidebar 找不到，會讓人以為其中一邊壞了。`isCharacterId`／`isLocationId`、
 // `splitNames`／`hasSeparator` 都還沒有消費者，留在模組裡 —— 第一個呼叫端會是票券 18，那天
 // 再開一行。沒有讀者的公開介面與沒有讀者的欄位是同一種債。
 export {
@@ -50,11 +51,13 @@ export {
   sceneLocations,
   sceneAppearingCharacters,
   dialogueCharacters,
+  referenceLabel,
 } from "./entities";
 export type { EntityDirectory } from "./entities";
 
 // 群演（場次限定實體，票券 09）：id 鑄造、讀取正規化、「描述 x 人數」的解析。場次表那一格
-// 的文字（`extrasLabel`）由同套件的 `labelSceneTable` 呼叫（票券 15），與 `referenceLabel` 一起。
+// 的文字（`extrasLabel`）由同套件的 `labelSceneTable` 呼叫（票券 15），sidebar 的篩選（票券 16）
+// 比的是同一串字，與 `referenceLabel` 一起出去。
 //
 // `statesCount`（票券 49）是「新增那一側沒說人數就問一次」那條規則的判準 —— 唯一的呼叫端
 // 是群演欄的 `willAskCount`。它與 `parseExtra` 的差別見它自己的檔頭：值上分不出「他說了
@@ -67,6 +70,7 @@ export {
   parseExtra,
   statesCount,
   formatExtra,
+  extrasLabel,
 } from "./extras";
 
 // 人數的四種樣子（票券 44）。型別要出得去，因為 `ExtraRef.countValue` 是公開形狀的一部分。

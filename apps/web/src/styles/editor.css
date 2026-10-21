@@ -1860,3 +1860,199 @@
 .scene-preview__open:hover {
   background: var(--surface-raised);
 }
+
+/* ─────────────────────────────────────────── 場次導覽 sidebar（票券 16，§7.10） */
+
+/*
+ * 創作中的定位，不是文件 sidebar。寬螢幕是稿子左邊的一欄（sticky，跟著捲不走）；窄螢幕放不下
+ * 並排，改成叫出來才出現的抽屜（使用者裁決 2026-10-22）。斷點與 `use-scene-nav-open.ts` 的
+ * `WIDE_QUERY` 同一個值。
+ *
+ * 介面像作業系統（`--font-ui`），不搶稿子的戲：列是低對比的字，目前那一場用選取色淡淡托一層底。
+ */
+.screenplay-body {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* 稿子在 sidebar 右邊剩下的空間裡置中，閱讀行長不變。 */
+.screenplay-body > .screenplay-page {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.scene-nav {
+  position: sticky;
+  /* 頂端那一條讓給快捷鍵總覽的鈕（固定在左上角）。 */
+  inset-block-start: var(--bar-height);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  max-block-size: calc(100dvh - var(--bar-height));
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+}
+
+.scene-nav--open:not(.scene-nav--drawer) {
+  inline-size: 16rem;
+  /* 分隔線一路到底，不隨清單長短停在半空。 */
+  block-size: calc(100dvh - var(--bar-height));
+  border-inline-end: 1px solid var(--rule);
+}
+
+.scene-nav__toggle {
+  align-self: flex-start;
+  margin: var(--space-2) var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--space-1);
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  cursor: pointer;
+}
+
+.scene-nav__toggle:hover {
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+}
+
+.scene-nav__toggle:focus-visible,
+.scene-nav__search:focus-visible,
+.scene-nav__row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.scene-nav__body {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
+.scene-nav__search {
+  box-sizing: border-box;
+  margin: 0 var(--space-3) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--control-border);
+  border-radius: var(--space-1);
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.scene-nav__empty {
+  margin: var(--space-2) var(--space-4);
+  color: var(--text-faint);
+}
+
+.scene-nav__list,
+.scene-nav__group > ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scene-nav__list {
+  overflow-y: auto;
+  padding-block-end: var(--space-5);
+}
+
+.scene-nav__row {
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100%;
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-4);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.scene-nav__row:hover {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+.scene-nav__row[aria-current="location"] {
+  background: var(--selection-bg);
+  color: var(--text-primary);
+}
+
+/* 場次號對齊成一欄，後面的景／光／地點才排得齊。 */
+.scene-nav__no {
+  display: inline-block;
+  min-inline-size: 3.5em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 草稿：只換場次號的字色，同 gutter 的草稿標籤（判準是不疲勞）。 */
+.scene-nav__item--draft .scene-nav__no {
+  color: var(--draft-fg);
+}
+
+/* 子場次縮排一級。 */
+.scene-nav__item--sub > .scene-nav__row {
+  padding-inline-start: calc(var(--space-4) + var(--space-4));
+}
+
+/* 群組成員看得出同組：一條細直線把同組的列串起來（結構提示，不是框）。 */
+.scene-nav__group {
+  margin-inline-start: var(--space-2);
+  border-inline-start: 2px solid var(--rule-strong);
+}
+
+.scene-nav__group .scene-nav__row {
+  padding-inline-start: calc(var(--space-4) - var(--space-2) - 2px);
+}
+
+.scene-nav__group .scene-nav__item--sub > .scene-nav__row {
+  padding-inline-start: calc(var(--space-4) * 2 - var(--space-2) - 2px);
+}
+
+/* ── 窄螢幕：抽屜 ── */
+
+.scene-nav--drawer {
+  position: fixed;
+  inset-block-end: var(--space-4);
+  inset-inline-start: var(--space-4);
+  z-index: 25;
+  max-block-size: none;
+}
+
+.scene-nav--drawer > .scene-nav__toggle {
+  /* 抽屜開著時它浮在抽屜上面，同一顆鈕就是「收回去」。 */
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--rule-strong);
+  background: var(--surface-page);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-popover);
+}
+
+.scene-nav__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: color-mix(in srgb, var(--surface-page) 72%, transparent);
+}
+
+.scene-nav--drawer > .scene-nav__body {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: min(20rem, 85vw);
+  padding-block-start: var(--space-4);
+  background: var(--surface-page);
+  border-inline-end: 1px solid var(--rule-strong);
+  box-shadow: var(--shadow-popover);
+}

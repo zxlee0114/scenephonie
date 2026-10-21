@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { flash } from "@/editor/flash";
 
-import { filterSceneTable } from "./filter";
+import { filterScenes } from "./filter";
 
 export function SceneTable({
   rows,
@@ -26,7 +26,7 @@ export function SceneTable({
   onSelect: (sceneId: string) => void;
 }) {
   const [query, setQuery] = useState("");
-  const shown = useMemo(() => filterSceneTable(rows, query), [rows, query]);
+  const shown = useMemo(() => filterScenes(rows, query, (row) => row), [rows, query]);
   const anchorRef = useRef<HTMLTableRowElement>(null);
 
   // 只在切換進來的那一刻對位；之後的捲動是讀者自己的。那一列浮現底色再淡出 —— 不留常駐底色：
