@@ -111,7 +111,7 @@ export function sameSpaceTime(
 }
 
 /**
- * 不變式 ②：子場次的 metadata 與主場次**完全相同**嗎？（草稿的推導在票券 14 接上這一支。）
+ * 不變式 ②：子場次的 metadata 與主場次**完全相同**嗎？（呼叫端是 `projectScenes` 的草稿推導，票券 14。）
  */
 export function subsceneEchoesParent(parent: ProseMirrorNode, subscene: ProseMirrorNode): boolean {
   return sameSceneMeta(parent, subscene);

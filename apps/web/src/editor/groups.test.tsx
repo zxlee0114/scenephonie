@@ -28,6 +28,9 @@ import { useScreenplayEditor } from "./use-screenplay-editor";
 
 const room = { locationId: mintLocationId(), displayName: "警局偵訊室" };
 const dock = { locationId: mintLocationId(), displayName: "港邊倉庫" };
+/** 時間與內外 —— 再配一個地點就填完了，不是草稿（票券 14）。 */
+const when = { time: "夜", intExt: "內景" };
+const elsewhere = () => ({ ...when, location: { locationId: mintLocationId(), displayName: "走廊" } });
 const action = (text = "") => k.node("action", null, text ? [k.text(text)] : []);
 const scene = (blocks: PMNode[], attrs: Record<string, unknown> = {}) =>
   k.node("scene", { sceneId: mintSceneId(), ...attrs }, blocks);
@@ -113,8 +116,8 @@ afterEach(() => cleanup());
 
 describe("/ →「對剪到…」：兩步建立群組", () => {
   it("建立新的一場：目前場次變成員 1、內容變片段 1；新成員的 chip row 拿到焦點，各佔一個頂層號", async () => {
-    const here = scene([action("若晴把照片推到桌子中央。"), action()], { location: room });
-    const { editor, container } = await mount(docOf(scene([action("前一場")]), here));
+    const here = scene([action("若晴把照片推到桌子中央。"), action()], { ...when, location: room });
+    const { editor, container } = await mount(docOf(scene([action("前一場")], elsewhere()), here));
     caretAtEndOfBlock(editor, 2);
     await type(editor, "/intercut");
     await press(editor, "Enter"); // 第一步：對剪到… → 換成第二步清單
@@ -133,10 +136,11 @@ describe("/ →「對剪到…」：兩步建立群組", () => {
     expect(editor.state.doc.textContent).not.toContain("/intercut");
 
     await waitFor(() =>
+      // 新成員的時空還空著：它是草稿（票券 14），錨定前一個正式場次。
       expect([...container.querySelectorAll(".scene__number")].map((n) => n.textContent)).toEqual([
         "1",
         "2",
-        "3",
+        "S2[D1]",
       ]),
     );
     // 「以下對剪」是 decoration：畫面上有，doc 裡沒有。
@@ -149,7 +153,7 @@ describe("/ →「對剪到…」：兩步建立群組", () => {
     ]);
     expect(labels).toEqual([
       ["2", "警局偵訊室"],
-      ["3", "地點未填"],
+      ["S2[D1]", "地點未填"],
     ]);
     // 新成員的第一格（內外）拿到焦點 —— 先填時空，同 `/next`。
     await waitFor(() =>
@@ -275,10 +279,10 @@ describe("⌘+1／⌘+2／⌘+3：直接定址切換片段歸屬", () => {
 
 describe("片段裡照常寫字", () => {
   const twoWay = () => {
-    const a = member({ location: room });
-    const b = member({ location: dock });
+    const a = member({ ...when, location: room });
+    const b = member({ ...when, location: dock });
     const g = group([a, b], [fragment(a, [action("偵訊室。")]), fragment(b, [action("倉庫。")])]);
-    return { a, b, content: docOf(scene([action("前一場")]), g) };
+    return { a, b, content: docOf(scene([action("前一場")], elsewhere()), g) };
   };
 
   it("Tab 只換片段裡那個區塊的型別，不動片段的歸屬", async () => {
@@ -299,7 +303,7 @@ describe("片段裡照常寫字", () => {
     expect(editor.state.doc.childCount).toBe(3);
     expect(editor.state.doc.child(2).type.name).toBe("scene");
     expect(shapeOf(editor.state.doc.child(1)).members).toHaveLength(2);
-    expect(projectScenes(editor.state.doc).map((s) => s.label)).toEqual(["1", "2", "3", "4"]);
+    expect(projectScenes(editor.state.doc).map((s) => s.label)).toEqual(["1", "2", "3", "S3[D1]"]); // 新場次時空還空著 → 草稿
   });
 });
 

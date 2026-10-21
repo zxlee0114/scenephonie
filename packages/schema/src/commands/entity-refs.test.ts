@@ -8,12 +8,13 @@ import {
   sceneAppearingCharacters,
   sceneLocations,
 } from "../entities";
-import { block, makeDoc, makeScene, sceneWith } from "../testing";
+import { block, makeDoc, makeScene, sceneWith, subsceneWith } from "../testing";
 import {
   addAppearingCharacter,
   dismissAppearingPrompt,
   retitleEntityRefs,
   setAppearingCharacters,
+  setManualDraft,
   setDialogueCharacters,
   setSceneIntExt,
   setSceneLocations,
@@ -163,6 +164,30 @@ describe("setSceneIntExt：單值規則的另一半", () => {
   it("留在雜景照常改得動", () => {
     const doc = montageWithTwoLocations();
     expect(setSceneIntExt(doc, { sceneId: sceneIdOf(doc), intExt: "雜景" }).ok).toBe(true);
+  });
+});
+
+describe("setManualDraft：手動標記為草稿（票券 14）", () => {
+  it("標記與取消都只寫 manualDraft 這一個布林值，其餘 metadata 原封不動", () => {
+    const doc = makeDoc(makeScene({ time: "夜" }));
+    const sceneId = sceneIdOf(doc);
+    const marked = unwrap(setManualDraft(doc, { sceneId, manualDraft: true }));
+    expect(marked.child(0).attrs).toMatchObject({ sceneId, time: "夜", manualDraft: true });
+
+    const cleared = unwrap(setManualDraft(marked, { sceneId, manualDraft: false }));
+    expect(cleared.child(0).attrs.manualDraft).toBe(false);
+  });
+
+  it("子場次也能單獨標記（以 sceneId 定址）", () => {
+    const sub = subsceneWith([block.action("閃回")], { kind: "插入" });
+    const doc = makeDoc(sceneWith([block.action("客廳"), sub]));
+    const next = unwrap(setManualDraft(doc, { sceneId: sub.attrs.sceneId as string, manualDraft: true }));
+    expect(next.child(0).child(1).attrs.manualDraft).toBe(true);
+    expect(next.child(0).attrs.manualDraft).toBe(false);
+  });
+
+  it("找不到場次就拒絕", () => {
+    expect(setManualDraft(makeDoc(makeScene()), { sceneId: "sc_nope", manualDraft: true }).ok).toBe(false);
   });
 });
 

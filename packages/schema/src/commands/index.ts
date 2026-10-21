@@ -42,6 +42,7 @@ export {
   retitleEntityRefs,
   setSceneLocations,
   setSceneIntExt,
+  setManualDraft,
   setAppearingCharacters,
   setDialogueCharacters,
 } from "./entity-refs";
@@ -51,6 +52,7 @@ export type {
   RetitleEntityRefsOptions,
   SetSceneLocationsOptions,
   SetSceneIntExtOptions,
+  SetManualDraftOptions,
   SetAppearingCharactersOptions,
   SetDialogueCharactersOptions,
 } from "./entity-refs";

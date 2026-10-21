@@ -11,8 +11,8 @@ import { sameSceneMeta } from "./subscenes";
 /**
  * 不變式 ③：同一群組裡，metadata 與**另一個成員**完全相同的那些成員（依成員順序）。
  *
- * 相同的話依場次的定義它們不是兩個場次 → 視為不完整 → 自動草稿 → 匯出前被攔（草稿的推導在
- * 票券 14 接上這一支，同 `subsceneEchoesParent`）。它同時是 PDF 歸屬標記「能區別成員」的
+ * 相同的話依場次的定義它們不是兩個場次 → 視為不完整 → 自動草稿 → 匯出前被攔（呼叫端是
+ * `projectScenes` 的草稿推導，票券 14）。它同時是 PDF 歸屬標記「能區別成員」的
  * 保證 —— 顯示名相同時補印區別欄位，前提是一定有欄位不同（ADR-0004）。
  */
 export function echoingMembers(group: ProseMirrorNode): string[] {

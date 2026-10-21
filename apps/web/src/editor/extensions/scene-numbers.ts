@@ -14,6 +14,10 @@
  * 子場次（票券 11）走同一個 decoration，號碼是 `5.1`；兩邊的 node view 是同一支 `SceneView`。
  * 群組成員（票券 12）也是：各佔一個頂層號。片段另有一份 spec（`FragmentLabelSpec`）—— 片段左側的
  * 常駐標籤要印它的成員是誰，而成員改了地點時**片段節點沒變**，只有 decoration 叫得動它重繪。
+ *
+ * 草稿（票券 14）也走這裡：`projectScenes` 那一次走訪順帶推導出 `draft`，標籤就是 `S11[D1]`。
+ * 一場是不是草稿可能因為**別的節點**變了而變（主場次標成草稿 → 子場次跟著是；成員之間撞時空），
+ * 理由同上，只有 decoration 叫得動它重繪。
  */
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
@@ -25,8 +29,10 @@ import { projectScenes, sceneLocationLabel, subsceneCount } from "@scenephonie/s
 export const sceneNumbersKey = new PluginKey("scenephonie/sceneNumbers");
 
 export interface SceneNumberSpec {
-  /** 推導出來的顯示序號（字串），未知時為 "?"。 */
+  /** 推導出來的顯示序號（字串；草稿是 `S11[D1]`），未知時為 "?"。 */
   sceneNo: string;
+  /** 是不是草稿（推導的，票券 14）—— node view 據此掛視覺區隔。 */
+  draft: boolean;
   /** 整場被選取範圍完整涵蓋（⌘+A 第三段）——整塊反白由 node view 畫，不靠瀏覽器原生。 */
   selected: boolean;
   /** 全劇第一場／最後一場。
@@ -95,21 +101,29 @@ export const SceneNumbers = Extension.create({
               return cache.set;
             }
 
-            const labelBySceneId = new Map(
-              projectScenes(state.doc).map((s) => [s.sceneId, s.label] as const),
-            );
+            const bySceneId = new Map(projectScenes(state.doc).map((s) => [s.sceneId, s] as const));
 
             const decos: Decoration[] = [];
             const last = state.doc.childCount - 1;
-            const push = (node: PMNode, pos: number, spec: Omit<SceneNumberSpec, "sceneNo" | "selected">) => {
-              const label = labelBySceneId.get(node.attrs.sceneId as string) ?? "?";
+            const push = (
+              node: PMNode,
+              pos: number,
+              spec: Omit<SceneNumberSpec, "sceneNo" | "draft" | "selected">,
+            ) => {
+              const projected = bySceneId.get(node.attrs.sceneId as string);
+              const label = projected?.label ?? "?";
               const covered = from <= pos && to >= pos + node.nodeSize;
               decos.push(
                 Decoration.node(
                   pos,
                   pos + node.nodeSize,
                   { "data-scene-no": label },
-                  { sceneNo: label, selected: covered, ...spec } satisfies SceneNumberSpec,
+                  {
+                    sceneNo: label,
+                    draft: projected?.draft ?? false,
+                    selected: covered,
+                    ...spec,
+                  } satisfies SceneNumberSpec,
                 ),
               );
             };
@@ -157,7 +171,7 @@ export const SceneNumbers = Extension.create({
                 decos.push(
                   Decoration.node(at, at + child.nodeSize, {}, {
                     memberOrdinal: member.ordinal,
-                    memberNo: labelBySceneId.get(member.node.attrs.sceneId as string) ?? "?",
+                    memberNo: bySceneId.get(member.node.attrs.sceneId as string)?.label ?? "?",
                     location: sceneLocationLabel(member.node),
                   } satisfies FragmentLabelSpec),
                 );

@@ -9,23 +9,37 @@
  *
  * **範圍**：頂層 `scene` 依文件順序編 `1..N`；子場次（票券 11）編 `5.1`（父場次號 ＋ 點號 ＋
  * 該父場次底下第幾個子場次），緊接在主場次之後。群組成員（票券 12）各佔一個頂層號、群組本身
- * 不佔號；成員的子場次散在它的各個片段裡，依文件順序編在它底下。草稿跳號另編 `S11[D1]` ——
- * 在 §5.4 定義，票券 14 長出。
+ * 不佔號；成員的子場次散在它的各個片段裡，依文件順序編在它底下。草稿（票券 14）跳號另編
+ * `S11[D1]` —— 草稿判定也在這一次走訪裡：PDF、場次表、匯出前草稿清單共用同一次走訪（§6.4），
+ * 不會長出兩套會分歧的實作。
  */
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
+import { groupMembers } from "./commands/tree";
+import { echoingMembers } from "./groups";
+import { isSceneMetaIncomplete } from "./scene-meta";
 import { schema } from "./schema";
+import { sameSpaceTime, subsceneEchoesParent } from "./subscenes";
 
 export interface SceneNumber {
   /** 場次的永久識別碼（`sc_` 前綴）。下游關聯掛這個，不掛序號。 */
   sceneId: string;
-  /** 依文件順序推導的顯示序號，`1..N`。子場次是它主場次的號碼。呈現用標籤，重排時會變。 */
+  /**
+   * 依文件順序推導的顯示序號，`1..N`。子場次是它主場次的號碼；草稿是它錨定的那個正式場次的
+   * 頂層號（全劇第一個正式場次之前是 `0`）。呈現用標籤，重排時會變。
+   */
   number: number;
   /**
-   * 印出來的樣子：主場次 `"5"`、子場次 `"5.1"`（點號，不是連字號 —— 連字號是鏡號的慣例）。
+   * 印出來的樣子：主場次 `"5"`、子場次 `"5.1"`（點號，不是連字號 —— 連字號是鏡號的慣例）、
+   * 草稿 `"S5[D1]"`／`"S5.1[D1]"`（錨定前一個正式場次；排在全劇第一場之前是 `"[D1]"`）。
    * ⚠️ 任何東西都不准引用它，只能引用 `sceneId`（ADR-0006 保護規則 2）。
    */
   label: string;
+  /**
+   * 是不是草稿（票券 14，§4.8）—— **推導的，不是存的**：`manualDraft` 或 metadata 不完整。
+   * 草稿不佔正式場次號，**不進 PDF、不進場次表**（交付投影各自濾掉 `draft` 的列）。
+   */
+  draft: boolean;
   /** 子場次的主場次（或成員）；主場次為 `undefined`。 */
   parentSceneId?: string;
   /** 群組成員所屬群組的 `groupId`（票券 12）；不是成員為 `undefined`。 */
@@ -33,50 +47,94 @@ export interface SceneNumber {
 }
 
 /**
- * 依文件順序把場次推導成 `1..N`，子場次緊接在主場次之後編 `N.1`、`N.2`…
+ * 依文件順序把正式場次推導成 `1..N`，子場次緊接在主場次之後編 `N.1`、`N.2`…；草稿跳過，
+ * 另編 `S11[D1]`。
+ *
+ * **草稿的判定**（§4.8，三條自動草稿不變式全部接到「metadata 不完整」，零新機制）：
+ *
+ * | 誰 | 是草稿，如果 |
+ * |---|---|
+ * | 每一場 | `manualDraft`，或 metadata 有空欄（雜景的地點欄除外，`isSceneMetaIncomplete`） |
+ * | 子場次 | 另外：主場次（或成員）是草稿；或 metadata 與它**完全相同**（不變式 ②） |
+ * | 群組成員 | 另外：與另一個成員 metadata **完全相同**（不變式 ③），或**同地同時**（③ 的寬鬆版，票券 12 驗收） |
+ *
+ * 子場次可以單獨是草稿而主場次不是。草稿標籤**錨定前一個正式場次**（錨定後一場會與真正的
+ * `S12` 撞號），所以夾在 `5.1` 之後的草稿子場次是 `S5.1[D1]`。
  *
  * @param doc 已 hydrate 的 ProseMirror doc 節點（用本模組的 `schema`；見 `docFromJSON`）。
  */
 export function projectScenes(doc: ProseMirrorNode): SceneNumber[] {
   const numbers: SceneNumber[] = [];
   let top = 0;
+  let sub = 0;
+  /** 最近一個正式場次的標籤，與錨定在它之後的第幾個草稿。 */
+  let anchor = "";
+  let drafts = 0;
 
-  /** 一個頂層號：它自己，接著散在 `containers` 裡的子場次 `N.1`、`N.2`…。 */
-  const number = (scene: ProseMirrorNode, containers: ProseMirrorNode[], groupId?: string) => {
-    top += 1;
+  const ownDraft = (scene: ProseMirrorNode) =>
+    scene.attrs.manualDraft === true || isSceneMetaIncomplete(scene);
+
+  const emit = (scene: ProseMirrorNode, draft: boolean, extra: Partial<SceneNumber>, subscene: boolean) => {
     const sceneId = scene.attrs.sceneId as string;
-    numbers.push({ sceneId, number: top, label: String(top), ...(groupId ? { groupId } : {}) });
-    let sub = 0;
+    let label: string;
+    if (draft) {
+      drafts += 1;
+      label = anchor ? `S${anchor}[D${drafts}]` : `[D${drafts}]`;
+    } else {
+      if (subscene) {
+        sub += 1;
+        label = `${top}.${sub}`;
+      } else {
+        top += 1;
+        sub = 0;
+        label = String(top);
+      }
+      anchor = label;
+      drafts = 0;
+    }
+    numbers.push({ sceneId, number: top, label, draft, ...extra });
+  };
+
+  /** 一個頂層場次：它自己，接著散在 `containers` 裡的子場次。 */
+  const number = (
+    scene: ProseMirrorNode,
+    containers: ProseMirrorNode[],
+    draft: boolean,
+    groupId?: string,
+  ) => {
+    emit(scene, draft, groupId ? { groupId } : {}, false);
+    const parentSceneId = scene.attrs.sceneId as string;
     for (const container of containers) {
       container.forEach((child) => {
         if (child.type.name !== "subscene") return;
-        sub += 1;
-        numbers.push({
-          sceneId: child.attrs.sceneId as string,
-          number: top,
-          label: `${top}.${sub}`,
-          parentSceneId: sceneId,
-        });
+        const childDraft = draft || ownDraft(child) || subsceneEchoesParent(scene, child);
+        emit(child, childDraft, { parentSceneId }, true);
       });
     }
   };
 
   doc.forEach((node) => {
     if (node.type.name === "scene") {
-      number(node, [node]);
+      number(node, [node], ownDraft(node));
       return;
     }
     if (node.type.name !== "sceneGroup") return;
     const groupId = node.attrs.groupId as string;
+    const members = groupMembers(node);
+    const echoing = new Set(echoingMembers(node));
     const fragments: ProseMirrorNode[] = [];
     node.forEach((child) => {
       if (child.type.name === "groupFragment") fragments.push(child);
     });
-    node.forEach((child) => {
-      if (child.type.name !== "groupMember") return;
-      const own = fragments.filter((f) => f.attrs.memberId === child.attrs.sceneId);
-      number(child, own, groupId);
-    });
+    for (const member of members) {
+      const sceneId = member.attrs.sceneId as string;
+      const draft =
+        ownDraft(member) ||
+        echoing.has(sceneId) ||
+        members.some((other) => other !== member && sameSpaceTime(member, other));
+      const own = fragments.filter((f) => f.attrs.memberId === sceneId);
+      number(member, own, draft, groupId);
+    }
   });
   return numbers;
 }

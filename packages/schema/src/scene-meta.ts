@@ -11,11 +11,29 @@
  * 參數刻意只要求結構上有 `attrs`：編輯器那半用的是 Tiptap 綁定版 schema 的節點，
  * 與 kernel 的 `ProseMirrorNode` 是兩個型別，但 attr 形狀同一份。
  */
-import { nullableSceneAttrNames } from "./schema";
+import { MONTAGE, nullableSceneAttrNames } from "./schema";
 
 export function hasEmptySceneMeta(scene: { readonly attrs: Record<string, unknown> }): boolean {
   return nullableSceneAttrNames.every((name) => {
     const value = scene.attrs[name];
     return value == null || (Array.isArray(value) && value.length === 0);
   });
+}
+
+/**
+ * 「這一場的 metadata 完整嗎」—— 草稿推導的第三條不變式（票券 14，§4.8）。不完整 → 自動草稿。
+ *
+ * 與 `hasEmptySceneMeta`（全空）是兩個問題：那支問「還沒開工」，這支問「有沒有任何一欄沒填」。
+ *
+ * | 欄位 | 要求 |
+ * |---|---|
+ * | 時間、內外 | 有值 |
+ * | 地點 | 有值 —— **`內外＝雜景` 時留空合法**（「完整」的定義隨內外的值改變，§4.3） |
+ * | 登場人物 | **不參與**（使用者裁決 2026-10-21）：空景沒有任何人入鏡，要求它有值等於讓那場永遠是草稿 |
+ */
+export function isSceneMetaIncomplete(scene: { readonly attrs: Record<string, unknown> }): boolean {
+  const { time, intExt, location } = scene.attrs;
+  if (time == null || intExt == null) return true;
+  if (intExt === MONTAGE) return false;
+  return location == null || (Array.isArray(location) && location.length === 0);
 }

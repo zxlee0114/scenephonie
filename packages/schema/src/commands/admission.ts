@@ -135,6 +135,12 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
       "以 sceneId 定址；「地點欄能有幾個值」是內外的函式（§4.3 雜景逃生口），只在寫地點時檢查會留洞。",
   },
   {
+    name: "setManualDraft",
+    enforces: [],
+    addressesById: true,
+    rationale: "以 sceneId 定址（子場次可以單獨標記）；只寫宣告，草稿本身是推導值（§4.8）。",
+  },
+  {
     name: "setAppearingCharacters",
     enforces: ["⑧"],
     addressesById: true,

@@ -13,6 +13,9 @@ describe("apps/web ↔ @scenephonie/schema 邊界", () => {
       .node("doc", null, [schema.node("scene", { sceneId: id }, schema.node("action"))])
       .toJSON();
 
-    expect(projectScenes(docFromJSON(persisted))).toEqual([{ sceneId: id, number: 1, label: "1" }]);
+    expect(projectScenes(docFromJSON(persisted))).toEqual([
+      // metadata 全空 → 草稿，排在全劇第一場之前（票券 14）。
+      { sceneId: id, number: 0, label: "[D1]", draft: true },
+    ]);
   });
 });

@@ -37,6 +37,7 @@ import {
   sceneExtras,
   sceneLocations,
   setAppearingCharacters,
+  setManualDraft,
   setSceneExtras,
   setSceneIntExt,
   setSceneLocations,
@@ -342,6 +343,8 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
         isSubscene && "scene--sub",
         isMember && "scene--member",
         justBorn && "scene--just-added",
+        // 草稿（票券 14）：推導的，填完 metadata 它自己就卸掉。
+        spec?.draft && "scene--draft",
         spec?.selected && "is-node-selected",
         // 位置旗標走 decoration，不靠 :first-child／:last-child（見 extensions/scene-numbers）。
         spec?.isFirst && "scene--first",
@@ -387,6 +390,18 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
                   },
                 ]
               : []),
+            // 手動標記（票券 14）：只寫 manualDraft 這個宣告；取消後 metadata 沒填完照樣是草稿。
+            node.attrs.manualDraft
+              ? {
+                  key: "draft",
+                  label: "取消草稿標記",
+                  run: () => runKernelCommand(editor, (doc) => setManualDraft(doc, { sceneId, manualDraft: false })),
+                }
+              : {
+                  key: "draft",
+                  label: "標記為草稿",
+                  run: () => runKernelCommand(editor, (doc) => setManualDraft(doc, { sceneId, manualDraft: true })),
+                },
             {
               key: "delete",
               label: isMember ? "刪除這一場（連同它的片段）" : deleteSceneLabel(isSubscene, spec?.subscenes ?? 0),
@@ -628,12 +643,12 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
 }
 
 /**
- * 重繪判斷：號碼、整場選取狀態、首尾位置、主場次的時間（子場次）、子場次數（主場次）變了才重繪
+ * 重繪判斷：號碼、是不是草稿、整場選取狀態、首尾位置、主場次的時間（子場次）、子場次數（主場次）變了才重繪
  * 這一場（不比整個 decoration 陣列）。
  */
 function sigOf(decorations: readonly Decoration[]): string {
   const spec = sceneNumberOf(decorations);
-  return `${spec?.sceneNo ?? ""}:${spec?.selected ? 1 : 0}:${spec?.isFirst ? 1 : 0}${
+  return `${spec?.sceneNo ?? ""}:${spec?.draft ? 1 : 0}:${spec?.selected ? 1 : 0}:${spec?.isFirst ? 1 : 0}${
     spec?.isLast ? 1 : 0
   }:${spec?.parentTime ?? ""}:${spec?.subscenes ?? ""}:${spec?.memberOrdinal ?? ""}`;
 }

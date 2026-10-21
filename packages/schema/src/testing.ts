@@ -4,6 +4,7 @@
  */
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
+import { mintLocationId } from "./entities";
 import { mintGroupId, mintSceneId } from "./ids";
 import { schema } from "./schema";
 
@@ -64,4 +65,17 @@ export function groupWith(
   groupId: string = mintGroupId(),
 ): ProseMirrorNode {
   return schema.node("sceneGroup", { groupId }, [...members, ...fragments]);
+}
+
+/**
+ * 填完的 metadata（票券 14）：時間、內外、地點都有值 —— 不會因為「metadata 不完整」而是草稿。
+ * 每次呼叫鑄一個新地點，所以兩場各自 `filled()` 不會撞上「metadata 完全相同」那兩條不變式。
+ */
+export function filled(attrs: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    time: "日",
+    intExt: "內景",
+    location: { locationId: mintLocationId(), displayName: "客廳" },
+    ...attrs,
+  };
 }

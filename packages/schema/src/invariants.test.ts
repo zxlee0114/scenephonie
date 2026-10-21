@@ -29,10 +29,12 @@ import {
 import { entityDirectory, mintLocationId, referenceLabel, sceneLocations } from "./entities";
 import { schema } from "./schema";
 import { echoingMembers } from "./groups";
+import { projectScenes } from "./project-scenes";
 import { hasEmptySceneMeta } from "./scene-meta";
 import { subsceneEchoesParent } from "./subscenes";
 import {
   block,
+  filled,
   fragmentOf,
   groupWith,
   makeDoc,
@@ -59,11 +61,12 @@ describe("不變式 ①：主場次的內容必須以主場次自己的內容開
 });
 
 describe("不變式 ②：子場次的 metadata 不得與主場次完全相同", () => {
-  it("判準有人守：完全相同的子場次被認出來（→ 自動草稿，票券 14 接上）", () => {
-    const meta = { time: "夜", intExt: "內景" };
-    const parent = sceneWith([block.action("a")], meta);
+  it("判準有人守：完全相同的子場次被認出來 → 自動草稿（票券 14）", () => {
+    const meta = filled({ time: "夜" });
     const echo = subsceneWith([block.action("b")], { kind: "接續", ...meta });
+    const parent = sceneWith([block.action("a"), echo], meta);
     expect(subsceneEchoesParent(parent, echo)).toBe(true);
+    expect(projectScenes(makeDoc(parent)).map((s) => s.draft)).toEqual([false, true]);
   });
 
   it("建立時不預填：新子場次的 metadata 全空，不會安靜地等於主場次", () => {
@@ -82,11 +85,13 @@ describe("不變式 ②：子場次的 metadata 不得與主場次完全相同",
 
 // ── 票券 12（場次群組）────────────────────────────────────────────────────
 describe("不變式 ③：同一群組的成員之間，metadata 不得完全相同", () => {
-  it("判準有人守：時空完全相同的成員被認出來（→ 自動草稿，票券 14 接上）", () => {
-    const meta = { time: "夜", intExt: "內景" };
+  it("判準有人守：時空完全相同的成員被認出來 → 自動草稿（票券 14）", () => {
+    const meta = filled({ time: "夜" });
     const a = memberWith(meta);
     const b = memberWith(meta);
-    expect(echoingMembers(groupWith([a, b], [fragmentOf(a, [block.action("x")])]))).toHaveLength(2);
+    const group = groupWith([a, b], [fragmentOf(a, [block.action("x")])]);
+    expect(echoingMembers(group)).toHaveLength(2);
+    expect(projectScenes(makeDoc(group)).map((s) => s.draft)).toEqual([true, true]);
   });
 
   it("建立時不預填：「對剪到…」新建的成員 metadata 全空", () => {

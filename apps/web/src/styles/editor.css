@@ -208,6 +208,19 @@
   color: var(--text-secondary);
 }
 
+/* ── 草稿（票券 14）—— 草稿標籤是 decoration 裡唯一上色的：它要說「這場會被匯出略過」，低對比
+ * 說不出來（ui-tokens-draft.md §2.2 的例外）。判準是**不疲勞**：常駐、可能一次很多場，所以只換
+ * 字色、不加底、不框整場。`S11[D1]`／`S5.1[D2]` 比 64px gutter 寬，右緣照樣對齊號碼的位置，
+ * 多出來的往左長進頁邊，而不是壓到 chip row 上。用 `>`：子場次住在主場次裡，不能跟著上色。 */
+.scene--draft > .scene__number,
+.scene--draft > .scene__number:hover {
+  inset-inline-start: auto;
+  inset-inline-end: calc(100% - var(--space-gutter));
+  inline-size: auto;
+  white-space: nowrap;
+  color: var(--draft-fg);
+}
+
 /* ── 子場次（票券 11）——住在主場次的內文裡，號碼（5.1）回到同一條 gutter 對齊主場次號。
  * 層級由一條細直線表達，**線對齊主場次的內容邊**，子場次內容在線的右側略縮一階 —— 線的起訖
  * 就是子場次的範圍，線斷了就是回到主場次，與折返標記互相呼應（ADR-0006）。

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { mintCharacterId, mintLocationId } from "./entities";
 import { projectScenes } from "./project-scenes";
 import { returnMarkers, subsceneEchoesParent, subsceneTimeOptions } from "./subscenes";
-import { block, makeDoc, sceneWith, subsceneWith } from "./testing";
+import { block, filled, makeDoc, sceneWith, subsceneWith } from "./testing";
 
 const living = { locationId: mintLocationId(), displayName: "公寓客廳" };
 const balcony = { locationId: mintLocationId(), displayName: "陽台" };
@@ -12,11 +12,11 @@ const sub = (text = "陽台", attrs: Record<string, unknown> = {}) =>
 
 describe("projectScenes：子場次號 5.1（推導值，不進 doc）", () => {
   it("子場次接在主場次之後編成「父場次號．第幾個子場次」", () => {
-    const s1 = sub();
-    const s2 = sub("廚房");
-    const first = sceneWith([block.action("a")]);
-    const parent = sceneWith([block.action("客廳"), s1, block.action("回來"), s2]);
-    const doc = makeDoc(first, parent, sceneWith([block.action("c")]));
+    const s1 = sub("陽台", filled());
+    const s2 = sub("廚房", filled());
+    const first = sceneWith([block.action("a")], filled());
+    const parent = sceneWith([block.action("客廳"), s1, block.action("回來"), s2], filled());
+    const doc = makeDoc(first, parent, sceneWith([block.action("c")], filled()));
 
     expect(projectScenes(doc).map((s) => s.label)).toEqual(["1", "2", "2.1", "2.2", "3"]);
     const entry = projectScenes(doc).find((s) => s.sceneId === s2.attrs.sceneId)!;
@@ -24,7 +24,10 @@ describe("projectScenes：子場次號 5.1（推導值，不進 doc）", () => {
   });
 
   it("主場次的號碼不因子場次而跳號", () => {
-    const doc = makeDoc(sceneWith([block.action("a"), sub()]), sceneWith([block.action("b")]));
+    const doc = makeDoc(
+      sceneWith([block.action("a"), sub("陽台", filled())], filled()),
+      sceneWith([block.action("b")], filled()),
+    );
     expect(projectScenes(doc).filter((s) => s.parentSceneId == null).map((s) => s.number)).toEqual([1, 2]);
   });
 });

@@ -88,19 +88,13 @@ export type { CountInputResult, CountValue } from "./count";
 // 多值欄位的輸入規則（地點欄與登場人物欄共用同一份；貼上走同一條路）。
 export { splitNamesLive } from "./names";
 
-// 子場次的推導值（票券 11）：折返標記（編輯器 decoration，日後 PDF 同一支）與不變式 ② 的判準。
-// `subsceneEchoesParent` 的呼叫端是票券 14（草稿推導）；先出去是因為它是不變式 ② 的唯一定義點。
-export {
-  returnMarkers,
-  sceneLocationLabel,
-  subsceneEchoesParent,
-  subsceneTimeOptions,
-} from "./subscenes";
+// 子場次的推導值（票券 11）：折返標記（編輯器 decoration，日後 PDF 同一支）。
+//
+// 不變式 ② 與 ③ 的判準（`subsceneEchoesParent`、`echoingMembers`）收回模組裡了：它們唯一的
+// 呼叫端是 `projectScenes` 的草稿推導（票券 14），套件外要問「這場是不是草稿」讀的是推導結果的
+// `draft`，不是再拼一次判準。`echoingMembers` 的下一個讀者會是 PDF 歸屬標記（票券 18），那天再開。
+export { returnMarkers, sceneLocationLabel, subsceneTimeOptions } from "./subscenes";
 export type { ReturnMarker } from "./subscenes";
-
-// 場次群組的推導值（票券 12）：不變式 ③ 的判準。呼叫端是票券 14（草稿推導）；先出去的理由
-// 同 `subsceneEchoesParent` —— 它是那條不變式的唯一定義點。
-export { echoingMembers } from "./groups";
 
 export { projectScenes, docFromJSON } from "./project-scenes";
 export type { SceneNumber } from "./project-scenes";
