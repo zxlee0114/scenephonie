@@ -192,6 +192,31 @@ describe("場次導覽 sidebar", () => {
     expect(nav(container)).toBeNull();
   });
 
+  it("點群組成員：成員的 metadata 與它的每一段片段都浮現底色，另一個成員的片段不動", async () => {
+    const a = k.node("groupMember", { sceneId: mintSceneId(), ...filled({ time: "夜" }) });
+    const b = k.node("groupMember", { sceneId: mintSceneId(), ...filled({ time: "晨" }) });
+    const fragment = (m: PMNode, text: string) =>
+      k.node("groupFragment", { memberId: m.attrs.sceneId as string }, [action(text)]);
+    const doc = k.node("doc", null, [
+      scene("煮麵"),
+      k.node("sceneGroup", { groupId: mintGroupId() }, [
+        a,
+        b,
+        fragment(a, "甲打電話"),
+        fragment(b, "乙接電話"),
+        fragment(a, "甲掛斷"),
+      ]),
+    ]);
+    const { container } = mount(doc);
+    await ready(container);
+
+    fireEvent.click(nav(container)!.querySelector(`[data-scene-id="${a.attrs.sceneId as string}"] button`)!);
+
+    const revealed = (el: Element) => el.hasAttribute("data-just-revealed");
+    expect(revealed(container.querySelector(`.scene[data-scene-id="${a.attrs.sceneId as string}"]`)!)).toBe(true);
+    expect([...container.querySelectorAll(".group-fragment")].map(revealed)).toEqual([true, false, true]);
+  });
+
   it("高亮跟著游標所在的那一場走", async () => {
     const doc = k.node("doc", null, [scene("煮麵"), scene("洗碗"), scene("吃麵")]);
     const { container } = mount(doc);

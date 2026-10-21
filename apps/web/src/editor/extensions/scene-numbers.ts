@@ -135,8 +135,10 @@ export interface SceneNumberSpec {
 export interface FragmentLabelSpec {
   /** 成員是第幾個（1 起算），也就是切到它的那顆鍵。 */
   memberOrdinal: number;
-  /** 成員的場次號。 */
+  /** 成員的場次號（草稿是它的標籤 `S5[D1]`）。 */
   memberNo: string;
+  /** 成員是不是草稿 —— 是的話標籤印 `DRAFT_MARK`，`memberNo` 只在滑過時看得到（同 gutter）。 */
+  memberDraft: boolean;
   /** 成員的地點（雜景多地點以頓號串起）；還沒填是 `null`。 */
   location: string | null;
 }
@@ -307,6 +309,7 @@ export const SceneNumbers = Extension.create({
                   Decoration.node(at, at + child.nodeSize, {}, {
                     memberOrdinal: member.ordinal,
                     memberNo: bySceneId.get(member.node.attrs.sceneId as string)?.label ?? "?",
+                    memberDraft: bySceneId.get(member.node.attrs.sceneId as string)?.draft ?? false,
                     location: sceneLocationLabel(member.node),
                   } satisfies FragmentLabelSpec),
                 );

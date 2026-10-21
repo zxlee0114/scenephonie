@@ -190,12 +190,15 @@
  * 切齊 .scene 的話，左邊連 gutter 一起塗、右邊卻貼著 ⓘ 切掉。`isolation` 讓 `z-index: -1` 落在
  * 場次自己裡面（字的底下），不會沉到頁面底色後面。（::before 已被子場次的那條線用掉。） */
 .scene--just-added,
-.scene[data-just-revealed] {
+.scene[data-just-revealed],
+.group-fragment[data-just-revealed] {
   isolation: isolate;
 }
 
+/* 片段：跳到成員時它的每一段一起浮現（票券 16）—— 片段跟場次一樣，內容從 gutter 之後開始。 */
 .scene--just-added::after,
-.scene[data-just-revealed]::after {
+.scene[data-just-revealed]::after,
+.group-fragment[data-just-revealed]::after {
   content: "";
   position: absolute;
   inset-block: 0;
@@ -206,9 +209,21 @@
   animation: scene-just-added 900ms ease-out;
 }
 
+/* 成員與片段上下收得緊（成員的上內距只有 --space-1，下面還有 chip row 的下外距；片段之間只隔
+ * --space-2），底色照 .scene 的 inset 會貼著字。各自補到上下對稱、留一點空。片段只多長 --space-1：
+ * 再多就碰到隔壁那一段（另一個成員的）。 */
+.scene--member[data-just-revealed]::after {
+  inset-block: calc(-1 * var(--space-2)) var(--space-2);
+}
+
+.group-fragment[data-just-revealed]::after {
+  inset-block: calc(-1 * var(--space-1));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .scene--just-added::after,
-  .scene[data-just-revealed]::after {
+  .scene[data-just-revealed]::after,
+  .group-fragment[data-just-revealed]::after {
     animation: none;
   }
 }
@@ -394,6 +409,11 @@
   text-align: end;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+}
+
+/* 成員是草稿：號碼欄印「草稿」、上草稿色（同 .scene--draft 的場次號）。 */
+.group-fragment--draft .group-fragment__no {
+  color: var(--draft-fg);
 }
 
 .group-fragment__where.is-empty {

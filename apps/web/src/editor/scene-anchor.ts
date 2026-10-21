@@ -47,6 +47,9 @@ export function revealScene(editor: Editor, sceneId: string): void {
   scrollToSceneOf(editor, sceneId);
   const el = sceneElement(editor, sceneId);
   if (el) flash(el);
+  // 群組成員自己只有 metadata，內文在它的片段裡 —— 片段也一起浮現，否則亮的只有那幾格欄位
+  // （使用者回饋 2026-10-22）。另一個成員的片段不動，交錯才看得出哪幾段是它的。
+  editor.view.dom.querySelectorAll(`.group-fragment[data-member-id="${sceneId}"]`).forEach(flash);
 }
 
 /**
