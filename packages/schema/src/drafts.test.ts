@@ -70,6 +70,39 @@ describe("是草稿 = manualDraft 或 metadata 不完整", () => {
   });
 });
 
+describe("內容全空也是草稿（使用者裁決 2026-10-21）", () => {
+  it("metadata 填完、內文一個字都沒有的場次是草稿；寫了內文就是正式場次", () => {
+    expect(shape(makeDoc(scene(filled(), "")))).toEqual([{ label: "[D1]", draft: true }]);
+    expect(shape(makeDoc(scene(filled(), "走進房間")))).toEqual([{ label: "1", draft: false }]);
+  });
+
+  it("只有空白不算內容", () => {
+    const blank = scene(filled(), "  ");
+    expect(draftOf(makeDoc(blank), blank)).toBe(true);
+  });
+
+  it("主場次只看自己的內文 —— 內容全在子場次裡，主場次照樣是草稿（不變式 ①）", () => {
+    const parent = sceneWith([block.action(""), sub()], filled());
+    expect(projectScenes(makeDoc(parent)).map((s) => s.draft)).toEqual([true, true]);
+  });
+
+  it("子場次內文全空是草稿；主場次不受影響", () => {
+    const empty = subsceneWith([block.action("")], { kind: "接續", ...filled() });
+    const parent = sceneWith([block.action("a"), empty], filled());
+    expect(shape(makeDoc(parent))).toEqual([
+      { label: "1", draft: false },
+      { label: "S1[D1]", draft: true },
+    ]);
+  });
+
+  it("群組成員的內文是它的片段 —— 沒有片段、或片段全空的成員是草稿", () => {
+    const a = memberWith(filled({ time: "日" }));
+    const b = memberWith(filled({ time: "夜" }));
+    const group = groupWith([a, b], [fragmentOf(a, [block.action("x")]), fragmentOf(b, [block.action("")])]);
+    expect(projectScenes(makeDoc(group)).map((s) => s.draft)).toEqual([false, true]);
+  });
+});
+
 describe("草稿標籤：不佔正式場次號，錨定前一個正式場次", () => {
   it("草稿跳號：後面的正式場次接著前一個正式場次編", () => {
     const doc = makeDoc(scene(), scene(filled({ time: null })), scene());

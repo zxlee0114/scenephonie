@@ -36,7 +36,7 @@ export interface SceneNumber {
    */
   label: string;
   /**
-   * 是不是草稿（票券 14，§4.8）—— **推導的，不是存的**：`manualDraft` 或 metadata 不完整。
+   * 是不是草稿（票券 14，§4.8）—— **推導的，不是存的**：`manualDraft`、metadata 不完整，或內文全空。
    * 草稿不佔正式場次號，**不進 PDF、不進場次表**（交付投影各自濾掉 `draft` 的列）。
    */
   draft: boolean;
@@ -54,7 +54,7 @@ export interface SceneNumber {
  *
  * | 誰 | 是草稿，如果 |
  * |---|---|
- * | 每一場 | `manualDraft`，或 metadata 有空欄（雜景的地點欄除外，`isSceneMetaIncomplete`） |
+ * | 每一場 | `manualDraft`，或 metadata 有空欄（雜景的地點欄除外，`isSceneMetaIncomplete`），或內文全空（`hasNoContent`） |
  * | 子場次 | 另外：主場次（或成員）是草稿；或 metadata 與它**完全相同**（不變式 ②） |
  * | 群組成員 | 另外：與另一個成員 metadata **完全相同**（不變式 ③），或**同地同時**（③ 的寬鬆版，票券 12 驗收） |
  *
@@ -121,10 +121,11 @@ function walk(doc: ProseMirrorNode, hold?: DraftHold): Entry[] {
   const number = (
     scene: ProseMirrorNode,
     containers: ProseMirrorNode[],
-    autoDraft: boolean,
+    metaDraft: boolean,
     groupId?: string,
   ) => {
     const sceneId = scene.attrs.sceneId as string;
+    const autoDraft = metaDraft || hasNoContent(containers);
     const draft = isDraft(scene, autoDraft);
     entries.push({
       scene: { sceneId, ...next.topLevel(draft), draft, ...(groupId ? { groupId } : {}) },
@@ -133,7 +134,8 @@ function walk(doc: ProseMirrorNode, hold?: DraftHold): Entry[] {
     for (const container of containers) {
       container.forEach((child) => {
         if (child.type.name !== "subscene") return;
-        const childAuto = isSceneMetaIncomplete(child) || subsceneEchoesParent(scene, child);
+        const childAuto =
+          isSceneMetaIncomplete(child) || hasNoContent([child]) || subsceneEchoesParent(scene, child);
         const childDraft = isDraft(child, childAuto, draft);
         entries.push({
           scene: {
@@ -172,6 +174,21 @@ function walk(doc: ProseMirrorNode, hold?: DraftHold): Entry[] {
     }
   });
   return entries;
+}
+
+/**
+ * 內文全空（使用者裁決 2026-10-21）：`containers` 裡自己的區塊（子場次不算 —— 它有自己的內文，
+ * 主場次得以自己的內容開始，不變式 ①）一個非空白字都沒有。群組成員的內文是它的各個片段，
+ * 沒有片段也是全空。
+ */
+function hasNoContent(containers: ProseMirrorNode[]): boolean {
+  return containers.every((container) => {
+    let empty = true;
+    container.forEach((child) => {
+      if (child.type.name !== "subscene" && child.textContent.trim() !== "") empty = false;
+    });
+    return empty;
+  });
 }
 
 /**

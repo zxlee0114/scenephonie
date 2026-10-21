@@ -163,6 +163,31 @@ describe("場次號選單：手動標記為草稿", () => {
   });
 });
 
+describe("手動標記與自動草稿分得出來（使用者回饋 2026-10-21）", () => {
+  it("手動標記的草稿另掛 scene--draft-manual；自動草稿沒有", async () => {
+    const { container } = await mount(
+      docOf(scene("第一場"), scene("手動", { ...filled(), manualDraft: true }), scene("沒填完", { ...filled(), time: null })),
+    );
+    const manual = () => [...container.querySelectorAll(".scene")].map((el) => el.classList.contains("scene--draft-manual"));
+    await waitFor(() => expect(manual()).toEqual([false, true, false]));
+  });
+
+  it("自動草稿的選單不說「標記為草稿」—— 它已經是草稿，那一列是「固定為草稿」", async () => {
+    const { editor, container } = await mount(docOf(scene("第一場"), scene("沒填完", { ...filled(), time: null })));
+    fireEvent.mouseDown(container.querySelectorAll(".scene__number")[1]!);
+    const rows = await waitFor(() => {
+      const texts = [...container.querySelectorAll(".scene-menu button")].map((b) => b.textContent);
+      expect(texts.length).toBeGreaterThan(0);
+      return texts;
+    });
+    expect(rows).not.toContain("標記為草稿");
+    fireEvent.mouseDown(container.querySelectorAll(".scene__number")[1]!);
+
+    await pickFromMenu(container, 1, "固定為草稿");
+    expect(editor.state.doc.child(1).attrs.manualDraft).toBe(true);
+  });
+});
+
 describe("離開時才判定（使用者裁決 2026-10-21）：正在寫的那一場畫面上不變", () => {
   it("新增的場次起步是正式場號；游標移到別場，metadata 不完整才轉草稿", async () => {
     const first = scene("第一場");
@@ -279,6 +304,39 @@ describe("離開時才判定（使用者裁決 2026-10-21）：正在寫的那�
       ["3", false],
       ["S3[D1]", true],
     ]);
+  });
+
+  it("游標進入不重新判定：空著的草稿場次，點進去照樣是草稿", async () => {
+    const { editor, container } = await mount(docOf(scene("第一場"), scene("", {})));
+    await caretInScene(editor, 0);
+    await waitFor(() => expect(gutter(container)[1]).toEqual(["S1[D1]", true]));
+
+    await caretInScene(editor, 1);
+    await act(() => new Promise((r) => requestAnimationFrame(r)));
+    expect(gutter(container)[1]).toEqual(["S1[D1]", true]);
+  });
+
+  it("內文全空的場次離開後轉草稿；寫了內文、離開後才變回正式場號", async () => {
+    const first = scene("第一場");
+    const { editor, container } = await mount(docOf(first, scene("第二場")));
+    await act(async () => {
+      requestNextScene(editor, first.attrs.sceneId as string);
+    });
+    await setAttr(editor, 1, "time", "日");
+    await setAttr(editor, 1, "intExt", "內景");
+    await setAttr(editor, 1, "location", { locationId: mintLocationId(), displayName: "客廳" });
+    await caretInScene(editor, 0);
+    await waitFor(() => expect(gutter(container)[1]).toEqual(["S1[D1]", true]));
+
+    await caretInScene(editor, 1);
+    await act(async () => {
+      editor.commands.insertContent("走進來");
+    });
+    await act(() => new Promise((r) => requestAnimationFrame(r)));
+    expect(gutter(container)[1]).toEqual(["S1[D1]", true]);
+
+    await caretInScene(editor, 0);
+    await waitFor(() => expect(gutter(container)[1]).toEqual(["2", false]));
   });
 
   it("新劇本的第一場還沒開工：一打開就是正式號，不是 [D1]", async () => {

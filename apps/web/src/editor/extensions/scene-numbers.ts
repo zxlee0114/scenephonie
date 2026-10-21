@@ -20,8 +20,9 @@
  * 理由同上，只有 decoration 叫得動它重繪。
  *
  * **離開時才判定**（使用者裁決 2026-10-21）：正在寫的那一場，畫面上是不是草稿在游標**進入時
- * 鎖住**、移到別場時才重新判定；新建的場次（kernel command 鑄出新 id）與**還沒開工**的場次
- * （`isUnstartedScene` —— 新劇本的第一場、重新整理後的空末場）起步是正式。鎖是這個 plugin 的
+ * 鎖住**、移到別場時才重新判定 —— 進場時鎖的就是**畫面上正顯示的那個值**，所以點進一場不會
+ * 讓它變樣。新建的場次（kernel command 鑄出新 id）與新劇本那唯一一場還沒開工的場次
+ * （`isUnstartedScene`）起步是正式。鎖是這個 plugin 的
  * state（`DraftHold`），推導走 `projectScenesWhileEditing` —— doc 不寫任何東西，交付投影讀的
  * 照樣是真實狀態。「進入」有兩條路：內文的游標移進別場（焦點在內文時），或焦點進某一場的
  * chip row。**編輯器整個失焦不算離開** —— 標籤不趁編劇不在時變形。
@@ -46,7 +47,7 @@ import {
   type SceneNumber,
 } from "@scenephonie/schema";
 
-import { allSceneIds, findSceneNode, sceneContext } from "../address";
+import { allSceneIds, sceneContext } from "../address";
 import { KERNEL_REPLACE } from "../command-bridge";
 import { isUnstartedScene } from "../unstarted-scene";
 
@@ -73,10 +74,19 @@ function enter(view: EditorView, sceneId: string) {
   view.dispatch(view.state.tr.setMeta(sceneNumbersKey, sceneId).setMeta("addToHistory", false));
 }
 
-/** 進場時鎖住的值：還沒開工的一場等同剛新增（正式），其餘鎖住當下的自動草稿原因。 */
+/**
+ * 進場時鎖住的值：沒被鎖住的場次畫面上顯示的就是當下的自動草稿原因，鎖住它 ＝ 畫面不變
+ * （使用者回饋 2026-10-21：游標進入不重新判定，只有離開才判定）。
+ */
 function holdOn(doc: PMNode, sceneId: string): DraftHold {
-  const scene = findSceneNode(doc, sceneId)?.node;
-  return { sceneId, autoDraft: scene && isUnstartedScene(scene) ? false : autoDraftOf(doc, sceneId) };
+  return { sceneId, autoDraft: autoDraftOf(doc, sceneId) };
+}
+
+/** 新劇本：唯一的一場還沒開工 —— 等同剛新增，起步是正式。其餘文件一打開沒有鎖。 */
+function initialHold(doc: PMNode): DraftHold | null {
+  const only = doc.childCount === 1 ? doc.firstChild : null;
+  if (!only || only.type.name !== "scene" || !isUnstartedScene(only)) return null;
+  return { sceneId: only.attrs.sceneId as string, autoDraft: false };
 }
 
 /** 焦點在內文時，游標所在的那一場（片段算它的成員）。焦點不在內文回 `null`。 */
@@ -158,7 +168,7 @@ export const SceneNumbers = Extension.create({
       new Plugin<SceneNumbersState>({
         key: sceneNumbersKey,
         state: {
-          init: () => ({ hold: null, afterKernel: false }),
+          init: (_, state) => ({ hold: initialHold(state.doc), afterKernel: false }),
           apply: (tr, value, oldState, newState) => {
             const entered = tr.getMeta(sceneNumbersKey) as string | undefined;
             if (entered) return { hold: holdOn(newState.doc, entered), afterKernel: false };
