@@ -160,11 +160,11 @@ describe("projectDelivery：對剪", () => {
       { type: "heading", sceneId: a.attrs.sceneId },
       { type: "heading", sceneId: b.attrs.sceneId },
       { type: "intercut", groupId: group.attrs.groupId },
-      { type: "fragment", sceneId: a.attrs.sceneId },
+      { type: "fragment", sceneId: a.attrs.sceneId, location: "客廳", disambiguateBy: ["time"] },
       { type: "action", text: "甲撥號" },
-      { type: "fragment", sceneId: b.attrs.sceneId },
+      { type: "fragment", sceneId: b.attrs.sceneId, location: "客廳", disambiguateBy: ["time"] },
       { type: "action", text: "乙接起" },
-      { type: "fragment", sceneId: a.attrs.sceneId },
+      { type: "fragment", sceneId: a.attrs.sceneId, location: "客廳", disambiguateBy: ["time"] },
       { type: "action", text: "甲掛斷" },
     ]);
   });
@@ -181,7 +181,7 @@ describe("projectDelivery：對剪", () => {
 
     expect(payload.scenes.map((s) => s.label)).toEqual(["1", "1.1", "2"]);
     expect(payload.script.slice(3, 9)).toEqual([
-      { type: "fragment", sceneId: a.attrs.sceneId },
+      { type: "fragment", sceneId: a.attrs.sceneId, location: "電話亭", disambiguateBy: [] },
       { type: "action", text: "甲撥號" },
       { type: "heading", sceneId: memory.attrs.sceneId },
       { type: "action", text: "想起那天" },
@@ -190,14 +190,32 @@ describe("projectDelivery：對剪", () => {
     ]);
   });
 
-  it("草稿成員與它的片段不進交付；只剩一個正式成員就沒有對剪可宣告", () => {
+  it("有一個成員是草稿，整個群組不進交付（殘缺的對剪比不印更糟，§9.6）；場次號跳號，與編輯器一致", () => {
     const a = memberWith(filled());
     const draft = memberWith(filled({ time: null }));
     const group = groupWith([a, draft], [fragmentOf(a, [block.action("甲撥號")]), fragmentOf(draft, [block.action("乙接起")])]);
+    const after = scene([block.action("散場")]);
+    const payload = projectDelivery(makeDoc(scene(), group, after), noNames);
 
-    expect(projectDelivery(makeDoc(group), noNames).script).toEqual([
-      { type: "heading", sceneId: a.attrs.sceneId },
-      { type: "action", text: "甲撥號" },
+    expect(payload.scenes.map((s) => s.label)).toEqual(["1", "3"]);
+    expect(payload.script.map((e) => (e.type === "action" ? e.text : e.type))).toEqual(["heading", "走進房間", "heading", "散場"]);
+  });
+
+  it("片段的歸屬記好地點；兩個成員地點顯示名相同時，記下要補印哪一欄來區別", () => {
+    const sameRoom = () => ({ locationId: mintLocationId(), displayName: "公寓客廳" });
+    const day = memberWith(filled({ location: sameRoom(), time: "日" }));
+    const night = memberWith(filled({ location: sameRoom(), time: "夜" }));
+    const street = memberWith(filled({ location: { locationId: mintLocationId(), displayName: "街口" }, intExt: "外景" }));
+    const group = groupWith(
+      [day, night, street],
+      [fragmentOf(day, [block.action("白天")]), fragmentOf(night, [block.action("晚上")]), fragmentOf(street, [block.action("路口")])],
+    );
+    const fragments = projectDelivery(makeDoc(group), noNames).script.filter((e) => e.type === "fragment");
+
+    expect(fragments).toEqual([
+      { type: "fragment", sceneId: day.attrs.sceneId, location: "公寓客廳", disambiguateBy: ["time"] },
+      { type: "fragment", sceneId: night.attrs.sceneId, location: "公寓客廳", disambiguateBy: ["time"] },
+      { type: "fragment", sceneId: street.attrs.sceneId, location: "街口", disambiguateBy: [] },
     ]);
   });
 });
