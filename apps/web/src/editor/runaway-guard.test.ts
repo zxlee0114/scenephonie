@@ -58,4 +58,36 @@ describe("失控重繪的斷路器", () => {
       expect(monitor.update(view)).toBeNull();
     }
   });
+
+  it("沒有 transaction 的重繪（DOM 讀回後的強制重繪）一秒超過 30 次就跳閘，並帶著最近的 DOM 變動", () => {
+    const { view, monitor, advance } = setup();
+    const target = document.createElement("div");
+    target.className = "scene scene--member";
+    monitor.mutations([
+      {
+        type: "childList",
+        target,
+        attributeName: null,
+        addedNodes: [document.createElement("span")] as unknown as NodeList,
+        removedNodes: [] as unknown as NodeList,
+      } as unknown as MutationRecord,
+    ]);
+    advance(1000);
+    let record = null;
+    for (let i = 0; i < 40 && !record; i++) {
+      advance(10);
+      record = monitor.update(view, true);
+    }
+    expect(record).not.toBeNull();
+    expect(record!.redrawsInWindow).toBe(31);
+    expect(record!.mutations[0]).toMatchObject({ type: "childList", target: "div.scene.scene--member", added: ["span"] });
+  });
+
+  it("有 transaction 的一般重繪不算進那 30 次", () => {
+    const { view, monitor, advance } = setup();
+    for (let i = 0; i < 100; i++) {
+      advance(5);
+      expect(monitor.update(view, false)).toBeNull();
+    }
+  });
 });
