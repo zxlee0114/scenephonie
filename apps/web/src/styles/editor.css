@@ -1626,9 +1626,24 @@
   background: var(--surface-raised);
 }
 
-/* 切換進來時對位的那一列（游標所在場次）。 */
-.scene-table tbody tr[aria-current="location"] > td {
-  background: var(--selection-bg);
+/*
+ * 切換進來時對位的那一列（劇本裡游標所在的場次）：浮現底色再淡出，同跳回劇本的落點
+ * （`editor/flash.ts`）。沒有 `to` —— 淡回各格原本的底色（釘住的場次欄是不透明的頁面色）。
+ */
+@keyframes scene-table-row-revealed {
+  from {
+    background: var(--selection-bg);
+  }
+}
+
+.scene-table tbody tr[data-just-revealed] > td {
+  animation: scene-table-row-revealed 900ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-table tbody tr[data-just-revealed] > td {
+    animation: none;
+  }
 }
 
 .scene-table__open {

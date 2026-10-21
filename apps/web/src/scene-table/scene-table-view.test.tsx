@@ -207,6 +207,8 @@ describe("場次表檢視", () => {
 
     const current = container.querySelector('.scene-table tr[aria-current="location"]');
     expect(current?.getAttribute("data-scene-id")).toBe(doc.child(1).attrs.sceneId);
+    // 對位那一列浮現底色再淡出（同跳回劇本的落點）—— 不留常駐底色，跟焦點搶「我在哪」。
+    expect(current?.hasAttribute("data-just-revealed")).toBe(true);
   });
 
   it("游標在草稿裡（草稿不進表）：對位到它前面最近的一列", async () => {

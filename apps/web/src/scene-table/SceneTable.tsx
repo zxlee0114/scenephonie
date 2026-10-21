@@ -10,6 +10,8 @@
 import type { LabeledSceneTableRow } from "@scenephonie/schema";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { flash } from "@/editor/flash";
+
 import { filterSceneTable } from "./filter";
 
 export function SceneTable({
@@ -18,7 +20,7 @@ export function SceneTable({
   onSelect,
 }: {
   rows: readonly LabeledSceneTableRow[];
-  /** 切換進來時對位的那一列（游標所在場次，§7.10）；`null` ＝ 不對位。 */
+  /** 切換進來時對位的那一列（劇本裡游標所在的場次，§7.10）；`null` ＝ 不對位。 */
   anchorSceneId: string | null;
   /** 點一列：開那一場的預覽（呼叫端決定怎麼呈現）。 */
   onSelect: (sceneId: string) => void;
@@ -27,9 +29,13 @@ export function SceneTable({
   const shown = useMemo(() => filterSceneTable(rows, query), [rows, query]);
   const anchorRef = useRef<HTMLTableRowElement>(null);
 
-  // 只在切換進來的那一刻對位；之後的捲動是讀者自己的。
+  // 只在切換進來的那一刻對位；之後的捲動是讀者自己的。那一列浮現底色再淡出 —— 不留常駐底色：
+  // 表上「我剛看過哪一列」由焦點表示，兩個記號指著不同的列會讓人搞不清楚哪個是哪個。
   useEffect(() => {
-    anchorRef.current?.scrollIntoView?.({ block: "center" });
+    const row = anchorRef.current;
+    if (!row) return;
+    row.scrollIntoView?.({ block: "center" });
+    flash(row);
   }, []);
 
   return (

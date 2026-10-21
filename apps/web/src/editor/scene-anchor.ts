@@ -7,6 +7,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import { TextSelection, type EditorState } from "@tiptap/pm/state";
 
 import { findSceneNode, sceneContext } from "./address";
+import { flash } from "./flash";
 import { scrollToWritingPosition } from "./typewriter-scroll";
 
 /** 游標直接所在的那一場（子場次就是子場次，片段算它的成員）；不在任何一場裡回 `null`。 */
@@ -61,19 +62,3 @@ function sceneElement(editor: Editor, sceneId: string): Element | null {
   return editor.view.dom.querySelector(`[data-scene-id="${sceneId}"]`);
 }
 
-/**
- * 落點的暫時高亮：與「新增下一場」同一段浮現再淡出（`editor.css` 的 `scene-just-added`）。
- * 掛 data 屬性而不是 class —— className 歸 node view 的 React 管，重繪會洗掉手加的 class。
- * 卸屬性走 animationend（理由同 `nodes/scene.tsx`）；子場次的動畫事件會冒泡上來，所以要比對 target。
- */
-function flash(el: Element): void {
-  el.removeAttribute("data-just-revealed");
-  void (el as HTMLElement).offsetWidth; // 同一場連續跳兩次也要重播
-  el.setAttribute("data-just-revealed", "");
-  const done = (event: Event) => {
-    if (event.target !== el) return;
-    el.removeAttribute("data-just-revealed");
-    el.removeEventListener("animationend", done);
-  };
-  el.addEventListener("animationend", done);
-}
