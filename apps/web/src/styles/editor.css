@@ -88,8 +88,10 @@
 .save-status {
   position: fixed;
   inset-block-start: 0;
-  /* 右端讓給快捷鍵鈕。 */
-  inset-inline-end: calc(var(--space-5) + var(--shortcut-trigger-width) + var(--space-4));
+  /* 右端讓給快捷鍵鈕與匯出鈕。 */
+  inset-inline-end: calc(
+    var(--space-5) + var(--shortcut-trigger-width) + var(--space-4) + var(--export-trigger-width) + var(--space-4)
+  );
   z-index: 30;
   display: flex;
   align-items: center;
@@ -1438,6 +1440,8 @@
 .screenplay-page {
   /* 「⌘/ 快捷鍵」的寬度（text-sm 的 em）—— 觸發鈕與讓位給它的存檔狀態共用。 */
   --shortcut-trigger-width: 5.5em;
+  /* 「匯出 PDF」的寬度，同上（票券 18）。 */
+  --export-trigger-width: 5em;
 }
 
 .shortcut-overview__trigger {
@@ -2213,4 +2217,126 @@
   padding-block-start: calc(var(--space-3) * 2 + 2rem);
   border-inline-end-color: var(--rule-strong);
   box-shadow: var(--shadow-popover);
+}
+
+/* ── 匯出 PDF（票券 18）—— header 右端、快捷鍵鈕的左邊 ───────────────────── */
+
+.export-pdf__trigger {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-end: calc(var(--space-5) + var(--shortcut-trigger-width) + var(--space-4));
+  inline-size: var(--export-trigger-width);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  block-size: var(--bar-height);
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.export-pdf__trigger:hover {
+  color: var(--text-primary);
+}
+
+.export-pdf__trigger:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}
+
+.export-pdf__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: calc(var(--bar-height) + var(--space-5)) var(--space-5) var(--space-5);
+  background: color-mix(in srgb, var(--surface-page) 72%, transparent);
+}
+
+.export-pdf {
+  inline-size: min(28rem, 100%);
+  padding: var(--space-5);
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-3);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.export-pdf__title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.export-pdf__note {
+  margin: 0 0 var(--space-4);
+  color: var(--text-faint);
+}
+
+.export-pdf__field {
+  display: grid;
+  gap: var(--space-1);
+  margin-block-end: var(--space-3);
+}
+
+.export-pdf__field input {
+  padding: var(--space-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-1);
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.export-pdf__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-2);
+}
+
+.export-pdf__status {
+  margin: var(--space-3) 0 0;
+  color: var(--text-secondary);
+}
+
+.export-pdf__status--loud {
+  color: var(--error-fg);
+}
+
+.export-pdf__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.export-pdf__actions button {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-1);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.export-pdf__actions button[type="submit"],
+.export-pdf__actions button:last-child {
+  border-color: var(--text-primary);
+  font-weight: 600;
+}
+
+.export-pdf__actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
