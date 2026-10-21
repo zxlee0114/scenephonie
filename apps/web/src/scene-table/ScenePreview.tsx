@@ -3,6 +3,7 @@
  * 才按「到劇本」跳回編輯器。唯讀：預覽不是第二個編輯器，要改就回劇本（場次表沒有寫入路徑）。
  *
  * 開關的手勢照 `ShortcutOverview`：點外面或 Esc 關、焦點進面板、關的時候還給原本的地方。
+ * 開著的時候鎖住底下的頁面 —— 滾輪只捲預覽的內文。
  */
 "use client";
 
@@ -36,6 +37,15 @@ export function ScenePreview({
     panel.current?.focus();
   }, []);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    const before = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = before;
+    };
+  }, []);
+
   const close = () => {
     onClose();
     returnTo?.focus();
@@ -62,9 +72,6 @@ export function ScenePreview({
           <h2 id="scene-preview-title" className="scene-preview__title">
             {[row.label, row.intExt, row.time, row.location].join("　")}
           </h2>
-          <button type="button" className="scene-preview__close" onClick={close}>
-            關閉（Esc）
-          </button>
         </div>
         {row.appearingCharacters && <p className="scene-preview__cast">{row.appearingCharacters}</p>}
 
@@ -84,6 +91,10 @@ export function ScenePreview({
         </div>
 
         <div className="scene-preview__actions">
+          {/* 跟「到劇本」並排在底下，不跟標題搶一行（地點長的時候會撞在一起）。 */}
+          <button type="button" className="scene-preview__close" onClick={close}>
+            關閉（Esc）
+          </button>
           <button type="button" className="scene-preview__open" onClick={() => onOpenScene(row.sceneId)}>
             到劇本這一場
           </button>

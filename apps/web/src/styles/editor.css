@@ -175,13 +175,16 @@
   }
 }
 
-.scene--just-added {
+/* 從場次表跳回時的落點也用同一段（票券 15，`editor/scene-anchor.ts`）。 */
+.scene--just-added,
+.scene[data-just-revealed] {
   border-radius: var(--space-1);
   animation: scene-just-added 900ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scene--just-added {
+  .scene--just-added,
+  .scene[data-just-revealed] {
     animation: none;
   }
 }
@@ -1656,7 +1659,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-5);
+  /* 內容再多，上下也留一段空白看得到底下的表 —— 對話框不是一整頁。 */
+  padding: var(--space-6) var(--space-4);
   background: color-mix(in srgb, var(--surface-page) 72%, transparent);
 }
 
@@ -1664,7 +1668,8 @@
   display: flex;
   flex-direction: column;
   inline-size: min(40rem, 100%);
-  max-block-size: 100%;
+  max-block-size: min(48rem, 100%);
+  box-sizing: border-box;
   padding: var(--space-5);
   background: var(--surface-page);
   border: 1px solid var(--rule-strong);
@@ -1678,10 +1683,6 @@
 }
 
 .scene-preview__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
   font-family: var(--font-ui);
 }
 
@@ -1689,20 +1690,6 @@
   margin: 0;
   font-size: var(--text-base);
   font-weight: 600;
-}
-
-.scene-preview__close {
-  flex: none;
-  border: 0;
-  background: none;
-  color: var(--text-faint);
-  font: inherit;
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.scene-preview__close:hover {
-  color: var(--text-primary);
 }
 
 .scene-preview__cast {
@@ -1717,8 +1704,12 @@
   flex: 1 1 auto;
   min-block-size: 0;
   overflow-y: auto;
+  /* 捲到底不把滾輪交給底下的頁面。 */
+  overscroll-behavior: contain;
   margin-block: var(--space-4);
   padding-block-start: var(--space-4);
+  /* 捲軸出現時與內文之間留一段。 */
+  padding-inline-end: var(--space-4);
   border-block-start: 1px solid var(--rule);
   font-family: var(--font-body);
   font-size: var(--text-base);
@@ -1764,9 +1755,11 @@
 
 .scene-preview__actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
+.scene-preview__close,
 .scene-preview__open {
   padding: var(--space-2) var(--space-4);
   border: 1px solid var(--control-border);
@@ -1778,6 +1771,11 @@
   cursor: pointer;
 }
 
+.scene-preview__close {
+  color: var(--text-secondary);
+}
+
+.scene-preview__close:hover,
 .scene-preview__open:hover {
   background: var(--surface-raised);
 }

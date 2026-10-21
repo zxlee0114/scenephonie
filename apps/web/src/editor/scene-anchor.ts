@@ -33,7 +33,10 @@ function contentStart(doc: PMNode, sceneId: string): number | null {
   return at;
 }
 
-/** 把游標送進 `sceneId` 那一場內文的開頭，並捲到打字餘裕線上。找不到那一場就什麼都不做。 */
+/**
+ * 把游標送進 `sceneId` 那一場內文的開頭，直接落在打字餘裕線上，並讓那一場短暫浮現底色。
+ * 找不到那一場就什麼都不做。
+ */
 export function revealScene(editor: Editor, sceneId: string): void {
   const { state, view } = editor;
   const start = contentStart(state.doc, sceneId);
@@ -41,11 +44,36 @@ export function revealScene(editor: Editor, sceneId: string): void {
   view.dispatch(state.tr.setSelection(TextSelection.near(state.doc.resolve(start + 1))));
   view.focus();
   scrollToSceneOf(editor, sceneId);
+  const el = sceneElement(editor, sceneId);
+  if (el) flash(el);
 }
 
-/** 只捲不動游標：把 `sceneId` 那一場捲到打字餘裕線上（從場次表切回劇本時用）。 */
+/**
+ * 只動捲軸不動游標：讓 `sceneId` 那一場直接落在打字餘裕線上（從場次表切回劇本時用）。
+ * 不捲過去 —— 劇本剛從隱藏變回來，一路捲過整份稿子只是噪音。
+ */
 export function scrollToSceneOf(editor: Editor, sceneId: string): void {
+  scrollToWritingPosition(sceneElement(editor, sceneId), { instant: true });
+}
+
+function sceneElement(editor: Editor, sceneId: string): Element | null {
   // id 是 nanoid 字元集（`A-Za-z0-9_-`），放進引號裡的屬性選擇器不必跳脫。
-  const el = editor.view.dom.querySelector(`[data-scene-id="${sceneId}"]`);
-  scrollToWritingPosition(el);
+  return editor.view.dom.querySelector(`[data-scene-id="${sceneId}"]`);
+}
+
+/**
+ * 落點的暫時高亮：與「新增下一場」同一段浮現再淡出（`editor.css` 的 `scene-just-added`）。
+ * 掛 data 屬性而不是 class —— className 歸 node view 的 React 管，重繪會洗掉手加的 class。
+ * 卸屬性走 animationend（理由同 `nodes/scene.tsx`）；子場次的動畫事件會冒泡上來，所以要比對 target。
+ */
+function flash(el: Element): void {
+  el.removeAttribute("data-just-revealed");
+  void (el as HTMLElement).offsetWidth; // 同一場連續跳兩次也要重播
+  el.setAttribute("data-just-revealed", "");
+  const done = (event: Event) => {
+    if (event.target !== el) return;
+    el.removeAttribute("data-just-revealed");
+    el.removeEventListener("animationend", done);
+  };
+  el.addEventListener("animationend", done);
 }

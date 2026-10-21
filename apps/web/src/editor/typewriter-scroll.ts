@@ -44,8 +44,12 @@ export function writingScrollTop({
  * 不設 overflow，見 `styles/editor.css`）。
  *
  * 「動起來」照 `prefers-reduced-motion` 決定；`matchMedia` 在測試環境可能不存在，故是選擇性呼叫。
+ * `instant`：直接落在那裡、不捲過去 —— 從場次表跳回時，一路捲過整份劇本只是噪音（票券 15）。
  */
-export function scrollToWritingPosition(element: Element | null | undefined): void {
+export function scrollToWritingPosition(
+  element: Element | null | undefined,
+  { instant = false }: { instant?: boolean } = {},
+): void {
   if (!element || typeof window === "undefined") return;
 
   const top = writingScrollTop({
@@ -56,5 +60,5 @@ export function scrollToWritingPosition(element: Element | null | undefined): vo
   });
 
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-  window.scrollTo({ top, behavior: reduced ? "auto" : "smooth" });
+  window.scrollTo({ top, behavior: instant || reduced ? "auto" : "smooth" });
 }

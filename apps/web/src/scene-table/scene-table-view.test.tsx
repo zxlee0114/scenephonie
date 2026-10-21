@@ -117,9 +117,12 @@ describe("場次表檢視", () => {
     fireEvent.click(container.querySelector(`.scene-table tr[data-scene-id="${doc.child(1).attrs.sceneId}"]`)!);
     expect(preview()?.textContent).toContain("吃麵");
     expect(onShowScript).not.toHaveBeenCalled();
+    // 開著的時候底下的頁面不跟著滾輪捲。
+    expect(document.documentElement.style.overflow).toBe("hidden");
 
     fireEvent.click(button("關閉"));
     expect(preview()).toBeNull();
+    expect(document.documentElement.style.overflow).toBe("");
 
     fireEvent.click(container.querySelector(`.scene-table tr[data-scene-id="${doc.child(0).attrs.sceneId}"]`)!);
     fireEvent.keyDown(preview()!, { key: "Escape" });
@@ -177,6 +180,8 @@ describe("場次表檢視", () => {
 
     await waitFor(() => expect(caretScene()).toBe(target));
     expect(editor.state.selection.$from.parent.textContent).toBe("洗碗");
+    // 落點短暫浮現底色（同「新增下一場」），讓眼睛知道跳到了哪裡。
+    expect(container.querySelector(`.scene[data-scene-id="${target}"]`)!.hasAttribute("data-just-revealed")).toBe(true);
   });
 
   it("子場次那一列的「到劇本」，游標落進子場次", async () => {
