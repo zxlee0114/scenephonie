@@ -1662,6 +1662,55 @@
   /* 內容再多，上下也留一段空白看得到底下的表 —— 對話框不是一整頁。 */
   padding: var(--space-6) var(--space-4);
   background: color-mix(in srgb, var(--surface-page) 72%, transparent);
+  animation: scene-preview-fade 160ms ease-out;
+}
+
+/*
+ * 開：背景淡入、面板從稍低處浮上來；關：反過來、短一點。關的要是**另一組** keyframes —— 只改
+ * 方向或時長，瀏覽器視為同一段動畫、不重播，就等不到 animationend。
+ */
+@keyframes scene-preview-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes scene-preview-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2)) scale(0.98);
+  }
+}
+
+@keyframes scene-preview-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scene-preview-sink {
+  to {
+    opacity: 0;
+    transform: translateY(var(--space-2)) scale(0.98);
+  }
+}
+
+.scene-preview__scrim--closing {
+  pointer-events: none;
+  animation: scene-preview-fade-out 120ms ease-in forwards;
+}
+
+.scene-preview__scrim--closing .scene-preview {
+  animation: scene-preview-sink 120ms ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-preview__scrim,
+  .scene-preview,
+  .scene-preview__scrim--closing,
+  .scene-preview__scrim--closing .scene-preview {
+    animation: none;
+  }
 }
 
 .scene-preview {
@@ -1676,6 +1725,7 @@
   border-radius: var(--space-3);
   box-shadow: var(--shadow-popover);
   color: var(--text-primary);
+  animation: scene-preview-rise 160ms ease-out;
 }
 
 .scene-preview:focus-visible {

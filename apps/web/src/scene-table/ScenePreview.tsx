@@ -3,7 +3,7 @@
  * 才按「到劇本」跳回編輯器。唯讀：預覽不是第二個編輯器，要改就回劇本（場次表沒有寫入路徑）。
  *
  * 開關的手勢照 `ShortcutOverview`：點外面或 Esc 關、焦點進面板、關的時候還給原本的地方。
- * 開著的時候鎖住底下的頁面 —— 滾輪只捲預覽的內文。
+ * 開著的時候鎖住底下的頁面 —— 滾輪只捲預覽的內文。開與關都有一小段淡入淡出（`editor.css`）。
  */
 "use client";
 
@@ -30,6 +30,7 @@ export function ScenePreview({
   onOpenScene: (sceneId: string) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
+  const scrim = useRef<HTMLDivElement>(null);
   /** 開啟前焦點在哪 —— 關閉時要還它（同 `ShortcutOverview`）。 */
   const [returnTo] = useState(() => document.activeElement as HTMLElement | null);
 
@@ -37,22 +38,33 @@ export function ScenePreview({
     panel.current?.focus();
   }, []);
 
-  useEffect(() => {
-    const root = document.documentElement;
-    const before = root.style.overflow;
-    root.style.overflow = "hidden";
-    return () => {
-      root.style.overflow = before;
-    };
-  }, []);
+  useEffect(() => lockPageScroll(), []);
 
-  const close = () => {
+  // 關閉要等淡出播完才真的卸掉。沒有動畫可等（`prefers-reduced-motion`、測試環境沒載 CSS）
+  // 就立刻收 —— 不然會停在「正在關」永遠等不到 animationend。
+  const [closing, setClosing] = useState(false);
+  const finish = () => {
     onClose();
     returnTo?.focus();
   };
+  useEffect(() => {
+    if (!closing || !scrim.current) return;
+    const name = getComputedStyle(scrim.current).animationName;
+    if (!name || name === "none") finish();
+    // 只在進入「正在關」的那一刻判斷一次。
+  }, [closing]);
+  const close = () => setClosing(true);
 
   return (
-    <div className="scene-preview__scrim" onMouseDown={close}>
+    <div
+      ref={scrim}
+      className={`scene-preview__scrim${closing ? " scene-preview__scrim--closing" : ""}`}
+      onMouseDown={close}
+      // 面板自己的淡出也會冒泡上來；以外層為準（兩段一樣長）。
+      onAnimationEnd={(e) => {
+        if (closing && e.target === e.currentTarget) finish();
+      }}
+    >
       <div
         ref={panel}
         className="scene-preview"
@@ -131,4 +143,21 @@ function Blocks({ blocks }: { blocks: readonly PreviewBlock[] }) {
       </p>
     );
   });
+}
+
+/**
+ * 鎖住底下頁面的捲動，回傳解鎖。捲軸會佔寬度的系統（Windows）上，`overflow: hidden` 拿掉捲軸
+ * 會讓整頁往右跳一個捲軸寬 —— 原本有捲軸時就保留那條溝（`scrollbar-gutter: stable`）。原本沒有
+ * 捲軸（內容不滿一頁、或 macOS 的浮動捲軸）就不留，否則會反過來往左跳。
+ */
+function lockPageScroll(): () => void {
+  const root = document.documentElement;
+  const before = { overflow: root.style.overflow, gutter: root.style.scrollbarGutter };
+  const hasScrollbar = window.innerWidth > root.clientWidth;
+  root.style.overflow = "hidden";
+  if (hasScrollbar) root.style.scrollbarGutter = "stable";
+  return () => {
+    root.style.overflow = before.overflow;
+    root.style.scrollbarGutter = before.gutter;
+  };
 }
