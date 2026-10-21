@@ -17,8 +17,14 @@
 }
 
 .editor-shell__bar {
+  /* 跟著頁面頂端走（場次導覽 sidebar 從它底下開始，票券 16）：捲走的話，sidebar 上緣就空了一截，
+   * 存檔狀態與快捷鍵鈕也變成浮在稿子上（使用者回饋 2026-10-22）。 */
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 10;
+  background: var(--surface-page);
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-3);
   block-size: var(--bar-height);
   padding-inline: var(--space-5);
@@ -82,7 +88,9 @@
 .save-status {
   position: fixed;
   inset-block-start: 0;
-  inset-inline-end: var(--space-5);
+  /* 右端讓給快捷鍵鈕。 */
+  inset-inline-end: calc(var(--space-5) + var(--shortcut-trigger-width) + var(--space-4));
+  z-index: 30;
   display: flex;
   align-items: center;
   block-size: var(--bar-height);
@@ -175,16 +183,32 @@
   }
 }
 
-/* 從場次表跳回時的落點也用同一段（票券 15，`editor/scene-anchor.ts`）。 */
+/* 從場次表、場次導覽跳回時的落點也用同一段（票券 15、16，`editor/scene-anchor.ts`）。
+ *
+ * 底色畫在一層往外多長的 ::after 上，不畫在 .scene 本身：草稿標籤（`S12[D1]`）比 gutter 寬、往左長進
+ * 頁邊，欄位右邊的 ⓘ 也貼著場次的右緣 —— 底色切齊 .scene 的話兩者都被切一半（使用者回饋
+ * 2026-10-22）。`isolation` 讓 `z-index: -1` 落在場次自己裡面（字的底下），不會沉到頁面底色後面。
+ * （::before 已被子場次的那條線用掉。） */
 .scene--just-added,
 .scene[data-just-revealed] {
+  isolation: isolate;
+}
+
+.scene--just-added::after,
+.scene[data-just-revealed]::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline: calc(-1 * (var(--space-6) + var(--space-3))) calc(-1 * var(--space-3));
+  z-index: -1;
   border-radius: var(--space-1);
+  pointer-events: none;
   animation: scene-just-added 900ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scene--just-added,
-  .scene[data-just-revealed] {
+  .scene--just-added::after,
+  .scene[data-just-revealed]::after {
     animation: none;
   }
 }
@@ -1377,12 +1401,21 @@
   outline-offset: 1px;
 }
 
-/* ── 快捷鍵總覽（票券 34）—— ⌘/ 或左上角那顆鈕 ────────────────────────── */
+/* ── 快捷鍵總覽（票券 34）—— ⌘/ 或右上角那顆鈕 ────────────────────────── */
+
+/* 住在 header 的右端、存檔狀態的右邊。原本在左上角，跟「← 專案」疊在一起（使用者回饋 2026-10-22）。
+ * 寬度寫死，存檔狀態才知道要讓出多少（見 .save-status）。 */
+.screenplay-page {
+  /* 「⌘/ 快捷鍵」的寬度（text-sm 的 em）—— 觸發鈕與讓位給它的存檔狀態共用。 */
+  --shortcut-trigger-width: 5.5em;
+}
 
 .shortcut-overview__trigger {
   position: fixed;
   inset-block-start: 0;
-  inset-inline-start: var(--space-5);
+  inset-inline-end: var(--space-5);
+  justify-content: flex-end;
+  inline-size: var(--shortcut-trigger-width);
   z-index: 30;
   display: flex;
   align-items: center;
@@ -1864,31 +1897,42 @@
 /* ─────────────────────────────────────────── 場次導覽 sidebar（票券 16，§7.10） */
 
 /*
- * 創作中的定位，不是文件 sidebar。寬螢幕是稿子左邊的一欄（sticky，跟著捲不走）；窄螢幕放不下
- * 並排，改成叫出來才出現的抽屜（使用者裁決 2026-10-22）。斷點與 `use-scene-nav-open.ts` 的
- * `WIDE_QUERY` 同一個值。
+ * 創作中的定位，不是文件 sidebar。寬螢幕是固定在左邊的一欄；窄螢幕放不下並排，改成叫出來才出現
+ * 的抽屜（使用者裁決 2026-10-22）。斷點與 `use-scene-nav-open.ts` 的 `WIDE_QUERY` 同一個值。
  *
  * 介面像作業系統（`--font-ui`），不搶稿子的戲：列是低對比的字，目前那一場用選取色淡淡托一層底。
  */
 .screenplay-body {
-  display: flex;
-  align-items: flex-start;
+  --scene-nav-width: 16rem;
+  /* 標題、搜尋框與每一列的字都從這條線開始。 */
+  --scene-nav-inset: var(--space-4);
 }
 
-/* 稿子在 sidebar 右邊剩下的空間裡置中，閱讀行長不變。 */
-.screenplay-body > .screenplay-page {
-  flex: 1 1 auto;
-  min-inline-size: 0;
+/*
+ * 稿子的位置**不看 sidebar 開著還是收著**（使用者回饋 2026-10-22：收合時內容跳動）—— 寬螢幕上
+ * 左邊永遠留得下 sidebar 的寬度：放得下時照舊在視窗置中，放不下時才往右讓。收合只是讓出那塊空白，
+ * 稿子一個字都不動。
+ */
+@media (min-width: 64rem) {
+  .screenplay-body > .screenplay-page {
+    /* 稿子的外寬 ＝ 閱讀行長 ＋ 兩側內距（同 .screenplay-page 的 max-inline-size，先 em 再 ic）。
+     * 不收進自訂屬性：自訂屬性不在解析期驗證，`ic` 不認得時整條會變成無效，em 那條也救不回來。 */
+    margin-inline-start: max(var(--scene-nav-width) + var(--space-5), (100% - 40em - 2 * var(--space-5)) / 2);
+    margin-inline-start: max(
+      var(--scene-nav-width) + var(--space-5),
+      (100% - var(--measure-body-ic) * 1ic - var(--space-gutter) - 2 * var(--space-5)) / 2
+    );
+  }
 }
 
 .scene-nav {
-  position: sticky;
-  /* 頂端那一條讓給快捷鍵總覽的鈕（固定在左上角）。 */
+  position: fixed;
+  /* header 是 sticky 的，sidebar 從它底下開始 —— 捲到哪裡上緣都有那條線收著。 */
   inset-block-start: var(--bar-height);
-  flex: none;
+  inset-inline-start: 0;
+  z-index: 5;
   display: flex;
   flex-direction: column;
-  max-block-size: calc(100dvh - var(--bar-height));
   font-family: var(--font-ui);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
@@ -1896,15 +1940,16 @@
 }
 
 .scene-nav--open:not(.scene-nav--drawer) {
-  inline-size: 16rem;
-  /* 分隔線一路到底，不隨清單長短停在半空。 */
-  block-size: calc(100dvh - var(--bar-height));
+  inset-block-end: 0;
+  inline-size: var(--scene-nav-width);
   border-inline-end: 1px solid var(--rule);
+  background: var(--surface-page);
 }
 
 .scene-nav__toggle {
   align-self: flex-start;
-  margin: var(--space-2) var(--space-3);
+  /* 鈕自己的內距往外推，字仍落在 --scene-nav-inset 那條線上。 */
+  margin: var(--space-3) 0 var(--space-2) calc(var(--scene-nav-inset) - var(--space-2));
   padding: var(--space-1) var(--space-2);
   border: 0;
   border-radius: var(--space-1);
@@ -1929,12 +1974,13 @@
 .scene-nav__body {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   min-block-size: 0;
 }
 
 .scene-nav__search {
   box-sizing: border-box;
-  margin: 0 var(--space-3) var(--space-2);
+  margin: 0 var(--scene-nav-inset) var(--space-3);
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--control-border);
   border-radius: var(--space-1);
@@ -1944,7 +1990,7 @@
 }
 
 .scene-nav__empty {
-  margin: var(--space-2) var(--space-4);
+  margin: var(--space-2) var(--scene-nav-inset);
   color: var(--text-faint);
 }
 
@@ -1960,20 +2006,39 @@
   padding-block-end: var(--space-5);
 }
 
+.scene-nav__item {
+  /* 這一列的字從哪裡開始。群組裡的列要扣掉群組那條線的位置，字才跟外面對齊。 */
+  --row-start: var(--scene-nav-inset);
+  position: relative;
+}
+
+/*
+ * 一列四格：場次號｜內外｜時間｜地點。欄寬固定，列與列才對得齊（使用者回饋 2026-10-22：不整齊）。
+ * 場次號那欄裝得下常見的草稿子場次標籤（`S5.1[D1]`）＋ 子場次的縮排，更長的截成刪節號；內外
+ * 最長是 `內外`。
+ */
 .scene-nav__row {
-  display: block;
+  display: grid;
+  grid-template-columns: 5em 2em 1em minmax(0, 1fr);
+  column-gap: var(--space-2);
+  align-items: baseline;
   box-sizing: border-box;
   inline-size: 100%;
-  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-4);
+  padding: var(--space-1) var(--scene-nav-inset) var(--space-1) var(--row-start);
   border: 0;
   background: none;
   color: inherit;
   font: inherit;
+  /* 列與列之間鬆一點：130 場時要掃得過去，擠在一起會糊成一片（使用者回饋 2026-10-22）。 */
+  line-height: 1.75;
   text-align: start;
+  cursor: pointer;
+}
+
+.scene-nav__row > * {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: pointer;
 }
 
 .scene-nav__row:hover {
@@ -1986,10 +2051,7 @@
   color: var(--text-primary);
 }
 
-/* 場次號對齊成一欄，後面的景／光／地點才排得齊。 */
 .scene-nav__no {
-  display: inline-block;
-  min-inline-size: 3.5em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1998,45 +2060,65 @@
   color: var(--draft-fg);
 }
 
-/* 子場次縮排一級。 */
-.scene-nav__item--sub > .scene-nav__row {
-  padding-inline-start: calc(var(--space-4) + var(--space-4));
+/*
+ * 子場次：號碼縮一階，左邊一條細直線把它串在主場次底下 —— 同編輯器裡子場次那條線。光靠縮排
+ * 的話，草稿子場次（`S2[D1]`）跟主場次之間的草稿（也是 `S2[D1]` 的樣子）分不出來（使用者回饋
+ * 2026-10-22）。連續的子場次線接成一條，線斷了就是回到主場次。
+ */
+.scene-nav__item--sub > .scene-nav__row > .scene-nav__no {
+  padding-inline-start: var(--space-3);
 }
 
-/* 群組成員看得出同組：一條細直線把同組的列串起來（結構提示，不是框）。 */
-.scene-nav__group {
-  margin-inline-start: var(--space-2);
+.scene-nav__item--sub::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--row-start) + 0.2em);
   border-inline-start: 2px solid var(--rule-strong);
+  pointer-events: none;
+}
+
+/* 群組成員看得出同組：同組的列收進一個淡底的塊（結構提示，不是框）—— 不用線，免得跟子場次那條混。 */
+.scene-nav__group {
+  margin: var(--space-1) var(--space-2);
+  border-radius: var(--space-1);
+  background: var(--surface-raised);
+}
+
+.scene-nav__group .scene-nav__item {
+  --row-start: calc(var(--scene-nav-inset) - var(--space-2));
 }
 
 .scene-nav__group .scene-nav__row {
-  padding-inline-start: calc(var(--space-4) - var(--space-2) - 2px);
-}
-
-.scene-nav__group .scene-nav__item--sub > .scene-nav__row {
-  padding-inline-start: calc(var(--space-4) * 2 - var(--space-2) - 2px);
+  padding-inline-end: calc(var(--scene-nav-inset) - var(--space-2));
 }
 
 /* ── 窄螢幕：抽屜 ── */
 
 .scene-nav--drawer {
-  position: fixed;
+  inset-block-start: auto;
   inset-block-end: var(--space-4);
   inset-inline-start: var(--space-4);
   z-index: 25;
-  max-block-size: none;
 }
 
-.scene-nav--drawer > .scene-nav__toggle {
-  /* 抽屜開著時它浮在抽屜上面，同一顆鈕就是「收回去」。 */
-  position: relative;
-  z-index: 1;
+.scene-nav--drawer:not(.scene-nav--open) > .scene-nav__toggle {
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--rule-strong);
   background: var(--surface-page);
   color: var(--text-secondary);
   box-shadow: var(--shadow-popover);
+}
+
+/* 抽屜開著時，同一顆鈕移到抽屜頂端當「收回去」—— 留在左下角會蓋住清單（使用者回饋 2026-10-22）。
+ * 是同一個元素換位置，不是另一顆鈕：焦點不會在開合之間掉到 body。 */
+.scene-nav--drawer.scene-nav--open > .scene-nav__toggle {
+  position: fixed;
+  inset-block-start: var(--space-3);
+  inset-inline-start: calc(var(--scene-nav-inset) - var(--space-2));
+  z-index: 1;
+  margin: 0;
 }
 
 .scene-nav__scrim {
@@ -2050,8 +2132,10 @@
   position: fixed;
   inset-block: 0;
   inset-inline-start: 0;
+  box-sizing: border-box;
   inline-size: min(20rem, 85vw);
-  padding-block-start: var(--space-4);
+  /* 頂端讓給移上來的那顆鈕。 */
+  padding-block-start: calc(var(--space-3) + var(--bar-height));
   background: var(--surface-page);
   border-inline-end: 1px solid var(--rule-strong);
   box-shadow: var(--shadow-popover);

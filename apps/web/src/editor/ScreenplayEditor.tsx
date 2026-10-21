@@ -243,7 +243,7 @@ export function ScreenplayEditor({
           <EmptyScreenplayState editor={editor} />
           <SlashMenu />
           {/* 全部快捷鍵攤在同一張紙上（票券 34）—— 每一顆鍵各自都有理由，但合起來原本
-              沒有一個地方看得到全部。⌘/ 或左上角那顆很淡的鈕。 */}
+              沒有一個地方看得到全部。⌘/ 或右上角那顆很淡的鈕。 */}
           <ShortcutOverview />
         </div>
       </div>

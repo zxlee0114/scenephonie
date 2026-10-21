@@ -42,13 +42,14 @@ async function ready(container: HTMLElement) {
 }
 
 const nav = (container: HTMLElement) => container.querySelector<HTMLElement>('nav[aria-label="場次導覽"]');
-/** sidebar 每一列看得見的字（唸給螢幕閱讀器的不算）。 */
+/** sidebar 每一列看得見的字，格與格之間以空白隔開（唸給螢幕閱讀器的不算）。 */
 const navRows = (container: HTMLElement) =>
-  [...nav(container)!.querySelectorAll("[data-scene-id]")].map((el) => {
-    const visible = el.cloneNode(true) as HTMLElement;
-    visible.querySelectorAll(".sr-only").forEach((hidden) => hidden.remove());
-    return visible.textContent?.replace(/\s+/g, " ").trim();
-  });
+  [...nav(container)!.querySelectorAll("[data-scene-id]")].map((el) =>
+    [...el.querySelectorAll(".scene-nav__row > span:not(.sr-only)")]
+      .map((cell) => cell.textContent)
+      .filter(Boolean)
+      .join(" "),
+  );
 
 describe("場次導覽 sidebar", () => {
   afterEach(() => {
@@ -147,6 +148,35 @@ describe("場次導覽 sidebar", () => {
 
     fireEvent.click(toggle(again.container));
     expect(navRows(again.container)).toHaveLength(2);
+  });
+
+  it("窄螢幕是抽屜：載入時收著；同一顆鈕打開，跳到一場就收回去；開合不記", async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const doc = k.node("doc", null, [scene("煮麵"), scene("吃麵")]);
+      const { container } = mount(doc);
+      const editor = await ready(container);
+      const toggle = container.querySelector<HTMLButtonElement>(".scene-nav__toggle")!;
+
+      expect(toggle.getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(toggle);
+      expect(navRows(container)).toHaveLength(2);
+      // 開合之間是同一顆鈕（CSS 把它搬到抽屜頂端），焦點不會掉。
+      expect(container.querySelector(".scene-nav__toggle")).toBe(toggle);
+
+      fireEvent.click(nav(container)!.querySelector(`[data-scene-id="${doc.child(0).attrs.sceneId as string}"] button`)!);
+      expect(editor.state.selection.$from.parent.textContent).toBe("煮麵");
+      expect(toggle.getAttribute("aria-expanded")).toBe("false");
+      expect(localStorage.length).toBe(0);
+    } finally {
+      window.matchMedia = original;
+    }
   });
 
   it("只陪劇本：切到場次表時不出現", async () => {

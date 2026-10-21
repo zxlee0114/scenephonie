@@ -10,7 +10,7 @@
  */
 "use client";
 
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { filterScenes } from "@/scene-table/filter";
 
@@ -140,17 +140,19 @@ function runs(rows: readonly SceneNavRow[]): { groupId?: string; rows: SceneNavR
   return out;
 }
 
-/** 一列的字：`S1 內 日 廚房`。空欄不印（草稿常常還沒填）。 */
+/**
+ * 一列的四格：`S1｜內｜日｜廚房`。格子固定四個、空的也留著 —— 列與列之間的欄才對得齊（草稿常常
+ * 還沒填）。
+ */
 function SceneNavLine({ row }: { row: SceneNavRow }) {
-  const parts = [row.intExt, row.time, row.location].filter(Boolean);
   return (
     <>
       <span className="scene-nav__no">{row.label}</span>
       {/* 看得見的區隔是場次號換成草稿色（同 gutter）；`S1[D1]` 的 `D` 不是人人讀得懂，唸出來要說。 */}
       {row.draft && <span className="scene-nav__draft sr-only">草稿</span>}
-      {parts.map((part, i) => (
-        <Fragment key={i}> {part}</Fragment>
-      ))}
+      <span className="scene-nav__int-ext">{row.intExt}</span>
+      <span className="scene-nav__time">{row.time}</span>
+      <span className="scene-nav__location">{row.location}</span>
     </>
   );
 }
