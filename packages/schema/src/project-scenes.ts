@@ -67,31 +67,76 @@ export interface SceneNumber {
  * 正式號，不是閱讀順序上的前一段。
  *
  * @param doc 已 hydrate 的 ProseMirror doc 節點（用本模組的 `schema`；見 `docFromJSON`）。
+ * @param options.hold 只有編輯器傳 —— 見 `DraftHold`。交付投影（場次表、PDF、匯出前清單）一律
+ *   不傳：它們讀的是當下的真實狀態。
  */
-export function projectScenes(doc: ProseMirrorNode): SceneNumber[] {
-  const numbers: SceneNumber[] = [];
+export function projectScenes(doc: ProseMirrorNode, options: ProjectScenesOptions = {}): SceneNumber[] {
+  return walk(doc, options.hold).map(({ sceneId, number, label, draft, parentSceneId, groupId }) => ({
+    sceneId,
+    number,
+    label,
+    draft,
+    ...(parentSceneId ? { parentSceneId } : {}),
+    ...(groupId ? { groupId } : {}),
+  }));
+}
+
+/**
+ * 編輯器的「離開時才判定」（使用者裁決 2026-10-21，票券 14）：正在寫的那一場，畫面上是不是
+ * 草稿在游標**進入時鎖住**、移到別場時才重新判定；新建的場次起步是正式。
+ *
+ * 鎖的只是**自動**草稿原因（不完整、與主場次相同、成員撞時空）—— 手動標記是編劇明確的動作，
+ * 立即生效；主場次是草稿時子場次照樣連帶。鎖住的值從 `autoDraftOf` 取。
+ */
+export interface DraftHold {
+  readonly sceneId: string;
+  readonly autoDraft: boolean;
+}
+
+export interface ProjectScenesOptions {
+  readonly hold?: DraftHold;
+}
+
+/** 這一場的**自動**草稿原因現在成不成立（不含手動標記與主場次連帶）。找不到場次回 `false`。 */
+export function autoDraftOf(doc: ProseMirrorNode, sceneId: string): boolean {
+  return walk(doc).find((entry) => entry.sceneId === sceneId)?.autoDraft ?? false;
+}
+
+interface Entry extends SceneNumber {
+  /** 自動草稿原因成不成立 —— `hold` 鎖的就是這一半。 */
+  autoDraft: boolean;
+}
+
+/** 那一次走訪：場次號、草稿判定、群組成員展開（§6.4）。 */
+function walk(doc: ProseMirrorNode, hold?: DraftHold): Entry[] {
+  const entries: Entry[] = [];
   const next = numberer();
 
-  const ownDraft = (scene: ProseMirrorNode) =>
-    scene.attrs.manualDraft === true || isSceneMetaIncomplete(scene);
+  /** 自動原因 → 套上 hold → 再與手動標記合起來。`inherited` ＝ 主場次是草稿。 */
+  const judge = (scene: ProseMirrorNode, autoDraft: boolean, inherited = false) => {
+    const held = hold && hold.sceneId === scene.attrs.sceneId ? hold.autoDraft : autoDraft;
+    return { autoDraft, draft: inherited || scene.attrs.manualDraft === true || held };
+  };
 
   /** 一個頂層場次：它自己，接著散在 `containers` 裡的子場次。 */
   const number = (
     scene: ProseMirrorNode,
     containers: ProseMirrorNode[],
-    draft: boolean,
+    auto: boolean,
     groupId?: string,
   ) => {
     const sceneId = scene.attrs.sceneId as string;
-    numbers.push({ sceneId, ...next.topLevel(draft), draft, ...(groupId ? { groupId } : {}) });
+    const own = judge(scene, auto);
+    entries.push({ sceneId, ...next.topLevel(own.draft), ...own, ...(groupId ? { groupId } : {}) });
     for (const container of containers) {
       container.forEach((child) => {
         if (child.type.name !== "subscene") return;
-        const childDraft = draft || ownDraft(child) || subsceneEchoesParent(scene, child);
-        numbers.push({
+        const childAuto = isSceneMetaIncomplete(child) || subsceneEchoesParent(scene, child);
+        const judged = judge(child, childAuto, own.draft);
+        entries.push({
           sceneId: child.attrs.sceneId as string,
-          ...next.subscene(childDraft),
-          draft: childDraft,
+          ...next.subscene(judged.draft),
+          ...judged,
           parentSceneId: sceneId,
         });
       });
@@ -100,7 +145,7 @@ export function projectScenes(doc: ProseMirrorNode): SceneNumber[] {
 
   doc.forEach((node) => {
     if (node.type.name === "scene") {
-      number(node, [node], ownDraft(node));
+      number(node, [node], isSceneMetaIncomplete(node));
       return;
     }
     if (node.type.name !== "sceneGroup") return;
@@ -113,15 +158,15 @@ export function projectScenes(doc: ProseMirrorNode): SceneNumber[] {
     });
     for (const member of members) {
       const sceneId = member.attrs.sceneId as string;
-      const draft =
-        ownDraft(member) ||
+      const auto =
+        isSceneMetaIncomplete(member) ||
         echoing.has(sceneId) ||
         members.some((other) => other !== member && sameSpaceTime(member, other));
       const own = fragments.filter((f) => f.attrs.memberId === sceneId);
-      number(member, own, draft, groupId);
+      number(member, own, auto, groupId);
     }
   });
-  return numbers;
+  return entries;
 }
 
 /**

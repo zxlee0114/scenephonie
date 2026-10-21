@@ -136,11 +136,11 @@ describe("/ →「對剪到…」：兩步建立群組", () => {
     expect(editor.state.doc.textContent).not.toContain("/intercut");
 
     await waitFor(() =>
-      // 新成員的時空還空著：它是草稿（票券 14），錨定前一個正式場次。
+      // 新成員的時空還空著，但焦點在它身上：畫面上先是正式號（離開時才判定，票券 14）。
       expect([...container.querySelectorAll(".scene__number")].map((n) => n.textContent)).toEqual([
         "1",
         "2",
-        "S2[D1]",
+        "3",
       ]),
     );
     // 「以下對剪」是 decoration：畫面上有，doc 裡沒有。
@@ -153,7 +153,7 @@ describe("/ →「對剪到…」：兩步建立群組", () => {
     ]);
     expect(labels).toEqual([
       ["2", "警局偵訊室"],
-      ["S2[D1]", "地點未填"],
+      ["3", "地點未填"],
     ]);
     // 新成員的第一格（內外）拿到焦點 —— 先填時空，同 `/next`。
     await waitFor(() =>

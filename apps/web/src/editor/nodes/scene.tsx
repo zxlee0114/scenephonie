@@ -338,6 +338,8 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
 
   return (
     <NodeViewWrapper
+      // 「焦點進了哪一場」從 chip row 往上找這個（離開時才判定，見 extensions/scene-numbers）。
+      data-scene-id={sceneId}
       className={[
         "scene",
         isSubscene && "scene--sub",

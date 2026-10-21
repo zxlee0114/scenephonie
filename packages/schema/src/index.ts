@@ -96,8 +96,9 @@ export { splitNamesLive } from "./names";
 export { returnMarkers, sceneLocationLabel, subsceneTimeOptions } from "./subscenes";
 export type { ReturnMarker } from "./subscenes";
 
-export { projectScenes, docFromJSON } from "./project-scenes";
-export type { SceneNumber } from "./project-scenes";
+// `hold`／`autoDraftOf`：編輯器的「離開時才判定」（票券 14）—— 只有編輯器的場次號 decoration 用。
+export { projectScenes, autoDraftOf, docFromJSON } from "./project-scenes";
+export type { SceneNumber, DraftHold, ProjectScenesOptions } from "./project-scenes";
 
 export {
   mintId,

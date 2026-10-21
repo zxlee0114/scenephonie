@@ -18,15 +18,61 @@
  * 草稿（票券 14）也走這裡：`projectScenes` 那一次走訪順帶推導出 `draft`，標籤就是 `S11[D1]`。
  * 一場是不是草稿可能因為**別的節點**變了而變（主場次標成草稿 → 子場次跟著是；成員之間撞時空），
  * 理由同上，只有 decoration 叫得動它重繪。
+ *
+ * **離開時才判定**（使用者裁決 2026-10-21）：正在寫的那一場，畫面上是不是草稿在游標**進入時
+ * 鎖住**、移到別場時才重新判定；新建的場次（kernel command 鑄出新 id）起步是正式。鎖是這個
+ * plugin 的 state（`DraftHold`），推導時交給 `projectScenes` 的 `hold` —— doc 不寫任何東西，
+ * 交付投影讀的照樣是真實狀態。「進入」有兩條路：內文的 selection 移進別場（焦點在內文時），
+ * 或焦點進某一場的 chip row。**編輯器整個失焦不算離開** —— 標籤不趁編劇不在時變形。
  */
 import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { projectScenes, sceneLocationLabel, subsceneCount } from "@scenephonie/schema";
+import {
+  autoDraftOf,
+  projectScenes,
+  sceneLocationLabel,
+  subsceneCount,
+  type DraftHold,
+  type SceneNumber,
+} from "@scenephonie/schema";
 
-export const sceneNumbersKey = new PluginKey("scenephonie/sceneNumbers");
+import { allSceneIds, sceneContext } from "../address";
+import { KERNEL_REPLACE } from "../command-bridge";
+
+export const sceneNumbersKey = new PluginKey<SceneNumbersState>("scenephonie/sceneNumbers");
+
+interface SceneNumbersState {
+  /** 游標所在那一場鎖住的自動草稿值；還沒有人進過任何一場是 `null`。 */
+  hold: DraftHold | null;
+}
+
+/** 「焦點進了這一場」的 meta —— 值是 sceneId。 */
+const ENTER = "enterScene";
+
+/**
+ * 編輯器畫面上的場次號（套上「離開時才判定」的鎖）。編輯器裡任何要印場次號的地方都讀這一支，
+ * 才不會 gutter 印 `2`、選單卻列 `S1[D1]`。
+ */
+export function editorSceneNumbers(state: EditorState): SceneNumber[] {
+  const hold = sceneNumbersKey.getState(state)?.hold ?? undefined;
+  return projectScenes(state.doc, hold ? { hold } : {});
+}
+
+/** 焦點進了 `sceneId` 那一場：跟目前鎖住的不同才發一筆 meta（不進 history）。 */
+function enter(view: EditorView, sceneId: string) {
+  if (sceneNumbersKey.getState(view.state)?.hold?.sceneId === sceneId) return;
+  view.dispatch(view.state.tr.setMeta(sceneNumbersKey, { [ENTER]: sceneId }).setMeta("addToHistory", false));
+}
+
+/** 焦點在內文時，游標所在的那一場（片段算它的成員）。焦點不在內文回 `null`。 */
+function caretScene(view: EditorView): string | null {
+  if (view.dom.ownerDocument.activeElement !== view.dom) return null;
+  return sceneContext(view.state.selection.$from)?.sceneId ?? null;
+}
 
 export interface SceneNumberSpec {
   /** 推導出來的顯示序號（字串；草稿是 `S11[D1]`），未知時為 "?"。 */
@@ -89,19 +135,79 @@ export function sceneNumberOf(decorations: readonly Decoration[]): SceneNumberSp
 export const SceneNumbers = Extension.create({
   name: "sceneNumbers",
   addProseMirrorPlugins() {
-    let cache: { doc: PMNode; from: number; to: number; set: DecorationSet } | null = null;
+    let cache: {
+      doc: PMNode;
+      from: number;
+      to: number;
+      hold: DraftHold | null;
+      set: DecorationSet;
+    } | null = null;
+    /**
+     * 上一次看到的「游標所在的場次」。判斷「游標移到別場」比的是**場次**，不是 selection 物件：
+     * kernel command 整份 replace 會把舊 selection map 到新 doc，座標變了、場次沒變 —— `/next`
+     * 剛把鎖給了新場次，不能被這一下搶回游標原本那一場。
+     */
+    let lastCaretScene: string | null = null;
 
     return [
-      new Plugin({
+      new Plugin<SceneNumbersState>({
         key: sceneNumbersKey,
+        state: {
+          init: () => ({ hold: null }),
+          apply: (tr, value, oldState, newState) => {
+            const entered = (tr.getMeta(sceneNumbersKey) as Record<string, string> | undefined)?.[ENTER];
+            if (entered) return { hold: { sceneId: entered, autoDraft: autoDraftOf(newState.doc, entered) } };
+            // 新建的場次起步是正式：只有 kernel command 鑄得出新 id（undo、貼上都不是「新增」）。
+            if (tr.docChanged && tr.getMeta(KERNEL_REPLACE)) {
+              const before = new Set(allSceneIds(oldState.doc));
+              const born = allSceneIds(newState.doc).find((id) => !before.has(id));
+              if (born) return { hold: { sceneId: born, autoDraft: false } };
+            }
+            return value;
+          },
+        },
+        // 內文的游標移進別場。在 `update` 裡不能同步 dispatch，排到 microtask。
+        view: () => ({
+          update: (view) => {
+            const sceneId = caretScene(view);
+            if (!sceneId || sceneId === lastCaretScene) return;
+            lastCaretScene = sceneId;
+            queueMicrotask(() => {
+              if (!view.isDestroyed && caretScene(view) === sceneId) enter(view, sceneId);
+            });
+          },
+        }),
         props: {
+          handleDOMEvents: {
+            // 焦點進某一場的 chip row；或從外面回到內文（selection 沒變，`update` 不會跑）。
+            focusin: (view, event) => {
+              const target = event.target as HTMLElement;
+              if (target === view.dom) {
+                const sceneId = caretScene(view);
+                lastCaretScene = sceneId;
+                if (sceneId) enter(view, sceneId);
+                return false;
+              }
+              const sceneId =
+                target.closest(".scene__chips")?.closest<HTMLElement>("[data-scene-id]")?.dataset.sceneId;
+              if (sceneId) enter(view, sceneId);
+              return false;
+            },
+          },
           decorations: (state) => {
             const { from, to } = state.selection;
-            if (cache && cache.doc === state.doc && cache.from === from && cache.to === to) {
+            const hold = sceneNumbersKey.getState(state)?.hold ?? null;
+            if (
+              cache &&
+              cache.doc === state.doc &&
+              cache.from === from &&
+              cache.to === to &&
+              cache.hold === hold
+            ) {
               return cache.set;
             }
 
-            const bySceneId = new Map(projectScenes(state.doc).map((s) => [s.sceneId, s] as const));
+            const bySceneId = new Map(editorSceneNumbers(state).map((s) => [s.sceneId, s] as const));
 
             const decos: Decoration[] = [];
             const last = state.doc.childCount - 1;
@@ -180,7 +286,7 @@ export const SceneNumbers = Extension.create({
             });
 
             const set = DecorationSet.create(state.doc, decos);
-            cache = { doc: state.doc, from, to, set };
+            cache = { doc: state.doc, from, to, hold, set };
             return set;
           },
         },

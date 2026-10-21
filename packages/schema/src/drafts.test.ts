@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { mintCharacterId } from "./entities";
-import { projectScenes } from "./project-scenes";
+import { autoDraftOf, projectScenes } from "./project-scenes";
 import {
   block,
   filled,
@@ -189,5 +189,57 @@ describe("不變式 ③：同一群組的成員之間 metadata 完全相同 → 
       groupWith([a, b], [fragmentOf(a, [block.action("A"), inner]), fragmentOf(b, [block.action("B")])]),
     );
     expect(draftOf(doc, inner)).toBe(true);
+  });
+});
+
+describe("hold：編輯器的「離開時才判定」（使用者裁決 2026-10-21）", () => {
+  it("被鎖住的那一場，自動草稿原因用鎖住的值 —— 後面的場次號跟著它算", () => {
+    const fresh = scene({}, "剛新增");
+    const doc = makeDoc(scene(), fresh, scene());
+    expect(labels(doc)).toEqual(["1", "S1[D1]", "2"]);
+
+    const hold = { sceneId: fresh.attrs.sceneId as string, autoDraft: false };
+    expect(projectScenes(doc, { hold }).map(({ label, draft }) => ({ label, draft }))).toEqual([
+      { label: "1", draft: false },
+      { label: "2", draft: false },
+      { label: "3", draft: false },
+    ]);
+  });
+
+  it("反過來也鎖：鎖成草稿的那一場，欄位填完了也還是草稿", () => {
+    const done = scene();
+    const doc = makeDoc(scene(), done);
+    const hold = { sceneId: done.attrs.sceneId as string, autoDraft: true };
+    expect(labels(makeDoc(scene(), done))).toEqual(["1", "2"]);
+    expect(projectScenes(doc, { hold }).map((s) => s.label)).toEqual(["1", "S1[D1]"]);
+  });
+
+  it("手動標記不受鎖影響 —— 立即生效", () => {
+    const marked = scene(filled({ manualDraft: true }));
+    const doc = makeDoc(scene(), marked);
+    const hold = { sceneId: marked.attrs.sceneId as string, autoDraft: false };
+    expect(projectScenes(doc, { hold }).map((s) => s.draft)).toEqual([false, true]);
+  });
+
+  it("主場次是草稿時，鎖住的子場次照樣連帶是草稿", () => {
+    const child = sub({});
+    const doc = makeDoc(sceneWith([block.action("客廳"), child], filled({ manualDraft: true })));
+    const hold = { sceneId: child.attrs.sceneId as string, autoDraft: false };
+    expect(projectScenes(doc, { hold }).map((s) => s.draft)).toEqual([true, true]);
+  });
+
+  it("autoDraftOf：自動草稿原因（不完整、與主場次相同、成員撞時空）成不成立，不含手動標記", () => {
+    const empty = scene({});
+    const marked = scene(filled({ manualDraft: true }));
+    const meta = filled();
+    const echo = sub(meta);
+    const parent = sceneWith([block.action("客廳"), echo], meta);
+    const doc = makeDoc(empty, marked, parent);
+    const id = (n: { attrs: Record<string, unknown> }) => n.attrs.sceneId as string;
+    expect(autoDraftOf(doc, id(empty))).toBe(true);
+    expect(autoDraftOf(doc, id(marked))).toBe(false);
+    expect(autoDraftOf(doc, id(parent))).toBe(false);
+    expect(autoDraftOf(doc, id(echo))).toBe(true);
+    expect(autoDraftOf(doc, "sc_nope")).toBe(false);
   });
 });

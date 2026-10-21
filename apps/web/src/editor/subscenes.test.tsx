@@ -111,12 +111,12 @@ describe("/insert、/continue-to：兩步建立帶種類的子場次", () => {
     expect(created.attrs.location).toBeNull();
     expect(editor.state.doc.textContent).not.toContain("/insert");
 
-    // 子場次的號碼畫在它的 gutter 上 —— 時空還空著，所以是草稿標籤（票券 14）；種類標籤用
-    // `/` 選單的用詞。
+    // 子場次號 1.1 畫在它的 gutter 上 —— 時空還空著，但剛新增、編劇還在它身上，畫面上先是正式號
+    // （離開時才判定，票券 14）；種類標籤用 `/` 選單的用詞。
     await waitFor(() =>
       expect([...container.querySelectorAll(".scene__number")].map((n) => n.textContent)).toEqual([
         "1",
-        "S1[D1]",
+        "1.1",
       ]),
     );
     expect(container.querySelector(".scene--sub .scene__kind")?.textContent).toBe("插入戲");

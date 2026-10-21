@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { EntityCatalogProvider } from "./entity-catalog";
+import { requestNextScene } from "./extensions/next-scene";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
 const action = (text = "") => k.node("action", null, text ? [k.text(text)] : []);
@@ -63,6 +64,28 @@ async function pickFromMenu(container: HTMLElement, n: number, label: string) {
   });
   await act(async () => {
     fireEvent.mouseDown(row);
+  });
+}
+
+/** 游標放進第 `n` 場（頂層，0 起算）內文的開頭，焦點在內文。 */
+async function caretInScene(editor: Editor, n: number) {
+  let at = 0;
+  editor.state.doc.forEach((node, pos, index) => {
+    if (index === n) at = pos + 2;
+  });
+  await act(async () => {
+    editor.chain().focus().setTextSelection(at).run();
+  });
+}
+
+/** 改第 `n` 場（頂層）的一個 attr —— 不動游標，像 chip row 上的寫入。 */
+async function setAttr(editor: Editor, n: number, name: string, value: unknown) {
+  let at = 0;
+  editor.state.doc.forEach((_node, pos, index) => {
+    if (index === n) at = pos;
+  });
+  await act(async () => {
+    editor.view.dispatch(editor.state.tr.setNodeAttribute(at, name, value));
   });
 }
 
@@ -137,5 +160,91 @@ describe("場次號選單：手動標記為草稿", () => {
         ["2", false],
       ]),
     );
+  });
+});
+
+describe("離開時才判定（使用者裁決 2026-10-21）：正在寫的那一場畫面上不變", () => {
+  it("新增的場次起步是正式場號；游標移到別場，metadata 不完整才轉草稿", async () => {
+    const first = scene("第一場");
+    const { editor, container } = await mount(docOf(first, scene("第二場")));
+
+    await act(async () => {
+      requestNextScene(editor, first.attrs.sceneId as string);
+    });
+    await waitFor(() =>
+      expect(gutter(container)).toEqual([
+        ["1", false],
+        ["2", false],
+        ["3", false],
+      ]),
+    );
+
+    await caretInScene(editor, 0);
+    await waitFor(() =>
+      expect(gutter(container)).toEqual([
+        ["1", false],
+        ["S1[D1]", true],
+        ["2", false],
+      ]),
+    );
+  });
+
+  it("游標回到草稿：填完也維持草稿，直到游標離開才變回正式場號", async () => {
+    const { editor, container } = await mount(
+      docOf(scene("第一場"), scene("沒填完", { ...filled(), time: null })),
+    );
+    await caretInScene(editor, 1);
+    await setAttr(editor, 1, "time", "夜");
+    // 等一輪 decoration 重算 —— 仍是草稿。
+    await act(() => new Promise((r) => requestAnimationFrame(r)));
+    expect(gutter(container)).toEqual([
+      ["1", false],
+      ["S1[D1]", true],
+    ]);
+
+    await caretInScene(editor, 0);
+    await waitFor(() =>
+      expect(gutter(container)).toEqual([
+        ["1", false],
+        ["2", false],
+      ]),
+    );
+  });
+
+  it("焦點進某一場的 chip row 也算進入那一場", async () => {
+    const { editor, container } = await mount(
+      docOf(scene("第一場"), scene("沒填完", { ...filled(), time: null })),
+    );
+    await caretInScene(editor, 0);
+    const chip = container.querySelectorAll<HTMLElement>(".scene")[1]!.querySelector<HTMLElement>(
+      ".scene__chips button, .scene__chips input",
+    )!;
+    await act(async () => {
+      chip.focus();
+    });
+    await setAttr(editor, 1, "time", "夜");
+    await act(() => new Promise((r) => requestAnimationFrame(r)));
+    expect(gutter(container)[1]).toEqual(["S1[D1]", true]);
+
+    await caretInScene(editor, 0);
+    await waitFor(() => expect(gutter(container)[1]).toEqual(["2", false]));
+  });
+
+  it("編輯器整個失焦不算離開 —— 新場次的號碼不會趁編劇不在時變形", async () => {
+    const first = scene("第一場");
+    const { editor, container } = await mount(docOf(first));
+    await act(async () => {
+      requestNextScene(editor, first.attrs.sceneId as string);
+    });
+    await waitFor(() => expect(gutter(container)[1]).toEqual(["2", false]));
+
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    await act(async () => {
+      outside.focus();
+    });
+    await act(() => new Promise((r) => requestAnimationFrame(r)));
+    expect(gutter(container)[1]).toEqual(["2", false]);
+    outside.remove();
   });
 });
