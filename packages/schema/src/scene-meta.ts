@@ -11,6 +11,7 @@
  * 參數刻意只要求結構上有 `attrs`：編輯器那半用的是 Tiptap 綁定版 schema 的節點，
  * 與 kernel 的 `ProseMirrorNode` 是兩個型別，但 attr 形狀同一份。
  */
+import { sceneLocations } from "./entities";
 import { MONTAGE, nullableSceneAttrNames } from "./schema";
 
 export function hasEmptySceneMeta(scene: { readonly attrs: Record<string, unknown> }): boolean {
@@ -35,5 +36,6 @@ export function isSceneMetaIncomplete(scene: { readonly attrs: Record<string, un
   const { time, intExt, location } = scene.attrs;
   if (time == null || intExt == null) return true;
   if (intExt === MONTAGE) return false;
-  return location == null || (Array.isArray(location) && location.length === 0);
+  // 走讀取正規化：「有沒有地點」與 `sameSceneMeta`／`sameSpaceTime` 看到的是同一份。
+  return sceneLocations(location).length === 0;
 }

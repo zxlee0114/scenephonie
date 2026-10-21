@@ -83,6 +83,18 @@ describe("草稿在編輯器裡：標籤與視覺區隔", () => {
     );
   });
 
+  it("子場次單獨是草稿：只有它掛 scene--draft，主場次照樣是正式場次", async () => {
+    const sub = k.node("subscene", { sceneId: mintSceneId(), kind: "插入" }, [action("閃回")]);
+    const parent = k.node("scene", { sceneId: mintSceneId(), ...filled() }, [action("客廳"), sub]);
+    const { container } = await mount(docOf(parent));
+    await waitFor(() =>
+      expect(gutter(container)).toEqual([
+        ["1", false],
+        ["S1[D1]", true],
+      ]),
+    );
+  });
+
   it("欄位填完它自己就變回正式場次 —— 後面的場次號跟著重算", async () => {
     const { editor, container } = await mount(docOf(scene("沒填完", { ...filled(), time: null }), scene("下一場")));
     await waitFor(() =>

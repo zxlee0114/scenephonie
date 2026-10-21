@@ -391,17 +391,14 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
                 ]
               : []),
             // 手動標記（票券 14）：只寫 manualDraft 這個宣告；取消後 metadata 沒填完照樣是草稿。
-            node.attrs.manualDraft
-              ? {
-                  key: "draft",
-                  label: "取消草稿標記",
-                  run: () => runKernelCommand(editor, (doc) => setManualDraft(doc, { sceneId, manualDraft: false })),
-                }
-              : {
-                  key: "draft",
-                  label: "標記為草稿",
-                  run: () => runKernelCommand(editor, (doc) => setManualDraft(doc, { sceneId, manualDraft: true })),
-                },
+            {
+              key: "draft",
+              label: node.attrs.manualDraft ? "取消草稿標記" : "標記為草稿",
+              run: () =>
+                runKernelCommand(editor, (doc) =>
+                  setManualDraft(doc, { sceneId, manualDraft: !node.attrs.manualDraft }),
+                ),
+            },
             {
               key: "delete",
               label: isMember ? "刪除這一場（連同它的片段）" : deleteSceneLabel(isSubscene, spec?.subscenes ?? 0),

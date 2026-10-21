@@ -100,6 +100,30 @@ describe("草稿標籤：不佔正式場次號，錨定前一個正式場次", (
   });
 });
 
+describe("草稿標籤錨在自己的層級（使用者裁決 2026-10-21）", () => {
+  it("頂層草稿錨前一個正式**頂層**場次 —— 前一場帶著子場次也是 S1[D1]，不是 S1.1[D1]", () => {
+    const parent = sceneWith([block.action("客廳"), sub()], filled());
+    const doc = makeDoc(parent, scene(filled({ manualDraft: true })), scene());
+    expect(labels(doc)).toEqual(["1", "1.1", "S1[D1]", "2"]);
+  });
+
+  it("同一個錨點底下的草稿共用一條 D 序列，標籤不會撞", () => {
+    // 第一個子場次就是草稿 → 錨主場次（S1[D1]）；接著的頂層草稿也錨 1 → D2。
+    const parent = sceneWith([block.action("客廳"), sub({ time: null })], filled());
+    const doc = makeDoc(parent, scene(filled({ manualDraft: true })));
+    expect(labels(doc)).toEqual(["1", "S1[D1]", "S1[D2]"]);
+  });
+
+  it("草稿成員錨前一個正式頂層號 —— 前一個成員有子場次也一樣", () => {
+    const a = memberWith(filled());
+    const b = memberWith(filled({ manualDraft: true }));
+    const doc = makeDoc(
+      groupWith([a, b], [fragmentOf(a, [block.action("A"), sub()]), fragmentOf(b, [block.action("B")])]),
+    );
+    expect(labels(doc)).toEqual(["1", "1.1", "S1[D1]"]);
+  });
+});
+
 describe("不變式 ②：子場次的 metadata 與主場次完全相同 → 草稿", () => {
   it("與主場次完全相同的子場次是草稿；差一欄就不是", () => {
     const meta = filled({ appearingCharacters: [{ characterId: mintCharacterId(), displayName: "若晴" }] });

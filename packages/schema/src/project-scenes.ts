@@ -59,41 +59,21 @@ export interface SceneNumber {
  * | 群組成員 | 另外：與另一個成員 metadata **完全相同**（不變式 ③），或**同地同時**（③ 的寬鬆版，票券 12 驗收） |
  *
  * 子場次可以單獨是草稿而主場次不是。草稿標籤**錨定前一個正式場次**（錨定後一場會與真正的
- * `S12` 撞號），所以夾在 `5.1` 之後的草稿子場次是 `S5.1[D1]`。
+ * `S12` 撞號），而且**錨在自己的層級**（使用者裁決 2026-10-21）：頂層草稿錨前一個正式頂層號
+ * （`5`、`5.1` 之後是 `S5[D1]`，不是 `S5.1[D1]` —— 那會被讀成 5.1 底下的草稿）；草稿子場次錨
+ * 主場次裡前一個正式子場次（`S5.1[D1]`），還沒有就錨主場次本身。見 `numberer`。
+ *
+ * 群組成員的子場次散在片段裡，依**成員順序**編（同正式子場次號），所以錨的是自己成員的上一個
+ * 正式號，不是閱讀順序上的前一段。
  *
  * @param doc 已 hydrate 的 ProseMirror doc 節點（用本模組的 `schema`；見 `docFromJSON`）。
  */
 export function projectScenes(doc: ProseMirrorNode): SceneNumber[] {
   const numbers: SceneNumber[] = [];
-  let top = 0;
-  let sub = 0;
-  /** 最近一個正式場次的標籤，與錨定在它之後的第幾個草稿。 */
-  let anchor = "";
-  let drafts = 0;
+  const next = numberer();
 
   const ownDraft = (scene: ProseMirrorNode) =>
     scene.attrs.manualDraft === true || isSceneMetaIncomplete(scene);
-
-  const emit = (scene: ProseMirrorNode, draft: boolean, extra: Partial<SceneNumber>, subscene: boolean) => {
-    const sceneId = scene.attrs.sceneId as string;
-    let label: string;
-    if (draft) {
-      drafts += 1;
-      label = anchor ? `S${anchor}[D${drafts}]` : `[D${drafts}]`;
-    } else {
-      if (subscene) {
-        sub += 1;
-        label = `${top}.${sub}`;
-      } else {
-        top += 1;
-        sub = 0;
-        label = String(top);
-      }
-      anchor = label;
-      drafts = 0;
-    }
-    numbers.push({ sceneId, number: top, label, draft, ...extra });
-  };
 
   /** 一個頂層場次：它自己，接著散在 `containers` 裡的子場次。 */
   const number = (
@@ -102,13 +82,18 @@ export function projectScenes(doc: ProseMirrorNode): SceneNumber[] {
     draft: boolean,
     groupId?: string,
   ) => {
-    emit(scene, draft, groupId ? { groupId } : {}, false);
-    const parentSceneId = scene.attrs.sceneId as string;
+    const sceneId = scene.attrs.sceneId as string;
+    numbers.push({ sceneId, ...next.topLevel(draft), draft, ...(groupId ? { groupId } : {}) });
     for (const container of containers) {
       container.forEach((child) => {
         if (child.type.name !== "subscene") return;
         const childDraft = draft || ownDraft(child) || subsceneEchoesParent(scene, child);
-        emit(child, childDraft, { parentSceneId }, true);
+        numbers.push({
+          sceneId: child.attrs.sceneId as string,
+          ...next.subscene(childDraft),
+          draft: childDraft,
+          parentSceneId: sceneId,
+        });
       });
     }
   };
@@ -137,6 +122,47 @@ export function projectScenes(doc: ProseMirrorNode): SceneNumber[] {
     }
   });
   return numbers;
+}
+
+/**
+ * 編號器：依走訪順序發號。正式場次編 `1..N`／`N.1`…；草稿依它的錨點編 `[Dn]`，同一個錨點底下
+ * 的草稿共用一條 `D` 序列（頂層草稿與主場次的第一個草稿子場次都錨 `5` 時是 `S5[D1]`、`S5[D2]`），
+ * 所以標籤不會撞。
+ */
+function numberer() {
+  let top = 0;
+  let sub = 0;
+  /** 前一個正式頂層場次的標籤 —— 頂層草稿錨這裡。全劇第一場之前是 `""`。 */
+  let topAnchor = "";
+  /** 目前這一場裡前一個正式的標籤（主場次自己或它的子場次）—— 草稿子場次錨這裡。 */
+  let subAnchor = "";
+  const drafts = new Map<string, number>();
+
+  const draftLabel = (anchor: string) => {
+    const n = (drafts.get(anchor) ?? 0) + 1;
+    drafts.set(anchor, n);
+    return anchor ? `S${anchor}[D${n}]` : `[D${n}]`;
+  };
+
+  return {
+    topLevel(draft: boolean): Pick<SceneNumber, "number" | "label"> {
+      if (draft) {
+        // 草稿主場次的子場次一律是草稿，沿用它的錨點。
+        subAnchor = topAnchor;
+        return { number: top, label: draftLabel(topAnchor) };
+      }
+      top += 1;
+      sub = 0;
+      topAnchor = subAnchor = String(top);
+      return { number: top, label: topAnchor };
+    },
+    subscene(draft: boolean): Pick<SceneNumber, "number" | "label"> {
+      if (draft) return { number: top, label: draftLabel(subAnchor) };
+      sub += 1;
+      subAnchor = `${top}.${sub}`;
+      return { number: top, label: subAnchor };
+    },
+  };
 }
 
 /**
