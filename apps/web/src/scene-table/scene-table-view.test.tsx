@@ -123,6 +123,8 @@ describe("場次表檢視", () => {
     fireEvent.click(button("關閉"));
     expect(preview()).toBeNull();
     expect(document.documentElement.style.overflow).toBe("");
+    // 用滑鼠點開的也一樣：焦點回到剛才那一列，Tab 從那裡接著走。
+    expect(document.activeElement?.closest("tr")?.getAttribute("data-scene-id")).toBe(doc.child(1).attrs.sceneId);
 
     fireEvent.click(container.querySelector(`.scene-table tr[data-scene-id="${doc.child(0).attrs.sceneId}"]`)!);
     fireEvent.keyDown(preview()!, { key: "Escape" });

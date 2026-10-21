@@ -66,7 +66,11 @@ export function SceneTable({
                   data-scene-id={row.sceneId}
                   aria-current={anchored ? "location" : undefined}
                   className={row.parentSceneId ? "scene-table__row--sub" : undefined}
-                  onClick={() => onSelect(row.sceneId)}
+                  onClick={(e) => {
+                  // 點在格子上焦點不會動（`<td>` 不可聚焦）—— 先交給這一列的按鈕，預覽關掉時才還得回來。
+                  e.currentTarget.querySelector("button")?.focus({ preventScroll: true });
+                  onSelect(row.sceneId);
+                }}
                 >
                   <td>
                     {/* 鍵盤也點得到：整列可點，但 Tab 只停在場次號這一格。 */}
