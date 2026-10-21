@@ -72,6 +72,11 @@ export interface RunawayRecord {
   inputs: InputCrumb[];
   transactions: TrCrumb[];
   mutations: MutationCrumb[];
+  /**
+   * ProseMirror **沒有忽略**、讀回成「文件可能變了」的那幾筆變動（`registerMutation` 回了範圍），
+   * 連同它歸給哪個節點、那個節點的 `ignoreMutation` 怎麼說。迴圈的元兇就在這裡面。
+   */
+  accepted: (MutationCrumb & { desc: string; range: string })[];
 }
 
 const push = <T>(list: T[], item: T, keep = KEEP) => {
@@ -146,6 +151,7 @@ export function createRunawayMonitor(
   const inputs: InputCrumb[] = [];
   const transactions: TrCrumb[] = [];
   const mutations: MutationCrumb[] = [];
+  const accepted: RunawayRecord["accepted"] = [];
   let stamps: number[] = [];
   let redraws: number[] = [];
   let lastInput: number | null = null;
@@ -176,6 +182,10 @@ export function createRunawayMonitor(
     },
     transaction(tr: Transaction) {
       push(transactions, summarize(tr));
+    },
+    accepted(m: MutationRecord, desc: string, range: { from: number; to: number }) {
+      if (tripped) return;
+      push(accepted, { ...summarizeMutation(m, now()), desc, range: `${range.from}-${range.to}` }, KEEP_MUTATIONS);
     },
     mutations(records: readonly MutationRecord[]) {
       if (tripped) return;
@@ -208,8 +218,30 @@ export function createRunawayMonitor(
         inputs: [...inputs],
         transactions: [...transactions],
         mutations: [...mutations],
+        accepted: [...accepted],
       };
     },
+  };
+}
+
+/**
+ * 包住 DOMObserver 的 `registerMutation`（私有 API，開發環境的診斷才碰它）：它回範圍的那幾筆
+ * 就是 ProseMirror 決定讀回的變動。
+ */
+function spyOnRegisterMutation(view: EditorView, monitor: ReturnType<typeof createRunawayMonitor>) {
+  type Range = { from: number; to: number } | null;
+  type Desc = { node?: { type: { name: string } } | null; dom?: Node };
+  const observer = (view as unknown as { domObserver?: Record<string, unknown> }).domObserver;
+  const original = observer?.registerMutation as ((m: MutationRecord, added: Node[]) => Range) | undefined;
+  if (!observer || typeof original !== "function") return;
+  observer.registerMutation = function (this: unknown, m: MutationRecord, added: Node[]) {
+    const range = original.call(this, m, added);
+    if (range) {
+      const docView = (view as unknown as { docView: { nearestDesc(n: Node): Desc | undefined } }).docView;
+      const desc = docView.nearestDesc(m.target);
+      monitor.accepted(m, `${desc?.node?.type.name ?? "doc"} ${describe(desc?.dom ?? null)}`, range);
+    }
+    return range;
   };
 }
 
@@ -266,6 +298,7 @@ export const RunawayGuard = Extension.create<object, { tripped: boolean }>({
             typeof MutationObserver === "undefined"
               ? null
               : new MutationObserver((records) => monitor.mutations(records));
+          spyOnRegisterMutation(view, monitor);
           observer?.observe(view.dom, {
             subtree: true,
             childList: true,
