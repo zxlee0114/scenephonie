@@ -45,3 +45,5 @@
    - 「解散對剪」（`dissolveGroup`）：每個成員依成員順序變回普通場次。
    - 兩者 ⌘Z 一步回來。
 5. **開 DevTools 偶發當機（RESULT_CODE_HUNG）**：未解。`main` 上沒重現到，但偶發、不能排除。程式裡沒看到會不收斂的 `appendTransaction` 或 resize 迴圈；之前那次 CPU 飆高的紀錄在 repo／PR／對話紀錄裡都沒找到。下次發生時用 Chrome 工作管理員（Shift+Esc）看飆高的是分頁還是 DevTools。
+   - 追加（使用者提供前一次的總結）：前一次的根因是 `@tiptap/react` 在 ProseMirror 更新途中掛新 React node view 時無條件 `flushSync`；動作／插入畫面已改原生，但 `SceneView`（場次、子場次、**群組成員**）與對白仍是 React。本票多出幾個在更新途中新掛它們的時機（建立成員、移出／解散、⌘+N 切開與合併重排片段裡的對白）—— 推論，未重現。
+   - 使用者裁決：**先加斷路器抓觸發點**。開發環境掛 `RunawayGuard`：沒有輸入、一秒重繪超過 300 次 → 把輸入、transaction 摘要、游標節點路徑、React node view 數寫進 `localStorage["scenephonie:runaway"]`，並設成唯讀斷迴圈（`syncEditable` 讀它的 storage，不會再改回可編輯）。已在本機瀏覽器用 400 次強制重繪驗過會跳閘並保持唯讀。拿到紀錄再決定要不要 patch `@tiptap/react` 的 `flushSync`。

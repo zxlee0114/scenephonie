@@ -28,6 +28,7 @@ import { BlockCycle } from "./extensions/block-cycle";
 import { ContinueBlock } from "./extensions/continue-block";
 import { FragmentKeys } from "./extensions/fragment-keys";
 import { NextScene } from "./extensions/next-scene";
+import { RunawayGuard } from "./extensions/runaway-guard";
 import { ReturnMarkers } from "./extensions/return-markers";
 import { SceneIds } from "./extensions/scene-ids";
 import { SceneNumbers } from "./extensions/scene-numbers";
@@ -105,7 +106,9 @@ function unstartedDialogueIndex(scene: PMNode): number | null {
  * 只有「建一場」與「還原」，這兩條由空狀態那塊 UI 自己接管（見 `EmptyScreenplayState`）。
  */
 function syncEditable(editor: Editor): void {
-  const editable = editor.state.doc.childCount > 0;
+  // 失控重繪的斷路器跳閘之後保持唯讀（開發環境，見 `./extensions/runaway-guard`）。
+  const tripped = (editor.storage as { runawayGuard?: { tripped: boolean } }).runawayGuard?.tripped ?? false;
+  const editable = editor.state.doc.childCount > 0 && !tripped;
   if (editor.isEditable !== editable) editor.setEditable(editable, false);
 }
 
@@ -140,6 +143,8 @@ export function useScreenplayEditor(
       VerticalNav,
       StrayHistoryKey,
       AppearingPromptPlugin,
+      // 開 DevTools 偶發的失控重繪（RESULT_CODE_HUNG）還沒抓到觸發點 —— 開發環境掛斷路器記下現場。
+      ...(process.env.NODE_ENV === "development" ? [RunawayGuard] : []),
     ],
     content: initialContent ?? emptyScreenplay(),
     // 上一個 editor instance 可能留下沒人認領的一次性請求（`/next` 發完請求，新 SceneView
