@@ -37,51 +37,54 @@ export function SceneTable({
       <input
         type="search"
         className="scene-table__search"
-        placeholder="篩選：場次號、地點、人物、時間"
+        placeholder="篩選：場次號、景、時間、地點、人物、群演"
         aria-label="篩選場次"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">場次</th>
-            <th scope="col">景</th>
-            <th scope="col">光</th>
-            {/* 業界順場表此欄名為「場景」，本專案輸出時一律標為「地點」（ADR-0001）。 */}
-            <th scope="col">地點</th>
-            <th scope="col">登場人物</th>
-            <th scope="col">群演</th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map((row) => {
-            const anchored = row.sceneId === anchorSceneId;
-            return (
-              <tr
-                key={row.sceneId}
-                ref={anchored ? anchorRef : undefined}
-                data-scene-id={row.sceneId}
-                aria-current={anchored ? "location" : undefined}
-                className={row.parentSceneId ? "scene-table__row--sub" : undefined}
-                onClick={() => onOpenScene(row.sceneId)}
-              >
-                <td>
-                  {/* 鍵盤也點得到：整列可點，但 Tab 只停在場次號這一格。 */}
-                  <button type="button" className="scene-table__open">
-                    {row.label}
-                  </button>
-                </td>
-                <td>{row.intExt}</td>
-                <td>{row.time}</td>
-                <td>{row.location}</td>
-                <td>{row.appearingCharacters}</td>
-                <td>{row.extras}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {/* 窄螢幕放不下六欄：只有表自己橫捲，頁面不出 x 軸。 */}
+      <div className="scene-table__scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">場次</th>
+              <th scope="col">景</th>
+              <th scope="col">光</th>
+              {/* 業界順場表此欄名為「場景」，本專案輸出時一律標為「地點」（ADR-0001）。 */}
+              <th scope="col">地點</th>
+              <th scope="col">登場人物</th>
+              <th scope="col">群演</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((row) => {
+              const anchored = row.sceneId === anchorSceneId;
+              return (
+                <tr
+                  key={row.sceneId}
+                  ref={anchored ? anchorRef : undefined}
+                  data-scene-id={row.sceneId}
+                  aria-current={anchored ? "location" : undefined}
+                  className={row.parentSceneId ? "scene-table__row--sub" : undefined}
+                  onClick={() => onOpenScene(row.sceneId)}
+                >
+                  <td>
+                    {/* 鍵盤也點得到：整列可點，但 Tab 只停在場次號這一格。 */}
+                    <button type="button" className="scene-table__open">
+                      {row.label}
+                    </button>
+                  </td>
+                  <td>{row.intExt}</td>
+                  <td>{row.time}</td>
+                  <td>{row.location}</td>
+                  <td>{row.appearingCharacters}</td>
+                  <td>{row.extras}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

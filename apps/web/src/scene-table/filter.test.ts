@@ -1,5 +1,5 @@
 /**
- * 場次表的搜尋框（票券 15，§7.10）：v1 只做**清單篩選** —— 比對場次號／地點／人物／時間，
+ * 場次表的搜尋框（票券 15，§7.10）：v1 只做**清單篩選** —— 比對表上除了場次號以外的每一格文字，以及場次號，
  * 純前端 filter over 已在記憶體的投影。全文搜尋不做。
  */
 import type { LabeledSceneTableRow } from "@scenephonie/schema";
@@ -21,7 +21,7 @@ const row = (label: string, fields: Partial<LabeledSceneTableRow> = {}): Labeled
 const rows = [
   row("5", { location: "海豚公寓房間（未知大樓房間）", appearingCharacters: "小明（男子）" }),
   row("5.1", { time: "夜", location: "陽台", appearingCharacters: "小明" }),
-  row("15", { location: "街道", appearingCharacters: "小華", extras: "路人（若干）" }),
+  row("15", { intExt: "外景", location: "街道", appearingCharacters: "小華", extras: "路人（若干）" }),
   row("50", { location: "屋頂" }),
 ];
 const labels = (query: string) => filterSceneTable(rows, query).map((r) => r.label);
@@ -54,8 +54,13 @@ describe("filterSceneTable", () => {
     expect(labels("小華　街道")).toEqual(["15"]);
   });
 
-  it("群演與景不在比對範圍裡", () => {
-    expect(labels("路人")).toEqual([]);
-    expect(labels("內景")).toEqual([]);
+  it("景", () => {
+    expect(labels("外景")).toEqual(["15"]);
+    expect(labels("內景")).toEqual(["5", "5.1", "50"]);
+  });
+
+  it("群演", () => {
+    expect(labels("路人")).toEqual(["15"]);
+    expect(labels("若干")).toEqual(["15"]);
   });
 });
