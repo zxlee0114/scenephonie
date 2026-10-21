@@ -33,14 +33,30 @@
   font-weight: 600;
 }
 
-.editor-shell__crumb {
-  color: var(--text-secondary);
+/*
+ * 「劇本／場次表」segmented control（票券 15，§7.10）。是導覽（兩個網址），不是表單元件 ——
+ * 目前那一個以 `aria-current="page"` 標出，字重與底線之外不畫框。
+ */
+.view-switch {
+  display: flex;
+  gap: var(--space-3);
 }
 
-.editor-shell__crumb::before {
+.view-switch::before {
   content: "/";
-  margin-inline-end: var(--space-3);
   color: var(--text-faint);
+}
+
+.view-switch__item {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.view-switch__item[aria-current="page"] {
+  color: var(--text-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
 }
 
 .sr-only {
@@ -159,13 +175,16 @@
   }
 }
 
-.scene--just-added {
+/* 從場次表跳回時的落點也用同一段（票券 15，`editor/scene-anchor.ts`）。 */
+.scene--just-added,
+.scene[data-just-revealed] {
   border-radius: var(--space-1);
   animation: scene-just-added 900ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scene--just-added {
+  .scene--just-added,
+  .scene[data-just-revealed] {
     animation: none;
   }
 }
@@ -1503,4 +1522,341 @@
   font-family: var(--font-ui);
   font-size: var(--text-sm);
   text-align: center;
+}
+
+/* ─────────────────────────────────────────── 場次表（票券 15，§8） */
+
+/*
+ * 交付用的投影，給製作端讀、可印。是 UI 不是輸出預覽：不模擬紙本順場表（不變式 G），
+ * 列之間只有細線。子場次縮排僅作視覺次級 —— 它仍是自己的一列。
+ */
+.scene-table {
+  /* 釘住的場次欄寬：snap 的對齊線要知道它在哪裡。 */
+  --scene-table-pin: 5em;
+
+  padding: var(--space-5);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-primary);
+}
+
+.scene-table__search {
+  inline-size: min(100%, 24em);
+  margin-block-end: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--control-border);
+  border-radius: var(--space-1);
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.scene-table__scroll {
+  overflow-x: auto;
+}
+
+/*
+ * 橫捲時一欄一欄停：每欄的起點對齊釘住的場次欄右緣，不會停在半欄。比 snapport 寬的欄（人物多的
+ * 那一格）瀏覽器仍讓它在欄內自由捲，mandatory 不會把內容卡住看不到。
+ */
+.scene-table__scroll {
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline-start: var(--scene-table-pin);
+}
+
+.scene-table th {
+  scroll-snap-align: start;
+}
+
+.scene-table table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.scene-table th {
+  text-align: start;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-block-end: 1px solid var(--rule-strong);
+}
+
+.scene-table th,
+.scene-table td {
+  padding: var(--space-2) var(--space-3);
+  vertical-align: baseline;
+}
+
+.scene-table td {
+  border-block-end: 1px solid var(--rule);
+}
+
+/*
+ * 窄螢幕不硬擠：場次／景／光與欄名不折行，地點／人物／群演至少留一段可讀的寬度（在「、」與
+ * 空白處折）。放不下就讓表在 `.scene-table__scroll` 裡橫捲 —— 頁面本身不出 x 軸。
+ */
+.scene-table th,
+.scene-table td:nth-child(-n + 3) {
+  white-space: nowrap;
+}
+
+.scene-table td:nth-child(n + 4) {
+  min-inline-size: 8em;
+}
+
+/*
+ * 橫捲時場次號釘在左側，看人物欄時仍知道是哪一場。釘住的格子要有不透明底色才蓋得住捲過去的
+ * 格子 —— 所以列的底色（hover、對位）也畫在格子上而不是 `tr` 上，釘住那格才跟著變。
+ */
+.scene-table th:first-child,
+.scene-table td:first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  box-sizing: border-box;
+  inline-size: var(--scene-table-pin);
+  min-inline-size: var(--scene-table-pin);
+  background: var(--surface-page);
+}
+
+.scene-table tbody tr {
+  cursor: pointer;
+}
+
+.scene-table tbody tr:hover > td {
+  background: var(--surface-raised);
+}
+
+/*
+ * 切換進來時對位的那一列（劇本裡游標所在的場次）：浮現底色再淡出，同跳回劇本的落點
+ * （`editor/flash.ts`）。沒有 `to` —— 淡回各格原本的底色（釘住的場次欄是不透明的頁面色）。
+ */
+@keyframes scene-table-row-revealed {
+  from {
+    background: var(--selection-bg);
+  }
+}
+
+.scene-table tbody tr[data-just-revealed] > td {
+  animation: scene-table-row-revealed 900ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-table tbody tr[data-just-revealed] > td {
+    animation: none;
+  }
+}
+
+.scene-table__open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+/*
+ * 鍵盤焦點標在**整列**上，不框場次號那顆小按鈕（框起來只有一個字寬，又擠又不好看）：
+ * 列底色同 hover，左緣一條焦點色的線。
+ */
+.scene-table__open:focus-visible {
+  outline: none;
+}
+
+.scene-table tbody tr:has(.scene-table__open:focus-visible) > td {
+  background: var(--surface-raised);
+}
+
+.scene-table tbody tr:has(.scene-table__open:focus-visible) > td:first-child {
+  box-shadow: inset 2px 0 0 var(--focus-ring);
+}
+
+.scene-table__row--sub .scene-table__open {
+  padding-inline-start: var(--space-4);
+  color: var(--text-secondary);
+}
+
+/* ─────────────────────────────────────────── 場次預覽（票券 15，點場次表一列開的） */
+
+/*
+ * 讀稿用的唯讀預覽：字體與閱讀語意跟編輯器一致（動作全寬、對白縮排、插入畫面帶結構標籤），
+ * 不模擬紙本（不變式 G）。開關的外殼照快捷鍵總覽。
+ */
+.scene-preview__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 內容再多，上下也留一段空白看得到底下的表 —— 對話框不是一整頁。 */
+  padding: var(--space-6) var(--space-4);
+  background: color-mix(in srgb, var(--surface-page) 72%, transparent);
+  animation: scene-preview-fade 160ms ease-out;
+}
+
+/*
+ * 開：背景淡入、面板從稍低處浮上來；關：反過來、短一點。關的要是**另一組** keyframes —— 只改
+ * 方向或時長，瀏覽器視為同一段動畫、不重播，就等不到 animationend。
+ */
+@keyframes scene-preview-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes scene-preview-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2)) scale(0.98);
+  }
+}
+
+@keyframes scene-preview-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scene-preview-sink {
+  to {
+    opacity: 0;
+    transform: translateY(var(--space-2)) scale(0.98);
+  }
+}
+
+.scene-preview__scrim--closing {
+  pointer-events: none;
+  animation: scene-preview-fade-out 120ms ease-in forwards;
+}
+
+.scene-preview__scrim--closing .scene-preview {
+  animation: scene-preview-sink 120ms ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-preview__scrim,
+  .scene-preview,
+  .scene-preview__scrim--closing,
+  .scene-preview__scrim--closing .scene-preview {
+    animation: none;
+  }
+}
+
+.scene-preview {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(40rem, 100%);
+  max-block-size: min(48rem, 100%);
+  box-sizing: border-box;
+  padding: var(--space-5);
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-3);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
+  animation: scene-preview-rise 160ms ease-out;
+}
+
+.scene-preview:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}
+
+.scene-preview__head {
+  font-family: var(--font-ui);
+}
+
+.scene-preview__title {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.scene-preview__cast {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* 內文自己捲：標題與「到劇本」一直看得到。 */
+.scene-preview__body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  /* 捲到底不把滾輪交給底下的頁面。 */
+  overscroll-behavior: contain;
+  margin-block: var(--space-4);
+  padding-block-start: var(--space-4);
+  /* 捲軸出現時與內文之間留一段。 */
+  padding-inline-end: var(--space-4);
+  border-block-start: 1px solid var(--rule);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+}
+
+.scene-preview__body p {
+  margin: 0 0 var(--space-3);
+}
+
+.scene-preview__dialogue {
+  margin-inline-start: var(--space-5);
+}
+
+.scene-preview__dialogue .scene-preview__speaker {
+  margin-block-end: 0;
+  font-weight: 600;
+}
+
+.scene-preview__insert-shot {
+  margin-inline-start: var(--space-5);
+}
+
+.scene-preview__tag,
+.scene-preview__subscene-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.scene-preview__body .scene-preview__tag {
+  margin-block-end: 0;
+}
+
+.scene-preview__subscene {
+  margin-block: var(--space-4);
+  /* 場次不畫邊框（不變式 G）：子場次只靠縮排與標籤。 */
+  padding-inline-start: var(--space-4);
+}
+
+.scene-preview__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.scene-preview__close,
+.scene-preview__open {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--control-border);
+  border-radius: var(--space-1);
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.scene-preview__close {
+  color: var(--text-secondary);
+}
+
+.scene-preview__close:hover,
+.scene-preview__open:hover {
+  background: var(--surface-raised);
 }

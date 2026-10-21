@@ -1,11 +1,15 @@
 /**
  * 劇本編輯器 —— 票券 04 的最小可寫作單元。對外就這一個元件。
+ *
+ * 票券 15 起它也是「劇本／場次表」兩個視圖的家（§7.10）：切到場次表時編輯器**不卸載**，只是藏起來
+ * —— 場次表讀的是記憶體裡的 doc，回來時游標、捲動、復原堆疊都還在。哪個視圖由路由決定（`view`），
+ * 編輯器不認識路由層：要切回劇本時呼叫注入的 `onShowScript`。
  */
 "use client";
 
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 
 import type { SaveToken } from "@/persistence";
 
@@ -18,6 +22,8 @@ import type {
 } from "./entity-capability";
 import type { SaveScreenplay } from "./save-capability";
 import { requestNextScene } from "./extensions/next-scene";
+import { cursorSceneId, revealScene, scrollToSceneOf } from "./scene-anchor";
+import { SceneTableView } from "./scene-table-view";
 import { SlashMenu } from "./extensions/slash";
 import { ShortcutOverview } from "./shortcut-overview";
 import { useAutosave, type SaveStatus } from "./use-autosave";
@@ -152,6 +158,9 @@ function EmptyScreenplayPanel({ editor }: { editor: Editor }) {
   );
 }
 
+/** 同一份劇本的兩種讀法（§7.10）。 */
+export type ScreenplayView = "script" | "table";
+
 export function ScreenplayEditor({
   initialContent,
   initialFocus,
@@ -162,6 +171,8 @@ export function ScreenplayEditor({
   entities,
   createEntity,
   renameEntity,
+  view = "script",
+  onShowScript,
 }: {
   initialContent?: object;
   initialFocus?: InitialFocus;
@@ -173,9 +184,39 @@ export function ScreenplayEditor({
   entities?: EntityCatalogSnapshot;
   createEntity?: CreateEntity;
   renameEntity?: RenameEntity;
+  /** 劇本或場次表（票券 15）。 */
+  view?: ScreenplayView;
+  /** 場次表上點了一列：請路由切回劇本。游標落進那一場由這裡負責（切回來之後）。 */
+  onShowScript?: () => void;
 }) {
   const editor = useScreenplayEditor(initialContent, initialFocus);
   const status = useAutosave({ editor, screenplayId, initialToken, save });
+  /** 場次表上點的那一列，等切回劇本後再把游標送過去 —— 藏起來的編輯器拿不到焦點。 */
+  const pendingReveal = useRef<string | null>(null);
+  const previousView = useRef(view);
+  /**
+   * 劇本這一輪顯示過沒有。直接打開場次表（重新整理、深連結）時編輯器是藏著建起來的，拿不到
+   * 初始聚焦，游標停在文件開頭 —— 那不是編劇放的，場次表不該拿它對位。
+   */
+  const [scriptShown, setScriptShown] = useState(view === "script");
+  useEffect(() => {
+    if (view === "script") setScriptShown(true);
+  }, [view]);
+
+  useEffect(() => {
+    const from = previousView.current;
+    previousView.current = view;
+    if (!editor || view !== "script" || from === "script") return;
+    const target = pendingReveal.current;
+    pendingReveal.current = null;
+    if (target) {
+      revealScene(editor, target);
+      return;
+    }
+    // 只是切回來（segmented control）：游標不動，捲回它所在的那一場（§7.10 互相對位）。
+    const current = cursorSceneId(editor.state);
+    if (current) scrollToSceneOf(editor, current);
+  }, [editor, view]);
 
   return (
     // 目錄在 EditorContent 之上 —— 三個實體欄位都是 node view，由這棵樹以 portal 渲染，
@@ -186,7 +227,7 @@ export function ScreenplayEditor({
       createEntity={createEntity}
       renameEntity={renameEntity}
     >
-      <div className="screenplay-page">
+      <div className="screenplay-page" hidden={view !== "script"}>
         <p
           className={`save-status${STATUS[status].loud ? " save-status--loud" : ""}`}
           role="status"
@@ -201,6 +242,16 @@ export function ScreenplayEditor({
             沒有一個地方看得到全部。⌘/ 或左上角那顆很淡的鈕。 */}
         <ShortcutOverview />
       </div>
+      {view === "table" && editor && (
+        <SceneTableView
+          editor={editor}
+          anchorToCursor={scriptShown}
+          onOpenScene={(sceneId) => {
+            pendingReveal.current = sceneId;
+            onShowScript?.();
+          }}
+        />
+      )}
     </EntityCatalogProvider>
   );
 }
