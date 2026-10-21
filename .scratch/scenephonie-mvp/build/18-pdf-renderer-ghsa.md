@@ -13,3 +13,13 @@
 - [ ] 折返標記依結構推導，兩子場次相鄰不印，空區塊不算內容
 - [ ] 渲染在 `@sparticuz/chromium` 環境跑得動；CJK 折行與避頭尾正確
 - [ ] CSS 模板結構按 §9.8 維度組織，換格式 ＝ 換模板
+
+## Comments
+
+**2026-10-22 來自票券 17（交付）**：渲染器的輸入是 `loadDelivery` 讀回的 `DeliveryPayload`（`packages/schema/src/delivery.ts`），
+不是 live doc。payload 已經算好場次號、草稿／殘缺對剪的排除、折返（`returnTo`，帶地點顯示名）、對剪宣告（`intercut`）與
+片段歸屬（`fragment` 的 `location`＋`disambiguateBy`）—— 這裡只決定印成什麼字，**不准重算**（不變式 E）。
+頁尾時間戳讀 `Delivery.createdAt`。元素型別與 `DELIVERY_PAYLOAD_VERSION` 還沒從 `@scenephonie/schema` 出口，本票是第一個讀者，要用時再開。
+
+**待本票裁定（使用者 2026-10-22 交辦）**：雜景且地點留空的場次，payload 的 `locations` 是空陣列。場次表那一格印「參照敘述」，
+但 **PDF 場次標題要印什麼**規格沒寫 —— 純印法，不動 payload 形狀。

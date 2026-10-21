@@ -111,6 +111,13 @@ export type { SceneNumber, DraftHold } from "./project-scenes";
 export { projectSceneTable, labelSceneTable } from "./scene-table";
 export type { LabeledSceneTableRow } from "./scene-table";
 
+// 交付（票券 17，§4.9、ADR-0008）：建立交付那個交易裡唯一的推導。payload 是推導的結果、純 JSON；
+// 渲染器與凍結分享頁只讀它，不准從它重算語意推導值（不變式 E）。唯一的套件外呼叫端是
+// persistence 的 `createDelivery`／`loadDelivery`。元素型別（`ScriptElement`、`DeliveredScene`…）與
+// `DELIVERY_PAYLOAD_VERSION` 的第一個套件外讀者會是票券 18 的渲染器，那天再開。
+export { projectDelivery } from "./delivery";
+export type { DeliveryPayload } from "./delivery";
+
 export {
   mintId,
   mintSceneId,

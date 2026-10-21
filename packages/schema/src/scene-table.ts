@@ -41,6 +41,11 @@ export interface SceneTableRow {
    * 之後，可以被排序、被篩選；它的 `種類` 不進表（消費者在第三層，§8）。主場次為 `undefined`。
    */
   parentSceneId?: string;
+  /**
+   * 群組成員所屬群組 —— 場次表本身不印它（群組不進表）；交付拿它認出殘缺的對剪（§9.6，票券 17）。
+   * 不是成員為 `undefined`。
+   */
+  groupId?: string;
   /** 景（內外）。正式場次一定有值 —— 空著就是草稿，不會走到這裡。 */
   intExt: SceneIntExt;
   /** 光（時間）。同上。 */
@@ -75,6 +80,7 @@ function row(scene: SceneNumber, node: ProseMirrorNode): SceneTableRow {
     sceneId: scene.sceneId,
     label: scene.label,
     ...(scene.parentSceneId ? { parentSceneId: scene.parentSceneId } : {}),
+    ...(scene.groupId ? { groupId: scene.groupId } : {}),
     intExt: node.attrs.intExt as SceneIntExt,
     time: node.attrs.time as SceneTime,
     locations: sceneLocations(node.attrs.location),
