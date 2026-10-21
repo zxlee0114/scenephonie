@@ -9,7 +9,12 @@
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 
-import { dedupeIdsPlugin, mintSceneId } from "@scenephonie/schema";
+import {
+  dedupeIdsPlugin,
+  mintGroupId,
+  mintSceneId,
+  normalizeFragmentsPlugin,
+} from "@scenephonie/schema";
 
 import { forEachScene } from "../address";
 
@@ -24,10 +29,16 @@ export const SceneIds = Extension.create({
         appendTransaction(transactions, _oldState, newState) {
           if (!transactions.some((tr) => tr.docChanged)) return null;
           const tr = newState.tr;
-          // 主場次與子場次都帶 sceneId（票券 11）；區塊裡不會有場次，不必往下走。
+          // 主場次、子場次與群組成員都帶 sceneId（票券 11／12）；區塊裡不會有場次，不必往下走。
           forEachScene(newState.doc, (node, offset) => {
             if (!node.attrs.sceneId) {
               tr.setNodeMarkup(offset, undefined, { ...node.attrs, sceneId: mintSceneId() });
+            }
+          });
+          // 群組的 groupId 同一條規則（§6.5「完全相同處理」）。群組只在頂層。
+          newState.doc.forEach((node, offset) => {
+            if (node.type.name === "sceneGroup" && !node.attrs.groupId) {
+              tr.setNodeMarkup(offset, undefined, { ...node.attrs, groupId: mintGroupId() });
             }
           });
           if (!tr.steps.length) return null;
@@ -36,6 +47,8 @@ export const SceneIds = Extension.create({
         },
       }),
       dedupeIdsPlugin(),
+      // 片段的正規化（票券 12）：相鄰同成員的片段合併，同樣是模型的修復、不進 history。
+      normalizeFragmentsPlugin(),
     ];
   },
 });

@@ -16,14 +16,13 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import { schema } from "../schema";
 import { type CommandResult, ok, reject } from "./result";
-import { findScene, replaceChild, replaceScene } from "./tree";
+import { findContainer, replaceAt, replaceChild, type ContainerAddress } from "./tree";
 
 /** `sceneBlock` group 的三個成員（規格 §4.6）。 */
 export const BLOCK_TYPES = ["action", "dialogue", "insertShot"] as const;
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
-export interface SetBlockTypeOptions {
-  readonly sceneId: string;
+export interface SetBlockTypeOptions extends ContainerAddress {
   /** 場次內第幾個 `sceneBlock`（0-based）。傳遞參數，不被儲存（見檔頭）。 */
   readonly blockIndex: number;
   readonly type: BlockType;
@@ -37,8 +36,9 @@ export function setBlockType(doc: ProseMirrorNode, options: SetBlockTypeOptions)
   }
 
   // 主場次與子場次都以自己的 sceneId 定址；區塊序是在**那一場裡**的序（票券 11）。
-  const hit = findScene(doc, sceneId);
-  if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
+  // 群組成員再加 `fragmentIndex`，區塊序是在那個片段裡的序（票券 12）。
+  const hit = findContainer(doc, options);
+  if (typeof hit === "string") return reject(hit);
 
   const scene = hit.node;
   if (blockIndex < 0 || blockIndex >= scene.childCount) {
@@ -57,7 +57,7 @@ export function setBlockType(doc: ProseMirrorNode, options: SetBlockTypeOptions)
   const nextScene = replaceChild(scene, blockIndex, nextBlock);
 
   try {
-    return ok(replaceScene(doc, hit, nextScene));
+    return ok(replaceAt(doc, hit.path, nextScene));
   } catch (err) {
     return reject(`換區塊型別後 doc 不符 schema：${(err as Error).message}`);
   }

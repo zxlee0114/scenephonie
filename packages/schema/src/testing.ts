@@ -4,7 +4,7 @@
  */
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
-import { mintSceneId } from "./ids";
+import { mintGroupId, mintSceneId } from "./ids";
 import { schema } from "./schema";
 
 /** 造一個帶新鑄 `sceneId`、單一 `action` 區塊的場次。`attrs` 覆蓋 metadata、`text` 覆蓋內文。 */
@@ -45,4 +45,23 @@ export function subsceneWith(
   attrs: Record<string, unknown> & { kind: string },
 ): ProseMirrorNode {
   return schema.node("subscene", { sceneId: mintSceneId(), ...attrs }, blocks);
+}
+
+/** 造一個群組成員（票券 12）—— 無內容的場次，帶新鑄 `sceneId`。 */
+export function memberWith(attrs: Record<string, unknown> = {}): ProseMirrorNode {
+  return schema.node("groupMember", { sceneId: mintSceneId(), ...attrs });
+}
+
+/** 造一個片段，歸屬 `member`。 */
+export function fragmentOf(member: ProseMirrorNode, blocks: ProseMirrorNode[]): ProseMirrorNode {
+  return schema.node("groupFragment", { memberId: member.attrs.sceneId as string }, blocks);
+}
+
+/** 造一個群組：成員在前、片段在後（內容規則 `groupMember* groupFragment*`）。 */
+export function groupWith(
+  members: ProseMirrorNode[],
+  fragments: ProseMirrorNode[],
+  groupId: string = mintGroupId(),
+): ProseMirrorNode {
+  return schema.node("sceneGroup", { groupId }, [...members, ...fragments]);
 }

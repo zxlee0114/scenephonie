@@ -18,6 +18,8 @@ export interface CreateNextSceneOptions {
    * 在這個 `sceneId` 之後插入新場次；`null`／省略 ＝ 接在全劇最後一場之後。
    * **以 id 定址** —— 用滑鼠點的入口必須自己傳這個，靠 selection 推算會插錯位置（§7.1）。
    * 給的是子場次的 id 時，新場次接在它的**主場次**之後 —— 場次是序列，子場次不在那條序列上。
+   * 給的是群組成員（或成員的子場次）時，新場次接在**整個群組**之後 —— 群組裡按 `/next` 是
+   * 「結束群組、建立下一個場次」，不是新增成員（§4.5）。
    */
   readonly afterSceneId?: string | null;
 }
@@ -40,7 +42,7 @@ export function createNextScene(
   } else {
     const hit = findScene(doc, afterSceneId);
     if (!hit) return reject(`找不到 sceneId「${afterSceneId}」，無法在其後建立場次`);
-    insertAt = hit.topIndex + 1;
+    insertAt = hit.path[0]! + 1;
   }
 
   const next = [...children];

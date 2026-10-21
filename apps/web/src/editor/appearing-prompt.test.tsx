@@ -78,7 +78,7 @@ async function mount(doc: object) {
 
 /** 游標放進第 `blockIndex` 個區塊的內文 —— 編劇點進去或用方向鍵走過去都是這個 transaction。 */
 function caretInto(editor: Editor, sceneId: string, blockIndex: number, place: "start" | "end" = "end") {
-  const pos = blockContentPos(editor.state.doc, sceneId, blockIndex, place)!;
+  const pos = blockContentPos(editor.state.doc, { sceneId, blockIndex: blockIndex }, place)!;
   act(() => {
     editor.commands.setTextSelection(pos);
   });
@@ -225,7 +225,7 @@ describe("出口：選完才開下一段", () => {
   it("Enter 被攔在台詞中間時，選完就在那個位置切開", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);
-    const start = blockContentPos(editor.state.doc, sceneId, 0, "start")!;
+    const start = blockContentPos(editor.state.doc, { sceneId, blockIndex: 0 }, "start")!;
     act(() => {
       editor.commands.setTextSelection(start + 2);
     });
@@ -392,6 +392,6 @@ describe("撤銷", () => {
     await waitFor(() => expect(blockTypes(editor)).toEqual(["dialogue", "action"]));
     expect(sceneAttrs(editor).dismissedCharacterIds).toEqual([]);
     expect(document.activeElement).toBe(editor.view.dom);
-    expect(editor.state.selection.from).toBe(blockContentPos(editor.state.doc, sceneId, 0, "end"));
+    expect(editor.state.selection.from).toBe(blockContentPos(editor.state.doc, { sceneId, blockIndex: 0 }, "end"));
   });
 });

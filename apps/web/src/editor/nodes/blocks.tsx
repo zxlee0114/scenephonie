@@ -31,7 +31,14 @@ import {
 } from "@scenephonie/schema";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { findSceneNode, sceneContext, type BlockAddress } from "../address";
+import {
+  blockAddressOf,
+  findContainerNode,
+  findSceneNode,
+  sameBlock,
+  sceneContext,
+  type BlockAddress,
+} from "../address";
 import { AppearingPromptMenu } from "../appearing-prompt-menu";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { fieldEdge } from "../chip-nav";
@@ -49,13 +56,14 @@ import { EntityField, type EntityOption, type EntityRef } from "../entity-field"
 import { entityUsage } from "../entity-usage";
 import { retitleOthersIn } from "../retitle-others";
 import { claimFocus, requestFocus, subscribeFocusRequest } from "../focus";
+import { ignoreReactChromeMutation } from "./react-mutations";
 
 /** 從 node view 反推它所在場次的 id 與自己在場次裡的序（給 pending-focus 比對用）。 */
 function locateBlock(props: NodeViewProps): BlockAddress | null {
   const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
   if (pos == null) return null;
   const ctx = sceneContext(props.editor.state.doc.resolve(pos));
-  return ctx && { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex };
+  return ctx && blockAddressOf(ctx);
 }
 
 /**
@@ -137,8 +145,7 @@ function DialogueView(props: NodeViewProps) {
       if (
         here &&
         claimFocus(
-          (p) =>
-            p.kind === "speaker" && p.sceneId === here.sceneId && p.blockIndex === here.blockIndex,
+          (p) => p.kind === "speaker" && sameBlock(p, here),
         )
       ) {
         inputRef.current?.focus();
@@ -150,7 +157,7 @@ function DialogueView(props: NodeViewProps) {
     // 都重新定位，不吃過期的座標。
   }, []);
 
-  /** 這一場**當下**在 doc 裡的節點（不是這次 render 拿到的那一份）。 */
+  /** 這一場**當下**在 doc 裡的節點（不是這次 render 拿到的那一份）。群組成員的群演也在它身上。 */
   const sceneNow = (sceneId: string): PMNode | null => {
     return findSceneNode(editor.state.doc, sceneId)?.node ?? null;
   };
@@ -164,10 +171,11 @@ function DialogueView(props: NodeViewProps) {
    * 剛填好的人物連同整個對白被當成空區塊取消掉（使用者回報 2026-09-10）。
    * 同一個家族的問題本輪出現第三次：**ref／doc 是真相（同步），props／state 是畫面（重繪）**。
    */
-  const blockNow = (here: { sceneId: string; blockIndex: number }): PMNode | null => {
-    const scene = sceneNow(here.sceneId);
-    if (!scene || here.blockIndex >= scene.childCount) return null;
-    return scene.child(here.blockIndex);
+  const blockNow = (here: BlockAddress): PMNode | null => {
+    // 區塊住在那段內容裡（片段的話不是成員本身 —— 成員沒有內容）。
+    const container = findContainerNode(editor.state.doc, here)?.node;
+    if (!container || here.blockIndex >= container.childCount) return null;
+    return container.child(here.blockIndex);
   };
 
   /**
@@ -192,7 +200,7 @@ function DialogueView(props: NodeViewProps) {
    */
   const isHere = (p: AppearingPrompt | null): p is AppearingPrompt => {
     const here = p && locateBlock(props);
-    return !!here && here.sceneId === p.sceneId && here.blockIndex === p.blockIndex;
+    return !!here && sameBlock(here, p);
   };
   const askable = isHere(prompt)
     ? prompt.speakers.filter((s) => catalog.directory.hasCharacter(s.id))
@@ -354,8 +362,7 @@ function DialogueView(props: NodeViewProps) {
               }
               // ③ 這一句台詞的說話者。
               return setDialogueCharacters(current, {
-                sceneId: here.sceneId,
-                blockIndex: here.blockIndex,
+                ...here,
                 refs: speakers,
                 directory: catalog.directory,
               });
@@ -456,7 +463,7 @@ export const ActionNode = Action.extend({
 
 export const DialogueNode = Dialogue.extend({
   addNodeView() {
-    return ReactNodeViewRenderer(DialogueView);
+    return ReactNodeViewRenderer(DialogueView, { ignoreMutation: ignoreReactChromeMutation });
   },
 });
 

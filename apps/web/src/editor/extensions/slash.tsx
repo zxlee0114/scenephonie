@@ -15,7 +15,9 @@ import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   canCreateSubscene,
+  canIntercut,
   createSubscene,
+  intercutTo,
   projectScenes,
   sceneLocationLabel,
   type BlockType,
@@ -24,7 +26,13 @@ import {
 } from "@scenephonie/schema";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { forEachScene, isSceneNode, sceneContext } from "../address";
+import {
+  blockAddressOf,
+  firstFragmentText,
+  forEachScene,
+  isSceneNode,
+  sceneContext,
+} from "../address";
 import { runKernelCommand } from "../command-bridge";
 import { BLOCK_META, setBlockTypeAt } from "../block-types";
 import { dismissOnOutsidePointer } from "../dismiss-on-outside-pointer";
@@ -61,7 +69,7 @@ function dropEmptyCommandBlock(editor: Editor) {
   if ($from.parent.content.size > 0) return;
 
   const scene = $from.node($from.depth - 1);
-  if (!isSceneNode(scene) || scene.childCount <= 1) return;
+  if (!(isSceneNode(scene) || scene.type.name === "groupFragment") || scene.childCount <= 1) return;
   // 主場次的第一個孩子不能換成子場次（不變式 ①）—— 收掉它會讓後面那個子場次變成第一個。
   if ($from.index($from.depth - 1) === 0 && scene.child(1).type.name === "subscene") return;
 
@@ -96,7 +104,11 @@ function subsceneAnchorAtCaret(editor: Editor): { anchor: SubsceneAnchor; drop: 
     };
   }
   return {
-    anchor: { sceneId: ctx.sceneId, afterBlockIndex: blank ? ctx.blockIndex - 1 : ctx.blockIndex },
+    anchor: {
+      sceneId: ctx.sceneId,
+      ...(ctx.fragmentIndex == null ? {} : { fragmentIndex: ctx.fragmentIndex }),
+      afterBlockIndex: blank ? ctx.blockIndex - 1 : ctx.blockIndex,
+    },
     drop: blank,
   };
 }
@@ -166,6 +178,68 @@ function applyStep(kind: SubsceneKind) {
   };
 }
 
+/**
+ * `/` →「對剪到…」從游標這裡建群組時的定址（`intercutTo` 的 `sceneId`／`fragmentIndex`）。游標
+ * 在子場次裡也一樣 —— kernel 把它解讀成「在它的主場次裡按」。
+ */
+function intercutAnchorAtCaret(editor: Editor): { sceneId: string; fragmentIndex?: number } | null {
+  const ctx = sceneContext(editor.state.selection.$from);
+  if (!ctx) return null;
+  return ctx.fragmentIndex == null
+    ? { sceneId: ctx.sceneId }
+    : { sceneId: ctx.sceneId, fragmentIndex: ctx.fragmentIndex };
+}
+
+function intercutAt(editor: Editor, range: Range, withSceneId: string | null) {
+  const at = intercutAnchorAtCaret(editor);
+  if (!at) return;
+  // 指令字刪掉；那一行若只是為了打指令才開的，收掉（同 `/next`）。
+  editor.view.dispatch(editor.state.tr.delete(range.from, range.to));
+  dropEmptyCommandBlock(editor);
+  const ran = runKernelCommand(editor, (doc) => intercutTo(doc, { ...at, withSceneId }), {
+    // 新的一場：焦點送進它的 chip row（先填時空，同 `/next`）。收編的那一場沒有新 id 可追。
+    focusNewSceneMeta: withSceneId == null,
+  });
+  // 收編：游標送進它那一段的開頭 —— 編劇接下來要寫的是交錯，不是回頭改原本那一段。
+  if (ran && withSceneId != null) {
+    const pos = firstFragmentText(editor.state.doc, withSceneId);
+    if (pos != null) editor.commands.setTextSelection(pos);
+  }
+}
+
+/**
+ * 第二步：跟誰對剪（§4.5，沿用 `/insert` 第二步的形狀）。**第一項是「建立新的一場」** —— 鑄造、
+ * metadata 全空（「同時發生」不是交叉場次的定義，不繼承）。其餘是可以**收編**的既有頂層場次：
+ * 寫到一半才發現兩場在交錯，它們早就各自寫好了（票券 15）。群組成員與子場次不列 —— 一個場次
+ * 不能同時屬於兩個群組（不變式 ④），子場次不在場次序列上。
+ */
+function intercutStep(editor: Editor): SlashItem[] {
+  const at = intercutAnchorAtCaret(editor);
+  const rows: SlashItem[] = [
+    {
+      key: "intercut:new",
+      label: "建立新的一場",
+      hint: "另一個地方同時發生的戲 —— 時空沒填完之前它是草稿",
+      run: (e, range) => intercutAt(e, range, null),
+    },
+  ];
+  if (!at) return rows;
+  const { doc } = editor.state;
+  const labels = new Map(projectScenes(doc).map((s) => [s.sceneId, s.label] as const));
+  doc.forEach((top) => {
+    if (top.type.name !== "scene") return;
+    const sceneId = top.attrs.sceneId as string;
+    if (!canIntercut(doc, { ...at, withSceneId: sceneId })) return;
+    rows.push({
+      key: `intercut:${sceneId}`,
+      label: `${labels.get(sceneId) ?? "?"}\u3000${spaceTimeOf(top) || "時空未填"}`,
+      hint: "與這一場對剪 —— 它寫好的內容變成它的第一個片段",
+      run: (e, range) => intercutAt(e, range, sceneId),
+    });
+  });
+  return rows;
+}
+
 /** `/back-to` 那一列的標籤 —— 與畫面上的折返標記同一串字（「回到」＋主場次地點）。 */
 function backToLabel(editor: Editor): string {
   const { $from } = editor.state.selection;
@@ -177,7 +251,7 @@ function convertBlock(editor: Editor, range: Range, type: BlockType) {
   editor.view.dispatch(editor.state.tr.delete(range.from, range.to));
   const ctx = sceneContext(editor.state.selection.$from);
   if (!ctx) return;
-  setBlockTypeAt(editor, { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex }, type);
+  setBlockTypeAt(editor, blockAddressOf(ctx), type);
 }
 
 /**
@@ -188,6 +262,7 @@ function convertBlock(editor: Editor, range: Range, type: BlockType) {
  * | `/insert` | 插入戲 | `kind = 插入` 的子場次 |
  * | `/continue-to` | 接續到… | `kind = 接續` 的子場次 |
  * | `/back-to` | 回到 <主場次地點> | 不建立任何東西，游標跳回主場次 |
+ * | `/intercut` | 對剪到… | 場次群組（票券 12）；在群組裡是加入一個成員 |
  *
  * 英文代號是因為 `/` 之後打中文要切輸入法；中文標籤仍是編劇看到的字。`/back-to` 只在子場次裡
  * 列出來 —— 在主場次裡沒有地方可「回到」。
@@ -223,7 +298,20 @@ function slashItems(editor: Editor): SlashItem[] {
         },
       ]
     : [];
-  return [ITEMS[0]!, ...subsceneRows, ...backRow, ...ITEMS.slice(1)];
+  // 「對剪到…」（票券 12）：建立群組，在群組裡則是加入一個成員。英文代號 `/intercut`。
+  const at = intercutAnchorAtCaret(editor);
+  const intercutRow: SlashItem[] =
+    at && canIntercut(editor.state.doc, { ...at, withSceneId: null })
+      ? [
+          {
+            key: "intercut",
+            label: "對剪到…",
+            hint: "兩個以上的地方同時發生、交替著讀",
+            next: intercutStep,
+          },
+        ]
+      : [];
+  return [ITEMS[0]!, ...subsceneRows, ...backRow, ...intercutRow, ...ITEMS.slice(1)];
 }
 
 const ITEMS: SlashItem[] = [
@@ -275,6 +363,23 @@ type MenuState = {
 
 let menu: MenuState = { open: false, items: [], index: 0, caret: null };
 let pick: ((item: SlashItem) => void) | null = null;
+
+/**
+ * 進了第二步之後的清單，與進去那一刻的指令字。之後再打的字（`/intercut河堤`）篩**第二步**，
+ * 不是回頭篩第一步 —— 場次一多，第二步就得能打字找（驗收 2026-10-21）。刪回進去之前的字
+ * （或換成別的指令）就退回第一步。
+ */
+let step: { query: string; items: SlashItem[] } | null = null;
+
+/** 這一刻要畫的清單：在第二步裡就篩第二步，否則是 Suggestion 依指令字篩好的第一步。 */
+function itemsFor(props: SuggestionProps<SlashItem>): SlashItem[] {
+  if (step && props.query.startsWith(step.query)) {
+    const rest = props.query.slice(step.query.length);
+    return rest ? step.items.filter((i) => i.label.includes(rest)) : step.items;
+  }
+  step = null;
+  return props.items;
+}
 const listeners = new Set<() => void>();
 
 /** 合併一段 menu state 並通知訂閱者。 */
@@ -353,6 +458,11 @@ export function SlashMenu() {
     );
   }, [open]);
 
+  // 清單比選單高時（場次一多，第二步就是這樣）：方向鍵走到哪，那一列就捲進來。
+  useLayoutEffect(() => {
+    ref.current?.querySelector(".is-active")?.scrollIntoView?.({ block: "nearest" });
+  }, [state.index, items]);
+
   if (!open || !caret || items.length === 0) return null;
 
   return (
@@ -383,10 +493,11 @@ export function SlashMenu() {
  * 選到一列要做什麼。有第二步的列：換清單，不執行（指令字還留著，Esc 或繼續打字都回得去）。
  */
 function pickFor(props: SuggestionProps<SlashItem>) {
-  return (item: SlashItem) =>
-    item.next
-      ? patchMenu({ items: item.next(props.editor), index: 0 })
-      : props.command(item);
+  return (item: SlashItem) => {
+    if (!item.next) return props.command(item);
+    step = { query: props.query, items: item.next(props.editor) };
+    patchMenu({ items: step.items, index: 0 });
+  };
 }
 
 export const Slash = Extension.create({
@@ -414,6 +525,7 @@ export const Slash = Extension.create({
           // `pick` 每次都重新綁：Suggestion 的 `props.command` 帶的是**那一刻**的 range。只在
           // onStart 綁的話，打完 `/insert` 再按 Enter 只會刪掉 `/` 那一個字（range 停在起點）。
           onStart: (props) => {
+            step = null;
             pick = pickFor(props);
             patchMenu({
               open: true,
@@ -424,7 +536,7 @@ export const Slash = Extension.create({
           },
           onUpdate: (props) => {
             pick = pickFor(props);
-            patchMenu({ items: props.items, index: 0, caret: props.clientRect ?? null });
+            patchMenu({ items: itemsFor(props), index: 0, caret: props.clientRect ?? null });
           },
           onKeyDown: ({ event }) => {
             if (!menu.open) return false;
@@ -450,6 +562,7 @@ export const Slash = Extension.create({
           },
           onExit: () => {
             pick = null;
+            step = null;
             patchMenu({ open: false, items: [], caret: null });
           },
         }),

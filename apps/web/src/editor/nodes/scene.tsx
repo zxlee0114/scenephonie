@@ -32,6 +32,7 @@ import {
   INT_EXT_VALUES,
   MONTAGE,
   deleteScene,
+  dissolveGroup,
   sceneAppearingCharacters,
   sceneExtras,
   sceneLocations,
@@ -40,6 +41,7 @@ import {
   setSceneIntExt,
   setSceneLocations,
   subsceneTimeOptions,
+  ungroupMember,
   type CommandResult,
   type ExtraRef,
   type SceneIntExt,
@@ -51,6 +53,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { ChipSelect } from "../chip-select";
 import { chipNavHandler, type ChipNav } from "../chip-nav";
+import { firstFragmentText } from "../address";
 import { runKernelCommand } from "../command-bridge";
 import { forwardHistoryKey } from "../history-keys";
 import { useEntityCatalog, type EntityCatalog } from "../entity-catalog";
@@ -66,7 +69,8 @@ import { scrollToWritingPosition } from "../typewriter-scroll";
 import { requestNextScene } from "../extensions/next-scene";
 import { sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
 import { SceneMenu, deleteSceneLabel } from "../scene-menu";
-import { Scene, Subscene } from "../schema";
+import { GroupMember, Scene, Subscene } from "../schema";
+import { ignoreReactChromeMutation } from "./react-mutations";
 
 /**
  * 兩個封閉列舉的**劇本術語** —— 也是速記鍵的來源（使用者回饋 2026-09-10 第四輪）。
@@ -202,6 +206,9 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   // 子場次（票券 11）與主場次共用這一支 node view —— 它有自己完整的 metadata，差別只在
   // 號碼（5.1）、種類標籤、時間下拉的排法、沒有腳部按鈕、刪除選單的字。
   const isSubscene = node.type.name === "subscene";
+  // 群組成員（票券 12）也共用這一支：完整的 metadata、一個頂層號，但**沒有內容**（內容在片段裡），
+  // 所以沒有 `NodeViewContent`、沒有腳部按鈕（「新增下一場」接在整個群組之後，見 `./group`）。
+  const isMember = node.type.name === "groupMember";
   const kind = isSubscene ? ((node.attrs.kind as SubsceneKind | null) ?? null) : null;
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -229,10 +236,26 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
     return subscribeSceneBirth(claim);
   }, [sceneId]);
 
-  /** 把游標送進本場第一個區塊的內文開頭（getPos → 場次前；+1 進場次、+1 進首區塊）。 */
+  /** 成員所在群組的 `groupId`（「解散對剪」用）；不是成員時回 `null`。 */
+  const enclosingGroupId = (): string | null => {
+    const pos = typeof getPos === "function" ? getPos() : undefined;
+    if (!isMember || pos == null) return null;
+    return (editor.state.doc.resolve(pos).parent.attrs.groupId as string | undefined) ?? null;
+  };
+
+  /**
+   * 把游標送進本場第一個區塊的內文開頭（getPos → 場次前；+1 進場次、+1 進首區塊）。
+   * 群組成員沒有內文 —— 去它的第一個片段。
+   */
   const enterBody = () => {
     const pos = typeof getPos === "function" ? getPos() : undefined;
     if (pos == null) return false;
+    if (isMember) {
+      const at = firstFragmentText(editor.state.doc, sceneId);
+      if (at == null) return false;
+      editor.chain().focus().setTextSelection(at).run();
+      return true;
+    }
     editor.chain().focus().setTextSelection(pos + 2).run();
     return true;
   };
@@ -317,6 +340,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
       className={[
         "scene",
         isSubscene && "scene--sub",
+        isMember && "scene--member",
         justBorn && "scene--just-added",
         spec?.selected && "is-node-selected",
         // 位置旗標走 decoration，不靠 :first-child／:last-child（見 extensions/scene-numbers）。
@@ -345,9 +369,27 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
         <SceneMenu
           onClose={closeMenu}
           rows={[
+            // 群組成員：先給「離開對剪」的兩條路（內容保住），刪除排最後（驗收 2026-10-21）。
+            ...(isMember
+              ? [
+                  {
+                    key: "ungroup",
+                    label: "移出對剪（接在群組後面）",
+                    run: () => runKernelCommand(editor, (doc) => ungroupMember(doc, { sceneId })),
+                  },
+                  {
+                    key: "dissolve",
+                    label: "解散對剪（全部變回普通場次）",
+                    run: () => {
+                      const groupId = enclosingGroupId();
+                      if (groupId) runKernelCommand(editor, (doc) => dissolveGroup(doc, { groupId }));
+                    },
+                  },
+                ]
+              : []),
             {
               key: "delete",
-              label: deleteSceneLabel(isSubscene, spec?.subscenes ?? 0),
+              label: isMember ? "刪除這一場（連同它的片段）" : deleteSceneLabel(isSubscene, spec?.subscenes ?? 0),
               // 刪主場次一併刪子場次；⌘Z 一步整棵回來（bridge 是一個 transaction）。
               run: () => runKernelCommand(editor, (doc) => deleteScene(doc, { sceneId })),
             },
@@ -369,6 +411,12 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
         {kind && (
           <span className={`scene__kind scene__kind--${kind === "插入" ? "insert" : "continue"}`}>
             {KIND_LABELS[kind]}
+          </span>
+        )}
+        {/* 成員是第幾個 —— 也就是把片段切給它的那顆鍵（`⌘+1`／`⌘+2`／`⌘+3`）。 */}
+        {isMember && spec?.memberOrdinal != null && (
+          <span className="scene__kind scene__kind--member" title="把游標所在片段切給這一場">
+            ⌘{spec.memberOrdinal}
           </span>
         )}
         <FieldInfo info="intExt" className={`scene__chip${intExt ? "" : " scene__chip--empty"}`}>
@@ -557,11 +605,11 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
         </FieldInfo>
       </div>
 
-      <NodeViewContent className="scene__body" />
+      {!isMember && <NodeViewContent className="scene__body" />}
 
       {/* 場次之外沒有可點的空間，「新增下一場」按鈕住在腳部。滑鼠點的入口自己傳 sceneId。
           子場次沒有腳部：場次是序列，子場次不在那條序列上（⌘Enter 照樣接在主場次之後）。 */}
-      {!isSubscene && (
+      {!isSubscene && !isMember && (
         <div className="scene__foot" contentEditable={false}>
           <button
             type="button"
@@ -587,11 +635,13 @@ function sigOf(decorations: readonly Decoration[]): string {
   const spec = sceneNumberOf(decorations);
   return `${spec?.sceneNo ?? ""}:${spec?.selected ? 1 : 0}:${spec?.isFirst ? 1 : 0}${
     spec?.isLast ? 1 : 0
-  }:${spec?.parentTime ?? ""}:${spec?.subscenes ?? ""}`;
+  }:${spec?.parentTime ?? ""}:${spec?.subscenes ?? ""}:${spec?.memberOrdinal ?? ""}`;
 }
 
 function sceneNodeView() {
   return ReactNodeViewRenderer(SceneView, {
+    // React 畫的外殼不讀回 —— 見 `./react-mutations`（開著 DevTools 時的失控重繪）。
+    ignoreMutation: ignoreReactChromeMutation,
     // SceneView 只畫 metadata（chip row）、場次號與整場選取狀態 —— 內文由 `NodeViewContent`
     // 交給 ProseMirror 直接維護，React 不必參與。所以「內文改了」（`oldNode !== newNode` 但
     // markup 相同）**不重繪**：否則場次裡打每一個字都會整棵 SceneView（兩個 select、兩個實體欄、
@@ -619,3 +669,9 @@ export const SceneNode = Scene.extend({
 export const SubsceneNode = Subscene.extend({
   addNodeView: sceneNodeView,
 });
+
+/** 群組成員也是（票券 12）—— 只是沒有內文與腳部。 */
+export const GroupMemberNode = GroupMember.extend({
+  addNodeView: sceneNodeView,
+});
+

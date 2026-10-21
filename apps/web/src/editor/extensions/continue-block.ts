@@ -25,7 +25,7 @@
 import { Extension, type Editor } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
 
-import { sceneContext } from "../address";
+import { blockAddressOf, sceneContext } from "../address";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { requestFocus } from "../focus";
 import { canLiftEmptyBlock, exitSubscene } from "./subscene-exit";
@@ -55,7 +55,7 @@ export function continueBlock(editor: Editor): boolean {
   if (ctx && ESCAPABLE.has(parent.type.name) && isBlankBlock(parent)) {
     return setBlockTypeAt(
       editor,
-      { sceneId: ctx.sceneId, blockIndex: ctx.blockIndex },
+      blockAddressOf(ctx),
       "action",
     );
   }
@@ -82,7 +82,7 @@ export function continueBlock(editor: Editor): boolean {
   if (split && parent.type.name === "dialogue" && ctx) {
     requestFocus({
       kind: "speaker",
-      sceneId: ctx.sceneId,
+      ...blockAddressOf(ctx),
       blockIndex: ctx.blockIndex + 1,
     });
   }

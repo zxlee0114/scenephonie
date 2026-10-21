@@ -12,13 +12,15 @@
  * decoration 在每次 state 變動都會被呼叫（含只移動游標）——doc 與選取範圍都沒變就回快取。
  *
  * 子場次（票券 11）走同一個 decoration，號碼是 `5.1`；兩邊的 node view 是同一支 `SceneView`。
+ * 群組成員（票券 12）也是：各佔一個頂層號。片段另有一份 spec（`FragmentLabelSpec`）—— 片段左側的
+ * 常駐標籤要印它的成員是誰，而成員改了地點時**片段節點沒變**，只有 decoration 叫得動它重繪。
  */
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { projectScenes, subsceneCount } from "@scenephonie/schema";
+import { projectScenes, sceneLocationLabel, subsceneCount } from "@scenephonie/schema";
 
 export const sceneNumbersKey = new PluginKey("scenephonie/sceneNumbers");
 
@@ -41,6 +43,36 @@ export interface SceneNumberSpec {
   parentTime?: string | null;
   /** 主場次專用：底下有幾個子場次（刪除選單的標籤）。理由同上 —— 加一個子場次不改主場次的 attr。 */
   subscenes?: number;
+  /** 群組成員專用：它是第幾個成員（1 起算）—— `⌘+1`／`⌘+2`／`⌘+3` 的鍵就是這個數字。 */
+  memberOrdinal?: number;
+}
+
+/**
+ * 片段左側的常駐標籤（票券 12）：這一段屬於哪個成員。讓交錯**看得見** —— 編劇一眼知道自己在
+ * 哪一邊，不必從人物去推（票券 15）。
+ */
+export interface FragmentLabelSpec {
+  /** 成員是第幾個（1 起算），也就是切到它的那顆鍵。 */
+  memberOrdinal: number;
+  /** 成員的場次號。 */
+  memberNo: string;
+  /** 成員的地點（雜景多地點以頓號串起）；還沒填是 `null`。 */
+  location: string | null;
+}
+
+/** 群組的 decoration spec：整個群組是不是被選取範圍蓋住（群組 node view 據此畫反白）。 */
+export interface GroupSelectionSpec {
+  groupSelected: boolean;
+}
+
+/** 給群組的 node view 用：它是不是整個被選起來了。 */
+export function groupSelectedOf(decorations: readonly Decoration[]): boolean {
+  return decorations.some((d) => (d.spec as Partial<GroupSelectionSpec> | undefined)?.groupSelected === true);
+}
+
+/** 給片段的 node view 用：從它收到的 decorations 取出標籤 spec。 */
+export function fragmentLabelOf(decorations: readonly Decoration[]): FragmentLabelSpec | undefined {
+  return decorations.find((d) => d.spec && "memberNo" in d.spec)?.spec as FragmentLabelSpec | undefined;
 }
 
 /** 給 node view 用：從它收到的 decorations 取出本場的 spec。 */
@@ -81,21 +113,55 @@ export const SceneNumbers = Extension.create({
                 ),
               );
             };
-            state.doc.forEach((node, pos, index) => {
-              if (node.type.name !== "scene") return;
-              push(node, pos, {
-                isFirst: index === 0,
-                isLast: index === last,
-                subscenes: subsceneCount(node),
-              });
-              // 子場次也有自己的號碼（5.1）。座標：主場次之前 + 1 進入內容，再加孩子的 offset。
-              node.forEach((child, offset) => {
+            /** 一段內容（主場次或片段）裡的子場次 —— 也有自己的號碼（5.1）。 */
+            const pushSubscenes = (container: PMNode, containerPos: number, owner: PMNode) => {
+              // 座標：容器之前 + 1 進入內容，再加孩子的 offset。
+              container.forEach((child, offset) => {
                 if (child.type.name !== "subscene") return;
-                push(child, pos + 1 + offset, {
+                push(child, containerPos + 1 + offset, {
                   isFirst: false,
                   isLast: false,
-                  parentTime: (node.attrs.time as string | null) ?? null,
+                  parentTime: (owner.attrs.time as string | null) ?? null,
                 });
+              });
+            };
+            state.doc.forEach((node, pos, index) => {
+              if (node.type.name === "scene") {
+                push(node, pos, {
+                  isFirst: index === 0,
+                  isLast: index === last,
+                  subscenes: subsceneCount(node),
+                });
+                pushSubscenes(node, pos, node);
+                return;
+              }
+              if (node.type.name !== "sceneGroup") return;
+              decos.push(
+                Decoration.node(pos, pos + node.nodeSize, {}, {
+                  groupSelected: from <= pos && to >= pos + node.nodeSize,
+                } satisfies GroupSelectionSpec),
+              );
+              // 群組（票券 12）：成員各佔一個頂層號；片段帶著它成員的標籤。
+              const members = new Map<string, { node: PMNode; ordinal: number }>();
+              node.forEach((child, offset) => {
+                if (child.type.name !== "groupMember") return;
+                const ordinal = members.size + 1;
+                members.set(child.attrs.sceneId as string, { node: child, ordinal });
+                push(child, pos + 1 + offset, { isFirst: false, isLast: false, memberOrdinal: ordinal });
+              });
+              node.forEach((child, offset) => {
+                if (child.type.name !== "groupFragment") return;
+                const at = pos + 1 + offset;
+                const member = members.get(child.attrs.memberId as string);
+                if (!member) return;
+                decos.push(
+                  Decoration.node(at, at + child.nodeSize, {}, {
+                    memberOrdinal: member.ordinal,
+                    memberNo: labelBySceneId.get(member.node.attrs.sceneId as string) ?? "?",
+                    location: sceneLocationLabel(member.node),
+                  } satisfies FragmentLabelSpec),
+                );
+                pushSubscenes(child, at, member.node);
               });
             });
 

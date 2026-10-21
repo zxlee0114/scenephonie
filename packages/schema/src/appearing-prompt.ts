@@ -35,9 +35,14 @@ export function sceneDismissedCharacterIds(value: unknown): string[] {
  * 只看被問的那一句，不掃整場：提示在編劇**離開一句對白**的那一刻出現，錨在那一句的人物欄下
  * —— 問的是他剛寫完的那個人。同一個人在別句也有台詞，離開那一句時會再被問（ESC 不記錄判斷）。
  */
-export function unlistedSpeakers(scene: ProseMirrorNode, blockIndex: number): DialogueCharacterRef[] {
-  if (blockIndex < 0 || blockIndex >= scene.childCount) return [];
-  const block = scene.child(blockIndex);
+export function unlistedSpeakers(
+  scene: ProseMirrorNode,
+  blockIndex: number,
+  /** 區塊住在哪一段內容裡 —— 群組成員的對白住在片段裡（票券 12）。省略 ＝ `scene` 自己。 */
+  container: ProseMirrorNode = scene,
+): DialogueCharacterRef[] {
+  if (blockIndex < 0 || blockIndex >= container.childCount) return [];
+  const block = container.child(blockIndex);
   if (block.type.name !== "dialogue" || block.attrs.voiceStyle !== ON_SCREEN) return [];
 
   const listed = new Set(sceneAppearingCharacters(scene.attrs.appearingCharacters).map((r) => r.characterId));

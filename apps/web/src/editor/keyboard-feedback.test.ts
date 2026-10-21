@@ -18,7 +18,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { ContinueBlock } from "./extensions/continue-block";
 import { InsertShotNode } from "./nodes/blocks";
-import { Action, Dialogue, Doc, Scene, Subscene } from "./schema";
+import { Action, Dialogue, Doc, GroupFragment, GroupMember, Scene, SceneGroup, Subscene } from "./schema";
 import { SceneIds } from "./extensions/scene-ids";
 import { SoftBreak } from "./extensions/soft-break";
 import { toPlainJson } from "./plain-json";
@@ -34,6 +34,9 @@ function build(blocks: object[]) {
       Doc,
       Scene,
       Subscene,
+      SceneGroup,
+      GroupMember,
+      GroupFragment,
       Action,
       Dialogue,
       InsertShotNode,

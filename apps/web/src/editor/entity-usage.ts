@@ -25,7 +25,25 @@ function eachRef(doc: PMNode, visit: (entityId: string, displayName: string, sce
     if (typeof entityId !== "string" || entityId === "") return;
     visit(entityId, displayName, sceneId);
   };
+  /** 一段內容裡的對白，算在 `sceneId` 那一場。 */
+  const speakersIn = (container: PMNode, sceneId: string) => {
+    container.descendants((child) => {
+      // 子場次的對白算它自己那一場，不算主場次（子場次會在外層走訪輪到自己）。
+      if (child.type.name === "subscene") return false;
+      if (child.type.name !== "dialogue") return;
+      // 齊聲的每一個人都算一次引用 —— 走正規化，因為 attr 是「單值 ｜ 陣列 ｜ null」。
+      for (const speaker of dialogueCharacters(child.attrs.character)) {
+        note(speaker.id, speaker.displayName, sceneId);
+      }
+    });
+  };
+
   doc.descendants((node) => {
+    // 片段（票券 12）沒有 metadata，它的對白算它的成員那一場。
+    if (node.type.name === "groupFragment") {
+      speakersIn(node, node.attrs.memberId as string);
+      return;
+    }
     const sceneId = node.attrs.sceneId as string | undefined;
     if (typeof sceneId !== "string") return;
 
@@ -35,15 +53,7 @@ function eachRef(doc: PMNode, visit: (entityId: string, displayName: string, sce
     for (const ref of sceneAppearingCharacters(node.attrs.appearingCharacters)) {
       note(ref.characterId, ref.displayName, sceneId);
     }
-    node.descendants((child) => {
-      // 子場次的對白算它自己那一場，不算主場次（子場次會在外層走訪輪到自己）。
-      if (child.type.name === "subscene") return false;
-      if (child.type.name !== "dialogue") return;
-      // 齊聲的每一個人都算一次引用 —— 走正規化，因為 attr 是「單值 ｜ 陣列 ｜ null」。
-      for (const speaker of dialogueCharacters(child.attrs.character)) {
-        note(speaker.id, speaker.displayName, sceneId);
-      }
-    });
+    speakersIn(node, sceneId);
   });
 }
 

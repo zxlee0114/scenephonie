@@ -33,7 +33,20 @@ import type {
 } from "../schema";
 import { MONTAGE } from "../schema";
 import { type CommandResult, ok, reject } from "./result";
-import { docFrom, findScene, replaceChild, replaceScene, topLevelArray, type SceneHit } from "./tree";
+import {
+  docFrom,
+  findContainer,
+  findScene,
+  replaceAt,
+  replaceChild,
+  replaceScene,
+  topLevelArray,
+  type ContainerAddress,
+  type SceneHit,
+} from "./tree";
+
+/** 帶場次 metadata 的三種節點（票券 11 子場次、票券 12 群組成員）。 */
+const SCENE_LIKE: ReadonlySet<string> = new Set(["scene", "subscene", "groupMember"]);
 
 /** 「先建立實體、再寫入 doc」—— 拒絕訊息刻意把這句話寫進去，因為它是這條規則的前提。 */
 const missing = (kind: string, id: string) =>
@@ -269,8 +282,7 @@ export function dismissAppearingPrompt(
   );
 }
 
-export interface SetDialogueCharactersOptions {
-  readonly sceneId: string;
+export interface SetDialogueCharactersOptions extends ContainerAddress {
   /** 場次內第幾個 `sceneBlock`（0-based）。傳遞參數，不被儲存（同 `setBlockType`）。 */
   readonly blockIndex: number;
   /** 說話的人；空陣列 ＝ 清掉（尚未指定說話者）。 */
@@ -294,10 +306,11 @@ export function setDialogueCharacters(
 ): CommandResult {
   const { sceneId, blockIndex, refs, directory } = options;
 
-  const hit = target(doc, sceneId);
-  if (!hit) return reject(`找不到 sceneId「${sceneId}」`);
+  // 群組成員的對白住在片段裡（票券 12）—— 區塊以容器定址，群演仍然問那一場（成員）的。
+  const hit = findContainer(doc, options);
+  if (typeof hit === "string") return reject(hit);
 
-  const { scene } = hit;
+  const scene = hit.node;
   if (blockIndex < 0 || blockIndex >= scene.childCount) {
     return reject(`場次「${sceneId}」沒有第 ${blockIndex} 個區塊（共 ${scene.childCount} 個）`);
   }
@@ -306,7 +319,7 @@ export function setDialogueCharacters(
     return reject(`第 ${blockIndex} 個區塊是「${block.type.name}」，只有對白有人物欄`);
   }
 
-  const extras = (scene.attrs.extras ?? []) as ExtraRef[];
+  const extras = (hit.owner.attrs.extras ?? []) as ExtraRef[];
   for (const ref of refs) {
     const isExtraHere = extras.some((e) => e.extraId === ref.id);
     if (!directory.hasCharacter(ref.id) && !isExtraHere) return missing("對白人物", ref.id);
@@ -317,7 +330,11 @@ export function setDialogueCharacters(
   const character =
     refs.length === 0 ? null : refs.length === 1 ? { ...refs[0]! } : refs.map((r) => ({ ...r }));
   const nextBlock = block.type.create({ ...block.attrs, character }, block.content, block.marks);
-  return rebuild(hit, replaceChild(scene, blockIndex, nextBlock), "寫入對白人物");
+  try {
+    return ok(replaceAt(doc, hit.path, replaceChild(scene, blockIndex, nextBlock)));
+  } catch (err) {
+    return reject(`寫入對白人物後 doc 不符 schema：${(err as Error).message}`);
+  }
 }
 
 export interface RetitleEntityRefsOptions {
@@ -372,56 +389,55 @@ export function retitleEntityRefs(
     return { attr: Array.isArray(attr) ? next : next[0]! };
   };
 
-  // 主場次與子場次各自帶 metadata，也各自裝對白 —— 走到子場次就遞迴一層（深度固定兩層）。
-  const retitleScene = (scene: ProseMirrorNode): ProseMirrorNode => {
-    const location = retitle(
-      sceneLocations(scene.attrs.location),
-      (r) => r.locationId,
-      scene.attrs.location,
-    );
-    const appearingCharacters = retitle(
-      sceneAppearingCharacters(scene.attrs.appearingCharacters),
-      (r) => r.characterId,
-      // 登場人物欄本來就是陣列，寫回去也是陣列（單值物件的舊稿讀得出來，但不該被改形狀）。
-      scene.attrs.appearingCharacters,
-    );
-
-    const blocks: ProseMirrorNode[] = [];
-    let blockChanged = false;
-    scene.forEach((child) => {
-      if (child.type.name === "subscene") {
-        const next = retitleScene(child);
-        if (next !== child) blockChanged = true;
-        blocks.push(next);
-        return;
-      }
-      const character =
-        child.type.name === "dialogue"
-          ? retitle(dialogueCharacters(child.attrs.character), (r) => r.id, child.attrs.character)
-          : null;
-      if (!character) {
-        blocks.push(child);
-        return;
-      }
-      blockChanged = true;
-      blocks.push(
-        child.type.create({ ...child.attrs, character: character.attr }, child.content, child.marks),
+  // 場次（主場次、子場次、群組成員）各自帶 metadata；對白住在主場次、子場次與片段裡。
+  // 一路往下走到區塊為止 —— 群組與片段只是容器，自己沒有引用。
+  const retitleNode = (node: ProseMirrorNode): ProseMirrorNode => {
+    if (node.type.name === "dialogue") {
+      const character = retitle(
+        dialogueCharacters(node.attrs.character),
+        (r) => r.id,
+        node.attrs.character,
       );
+      return character
+        ? node.type.create({ ...node.attrs, character: character.attr }, node.content, node.marks)
+        : node;
+    }
+    if (node.isTextblock) return node;
+
+    const carriesMeta = SCENE_LIKE.has(node.type.name);
+    const location = carriesMeta
+      ? retitle(sceneLocations(node.attrs.location), (r) => r.locationId, node.attrs.location)
+      : null;
+    const appearingCharacters = carriesMeta
+      ? retitle(
+          sceneAppearingCharacters(node.attrs.appearingCharacters),
+          (r) => r.characterId,
+          // 登場人物欄本來就是陣列，寫回去也是陣列（單值物件的舊稿讀得出來，但不該被改形狀）。
+          node.attrs.appearingCharacters,
+        )
+      : null;
+
+    const kids: ProseMirrorNode[] = [];
+    let kidChanged = false;
+    node.forEach((child) => {
+      const next = retitleNode(child);
+      if (next !== child) kidChanged = true;
+      kids.push(next);
     });
 
-    if (!location && !appearingCharacters && !blockChanged) return scene;
-    return scene.type.create(
+    if (!location && !appearingCharacters && !kidChanged) return node;
+    return node.type.create(
       {
-        ...scene.attrs,
+        ...node.attrs,
         ...(location ? { location: location.attr } : {}),
         ...(appearingCharacters ? { appearingCharacters: appearingCharacters.attr } : {}),
       },
-      blocks,
-      scene.marks,
+      kids,
+      node.marks,
     );
   };
 
-  const scenes = topLevelArray(doc).map(retitleScene);
+  const scenes = topLevelArray(doc).map(retitleNode);
 
   if (!touched) return ok(doc);
 
