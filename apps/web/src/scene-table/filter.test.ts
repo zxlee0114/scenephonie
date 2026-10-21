@@ -5,7 +5,7 @@
 import type { LabeledSceneTableRow } from "@scenephonie/schema";
 import { describe, expect, it } from "vitest";
 
-import { filterSceneTable } from "./filter";
+import { filterScenes } from "./filter";
 
 const row = (label: string, fields: Partial<LabeledSceneTableRow> = {}): LabeledSceneTableRow => ({
   sceneId: `sc_${label}`,
@@ -24,9 +24,9 @@ const rows = [
   row("15", { intExt: "外景", location: "街道", appearingCharacters: "小華", extras: "路人（若干）" }),
   row("50", { location: "屋頂" }),
 ];
-const labels = (query: string) => filterSceneTable(rows, query).map((r) => r.label);
+const labels = (query: string) => filterScenes(rows, query, (r) => r).map((r) => r.label);
 
-describe("filterSceneTable", () => {
+describe("filterScenes", () => {
   it("空白的搜尋框不篩", () => {
     expect(labels("")).toEqual(["5", "5.1", "15", "50"]);
     expect(labels("   ")).toEqual(["5", "5.1", "15", "50"]);
@@ -36,6 +36,23 @@ describe("filterSceneTable", () => {
     expect(labels("5")).toEqual(["5", "5.1"]);
     expect(labels("5.1")).toEqual(["5.1"]);
     expect(labels("1")).toEqual([]);
+  });
+
+  it("草稿以它錨定的場次號找得到（sidebar 才有草稿，票券 16）：`5` 也帶出 `S5[D1]` 與 `S5.1[D1]`", () => {
+    const withDrafts = [...rows, row("S5[D1]"), row("S5.1[D1]"), row("S15[D1]"), row("[D1]")];
+    const found = (query: string) => filterScenes(withDrafts, query, (r) => r).map((r) => r.label);
+    expect(found("5")).toEqual(["5", "5.1", "S5[D1]", "S5.1[D1]"]);
+    expect(found("S5")).toEqual(["5", "5.1", "S5[D1]", "S5.1[D1]"]);
+    expect(found("5.1")).toEqual(["5.1", "S5.1[D1]"]);
+    expect(found("15")).toEqual(["15", "S15[D1]"]);
+    // 整串照打也找得到。
+    expect(found("S5[D1]")).toEqual(["S5[D1]"]);
+  });
+
+  it("場次號前面帶 `S` 也算（sidebar 印的是 `S5`，票券 16）", () => {
+    expect(labels("S5")).toEqual(["5", "5.1"]);
+    expect(labels("s5.1")).toEqual(["5.1"]);
+    expect(labels("S1")).toEqual([]);
   });
 
   it("地點與人物比整格的字 —— 實體名與這一場的顯示名都找得到", () => {

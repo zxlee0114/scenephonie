@@ -188,6 +188,21 @@ describe("/ →「對剪到…」：兩步建立群組", () => {
   });
 });
 
+describe("片段左側的標籤", () => {
+  it("成員是草稿時印「草稿」，標籤滑過才看得到 —— 同場次的 gutter（票券 16）", async () => {
+    const a = member({ ...when, location: room });
+    const b = member({ ...when, location: dock, manualDraft: true });
+    const { container } = await mount(
+      docOf(group([a, b], [fragment(a, [action("甲打電話")]), fragment(b, [action("乙接電話")])])),
+    );
+    const nos = () => [...container.querySelectorAll(".group-fragment__no")];
+    await waitFor(() => expect(nos().map((n) => n.textContent)).toEqual(["1", "草稿"]));
+    expect(nos()[1]!.getAttribute("title")).toBe("S1[D1]");
+    expect(nos()[0]!.hasAttribute("title")).toBe(false);
+    expect(container.querySelectorAll(".group-fragment--draft")).toHaveLength(1);
+  });
+});
+
 describe("⌘+1／⌘+2／⌘+3：直接定址切換片段歸屬", () => {
   const threeWay = () => {
     const a = member({ location: room });

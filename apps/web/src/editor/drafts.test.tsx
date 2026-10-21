@@ -47,12 +47,15 @@ async function mount(content: object) {
   return { editor: editor!, container: view.container };
 }
 
-/** 每一場的號碼，與它有沒有掛草稿的視覺區隔。 */
+/**
+ * 每一場的標籤，與它有沒有掛草稿的視覺區隔。草稿的 gutter 印「草稿」、標籤在 title 裡
+ * （使用者裁決 2026-10-22）—— 這裡讀的是標籤。
+ */
 const gutter = (container: HTMLElement) =>
-  [...container.querySelectorAll(".scene")].map((el) => [
-    el.querySelector(".scene__number")?.textContent,
-    el.classList.contains("scene--draft"),
-  ]);
+  [...container.querySelectorAll(".scene")].map((el) => {
+    const label = el.querySelector(".scene__label");
+    return [label?.getAttribute("title") ?? label?.textContent, el.classList.contains("scene--draft")];
+  });
 
 /** 點第 `n` 場的場次號開選單，按下標籤是 `label` 的那一列。 */
 async function pickFromMenu(container: HTMLElement, n: number, label: string) {
@@ -104,6 +107,15 @@ describe("草稿在編輯器裡：標籤與視覺區隔", () => {
         ["2", false],
       ]),
     );
+  });
+
+  it("gutter 印「草稿」不印標籤：草稿不佔號，就不印一個像號碼的東西；標籤滑過才看得到", async () => {
+    const { container } = await mount(docOf(scene("第一場"), scene("沒填完", { ...filled(), time: null })));
+    await waitFor(() => expect(container.querySelectorAll(".scene--draft")).toHaveLength(1));
+    const label = container.querySelector(".scene--draft .scene__label")!;
+    expect(label.textContent).toBe("草稿");
+    expect(label.getAttribute("title")).toBe("S1[D1]");
+    expect(container.querySelector(".scene:not(.scene--draft) .scene__label")!.hasAttribute("title")).toBe(false);
   });
 
   it("子場次單獨是草稿：只有它掛 scene--draft，主場次照樣是正式場次", async () => {

@@ -95,6 +95,14 @@ function caretScene(view: EditorView): string | null {
   return sceneContext(view.state.selection.$from)?.sceneId ?? null;
 }
 
+/**
+ * 草稿在 gutter 與場次導覽的場次號欄印的字（使用者裁決 2026-10-22，票券 16）。草稿**不佔號**，
+ * 所以那一格不印一個長得像號碼的東西；`S5[D1]` 這個標籤（`SceneNumber.label`）的工作是在匯出前
+ * 清單、選單裡**點名**是哪一場（§4.8），畫面上滑過才看得到。它比 gutter 寬、往左長進頁邊，
+ * 是好幾處跑版的來源。
+ */
+export const DRAFT_MARK = "草稿";
+
 export interface SceneNumberSpec {
   /** 推導出來的顯示序號（字串；草稿是 `S11[D1]`），未知時為 "?"。 */
   sceneNo: string;
@@ -127,8 +135,10 @@ export interface SceneNumberSpec {
 export interface FragmentLabelSpec {
   /** 成員是第幾個（1 起算），也就是切到它的那顆鍵。 */
   memberOrdinal: number;
-  /** 成員的場次號。 */
+  /** 成員的場次號（草稿是它的標籤 `S5[D1]`）。 */
   memberNo: string;
+  /** 成員是不是草稿 —— 是的話標籤印 `DRAFT_MARK`，`memberNo` 只在滑過時看得到（同 gutter）。 */
+  memberDraft: boolean;
   /** 成員的地點（雜景多地點以頓號串起）；還沒填是 `null`。 */
   location: string | null;
 }
@@ -299,6 +309,7 @@ export const SceneNumbers = Extension.create({
                   Decoration.node(at, at + child.nodeSize, {}, {
                     memberOrdinal: member.ordinal,
                     memberNo: bySceneId.get(member.node.attrs.sceneId as string)?.label ?? "?",
+                    memberDraft: bySceneId.get(member.node.attrs.sceneId as string)?.draft ?? false,
                     location: sceneLocationLabel(member.node),
                   } satisfies FragmentLabelSpec),
                 );

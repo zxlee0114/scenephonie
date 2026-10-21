@@ -15,6 +15,7 @@ import type { Decoration, NodeView } from "@tiptap/pm/view";
 import { groupMembersOf } from "../address";
 import { requestNextScene } from "../extensions/next-scene";
 import {
+  DRAFT_MARK,
   fragmentLabelOf,
   groupSelectedOf,
   type FragmentLabelSpec,
@@ -77,6 +78,8 @@ function fragmentView(node: PMNode, decorations: readonly Decoration[]): NodeVie
   const dom = document.createElement("section");
   dom.className = "group-fragment";
   dom.dataset.type = "group-fragment";
+  // 跳到成員時，它的片段要跟著浮現底色（票券 16，`scene-anchor.ts`）—— 從 DOM 找得到是誰的。
+  dom.dataset.memberId = node.attrs.memberId as string;
 
   // 不可編輯、不可選（§9 decoration 的三支撐）。號碼住 gutter、對齊場次號；地點是片段開頭的
   // 一行小字 —— 跟 PDF 交錯段落的歸屬標記同一個位置、同一串字（ADR-0004）。
@@ -95,7 +98,12 @@ function fragmentView(node: PMNode, decorations: readonly Decoration[]): NodeVie
 
   const paint = (decos: readonly Decoration[]) => {
     const spec: FragmentLabelSpec | undefined = fragmentLabelOf(decos);
-    no.textContent = spec?.memberNo ?? "";
+    // 成員是草稿時印「草稿」，不印 `S5[D1]`（票券 16）—— 標籤比 gutter 寬，會在號碼欄裡折行。
+    const draft = spec?.memberDraft ?? false;
+    no.textContent = draft ? DRAFT_MARK : (spec?.memberNo ?? "");
+    if (draft) no.title = spec!.memberNo;
+    else no.removeAttribute("title");
+    dom.classList.toggle("group-fragment--draft", draft);
     // 地點還沒填時說出來 —— 標籤的全部作用就是讓編劇知道自己在哪一邊。
     where.textContent = spec ? (spec.location ?? "地點未填") : "";
     where.classList.toggle("is-empty", !!spec && spec.location == null);
@@ -111,6 +119,7 @@ function fragmentView(node: PMNode, decorations: readonly Decoration[]): NodeVie
     update(next, decos) {
       if (next.type !== current.type) return false;
       current = next;
+      dom.dataset.memberId = next.attrs.memberId as string;
       paint(decos);
       return true;
     },

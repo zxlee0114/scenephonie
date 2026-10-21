@@ -8,7 +8,7 @@ import { TextSelection, type EditorState } from "@tiptap/pm/state";
 
 import { findSceneNode, sceneContext } from "./address";
 import { flash } from "./flash";
-import { scrollToWritingPosition } from "./typewriter-scroll";
+import { JUMP_ANCHOR, scrollToWritingPosition } from "./typewriter-scroll";
 
 /** 游標直接所在的那一場（子場次就是子場次，片段算它的成員）；不在任何一場裡回 `null`。 */
 export function cursorSceneId(state: EditorState): string | null {
@@ -35,7 +35,7 @@ function contentStart(doc: PMNode, sceneId: string): number | null {
 }
 
 /**
- * 把游標送進 `sceneId` 那一場內文的開頭，直接落在打字餘裕線上，並讓那一場短暫浮現底色。
+ * 把游標送進 `sceneId` 那一場內文的開頭，直接落在跳轉的落點上，並讓那一場短暫浮現底色。
  * 找不到那一場就什麼都不做。
  */
 export function revealScene(editor: Editor, sceneId: string): void {
@@ -47,14 +47,17 @@ export function revealScene(editor: Editor, sceneId: string): void {
   scrollToSceneOf(editor, sceneId);
   const el = sceneElement(editor, sceneId);
   if (el) flash(el);
+  // 群組成員自己只有 metadata，內文在它的片段裡 —— 片段也一起浮現，否則亮的只有那幾格欄位
+  // （使用者回饋 2026-10-22）。另一個成員的片段不動，交錯才看得出哪幾段是它的。
+  editor.view.dom.querySelectorAll(`.group-fragment[data-member-id="${sceneId}"]`).forEach(flash);
 }
 
 /**
- * 只動捲軸不動游標：讓 `sceneId` 那一場直接落在打字餘裕線上（從場次表切回劇本時用）。
- * 不捲過去 —— 劇本剛從隱藏變回來，一路捲過整份稿子只是噪音。
+ * 只動捲軸不動游標：讓 `sceneId` 那一場直接落在跳轉的落點上（`JUMP_ANCHOR`，比打字餘裕線高）。
+ * 不捲過去 —— 劇本剛從隱藏變回來、或從場次導覽一跳幾十場，一路捲過整份稿子只是噪音。
  */
 export function scrollToSceneOf(editor: Editor, sceneId: string): void {
-  scrollToWritingPosition(sceneElement(editor, sceneId), { instant: true });
+  scrollToWritingPosition(sceneElement(editor, sceneId), { instant: true, anchor: JUMP_ANCHOR });
 }
 
 function sceneElement(editor: Editor, sceneId: string): Element | null {

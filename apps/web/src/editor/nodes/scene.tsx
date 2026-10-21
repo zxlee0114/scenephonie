@@ -68,7 +68,7 @@ import { claimFocus, handOffFocus, subscribeFocusRequest } from "../focus";
 import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
 import { scrollToWritingPosition } from "../typewriter-scroll";
 import { requestNextScene } from "../extensions/next-scene";
-import { sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
+import { DRAFT_MARK, sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
 import { SceneMenu, deleteSceneLabel } from "../scene-menu";
 import { GroupMember, Scene, Subscene } from "../schema";
 import { ignoreReactChromeMutation } from "./react-mutations";
@@ -372,7 +372,10 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
         }}
       >
         {/* 標籤自己一個盒：手動草稿的淡底只包住字，不連 gutter 的內距一起塗。 */}
-        <span className="scene__label">{label}</span>
+        {/* 草稿印「草稿」不印標籤（票券 16）—— 標籤留給滑過時看是哪一場。 */}
+        <span className="scene__label" title={spec?.draft ? label : undefined}>
+          {spec?.draft ? DRAFT_MARK : label}
+        </span>
       </div>
       {menuOpen && (
         <SceneMenu
