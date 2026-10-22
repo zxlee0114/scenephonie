@@ -61,6 +61,6 @@
 - 登場人物照 TNUA 接在場標列最後、不加「人物：」：`1. 內景 阿強家客廳 夜 男子、阿強`。
 - 字型變成匯出選項：**楷體（預設）／黑體**。標楷體、微軟正黑體、蘋方都是授權字型，不能放上伺服器嵌進 PDF；
   楷體用**全字庫正楷體**（數位發展部，政府資料開放授權條款第 1 版，`public/fonts/tw-kai/LICENSE.md` 註明出處），
-  黑體用既有的 Noto Sans TC。楷體只管中文與全形符號，半形英數落到 Noto Sans TC（TW-Kai 的 ASCII 是全形寬等寬字，
-  `V.O.` 會被拉開）。產物 7.5 MiB，由 `scripts/fonts/build-twkai-subset.py` 沿用票 29 的切分表產生。
+  黑體用既有的 Noto Sans TC。半形英數也用楷體自己的字形（半形等寬，跟標楷體一樣）—— 試過讓英數落到 Noto，
+  中英混排不協調（使用者 2026-10-22）。楷體缺的字才落到 Noto。產物 7.5 MiB，由 `scripts/fonts/build-twkai-subset.py` 沿用票 29 的切分表產生。
 - 手動離線時存檔一直重試 → 另開 [65](./65-autosave-retry-backoff.md)。

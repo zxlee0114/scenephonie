@@ -33,24 +33,6 @@ REPO_FONT_DIR = Path(__file__).resolve().parents[2] / "public" / "fonts" / "tw-k
 RANGES_JSON = Path(__file__).resolve().parent / "unicode-ranges.json"
 
 
-# 半形英數不用楷體：TW-Kai 的 ASCII 是全形寬的等寬字，`V.O.`、`1.` 會被拉開。楷體只管中文與全形符號，
-# 半形落到字型鏈的下一個（Noto Sans TC）—— 跟 Word 裡標楷體配西文字型是同一個做法。
-EXCLUDED = (0x20, 0x7E)
-
-
-def without_ascii(unicode_range: str) -> str:
-    """把切分表的一段 unicode-range 扣掉 EXCLUDED。整段都被扣光就回空字串。"""
-    lo_x, hi_x = EXCLUDED
-    kept: list[str] = []
-    for part in unicode_range.replace(" ", "").split(","):
-        lo_s, _, hi_s = part.removeprefix("U+").partition("-")
-        lo, hi = int(lo_s, 16), int(hi_s or lo_s, 16)
-        for a, b in ((lo, min(hi, lo_x - 1)), (max(lo, hi_x + 1), hi)):
-            if a <= b:
-                kept.append(f"U+{a:X}" if a == b else f"U+{a:X}-{b:X}")
-    return ", ".join(kept)
-
-
 def extract_ttf(zip_path: Path, work: Path) -> Path:
     with zipfile.ZipFile(zip_path) as z:
         member = next((n for n in z.namelist() if n.endswith("/" + TTF_NAME) or n == TTF_NAME), None)
@@ -116,11 +98,8 @@ def main() -> int:
     args.work.mkdir(parents=True, exist_ok=True)
     REPO_FONT_DIR.mkdir(parents=True, exist_ok=True)
 
-    chunks = [
-        {**c, "unicodeRange": without_ascii(c["unicodeRange"])}
-        for c in json.loads(RANGES_JSON.read_text(encoding="utf-8"))["chunks"]
-    ]
-    chunks = [c for c in chunks if c["unicodeRange"]]
+    # 半形英數也用楷體自己的字形（半形等寬，跟標楷體一樣）—— 中英混排才協調（使用者驗收 2026-10-22）。
+    chunks = json.loads(RANGES_JSON.read_text(encoding="utf-8"))["chunks"]
     ttf = extract_ttf(args.zip, args.work)
 
     for old in REPO_FONT_DIR.glob("*.woff2"):
