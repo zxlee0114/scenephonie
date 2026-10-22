@@ -14,12 +14,16 @@
 export function dismissOnOutsidePointer(
   getEl: () => HTMLElement | null,
   close: () => void,
+  getAnchor: () => Element | null = () => null,
 ): () => void {
   const onPointerDown = (event: Event) => {
     const el = getEl();
     const target = event.target;
     // 點在選單自己身上的那一下是「要選它」，關掉會讓接下來的 click 落空。
     if (el && target instanceof Node && el.contains(target)) return;
+    // 點在打開它的錨點上：交給錨點的 click（再點一次 ＝ 收起），這裡先收的話 click 又會把它打開。
+    const anchor = getAnchor();
+    if (anchor && target instanceof Node && anchor.contains(target)) return;
     close();
   };
   document.addEventListener("pointerdown", onPointerDown, true);

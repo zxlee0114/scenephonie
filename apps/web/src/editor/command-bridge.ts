@@ -11,7 +11,7 @@
  * 一切具 domain 意義的寫入都走這裡。純文字編輯不經 command，由 ProseMirror 原生處理。
  */
 import type { Editor } from "@tiptap/core";
-import { TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { docFromJSON, type CommandResult } from "@scenephonie/schema";
@@ -48,6 +48,12 @@ export interface RunOptions {
    * 場次號，游標還在上面那一場）—— 捲回游標會把他正在看的那一場甩出視窗（使用者回饋 2026-10-21）。
    */
   readonly keepCaret?: boolean;
+  /**
+   * replace 後把游標放在這個 doc 座標附近的文字位置（往後找，找不到才往前）—— 刪掉一個節點時給它
+   * 原本的起點：游標落在接上來的那一個開頭，刪的是最後一個就落在前一個結尾。整份 replace 不留
+   * mapping，不給的話舊選取會被 map 到文件末端、畫面跟著捲過去（使用者回饋 2026-10-22）。
+   */
+  readonly caretNear?: number;
 }
 
 /** doc 頂層場次的 sceneId（依文件順序）。 */
@@ -111,9 +117,19 @@ export function runKernelCommand(
   if (options.keepCaret) {
     const { anchor, head } = state.selection;
     const size = tr.doc.content.size;
-    if (anchor <= size && head <= size) {
+    // 選著整個節點（點場次號選起整場、點區塊的 ⠿）就照樣選著那個節點 —— 改成文字選取的話，
+    // 游標掉進那一場，離開時才判定的鎖就被搬走了。
+    const node = state.selection instanceof NodeSelection ? state.selection.node : null;
+    const same = node && anchor < size ? tr.doc.nodeAt(anchor) : null;
+    if (node && same?.type === node.type) {
+      tr.setSelection(NodeSelection.create(tr.doc, anchor));
+    } else if (anchor <= size && head <= size) {
       tr.setSelection(TextSelection.between(tr.doc.resolve(anchor), tr.doc.resolve(head)));
     }
+  }
+
+  if (options.caretNear != null) {
+    tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(options.caretNear, tr.doc.content.size))));
   }
 
   if (options.caretAt) {

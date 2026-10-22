@@ -562,7 +562,13 @@ export function EntityField({
     // （CONTEXT.md：群演欄寫「咖啡廳客人（8）」，對白顯示「眾人」—— 兩者本來就可以不同。）
     // 少了這一條，改一個字就會把 `ex_` 引用悄悄換成一筆新建的**人物**，而一人說話與一群
     // 齊聲說的分界是編劇的宣告，不該由改名這個動作替他翻面。
-    if (isExtraId(held?.id)) return { id: held!.id, displayName: name };
+    //
+    // 只限**這一場還找得到**的那一筆。對白從別場帶過來、群演沒跟上的懸空引用（票券 13 驗收）不算：
+    // 那時選單給的是「建立新實體」，按下去就該照字面建一筆 —— 硬塞回那個指不到東西的 id 會被
+    // kernel 拒絕，說話者就整個不見了。
+    if (isExtraId(held?.id) && (readSceneExtras?.() ?? []).some((e) => e.id === held!.id)) {
+      return { id: held!.id, displayName: name };
+    }
     // 一般實體：名字沒改就是原封放回，用回它自己的 id（見 `editing`）。
     // 判準與選單那一列共用 `editingMatch` —— 兩邊對「沒改」的定義分家的話，選單會說一件事、
     // 按下去做另一件事，正好是票券 38 修掉的那種不一致。

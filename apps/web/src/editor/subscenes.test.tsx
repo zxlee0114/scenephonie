@@ -19,6 +19,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { allSceneIds } from "./address";
 import { EntityCatalogProvider } from "./entity-catalog";
 import { deleteSceneLabel } from "./scene-menu";
+import { PointMenu } from "./point-menu";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
 const living = { locationId: mintLocationId(), displayName: "公寓客廳" };
@@ -37,6 +38,7 @@ function Harness({ content, onEditor }: { content: object; onEditor: (e: Editor)
   return (
     <EntityCatalogProvider>
       <EditorContent editor={editor} />
+      <PointMenu />
     </EntityCatalogProvider>
   );
 }
@@ -280,7 +282,7 @@ describe("刪除主場次一併刪子場次，⌘Z 一步還原", () => {
     const before = editor.getJSON();
 
     const number = container.querySelector(".scene__number")!;
-    fireEvent.mouseDown(number);
+    fireEvent.click(number);
     // 刪除排最後（前面是草稿標記那一列，票券 14）。
     const item = await waitFor(() => {
       const el = container.querySelector(".scene-menu button:last-child");

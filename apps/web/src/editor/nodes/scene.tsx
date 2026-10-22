@@ -17,10 +17,9 @@ import {
   ReactNodeViewRenderer,
   type NodeViewProps,
 } from "@tiptap/react";
-import { TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import type { Decoration } from "@tiptap/pm/view";
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -69,7 +68,8 @@ import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
 import { scrollToWritingPosition } from "../typewriter-scroll";
 import { requestNextScene } from "../extensions/next-scene";
 import { DRAFT_MARK, sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
-import { SceneMenu, deleteSceneLabel } from "../scene-menu";
+import { closePointMenu, isMenuAnchor, pointMenus } from "../point-menu";
+import { deleteSceneLabel, type MenuRow } from "../scene-menu";
 import { GroupMember, Scene, Subscene } from "../schema";
 import { ignoreReactChromeMutation } from "./react-mutations";
 
@@ -211,8 +211,54 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   // 所以沒有 `NodeViewContent`、沒有腳部按鈕（「新增下一場」接在整個群組之後，見 `./group`）。
   const isMember = node.type.name === "groupMember";
   const kind = isSubscene ? ((node.attrs.kind as SubsceneKind | null) ?? null) : null;
-  const [menuOpen, setMenuOpen] = useState(false);
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  /** SceneMenu 的列 —— 點下去那一刻依這一場的狀態組出來（選單開著時不會變）。 */
+  const menuRows = (): MenuRow[] => [
+    // 群組成員：先給「離開對剪」的兩條路（內容保住），刪除排最後（驗收 2026-10-21）。
+    ...(isMember
+      ? [
+          {
+            key: "ungroup",
+            label: "移出對剪（接在群組後面）",
+            run: () => runKernelCommand(editor, (doc) => ungroupMember(doc, { sceneId })),
+          },
+          {
+            key: "dissolve",
+            label: "解散對剪（全部變回普通場次）",
+            run: () => {
+              const groupId = enclosingGroupId();
+              if (groupId) runKernelCommand(editor, (doc) => dissolveGroup(doc, { groupId }));
+            },
+          },
+        ]
+      : []),
+    // 手動標記（票券 14）：只寫 manualDraft 這個宣告；取消後 metadata 沒填完照樣是草稿。
+    // 已經自動是草稿的一場說「標記為草稿」會像沒反應 —— 那一列的作用是填完了也不轉正式。
+    {
+      key: "draft",
+      label: manualDraft ? "取消草稿標記" : spec?.draft ? "固定為草稿" : "標記為草稿",
+      // 只動 attr、不動座標：游標留在編劇正在寫的地方（否則整份 replace 把它 map 到 doc 尾，
+      // 「離開時才判定」也會把那一下讀成他移到了末場）。
+      run: () =>
+        runKernelCommand(
+          editor,
+          (doc) => setManualDraft(doc, { sceneId, manualDraft: !manualDraft }),
+          { keepCaret: true },
+        ),
+    },
+    {
+      key: "delete",
+      label: isMember ? "刪除這一場（連同它的片段）" : deleteSceneLabel(isSubscene, spec?.subscenes ?? 0),
+      // 刪主場次一併刪子場次；⌘Z 一步整棵回來（bridge 是一個 transaction）。
+      run: () =>
+        runKernelCommand(editor, (doc) => deleteScene(doc, { sceneId }), {
+          caretNear: typeof getPos === "function" ? getPos() : undefined,
+        }),
+    },
+  ];
+
+  /** 場次號 —— SceneMenu 的錨點（選單長在它外側，`../point-menu`）。 */
+  const numberRef = useRef<HTMLDivElement>(null);
+  const menuOpen = pointMenus.use()?.anchor === numberRef.current && numberRef.current != null;
 
   // 「新增下一場」的即時回饋：這一場若剛被建立出來，短暫掛上 .scene--just-added（CSS 自己淡出）。
   // 掛載時領一次（append 情境），並訂閱 markSceneBorn（中間插入時 node view 被沿用、不重新掛載，
@@ -351,6 +397,8 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
         spec?.draft && "scene--draft",
         spec?.draft && manualDraft && "scene--draft-manual",
         spec?.selected && "is-node-selected",
+        // 選單開著：整場亮起來（群組成員不選起來，靠這個看得出選單作用在哪一場）。
+        menuOpen && "is-menu-target",
         // 位置旗標走 decoration，不靠 :first-child／:last-child（見 extensions/scene-numbers）。
         spec?.isFirst && "scene--first",
         spec?.isLast && "scene--last",
@@ -361,14 +409,30 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
       // 但那時本來就沒有動畫可播，class 留著不影響外觀。
       onAnimationEnd={() => setJustBorn(false)}
     >
-      {/* 場次號 decoration：gutter、不可編輯、不可 select、不進 tab 序。點下去開 SceneMenu（§7.1）。 */}
+      {/* 場次號 decoration：gutter、不可編輯、不可 select、不進 tab 序。點下去開 SceneMenu
+          （§7.1），同時選起整場（同 ⌘A 第三段）。它也是這一場的**拖曳把手**（票券 13）：按住拖 ＝ 搬移，拖到哪裡決定升級、降級還是
+          平移（`../extensions/drag-reorder`）。群組成員不是把手 —— 成員不單獨進出群組，整組由群組的
+          ⠿ 拖。 */}
       <div
+        ref={numberRef}
         className="scene__number"
         contentEditable={false}
         aria-hidden="true"
-        onMouseDown={(e) => {
-          e.preventDefault(); // 不把游標從內文拉走
-          setMenuOpen((open) => !open);
+        {...(isMember ? {} : { draggable: true, "data-drag-handle": "" })}
+        // 把手的 mousedown 由拖曳那邊攔下、不交給 ProseMirror（preventDefault 會讓它拖不起來）。
+        onMouseDown={isMember ? (e) => e.preventDefault() : undefined}
+        onClick={() => {
+          const el = numberRef.current;
+          if (!el) return;
+          if (isMenuAnchor(el)) return closePointMenu(); // 再點一次 ＝ 收起
+          // 選起整場（同 ⌘A 第三段）：選單收起之後它仍選著，⌘C／⌘X／⌫ 對整場作用。這不算「進了
+          // 這一場」，離開時才判定的鎖不動（`../extensions/scene-numbers`）。群組成員不選 —— 成員
+          // 不單獨搬，單獨剪下會把它從群組裡拆出來。
+          const pos = typeof getPos === "function" ? getPos() : undefined;
+          if (!isMember && pos != null) {
+            editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos)));
+          }
+          pointMenus.set({ anchor: el, rows: menuRows(), onClose: () => editor.view.focus() });
         }}
       >
         {/* 標籤自己一個盒：手動草稿的淡底只包住字，不連 gutter 的內距一起塗。 */}
@@ -377,51 +441,6 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           {spec?.draft ? DRAFT_MARK : label}
         </span>
       </div>
-      {menuOpen && (
-        <SceneMenu
-          onClose={closeMenu}
-          rows={[
-            // 群組成員：先給「離開對剪」的兩條路（內容保住），刪除排最後（驗收 2026-10-21）。
-            ...(isMember
-              ? [
-                  {
-                    key: "ungroup",
-                    label: "移出對剪（接在群組後面）",
-                    run: () => runKernelCommand(editor, (doc) => ungroupMember(doc, { sceneId })),
-                  },
-                  {
-                    key: "dissolve",
-                    label: "解散對剪（全部變回普通場次）",
-                    run: () => {
-                      const groupId = enclosingGroupId();
-                      if (groupId) runKernelCommand(editor, (doc) => dissolveGroup(doc, { groupId }));
-                    },
-                  },
-                ]
-              : []),
-            // 手動標記（票券 14）：只寫 manualDraft 這個宣告；取消後 metadata 沒填完照樣是草稿。
-            // 已經自動是草稿的一場說「標記為草稿」會像沒反應 —— 那一列的作用是填完了也不轉正式。
-            {
-              key: "draft",
-              label: manualDraft ? "取消草稿標記" : spec?.draft ? "固定為草稿" : "標記為草稿",
-              // 只動 attr、不動座標：游標留在編劇正在寫的地方（否則整份 replace 把它 map 到 doc 尾，
-              // 「離開時才判定」也會把那一下讀成他移到了末場）。
-              run: () =>
-                runKernelCommand(
-                  editor,
-                  (doc) => setManualDraft(doc, { sceneId, manualDraft: !manualDraft }),
-                  { keepCaret: true },
-                ),
-            },
-            {
-              key: "delete",
-              label: isMember ? "刪除這一場（連同它的片段）" : deleteSceneLabel(isSubscene, spec?.subscenes ?? 0),
-              // 刪主場次一併刪子場次；⌘Z 一步整棵回來（bridge 是一個 transaction）。
-              run: () => runKernelCommand(editor, (doc) => deleteScene(doc, { sceneId })),
-            },
-          ]}
-        />
-      )}
 
       {/* 內嵌簡表 —— 常駐。缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）。
           下拉比照 slash 選單外觀（ChipSelect），不用原生 <select>。 */}

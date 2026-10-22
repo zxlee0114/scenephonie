@@ -266,7 +266,9 @@ describe("⌘Z 撤銷一筆定案 → 那串字回到輸入框（票券 37）", 
       expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull(),
     );
     // 字回到 chip 上了，框裡不該還留著一份 —— 那會看起來像兩筆。
-    expect(input.value).toBe("");
+    // 欄位等 attr 到位（`whenFieldBecomes`）才清框，清框又要等下一次 render —— 比 doc 晚一拍，
+    // 慢的機器（CI）上同步斷言會搶在它前面。
+    await waitFor(() => expect(input.value).toBe(""));
     expect(container.querySelectorAll(`${LOCATION} .entity-chip`)).toHaveLength(
       1,
     );

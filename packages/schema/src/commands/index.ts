@@ -5,6 +5,7 @@
  * 這些 PM-state 內部型別**不從這裡漏出去** —— edge-boundary 規則（見 `admission.ts`）。
  */
 export type { CommandResult } from "./result";
+export type { ContainerAddress } from "./tree";
 
 export type { MintMoment, TopLevelEntry } from "./identity";
 export { MINT_MOMENTS, topLevelScenes, sceneIdNodes, duplicateSceneIds } from "./identity";
@@ -33,8 +34,17 @@ export type {
   DissolveGroupOptions,
 } from "./groups";
 
-export { moveScene } from "./move-scene";
-export type { MoveSceneOptions, MoveTarget } from "./move-scene";
+export { moveScene, moveGroup } from "./move-scene";
+export type {
+  MoveSceneOptions,
+  MoveGroupOptions,
+  MoveTarget,
+  TopLevelTarget,
+  InsideTarget,
+} from "./move-scene";
+
+export { deleteBlock, moveBlock, movedBlockLocation } from "./move-block";
+export type { MoveBlockOptions, BlockLocation, BlockDestination } from "./move-block";
 
 export {
   addAppearingCharacter,
@@ -65,6 +75,7 @@ export type {
 } from "./extras";
 
 export { dedupeSceneIds, dedupeIdsPlugin, dedupeIdsPluginKey } from "./dedupe";
+export { adoptStrayExtras, adoptExtrasPlugin, adoptExtrasPluginKey } from "./extra-adoption";
 export type { DedupeResult, DedupeOptions, DedupeMeta, Remint } from "./dedupe";
 
 export { satisfiesAdmission, COMMAND_CONTRACTS } from "./admission";

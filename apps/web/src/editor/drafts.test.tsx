@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { EntityCatalogProvider } from "./entity-catalog";
 import { requestNextScene } from "./extensions/next-scene";
+import { PointMenu } from "./point-menu";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
 const action = (text = "") => k.node("action", null, text ? [k.text(text)] : []);
@@ -33,6 +34,7 @@ function Harness({ content, onEditor }: { content: object; onEditor: (e: Editor)
   return (
     <EntityCatalogProvider>
       <EditorContent editor={editor} />
+      <PointMenu />
     </EntityCatalogProvider>
   );
 }
@@ -59,7 +61,7 @@ const gutter = (container: HTMLElement) =>
 
 /** 點第 `n` 場的場次號開選單，按下標籤是 `label` 的那一列。 */
 async function pickFromMenu(container: HTMLElement, n: number, label: string) {
-  fireEvent.mouseDown(container.querySelectorAll(".scene__number")[n]!);
+  fireEvent.click(container.querySelectorAll(".scene__number")[n]!);
   const row = await waitFor(() => {
     const el = [...container.querySelectorAll(".scene-menu button")].find((b) => b.textContent === label);
     expect(el).toBeDefined();
@@ -197,14 +199,14 @@ describe("手動標記與自動草稿分得出來（使用者回饋 2026-10-21�
 
   it("自動草稿的選單不說「標記為草稿」—— 它已經是草稿，那一列是「固定為草稿」", async () => {
     const { editor, container } = await mount(docOf(scene("第一場"), scene("沒填完", { ...filled(), time: null })));
-    fireEvent.mouseDown(container.querySelectorAll(".scene__number")[1]!);
+    fireEvent.click(container.querySelectorAll(".scene__number")[1]!);
     const rows = await waitFor(() => {
       const texts = [...container.querySelectorAll(".scene-menu button")].map((b) => b.textContent);
       expect(texts.length).toBeGreaterThan(0);
       return texts;
     });
     expect(rows).not.toContain("標記為草稿");
-    fireEvent.mouseDown(container.querySelectorAll(".scene__number")[1]!);
+    fireEvent.click(container.querySelectorAll(".scene__number")[1]!);
 
     await pickFromMenu(container, 1, "固定為草稿");
     expect(editor.state.doc.child(1).attrs.manualDraft).toBe(true);
