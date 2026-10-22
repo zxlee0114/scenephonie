@@ -19,7 +19,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { DraftReason, ExportPreflight, SceneMetaField, SkippedDraft } from "@scenephonie/schema";
+import type { DraftReason, ExportPreflight, SceneMetaField, SkippedCount } from "@scenephonie/schema";
 
 import {
   DEFAULT_EXPORT_OPTIONS,
@@ -48,8 +48,8 @@ type Phase =
   | { kind: "unsaved" }
   | { kind: "refused" }
   | { kind: "deliveryFailed" }
-  | { kind: "printFailed"; deliveryId: string; url: string; skipped: ExportPreflight["skipped"] }
-  | { kind: "done"; skipped: ExportPreflight["skipped"] };
+  | { kind: "printFailed"; deliveryId: string; url: string; skipped: SkippedCount }
+  | { kind: "done"; skipped: SkippedCount };
 
 const MESSAGE: Record<Exclude<Phase["kind"], "idle" | "working">, { text: string; alert: boolean }> = {
   unsaved: { text: "還有修改沒存進去，這次沒有匯出 —— 等存檔恢復再試。", alert: true },
@@ -80,7 +80,7 @@ function reasonText(reason: DraftReason): string {
 }
 
 /** 印好之後那一行。一場都沒略過就不說。 */
-function skippedText({ drafts, groupMates }: ExportPreflight["skipped"]): string {
+function skippedText({ drafts, groupMates }: SkippedCount): string {
   if (drafts === 0) return "";
   const mates = groupMates > 0 ? `另有 ${groupMates} 場因為同組有草稿，整組一起略過。` : "";
   return `本次略過 ${drafts} 場草稿。${mates}`;
@@ -133,7 +133,7 @@ export function ExportPdf({
     if (open) panel.current?.querySelector<HTMLInputElement>('input[type="text"]')?.focus();
   }, [open]);
 
-  async function print(deliveryId: string, url: string, skipped: ExportPreflight["skipped"]) {
+  async function print(deliveryId: string, url: string, skipped: SkippedCount) {
     setPhase({ kind: "working", text: "正在印 PDF…" });
     try {
       const response = await fetch(url);
@@ -307,7 +307,7 @@ function SkippedDrafts({
   disabled: boolean;
 }) {
   const { drafts, skipped } = check;
-  const quiet = skipped.drafts - drafts.length;
+  const dismissedCount = skipped.drafts - drafts.length;
   const all = drafts.every((d) => picked.has(d.sceneId));
   const toggle = (sceneId: string) => {
     const next = new Set(picked);
@@ -319,7 +319,9 @@ function SkippedDrafts({
     <fieldset className="export-pdf__skipped">
       <legend>
         本次輸出會略過 {skipped.drafts} 場草稿：
-        {quiet > 0 && <span className="export-pdf__quiet">（其中 {quiet} 場已設成不再提醒，不列出）</span>}
+        {dismissedCount > 0 && (
+          <span className="export-pdf__quiet">（其中 {dismissedCount} 場已設成不再提醒，不列出）</span>
+        )}
       </legend>
       <ul>
         {drafts.map((draft) => (
@@ -335,7 +337,7 @@ function SkippedDrafts({
                 {draft.excerpt ? `「${draft.excerpt}」` : "（沒有內文）"} — {draft.reasons.map(reasonText).join("；")}
               </span>
             </label>
-            {draft.group && <GroupConsequence draft={draft} />}
+            {draft.group && <GroupConsequence groupMates={draft.group.groupMates} />}
           </li>
         ))}
       </ul>
@@ -357,12 +359,11 @@ function SkippedDrafts({
 }
 
 /** 草稿成員讓整組印不出來（殘缺的對剪比不印更糟）—— 略過它的後果比表面上大，要說出來。 */
-function GroupConsequence({ draft }: { draft: SkippedDraft }) {
-  const mates = draft.group!.groupMates;
+function GroupConsequence({ groupMates }: { groupMates: string[] }) {
   return (
     <p className="export-pdf__group">
       這場屬於一個對剪群組，整組都不會印
-      {mates.length > 0 && `：同組的 ${mates.join("、")} 也會一起略過`}。
+      {groupMates.length > 0 && `：同組的 ${groupMates.join("、")} 也會一起略過`}。
     </p>
   );
 }

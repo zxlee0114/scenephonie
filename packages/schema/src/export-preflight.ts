@@ -44,14 +44,20 @@ export interface AppearingReminder {
   speakers: string[];
 }
 
+/**
+ * 這次匯出實際會少掉幾場 —— **含「不再提醒」過的**。`drafts` 是草稿場數；`groupMates` 是本身
+ * 不是草稿、但因為同組有草稿成員而整組一起印不出來的場次。
+ */
+export interface SkippedCount {
+  drafts: number;
+  groupMates: number;
+}
+
 export interface ExportPreflight {
   /** 還要提醒的草稿（「不再提醒」過的不列），依文件順序。 */
   drafts: SkippedDraft[];
-  /**
-   * 這次匯出實際會少掉幾場 —— **含「不再提醒」過的**。`drafts` 是草稿場數；`groupMates` 是本身
-   * 不是草稿、但因為同組有草稿成員而整組一起印不出來的場次。
-   */
-  skipped: { drafts: number; groupMates: number };
+  /** 這次匯出實際會少掉幾場（印好之後那一行讀它）。 */
+  skipped: SkippedCount;
   /** 登場人物提示，依文件順序；與草稿分開。 */
   appearing: AppearingReminder[];
 }
@@ -64,7 +70,7 @@ export function exportPreflight(doc: ProseMirrorNode): ExportPreflight {
   const printed = new Set(deliveredRows(doc).map((row) => row.sceneId));
   const fragments = fragmentsByMember(doc);
   /** 本身不是草稿、但不會印出來的 —— 只有殘缺群組裡的場次會這樣。 */
-  const groupMates = entries.filter((e) => !e.scene.draft && !printed.has(e.scene.sceneId));
+  const stranded = entries.filter((e) => !e.scene.draft && !printed.has(e.scene.sceneId));
   /** 成員 `sceneId` → 群組；成員的子場次跟著它的成員走。 */
   const memberGroup = new Map(entries.flatMap((e) => (e.scene.groupId ? [[e.scene.sceneId, e.scene.groupId]] : [])));
   const groupOf = ({ scene }: (typeof entries)[number]) =>
@@ -82,12 +88,12 @@ export function exportPreflight(doc: ProseMirrorNode): ExportPreflight {
       ...(scene.groupId
         ? {
             group: {
-              groupMates: groupMates.filter((e) => groupOf(e) === scene.groupId).map((e) => e.scene.label),
+              groupMates: stranded.filter((e) => groupOf(e) === scene.groupId).map((e) => e.scene.label),
             },
           }
         : {}),
     })),
-    skipped: { drafts: drafts.length, groupMates: groupMates.length },
+    skipped: { drafts: drafts.length, groupMates: stranded.length },
     appearing: entries.flatMap(({ scene, node }) => {
       if (!printed.has(scene.sceneId)) return [];
       const speakers = unlistedIn(node, fragments.get(scene.sceneId) ?? [node]);
