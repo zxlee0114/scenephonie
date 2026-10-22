@@ -29,7 +29,7 @@ export interface Rect {
 export type MenuSide = "outside" | "below" | "above";
 
 /** 選單與錨點的間距、與可見範圍邊緣的最小距離（px）。 */
-const GAP = 6;
+const GAP = 12;
 const MARGIN = 8;
 
 /**

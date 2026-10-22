@@ -75,6 +75,7 @@ export type {
 } from "./extras";
 
 export { dedupeSceneIds, dedupeIdsPlugin, dedupeIdsPluginKey } from "./dedupe";
+export { adoptStrayExtras, adoptExtrasPlugin, adoptExtrasPluginKey } from "./extra-adoption";
 export type { DedupeResult, DedupeOptions, DedupeMeta, Remint } from "./dedupe";
 
 export { satisfiesAdmission, COMMAND_CONTRACTS } from "./admission";

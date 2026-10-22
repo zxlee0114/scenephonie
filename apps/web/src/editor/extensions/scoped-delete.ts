@@ -27,7 +27,7 @@
 import { Extension } from "@tiptap/core";
 import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model";
 import { isHistoryTransaction } from "@tiptap/pm/history";
-import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
 import { dropPoint } from "@tiptap/pm/transform";
 
 import { KERNEL_REPLACE } from "../command-bridge";
@@ -52,6 +52,14 @@ export function spansScenes(doc: PMNode, from: number, to: number): boolean {
     return !spans;
   });
   return spans;
+}
+
+/** 選著的那一整個區塊（`NodeSelection` 選起一個 textblock）；不是就 `null`。 */
+function selectedBlock(state: EditorState): { pos: number; node: PMNode } | null {
+  const { selection } = state;
+  return selection instanceof NodeSelection && selection.node.isTextblock
+    ? { pos: selection.from, node: selection.node }
+    : null;
 }
 
 const crossSelection = (state: EditorState) => {
@@ -213,6 +221,14 @@ export const ScopedDelete = Extension.create({
         key: scopedDeleteKey,
         props: {
           handleTextInput(view, from, to, text) {
+            // 選著一整個區塊（點 ⠿ 選起來的）時打字 ＝ 覆蓋那一行的字：區塊與類型留著（對白的人物也是）。
+            const block = selectedBlock(view.state);
+            if (block) {
+              const start = block.pos + 1;
+              const tr = view.state.tr.insertText(text, start, start + block.node.content.size);
+              view.dispatch(tr.setSelection(TextSelection.create(tr.doc, start + text.length)).scrollIntoView());
+              return true;
+            }
             if (!spansScenes(view.state.doc, from, to)) return false;
             const tr = deleteScoped(view.state.tr, from, to);
             view.dispatch(tr.insertText(text, tr.selection.from).scrollIntoView());
@@ -234,6 +250,16 @@ export const ScopedDelete = Extension.create({
             return true;
           },
           handleDOMEvents: {
+            // 注音組字不走 handleTextInput：選著整個區塊時先把選取換成那一行的字，組出來的字才會
+            // 覆蓋它，而不是把整個區塊換掉。
+            compositionstart(view) {
+              const block = selectedBlock(view.state);
+              if (!block) return false;
+              const start = block.pos + 1;
+              const end = start + block.node.content.size;
+              view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, start, end)));
+              return false;
+            },
             // 剪下：複製照 PM 原生的走（剪貼簿序列化不重寫），它接著送出的 deleteSelection 由下面的
             // filterTransaction 擋掉，換成各場各自刪。
             cut(view) {

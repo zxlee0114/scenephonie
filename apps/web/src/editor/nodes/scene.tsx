@@ -17,7 +17,7 @@ import {
   ReactNodeViewRenderer,
   type NodeViewProps,
 } from "@tiptap/react";
-import { TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import type { Decoration } from "@tiptap/pm/view";
 import {
   useEffect,
@@ -394,8 +394,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
         spec?.draft && "scene--draft",
         spec?.draft && manualDraft && "scene--draft-manual",
         spec?.selected && "is-node-selected",
-        // 選單開著：整場亮起來，看得出選單作用在哪一場 —— 但不真的選起來，游標留在編劇正在寫的
-        // 地方（「離開時才判定」的鎖不動，使用者裁決 2026-10-22）。
+        // 選單開著：整場亮起來（群組成員不選起來，靠這個看得出選單作用在哪一場）。
         menuOpen && "is-menu-target",
         // 位置旗標走 decoration，不靠 :first-child／:last-child（見 extensions/scene-numbers）。
         spec?.isFirst && "scene--first",
@@ -408,7 +407,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
       onAnimationEnd={() => setJustBorn(false)}
     >
       {/* 場次號 decoration：gutter、不可編輯、不可 select、不進 tab 序。點下去開 SceneMenu
-          （§7.1），選單開著時整場亮起來。它也是這一場的**拖曳把手**（票券 13）：按住拖 ＝ 搬移，拖到哪裡決定升級、降級還是
+          （§7.1），同時選起整場（同 ⌘A 第三段）。它也是這一場的**拖曳把手**（票券 13）：按住拖 ＝ 搬移，拖到哪裡決定升級、降級還是
           平移（`../extensions/drag-reorder`）。群組成員不是把手 —— 成員不單獨進出群組，整組由群組的
           ⠿ 拖。 */}
       <div
@@ -423,6 +422,13 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           const el = numberRef.current;
           if (!el) return;
           if (isMenuAnchor(el)) return closePointMenu(); // 再點一次 ＝ 收起
+          // 選起整場（同 ⌘A 第三段）：選單收起之後它仍選著，⌘C／⌘X／⌫ 對整場作用。這不算「進了
+          // 這一場」，離開時才判定的鎖不動（`../extensions/scene-numbers`）。群組成員不選 —— 成員
+          // 不單獨搬，單獨剪下會把它從群組裡拆出來。
+          const pos = typeof getPos === "function" ? getPos() : undefined;
+          if (!isMember && pos != null) {
+            editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos)));
+          }
           pointMenus.set({ anchor: el, rows: menuRows(), onClose: () => editor.view.focus() });
         }}
       >

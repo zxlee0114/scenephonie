@@ -343,14 +343,62 @@ describe("點把手（沒拖）：選起那個節點、開選單", () => {
     editor.state.doc.forEach((top) => expect(top.type.name).toBe("scene"));
   });
 
-  it("場次號（場次的把手）：開 SceneMenu、整場亮起來，但游標不動（離開時才判定的鎖不受影響）", async () => {
+  it("場次號（場次的把手）：選起整場、開 SceneMenu；選單收起之後整場仍選著（可以 ⌘C／⌘X／⌫）", async () => {
     const { editor, container } = await mount();
-    const before = editor.state.selection;
     act(() => {
       fireEvent.click(ownHandle(topScene(container, 1)));
     });
     expect(menuRows()).toContain("刪除本場");
-    expect(topScene(container, 1).classList.contains("is-menu-target")).toBe(true);
-    expect(editor.state.selection.eq(before)).toBe(true);
+    const selected = () => (editor.state.selection as NodeSelection).node?.attrs.sceneId;
+    expect(selected()).toBe(editor.state.doc.child(1).attrs.sceneId);
+    act(() => {
+      fireEvent.keyDown(document.querySelector(".scene-menu")!, { key: "Escape" });
+    });
+    expect(document.querySelector(".scene-menu")).toBeNull();
+    expect(selected()).toBe(editor.state.doc.child(1).attrs.sceneId);
+  });
+
+  it("再點一次同一個把手：收起選單，區塊仍選著", async () => {
+    const { editor, container } = await mount();
+    const handle = ownHandle(blockOf(container, "街上"));
+    act(() => {
+      fireEvent.click(handle);
+    });
+    act(() => {
+      fireEvent.click(handle);
+    });
+    expect(document.querySelector(".scene-menu")).toBeNull();
+    expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+  });
+
+  it("區塊選著時打字：覆蓋那一行的字，區塊與類型留著", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(blockOf(container, "街上")));
+    });
+    act(() => {
+      fireEvent.keyDown(document.querySelector(".scene-menu")!, { key: "Escape" });
+    });
+    act(() => {
+      const { from, to } = editor.state.selection;
+      editor.view.someProp("handleTextInput", (f) => f(editor.view, from, to, "巷", () => editor.state.tr));
+    });
+    expect(outline(editor)).toEqual([["客廳", "[回憶]", "回來"], ["巷"], ["夜"]]);
+    expect(editor.state.selection.empty).toBe(true);
+    expect(editor.state.selection.$from.parent.textContent).toBe("巷");
+  });
+
+  it("區塊選著時按 ⌫：刪掉那一行（那場唯一的一行 → 場次留著）", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(blockOf(container, "回來")));
+    });
+    act(() => {
+      fireEvent.keyDown(document.querySelector(".scene-menu")!, { key: "Escape" });
+    });
+    act(() => {
+      editor.view.dom.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true }));
+    });
+    expect(outline(editor)).toEqual([["客廳", "[回憶]"], ["街上"], ["夜"]]);
   });
 });

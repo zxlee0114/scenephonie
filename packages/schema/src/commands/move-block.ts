@@ -13,6 +13,7 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import { schema } from "../schema";
 import { checked } from "./checked";
+import { adoptStrayExtras } from "./extra-adoption";
 import { type CommandResult, reject } from "./result";
 import {
   childrenOf,
@@ -65,7 +66,9 @@ function plan(doc: ProseMirrorNode, options: MoveBlockOptions): Plan | string {
   // 同一段內容裡搬、放好之後打頭的是子場次：`reopen` 會在最前面補一格，搬過去的那一個跟著往後。
   const blockIndex = sameContainer && kids[0]!.type.name === "subscene" ? index + 1 : index;
   return {
-    build: () => reopen(replaceAt(rest, at.path, at.node.type.create(at.node.attrs, kids, at.node.marks)), from),
+    // 搬走的對白說話者是原場次的群演：那一筆跟著補進新的那一場（`./extra-adoption`）。
+    build: () =>
+      adoptStrayExtras(reopen(replaceAt(rest, at.path, at.node.type.create(at.node.attrs, kids, at.node.marks)), from), [doc]),
     landing:
       to.fragmentIndex == null
         ? { sceneId: to.sceneId, blockIndex }

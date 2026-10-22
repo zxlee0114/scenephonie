@@ -10,6 +10,7 @@ import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 
 import {
+  adoptExtrasPlugin,
   dedupeIdsPlugin,
   mintGroupId,
   mintSceneId,
@@ -49,6 +50,8 @@ export const SceneIds = Extension.create({
       dedupeIdsPlugin(),
       // 片段的正規化（票券 12）：相鄰同成員的片段合併，同樣是模型的修復、不進 history。
       normalizeFragmentsPlugin(),
+      // 對白帶著群演搬到別場（貼上、拖放）：群演定義跟著補進去（票券 13）。跟貼上同一步 ⌘Z。
+      adoptExtrasPlugin(),
     ];
   },
 });
