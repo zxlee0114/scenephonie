@@ -5,7 +5,7 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 import { describe, expect, it } from "vitest";
 
 import { block, makeDoc, sceneWith, subsceneWith } from "../testing";
-import { moveBlock, movedBlockLocation } from "./move-block";
+import { deleteBlock, moveBlock, movedBlockLocation } from "./move-block";
 
 const idOf = (n: ProseMirrorNode) => n.attrs.sceneId as string;
 const texts = (n: ProseMirrorNode) => {
@@ -115,5 +115,35 @@ describe("movedBlockLocation —— 搬完之後，搬過去的那個區塊在�
     const a = sceneWith([block.action("一")]);
     const options = { from: { sceneId: idOf(a), blockIndex: 5 }, to: { sceneId: idOf(a), index: 0 } };
     expect(movedBlockLocation(makeDoc(a), options)).toBeNull();
+  });
+});
+
+describe("deleteBlock（點區塊把手 → 刪除這一行）", () => {
+  it("刪掉指定的那一行，其餘原封不動", () => {
+    const a = sceneWith([block.action("客廳"), block.dialogue("好冷"), block.action("回來")]);
+    const out = unwrap(deleteBlock(makeDoc(a), { sceneId: idOf(a), blockIndex: 1 }));
+    expect(texts(out.child(0))).toEqual(["客廳", "回來"]);
+    expect(idOf(out.child(0))).toBe(idOf(a));
+  });
+
+  it("刪掉一場唯一的一行 → 場次留著，補一個空的動作區塊", () => {
+    const a = sceneWith([block.dialogue("唯一一句")]);
+    const out = unwrap(deleteBlock(makeDoc(a), { sceneId: idOf(a), blockIndex: 0 }));
+    expect(idOf(out.child(0))).toBe(idOf(a));
+    expect(texts(out.child(0))).toEqual([""]);
+    expect(out.child(0).child(0).type.name).toBe("action");
+  });
+
+  it("刪掉子場次前面僅有的一行 → 最前面補空動作區塊，不以子場次開頭（不變式 ①）", () => {
+    const sub = subsceneWith([block.action("陽台")], { kind: "接續" });
+    const host = sceneWith([block.action("客廳"), sub]);
+    const out = unwrap(deleteBlock(makeDoc(host), { sceneId: idOf(host), blockIndex: 0 }));
+    expect(texts(out.child(0))).toEqual(["", "[陽台]"]);
+  });
+
+  it("那個位置是子場次、不是區塊 → 拒絕（刪場次走 deleteScene）", () => {
+    const sub = subsceneWith([block.action("陽台")], { kind: "接續" });
+    const host = sceneWith([block.action("客廳"), sub]);
+    expect(deleteBlock(makeDoc(host), { sceneId: idOf(host), blockIndex: 1 }).ok).toBe(false);
   });
 });

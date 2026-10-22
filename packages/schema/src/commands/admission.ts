@@ -136,6 +136,12 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
       "以 sceneId 定址（blockIndex／index 是傳遞參數）；搬空的內容補空動作區塊，主場次被搬到只剩子場次時補在最前面（①）。",
   },
   {
+    name: "deleteBlock",
+    enforces: ["①"],
+    addressesById: true,
+    rationale: "以 sceneId 定址（blockIndex 是傳遞參數）；補位規則同 moveBlock —— 刪空的內容補空動作區塊，不以子場次開頭（①）。",
+  },
+  {
     name: "setSceneLocations",
     enforces: ["⑧"],
     addressesById: true,

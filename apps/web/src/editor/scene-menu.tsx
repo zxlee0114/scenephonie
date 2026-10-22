@@ -20,9 +20,9 @@ export function deleteSceneLabel(isSubscene: boolean, subscenes: number): string
   return subscenes > 0 ? `刪除本場（含 ${subscenes} 個子場次）` : "刪除本場";
 }
 
-type Row = { readonly key: string; readonly label: string; readonly run: () => void };
+export type MenuRow = { readonly key: string; readonly label: string; readonly run: () => void };
 
-export function SceneMenu({ rows, onClose }: { rows: readonly Row[]; onClose: () => void }) {
+export function SceneMenu({ rows, onClose }: { rows: readonly MenuRow[]; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
 
@@ -33,7 +33,7 @@ export function SceneMenu({ rows, onClose }: { rows: readonly Row[]; onClose: ()
 
   useEffect(() => dismissOnOutsidePointer(() => ref.current, onClose), [onClose]);
 
-  const pick = (row: Row | undefined) => {
+  const pick = (row: MenuRow | undefined) => {
     onClose();
     row?.run();
   };

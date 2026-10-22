@@ -13,17 +13,22 @@
  * - 場次、子場次本身（含 metadata）**一個不少**；
  * - 打字／貼上／Enter ＝ 先這樣刪，再在起點照常做。
  *
- * 其餘不經這幾條路、會併掉場次的編輯（注音組字蓋過選取、拖走選取的文字…）**先問**：見
- * `../merge-confirm`。
+ * 貼上、拖放跨場的片段時，片段帶著場次的**殼**（被切開的場次節點、連同它的 `sceneId`）—— 照原生
+ * 放進去會在落點長出新場次、把落點那場拆開（使用者驗收 2026-10-22）。所以殼一律拿掉、只放區塊
+ * （`unwrapScenes`）；拖走的那一下，來源也走各場各自刪（`dropScoped`）。整場完整的節點（⌘A 選起整場
+ * 再複製）不算片段：照舊貼成新的一場，`sceneId` 交給去重換新（§6.5）。
+ *
+ * 其餘不經這幾條路、會併掉場次的編輯（注音組字蓋過選取…）**先問**：見 `../merge-confirm`。
  *
  * 只管**跨越場次邊界**的選取（範圍裡有場次、子場次或片段的邊界）。同一段內容之內的選取照
  * ProseMirror 原生行為。整場的 `NodeSelection`（⌘A 第三層）與整份的 `AllSelection` 是編劇明確選起
  * 整個節點，刪掉就是刪掉，不歸這裡。
  */
 import { Extension } from "@tiptap/core";
-import type { Node as PMNode } from "@tiptap/pm/model";
+import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model";
 import { isHistoryTransaction } from "@tiptap/pm/history";
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
+import { dropPoint } from "@tiptap/pm/transform";
 
 import { KERNEL_REPLACE } from "../command-bridge";
 import { mergeConfirmSkipped, mergeRequests } from "../merge-confirm";
@@ -88,6 +93,56 @@ export function deleteScoped(tr: Transaction, from: number, to: number): Transac
 
   const at = tr.mapping.map(from, -1);
   return tr.setSelection(TextSelection.near(tr.doc.resolve(at))).setMeta(scopedDeleteKey, true);
+}
+
+/** 片段第一個（`start`）或最後一個（`end`）區塊在片段裡的深度。 */
+function edgeBlockDepth(content: Fragment, side: "start" | "end"): number {
+  let node = side === "start" ? content.firstChild : content.lastChild;
+  let depth = 0;
+  while (node && !node.isTextblock) {
+    node = side === "start" ? node.firstChild : node.lastChild;
+    depth += 1;
+  }
+  return depth;
+}
+
+/**
+ * 跨場的片段拿掉場次的殼，只留區塊；兩端被切開的區塊保持開放（貼進去會跟落點那一行接起來）。
+ * 兩端都閉合的片段（整場、整個子場次）原樣不動。
+ */
+export function unwrapScenes(slice: Slice): Slice {
+  if (slice.openStart === 0 && slice.openEnd === 0) return slice;
+  const blocks: PMNode[] = [];
+  let wrapped = false;
+  slice.content.descendants((node) => {
+    if (node.isTextblock) {
+      blocks.push(node);
+      return false;
+    }
+    if (BOUNDARY_TYPES.has(node.type.name)) wrapped = true;
+    return true;
+  });
+  if (!wrapped) return slice;
+  return new Slice(
+    Fragment.from(blocks),
+    slice.openStart > edgeBlockDepth(slice.content, "start") ? 1 : 0,
+    slice.openEnd > edgeBlockDepth(slice.content, "end") ? 1 : 0,
+  );
+}
+
+/**
+ * 把跨場次的選取拖到 `insertPos`：來源各場各自刪，片段（已拿掉殼）放進落點，選起放下的那段。
+ * 放回選取範圍裡面回 `null`（什麼都不做）。
+ */
+export function dropScoped(state: EditorState, insertPos: number, slice: Slice): Transaction | null {
+  const { from, to } = state.selection;
+  if (insertPos >= from && insertPos <= to) return null;
+  const tr = deleteScoped(state.tr, from, to);
+  const pos = tr.mapping.map(insertPos);
+  tr.replaceRange(pos, pos, slice);
+  let end = pos;
+  tr.mapping.maps[tr.mapping.maps.length - 1]!.forEach((_from, _to, _newFrom, newTo) => (end = newTo));
+  return tr.setSelection(TextSelection.between(tr.doc.resolve(pos), tr.doc.resolve(end))).setMeta("uiEvent", "drop");
 }
 
 /** 這筆 transaction 會讓幾個場次（含子場次）消失。 */
@@ -169,6 +224,15 @@ export const ScopedDelete = Extension.create({
             view.dispatch(deleteScoped(view.state.tr, from, to).replaceSelection(slice).scrollIntoView());
             return true;
           },
+          transformPasted: (slice) => unwrapScenes(slice),
+          handleDrop(view, event, slice, moved) {
+            if (!moved || !crossSelection(view.state)) return false;
+            const hit = view.posAtCoords({ left: event.clientX, top: event.clientY });
+            if (!hit) return false;
+            const tr = dropScoped(view.state, dropPoint(view.state.doc, hit.pos, slice) ?? hit.pos, slice);
+            if (tr) view.dispatch(tr.scrollIntoView());
+            return true;
+          },
           handleDOMEvents: {
             // 剪下：複製照 PM 原生的走（剪貼簿序列化不重寫），它接著送出的 deleteSelection 由下面的
             // filterTransaction 擋掉，換成各場各自刪。
@@ -181,8 +245,8 @@ export const ScopedDelete = Extension.create({
           },
         },
         /**
-         * 最後一道：選取跨場次時，其餘會讓場次消失的使用者編輯（注音組字蓋過選取、拖曳選取的
-         * 文字…這些不經上面幾條路）**先問**，按了「仍要合併」才照原樣送出（`../merge-confirm`）。
+         * 最後一道：選取跨場次時，其餘會讓場次消失的使用者編輯（注音組字蓋過選取…這些不經
+         * 上面幾條路）**先問**，按了「仍要合併」才照原樣送出（`../merge-confirm`）。
          * kernel 的整份 replace、復原／重做、我們自己的各場各自刪不受影響。
          */
         filterTransaction(tr, state) {

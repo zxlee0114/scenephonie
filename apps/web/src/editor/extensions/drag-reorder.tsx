@@ -23,12 +23,20 @@
 "use client";
 
 import { Extension, type Editor } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { EditorView } from "@tiptap/pm/view";
-import { docFromJSON, movedBlockLocation, type SubsceneKind } from "@scenephonie/schema";
+import {
+  deleteBlock,
+  dissolveGroup,
+  docFromJSON,
+  movedBlockLocation,
+  type BlockLocation,
+  type SubsceneKind,
+} from "@scenephonie/schema";
 
 import { sceneContext, type BlockAddress } from "../address";
+import { BLOCK_CYCLE, BLOCK_META, setBlockTypeAt } from "../block-types";
 import { runKernelCommand } from "../command-bridge";
 import {
   resolveDrop,
@@ -38,7 +46,9 @@ import {
   type DropSide,
   type DropZone,
 } from "../drop-intent";
-import { kindRequests } from "../demote-kind-menu";
+import { HANDLE_SELECTOR } from "../nodes/drag-handle";
+import type { MenuRow } from "../scene-menu";
+import { pointMenus } from "../point-menu";
 
 /** 落點元素：最內層的那一個勝出。群組成員的 chip row 算群組的外框（成員不單獨進出群組）。 */
 const ZONE_SELECTOR = ".block, .scene, .scene-group";
@@ -117,6 +127,111 @@ function caretAfter(doc: PMNode, intent: DropIntent): BlockAddress | undefined {
   return first ? { sceneId: first, fragmentIndex: 0, blockIndex: 0 } : undefined;
 }
 
+// ── 點把手：選起那個節點、開選單 ───────────────────────────────────────────────
+// 場次（主場次、子場次）的把手就是場次號，它自己開 SceneMenu（`../nodes/scene`）；這裡管區塊與群組。
+
+/** 刪掉第 `index` 個區塊之後游標去哪：補上來的那一個的開頭；刪的是最後一個就去前一個的末端。 */
+function caretAfterDelete(at: BlockLocation, count: number) {
+  const last = at.blockIndex >= count - 1 && at.blockIndex > 0;
+  return {
+    caretAt: { ...at, blockIndex: last ? at.blockIndex - 1 : at.blockIndex },
+    caretPlace: last ? ("end" as const) : ("start" as const),
+  };
+}
+
+function blockMenu(editor: Editor, view: EditorView, el: HTMLElement, at: BlockLocation): MenuRow[] | null {
+  const $pos = resolveContent(view, el.querySelector(".block__content"));
+  if (!$pos) return null;
+  view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, $pos.before())));
+  const count = $pos.node(-1).childCount;
+  return [
+    ...BLOCK_CYCLE.filter((type) => type !== $pos.parent.type.name).map((type) => ({
+      key: type,
+      label: `轉成${BLOCK_META[type].label}`,
+      run: () => setBlockTypeAt(editor, at, type),
+    })),
+    {
+      key: "delete",
+      label: "刪除這一行",
+      run: () => runKernelCommand(editor, (doc) => deleteBlock(doc, at), caretAfterDelete(at, count)),
+    },
+  ];
+}
+
+function groupMenu(editor: Editor, view: EditorView, groupId: string): MenuRow[] | null {
+  let at: number | null = null;
+  view.state.doc.forEach((top, offset) => {
+    if (top.attrs.groupId === groupId) at = offset;
+  });
+  if (at == null) return null;
+  view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, at)));
+  return [
+    {
+      key: "dissolve",
+      label: "解散對剪（全部變回普通場次）",
+      run: () => runKernelCommand(editor, (doc) => dissolveGroup(doc, { groupId })),
+    },
+  ];
+}
+
+// ── 拖到邊緣自動捲動 ────────────────────────────────────────────────────────
+
+/** 離捲動區上下緣多近開始捲（px）。 */
+const EDGE = 56;
+/** 每一格（一個 animation frame）最多捲幾 px。 */
+const MAX_STEP = 18;
+
+/**
+ * 指標在 `y` 時這一格要捲多少（負的往上）：進到離邊緣 `EDGE` 以內才捲，越靠邊越快，
+ * 拖出捲動區外面以最快速度捲。`top`／`bottom` 是捲動區在視窗裡**看得到**的範圍。
+ */
+export function edgeScrollStep(y: number, top: number, bottom: number): number {
+  const ramp = (depth: number) => Math.round(MAX_STEP * Math.min(1, Math.max(0, depth) / EDGE));
+  if (y < top + EDGE) return -ramp(top + EDGE - y);
+  if (y > bottom - EDGE) return ramp(y - (bottom - EDGE));
+  return 0;
+}
+
+/** 編輯器所在的捲動區（最近一個會捲的祖先；都不會捲就是整頁）。 */
+function scrollerOf(el: HTMLElement): HTMLElement {
+  for (let at = el.parentElement; at; at = at.parentElement) {
+    const { overflowY } = getComputedStyle(at);
+    if ((overflowY === "auto" || overflowY === "scroll") && at.scrollHeight > at.clientHeight) return at;
+  }
+  return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
+}
+
+/**
+ * 拖曳期間追著指標的縱座標捲動。`dragover` 只在指標停在落點上時才發，所以座標從 document
+ * 收（指標在 header 上、編輯器外面也收得到），捲動交給 animation frame 連續跑。
+ */
+function edgeScroller(view: EditorView) {
+  let y: number | null = null;
+  let frame = 0;
+  const track = (e: DragEvent) => {
+    y = e.clientY;
+  };
+  const tick = () => {
+    const scroller = scrollerOf(view.dom);
+    const page = scroller === document.scrollingElement;
+    const r = page ? { top: 0, bottom: window.innerHeight } : scroller.getBoundingClientRect();
+    const step = y == null ? 0 : edgeScrollStep(y, Math.max(r.top, 0), Math.min(r.bottom, window.innerHeight));
+    if (step) scroller.scrollBy(0, step);
+    frame = requestAnimationFrame(tick);
+  };
+  return {
+    start() {
+      y = null;
+      document.addEventListener("dragover", track, true);
+      frame = requestAnimationFrame(tick);
+    },
+    stop() {
+      document.removeEventListener("dragover", track, true);
+      cancelAnimationFrame(frame);
+    },
+  };
+}
+
 // ── 拖曳期間 ────────────────────────────────────────────────────────────────
 
 interface Session {
@@ -143,6 +258,7 @@ function createIndicator(): HTMLElement {
 function dragController(editor: Editor, view: EditorView) {
   let session: Session | null = null;
   const line = createIndicator();
+  const autoscroll = edgeScroller(view);
 
   const hideLine = () => {
     line.hidden = true;
@@ -157,6 +273,7 @@ function dragController(editor: Editor, view: EditorView) {
   const end = () => {
     session = null;
     hideLine();
+    autoscroll.stop();
   };
 
   /** 這個事件底下的落點與它要做的事；不合法、放回原地或不在落點上都是 `null`。 */
@@ -182,10 +299,26 @@ function dragController(editor: Editor, view: EditorView) {
   const handlers: Record<string, (e: DragEvent) => void> = {
     // 把手上的 mousedown 不交給 PM：否則它會先把游標或節點選取搬到把手那裡。
     mousedown: (e) => {
-      if ((e.target as Element | null)?.closest?.(".drag-handle")) e.stopPropagation();
+      if ((e.target as Element | null)?.closest?.(HANDLE_SELECTOR)) e.stopPropagation();
+    },
+    // 點（沒拖）＝ 選起那個節點、開選單（同 Notion）。拖過的不會有 click。
+    click: (e) => {
+      const handle = (e.target as Element | null)?.closest?.(HANDLE_SELECTOR);
+      const el = handle && zoneElement(view, handle);
+      const zone = el && zoneOf(view, el);
+      if (!handle || !zone || zone.kind === "scene" || zone.kind === "subscene") return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rows =
+        zone.kind === "block"
+          ? blockMenu(editor, view, el, { ...zone.container, blockIndex: zone.index })
+          : groupMenu(editor, view, zone.groupId);
+      if (!rows) return;
+      const r = handle.getBoundingClientRect();
+      pointMenus.set({ x: r.left, y: r.bottom, rows, onClose: () => view.focus() });
     },
     dragstart: (e) => {
-      const handle = (e.target as Element | null)?.closest?.(".drag-handle");
+      const handle = (e.target as Element | null)?.closest?.(HANDLE_SELECTOR);
       if (!handle) return; // 拖選取的文字之類 —— PM 原生行為照舊
       e.stopPropagation();
       const el = zoneElement(view, handle);
@@ -199,6 +332,7 @@ function dragController(editor: Editor, view: EditorView) {
         doc: docFromJSON(view.state.doc.toJSON()) as unknown as PMNode,
         verdicts: new Map(),
       };
+      autoscroll.start();
       if (e.dataTransfer) {
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", ""); // Firefox 不設 data 就不會啟動拖曳
@@ -231,13 +365,17 @@ function dragController(editor: Editor, view: EditorView) {
       if (intent.command === "moveScene" && intent.demote) {
         // 落點是對著放下那一刻的 doc 算的：選單開著時 doc 若變了（序可能移位），這一筆就作廢。
         const dropped = view.state.doc;
-        kindRequests.set({
+        const choose = (kind: SubsceneKind) => () => {
+          if (view.state.doc === dropped) run(intent, kind);
+        };
+        pointMenus.set({
           x: e.clientX,
           y: e.clientY,
-          choose: (kind) => {
-            kindRequests.set(null);
-            if (view.state.doc === dropped) run(intent, kind);
-          },
+          rows: [
+            { key: "insert", label: "改成插入戲", run: choose("插入") },
+            { key: "continue", label: "改成接續", run: choose("接續") },
+          ],
+          onClose: () => view.focus(),
         });
         return;
       }
@@ -257,7 +395,8 @@ function dragController(editor: Editor, view: EditorView) {
         view.dom.removeEventListener(type, handler as EventListener, true);
       }
       line.remove();
-      kindRequests.set(null);
+      autoscroll.stop();
+      pointMenus.set(null);
     },
   };
 }

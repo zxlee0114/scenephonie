@@ -364,7 +364,7 @@ describe("成員選單：離開對剪", () => {
   };
 
   async function pickMenuRow(container: HTMLElement, memberIndex: number, label: RegExp) {
-    fireEvent.mouseDown(container.querySelectorAll(".scene--member .scene__number")[memberIndex]!);
+    fireEvent.click(container.querySelectorAll(".scene--member .scene__number")[memberIndex]!);
     const row = await waitFor(() => {
       const el = [...container.querySelectorAll(".scene-menu button")].find((b) => label.test(b.textContent ?? ""));
       expect(el).toBeDefined();

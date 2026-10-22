@@ -71,7 +71,6 @@ import { requestNextScene } from "../extensions/next-scene";
 import { DRAFT_MARK, sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
 import { SceneMenu, deleteSceneLabel } from "../scene-menu";
 import { GroupMember, Scene, Subscene } from "../schema";
-import { DragHandle } from "./drag-handle";
 import { ignoreReactChromeMutation } from "./react-mutations";
 
 /**
@@ -214,6 +213,8 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   const kind = isSubscene ? ((node.attrs.kind as SubsceneKind | null) ?? null) : null;
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+  /** 按下場次號那一刻選單開著沒 —— 點外面就收的那條線會先把它關掉，click 時才分得出「再點一下 ＝ 收起」。 */
+  const menuWasOpen = useRef(false);
 
   // 「新增下一場」的即時回饋：這一場若剛被建立出來，短暫掛上 .scene--just-added（CSS 自己淡出）。
   // 掛載時領一次（append 情境），並訂閱 markSceneBorn（中間插入時 node view 被沿用、不重新掛載，
@@ -352,6 +353,9 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
         spec?.draft && "scene--draft",
         spec?.draft && manualDraft && "scene--draft-manual",
         spec?.selected && "is-node-selected",
+        // 選單開著：整場亮起來，看得出選單作用在哪一場 —— 但不真的選起來，游標留在編劇正在寫的
+        // 地方（「離開時才判定」的鎖不動，使用者裁決 2026-10-22）。
+        menuOpen && "is-menu-target",
         // 位置旗標走 decoration，不靠 :first-child／:last-child（見 extensions/scene-numbers）。
         spec?.isFirst && "scene--first",
         spec?.isLast && "scene--last",
@@ -362,14 +366,24 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
       // 但那時本來就沒有動畫可播，class 留著不影響外觀。
       onAnimationEnd={() => setJustBorn(false)}
     >
-      {/* 場次號 decoration：gutter、不可編輯、不可 select、不進 tab 序。點下去開 SceneMenu（§7.1）。 */}
+      {/* 場次號 decoration：gutter、不可編輯、不可 select、不進 tab 序。點下去開 SceneMenu
+          （§7.1），選單開著時整場亮起來。它也是這一場的**拖曳把手**（票券 13）：按住拖 ＝ 搬移，拖到哪裡決定升級、降級還是
+          平移（`../extensions/drag-reorder`）。群組成員不是把手 —— 成員不單獨進出群組，整組由群組的
+          ⠿ 拖。 */}
       <div
         className="scene__number"
         contentEditable={false}
         aria-hidden="true"
-        onMouseDown={(e) => {
-          e.preventDefault(); // 不把游標從內文拉走
-          setMenuOpen((open) => !open);
+        {...(isMember ? {} : { draggable: true, "data-drag-handle": "" })}
+        onPointerDown={() => {
+          menuWasOpen.current = menuOpen;
+        }}
+        // 把手的 mousedown 由拖曳那邊攔下、不交給 ProseMirror（preventDefault 會讓它拖不起來）。
+        onMouseDown={isMember ? (e) => e.preventDefault() : undefined}
+        onClick={() => {
+          const wasOpen = menuWasOpen.current;
+          menuWasOpen.current = false;
+          setMenuOpen((open) => !wasOpen && !open);
         }}
       >
         {/* 標籤自己一個盒：手動草稿的淡底只包住字，不連 gutter 的內距一起塗。 */}
@@ -378,9 +392,6 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           {spec?.draft ? DRAFT_MARK : label}
         </span>
       </div>
-      {/* 拖曳把手（票券 13）：主場次與子場次各一個 —— 拖到哪裡決定升級、降級還是平移。群組成員
-          沒有：成員不單獨進出群組，整組由群組的把手拖。 */}
-      {!isMember && <DragHandle scene />}
       {menuOpen && (
         <SceneMenu
           onClose={closeMenu}

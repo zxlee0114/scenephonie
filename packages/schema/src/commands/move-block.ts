@@ -79,6 +79,18 @@ export function moveBlock(doc: ProseMirrorNode, options: MoveBlockOptions): Comm
 }
 
 /**
+ * `deleteBlock` —— 刪掉一個區塊（點區塊把手的選單，票券 13）。結構後果同搬走：那段內容空了或只剩
+ * 子場次打頭時，在最前面補一個空的動作區塊 —— 場次本身不跟著消失（刪場次是 `deleteScene`）。
+ */
+export function deleteBlock(doc: ProseMirrorNode, at: BlockLocation): CommandResult {
+  const hit = findContainer(doc, at);
+  if (typeof hit === "string") return reject(hit);
+  const node = at.blockIndex >= 0 && at.blockIndex < hit.node.childCount ? hit.node.child(at.blockIndex) : null;
+  if (!node?.isTextblock) return reject(`場次「${at.sceneId}」沒有第 ${at.blockIndex} 個區塊`);
+  return checked(() => reopen(replaceAt(doc, [...hit.path, at.blockIndex], null), at));
+}
+
+/**
  * 搬完之後，搬過去的那個區塊在哪（以搬移**後**的 doc 計）—— 編輯器把游標放在那裡。
  * 搬不動（`moveBlock` 會拒絕）回 `null`。
  */

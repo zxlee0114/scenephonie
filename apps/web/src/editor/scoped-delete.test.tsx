@@ -8,13 +8,14 @@
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model";
-import { TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { mintGroupId, mintSceneId, schema as k } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { allSceneIds } from "./address";
+import { dropScoped } from "./extensions/scoped-delete";
 import { EntityCatalogProvider } from "./entity-catalog";
 import { MergeConfirm } from "./merge-confirm";
 import { useScreenplayEditor } from "./use-screenplay-editor";
@@ -219,7 +220,7 @@ describe("isolating 保留：鍵盤刪除不跨場次合併", () => {
     expect(fragments).toEqual(["甲", "二", "丙三"]);
   });
 
-  describe("其餘會併掉場次的編輯（注音組字蓋過選取、拖走選取的文字…）：先問", () => {
+  describe("其餘會併掉場次的編輯（注音組字蓋過選取…）：先問", () => {
     /** 不經上面幾條路、照 ProseMirror 原生把跨場次的選取換掉的那一筆。 */
     const nativeReplace = (editor: Editor) =>
       act(() => {
@@ -283,6 +284,62 @@ describe("isolating 保留：鍵盤刪除不跨場次合併", () => {
         fireEvent.click(screen.getByRole("button", { name: "仍要合併" }));
       });
       expect(editor.state.doc.toJSON()).toEqual(after);
+    });
+  });
+
+  describe("貼上、拖放跨場的片段：拿掉場次的殼，只放區塊（不長出新場次、不拆場次）", () => {
+    /** 把目前的選取複製下來、游標移到第 `n` 個 textblock 的末端、貼上（走真的剪貼簿 HTML）。 */
+    function copyThenPasteAtEnd(editor: Editor, n: number) {
+      const { dom } = editor.view.serializeForClipboard(editor.state.selection.content());
+      act(() => {
+        const at = textPos(editor, n, "end");
+        editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, at)));
+        editor.view.pasteHTML(dom.innerHTML, new Event("paste") as ClipboardEvent); // jsdom 沒有 ClipboardEvent
+      });
+    }
+
+    it("複製跨場的字（回|來 → 街|上）貼到別場：只多出區塊，場次一個不多、一個不少", async () => {
+      const { editor } = await mount();
+      const ids = allSceneIds(editor.state.doc);
+      selectAcross(editor, 2, 3);
+      copyThenPasteAtEnd(editor, 4);
+      expect(allSceneIds(editor.state.doc)).toEqual(ids);
+      expect(outline(editor)).toEqual([["客廳", "[回憶]", "回來"], ["街上"], ["夜來", "街"]]);
+    });
+
+    it("整場（⌘A 選起整場）複製貼上：照舊貼成新的一場、換新 sceneId（§6.5 去重）", async () => {
+      const { editor } = await mount();
+      const ids = allSceneIds(editor.state.doc);
+      act(() => {
+        editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, editor.state.doc.child(0).nodeSize)));
+      });
+      copyThenPasteAtEnd(editor, 4);
+      const after = allSceneIds(editor.state.doc);
+      expect(after).toHaveLength(ids.length + 1);
+      expect(new Set(after).size).toBe(after.length);
+      expect(outline(editor)).toContainEqual(["街上"]);
+    });
+
+    it("拖走跨場的字放到別場：來源各場各自刪，落點只多出區塊，不必問", async () => {
+      const { editor } = await mount();
+      const ids = allSceneIds(editor.state.doc);
+      selectAcross(editor, 2, 3);
+      act(() => {
+        const slice = editor.view.someProp("transformPasted", (f) => f(editor.state.selection.content(), editor.view, false)) ?? editor.state.selection.content();
+        const tr = dropScoped(editor.state, textPos(editor, 4, "end"), slice);
+        if (tr) editor.view.dispatch(tr);
+      });
+      expect(allSceneIds(editor.state.doc)).toEqual(ids);
+      expect(outline(editor)).toEqual([["客廳", "[回憶]", "回"], ["上"], ["夜來", "街"]]);
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+    });
+
+    it("放回選取範圍裡面：什麼都不做", async () => {
+      const { editor } = await mount();
+      const before = editor.state.doc.toJSON();
+      selectAcross(editor, 2, 3);
+      expect(dropScoped(editor.state, textPos(editor, 3, "start"), editor.state.selection.content())).toBeNull();
+      expect(editor.state.doc.toJSON()).toEqual(before);
     });
   });
 });

@@ -59,7 +59,7 @@ function groupView(editor: Editor, node: PMNode, decorations: readonly Decoratio
   });
   foot.append(button);
 
-  dom.append(dragHandle({ scene: true }), contentDOM, foot);
+  dom.append(dragHandle({ group: true }), contentDOM, foot);
   return {
     dom,
     contentDOM,

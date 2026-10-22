@@ -43,7 +43,7 @@ export type {
   InsideTarget,
 } from "./move-scene";
 
-export { moveBlock, movedBlockLocation } from "./move-block";
+export { deleteBlock, moveBlock, movedBlockLocation } from "./move-block";
 export type { MoveBlockOptions, BlockLocation, BlockDestination } from "./move-block";
 
 export {

@@ -166,9 +166,17 @@
 /* 整場被選取（⌘+A 的第三段：NodeSelection）時的整塊反白。
  * 不靠瀏覽器原生選取畫 —— 場次 DOM 混了 contentEditable=false 的 chip row 與腳部按鈕，
  * 原生高亮跨過那些區域畫不出來（原型 scene-schema.tsx 註解）。 */
-.scene.is-node-selected {
+.scene.is-node-selected,
+.scene.is-menu-target {
   background: var(--selection-bg);
   border-radius: var(--space-1);
+}
+
+/* 點區塊的 ⠿ ＝ 選起整個區塊（NodeSelection，票券 13）：同一種底色。 */
+.block.ProseMirror-selectednode {
+  background: var(--selection-bg);
+  border-radius: var(--space-1);
+  outline: none;
 }
 
 /* 新增下一場：新場次柔和地浮現淺底色再淡出 —— §7.10「明確 append」的即時回饋。
@@ -460,8 +468,17 @@
 }
 
 /* ── 拖曳排序（票券 13、§7.5）──
- * 把手平常不畫（常駐的 ⠿ 一頁幾十個，是噪音），滑過那一場／那個區塊才浮現。場次的把手住 gutter
- * 最左、與場次號同一行；區塊的把手貼在區塊左緣外側。都是 decoration：不可選、不進 content flow。 */
+ * 場次（主場次、子場次）的把手就是場次號 —— 不另畫 ⠿（擠在號碼旁邊跟版面打架，使用者驗收
+ * 2026-10-22）。區塊與群組的 ⠿ 平常不畫（常駐的 ⠿ 一頁幾十個，是噪音），滑過才浮現；區塊的 ⠿
+ * 一律住 gutter 裡同一欄（離內容邊 --space-5），子場次裡的區塊也一樣 —— 不壓在子場次那條線上。
+ * 都是 decoration：不可選、不進 content flow。點一下開選單，按住拖 ＝ 搬移。 */
+.scene__number[data-drag-handle] {
+  cursor: grab;
+}
+
+.scene__number[data-drag-handle]:active {
+  cursor: grabbing;
+}
 .block {
   position: relative;
 }
@@ -485,14 +502,18 @@
   inset-inline-start: calc(-1 * var(--space-5));
 }
 
-.drag-handle--scene {
+/* 子場次的內容在線的右側縮了一階（線寬 ＋ --space-3）：⠿ 多退這麼多，回到跟主場次同一欄、在線的左邊。 */
+.scene--sub .block > .drag-handle {
+  inset-inline-start: calc(-1 * (var(--space-5) + var(--subscene-rule) + var(--space-3)));
+}
+
+.drag-handle--group {
   inset-inline-start: 0;
-  inset-block-start: var(--scene-pad-block, 0px);
+  inset-block-start: var(--space-1);
   z-index: 1;
 }
 
 .block:hover > .drag-handle,
-.scene:hover > .drag-handle,
 .scene-group:hover > .drag-handle,
 .drag-handle:hover {
   opacity: 1;
@@ -521,13 +542,13 @@
   display: none;
 }
 
-/* 降級時問種類的選單：貼在放下的那一點（沿用 SceneMenu 的外觀與鍵盤）。 */
-.drop-kind-menu {
+/* 定點選單（點把手、降級時問種類）：貼在把手下方／放下的那一點，沿用 SceneMenu 的外觀與鍵盤。 */
+.point-menu {
   position: fixed;
   z-index: 30;
 }
 
-.drop-kind-menu > .scene-menu {
+.point-menu > .scene-menu {
   inset: 0 auto auto 0;
 }
 

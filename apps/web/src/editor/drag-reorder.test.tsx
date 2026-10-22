@@ -15,12 +15,14 @@ import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { act, cleanup, createEvent, fireEvent, render, waitFor } from "@testing-library/react";
-import { mintSceneId, schema as k } from "@scenephonie/schema";
+import { mintGroupId, mintSceneId, schema as k } from "@scenephonie/schema";
+import { NodeSelection } from "@tiptap/pm/state";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { EntityCatalogProvider } from "./entity-catalog";
-import { DemoteKindMenu } from "./demote-kind-menu";
+import { PointMenu } from "./point-menu";
+import { edgeScrollStep } from "./extensions/drag-reorder";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
 const action = (text = "") => k.node("action", null, text ? [k.text(text)] : []);
@@ -35,18 +37,19 @@ function Harness({ content, onEditor }: { content: object; onEditor: (e: Editor)
   return (
     <EntityCatalogProvider>
       <EditorContent editor={editor} />
-      <DemoteKindMenu />
+      <PointMenu />
     </EntityCatalogProvider>
   );
 }
 
-/** A：客廳 ＋ 子場次（回憶）＋ 回來；B：街上；C：夜。 */
-async function mount() {
-  const content = k.node("doc", null, [
+/** 預設：A：客廳 ＋ 子場次（回憶）＋ 回來；B：街上；C：夜。 */
+async function mount(
+  content = k.node("doc", null, [
     scene([action("客廳"), sub([action("回憶")]), action("回來")]),
     scene([action("街上")]),
     scene([action("夜")]),
-  ]).toJSON() as object;
+  ]).toJSON() as object,
+) {
   let editor: Editor | null = null;
   const view = render(<Harness content={content} onEditor={(e) => (editor = e)} />);
   await waitFor(() => expect(editor).not.toBeNull());
@@ -74,7 +77,8 @@ const blockOf = (container: HTMLElement, text: string) =>
 const topScene = (container: HTMLElement, n: number) =>
   container.querySelectorAll<HTMLElement>(".scene:not(.scene--sub)")[n]!;
 
-const ownHandle = (el: HTMLElement) => el.querySelector<HTMLElement>(":scope > .drag-handle")!;
+/** 這個區塊／場次自己的把手（區塊的 ⠿；場次的把手是場次號）。 */
+const ownHandle = (el: HTMLElement) => el.querySelector<HTMLElement>(":scope > [data-drag-handle]")!;
 
 /** 頂層每一場的內文（子場次以 `[…]` 標出）。 */
 function outline(editor: Editor): string[][] {
@@ -265,5 +269,88 @@ describe("拖曳排序：接上 ProseMirror 的事件", () => {
       fireEvent.mouseDown(pick);
     });
     expect(editor.state.doc.toJSON()).toEqual(changed);
+  });
+});
+
+describe("拖到捲動區上下緣：自動捲動（越靠邊越快）", () => {
+  // 捲動區的可見範圍是 100～900。
+  it("離邊緣還遠：不捲", () => {
+    expect(edgeScrollStep(500, 100, 900)).toBe(0);
+  });
+  it("靠近下緣往下捲、靠近上緣往上捲", () => {
+    expect(edgeScrollStep(880, 100, 900)).toBeGreaterThan(0);
+    expect(edgeScrollStep(120, 100, 900)).toBeLessThan(0);
+  });
+  it("越靠邊越快；拖出捲動區外面以最快速度捲", () => {
+    expect(edgeScrollStep(890, 100, 900)).toBeGreaterThan(edgeScrollStep(860, 100, 900));
+    expect(edgeScrollStep(1000, 100, 900)).toBe(edgeScrollStep(900, 100, 900));
+    expect(edgeScrollStep(0, 100, 900)).toBe(-edgeScrollStep(900, 100, 900));
+  });
+});
+
+describe("點把手（沒拖）：選起那個節點、開選單", () => {
+  const menuRows = () => [...document.querySelectorAll<HTMLElement>(".scene-menu button")].map((b) => b.textContent);
+  const pick = (label: string) =>
+    act(() => {
+      fireEvent.mouseDown([...document.querySelectorAll<HTMLElement>(".scene-menu button")].find((b) => b.textContent === label)!);
+    });
+
+  it("區塊：整個區塊被選起來，選單列出轉成其他類型與刪除", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(blockOf(container, "街上")));
+    });
+    const { selection } = editor.state;
+    expect(selection).toBeInstanceOf(NodeSelection);
+    expect((selection as NodeSelection).node.textContent).toBe("街上");
+    expect(menuRows()).toEqual(["轉成對白", "轉成插入畫面", "刪除這一行"]);
+  });
+
+  it("區塊選單：轉成對白", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(blockOf(container, "街上")));
+    });
+    pick("轉成對白");
+    expect(editor.state.doc.child(1).child(0).type.name).toBe("dialogue");
+    expect(document.querySelector(".scene-menu")).toBeNull();
+  });
+
+  it("區塊選單：刪除這一行（那場唯一的一行 → 場次留著、補一個空的動作區塊）", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(blockOf(container, "街上")));
+    });
+    pick("刪除這一行");
+    expect(outline(editor)).toEqual([["客廳", "[回憶]", "回來"], [""], ["夜"]]);
+  });
+
+  it("群組：整組被選起來，選單可以解散對剪", async () => {
+    const m1 = k.node("groupMember", { sceneId: mintSceneId() });
+    const m2 = k.node("groupMember", { sceneId: mintSceneId() });
+    const fragment = (m: PMNode, text: string) => k.node("groupFragment", { memberId: m.attrs.sceneId }, [action(text)]);
+    const content = k.node("doc", null, [
+      scene([action("前")]),
+      k.node("sceneGroup", { groupId: mintGroupId() }, [m1, m2, fragment(m1, "甲"), fragment(m2, "乙")]),
+    ]).toJSON() as object;
+    const { editor, container } = await mount(content);
+    act(() => {
+      fireEvent.click(ownHandle(container.querySelector<HTMLElement>(".scene-group")!));
+    });
+    expect((editor.state.selection as NodeSelection).node?.type.name).toBe("sceneGroup");
+    pick("解散對剪（全部變回普通場次）");
+    expect(editor.state.doc.childCount).toBe(3);
+    editor.state.doc.forEach((top) => expect(top.type.name).toBe("scene"));
+  });
+
+  it("場次號（場次的把手）：開 SceneMenu、整場亮起來，但游標不動（離開時才判定的鎖不受影響）", async () => {
+    const { editor, container } = await mount();
+    const before = editor.state.selection;
+    act(() => {
+      fireEvent.click(ownHandle(topScene(container, 1)));
+    });
+    expect(menuRows()).toContain("刪除本場");
+    expect(topScene(container, 1).classList.contains("is-menu-target")).toBe(true);
+    expect(editor.state.selection.eq(before)).toBe(true);
   });
 });
