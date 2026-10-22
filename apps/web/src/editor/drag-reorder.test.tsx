@@ -590,11 +590,19 @@ describe("選起的節點：剪貼簿與鍵盤都對它作用（`held-node`）",
     expect(passed).toBe(false); // mousedown 被吃掉：PM 不會把選取換成游標
     expect(document.querySelector(".scene-menu")).toBeNull();
     expect((editor.state.selection as NodeSelection).node?.textContent).toBe("街上");
+    // 第二下：到得了編輯器、沒被吃掉。看完就停 —— 再往下 PM 要量座標，jsdom 沒有版面。
+    let reached = false;
+    const peek = (e: Event) => {
+      reached = !e.defaultPrevented;
+      e.stopImmediatePropagation();
+    };
+    editor.view.dom.addEventListener("mousedown", peek, true);
     act(() => {
       fireEvent.pointerDown(elsewhere);
-      passed = fireEvent.mouseDown(elsewhere);
+      fireEvent.mouseDown(elsewhere);
     });
-    expect(passed).toBe(true);
+    editor.view.dom.removeEventListener("mousedown", peek, true);
+    expect(reached).toBe(true);
   });
 
   it("點頁面空白處（焦點掉到 body）：焦點拉回編輯器，仍選著", async () => {
