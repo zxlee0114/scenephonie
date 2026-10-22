@@ -2282,6 +2282,78 @@
   color: var(--text-faint);
 }
 
+/* 匯出前防呆（票券 19）：「這份 PDF 會少掉這幾場」。`error` 是 action consequence，只在這個彈窗出現、
+   可以刺眼（§7 色彩表）；登場人物提示不是錯誤，用中性色。 */
+.export-pdf__skipped {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--error-fg);
+  border-radius: var(--space-2);
+  background: var(--error-bg);
+}
+
+.export-pdf__skipped legend {
+  padding: 0 var(--space-1);
+  color: var(--error-fg);
+  font-weight: 600;
+}
+
+.export-pdf__quiet {
+  font-weight: 400;
+}
+
+.export-pdf__skipped ul,
+.export-pdf__appearing ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.export-pdf__skipped .export-pdf__check {
+  align-items: flex-start;
+}
+
+.export-pdf__group {
+  margin: calc(-1 * var(--space-1)) 0 var(--space-2) calc(var(--space-2) + 1em);
+  color: var(--error-fg);
+}
+
+.export-pdf__skipped-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-start: var(--space-2);
+}
+
+.export-pdf__skipped-actions .export-pdf__check {
+  margin: 0;
+}
+
+.export-pdf__skipped-actions button {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-1);
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.export-pdf__skipped-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.export-pdf__appearing {
+  margin: 0 0 var(--space-4);
+  color: var(--text-secondary);
+}
+
+.export-pdf__appearing p {
+  margin: 0 0 var(--space-1);
+}
+
 .export-pdf__field {
   display: grid;
   gap: var(--space-1);

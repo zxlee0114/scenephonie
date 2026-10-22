@@ -23,6 +23,7 @@ const SCENE_ATTRS = {
   extras: { default: [] as unknown[] },
   dismissedCharacterIds: { default: [] as string[] },
   manualDraft: { default: false },
+  draftReminderDismissed: { default: false },
 } as const;
 
 /** 場次 attr 在 DOM 上的攜帶方式：物件／陣列走 JSON 字串，純量直接放 data-*。 */
@@ -76,6 +77,12 @@ function sceneAttributes() {
       parseHTML: (el: HTMLElement) => el.getAttribute("data-manual-draft") === "true",
       renderHTML: (attrs: Record<string, unknown>) =>
         attrs.manualDraft ? { "data-manual-draft": "true" } : {},
+    },
+    draftReminderDismissed: {
+      default: SCENE_ATTRS.draftReminderDismissed.default,
+      parseHTML: (el: HTMLElement) => el.getAttribute("data-draft-reminder-dismissed") === "true",
+      renderHTML: (attrs: Record<string, unknown>) =>
+        attrs.draftReminderDismissed ? { "data-draft-reminder-dismissed": "true" } : {},
     },
   };
 }

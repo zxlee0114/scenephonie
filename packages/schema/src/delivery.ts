@@ -99,20 +99,7 @@ export interface DeliveryPayload {
  * @param names 實體 id → 交付當時的實體名（與場次表第二段同一份查表，加不出新的欄）。
  */
 export function projectDelivery(doc: ProseMirrorNode, names: SceneTableNames): DeliveryPayload {
-  const broken = brokenGroups(doc);
-  const brokenMembers = new Set<string>();
-  doc.forEach((node) => {
-    if (node.type.name === "sceneGroup" && broken.has(node.attrs.groupId as string)) {
-      for (const m of groupMembers(node)) brokenMembers.add(m.attrs.sceneId as string);
-    }
-  });
-
-  const scenes = projectSceneTable(doc)
-    .rows.filter(
-      (row) =>
-        !(row.groupId && broken.has(row.groupId)) && !(row.parentSceneId && brokenMembers.has(row.parentSceneId)),
-    )
-    .map((row) => deliveredScene(row, names));
+  const scenes = deliveredRows(doc).map((row) => deliveredScene(row, names));
   const formal = new Set(scenes.map((s) => s.sceneId));
 
   const script: ScriptElement[] = [];
@@ -130,6 +117,24 @@ export function projectDelivery(doc: ProseMirrorNode, names: SceneTableNames): D
   });
 
   return { version: DELIVERY_PAYLOAD_VERSION, scenes, script };
+}
+
+/**
+ * 會進交付的場次：場次表的列（草稿已濾掉），再去掉殘缺群組的成員與它們的子場次。匯出前清單
+ * （票券 19）用同一份問「哪些場次會印出來」—— 誰被略過只有這一個答案。不從 `index.ts` 對外曝露。
+ */
+export function deliveredRows(doc: ProseMirrorNode): SceneTableRow[] {
+  const broken = brokenGroups(doc);
+  const brokenMembers = new Set<string>();
+  doc.forEach((node) => {
+    if (node.type.name === "sceneGroup" && broken.has(node.attrs.groupId as string)) {
+      for (const m of groupMembers(node)) brokenMembers.add(m.attrs.sceneId as string);
+    }
+  });
+  return projectSceneTable(doc).rows.filter(
+    (row) =>
+      !(row.groupId && broken.has(row.groupId)) && !(row.parentSceneId && brokenMembers.has(row.parentSceneId)),
+  );
 }
 
 /** 有任何一個成員是草稿的群組（§9.6）—— 整組不進交付。 */

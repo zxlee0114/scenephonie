@@ -146,6 +146,10 @@ function sceneMetaAttrs() {
     dismissedCharacterIds: { default: [] as string[] },
     // 不允許 null，default false（§5.3）。手動標記為草稿；不存狀態機。
     manualDraft: { default: false, validate: "boolean" },
+    // 匯出前清單的「之後不再提醒」（票券 19，§9.6）。不允許 null，default false —— 記在場次上，
+    // 就是「記 `sceneId`」：拖到哪、標籤換成什麼都跟著它；刪掉場次它也一起走。只讓清單不再列它，
+    // 那一場照樣不印、照樣算進「本次略過 N 場」。
+    draftReminderDismissed: { default: false, validate: "boolean" },
   };
 }
 

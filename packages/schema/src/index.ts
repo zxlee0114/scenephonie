@@ -118,6 +118,13 @@ export type { LabeledSceneTableRow } from "./scene-table";
 export { projectDelivery, DELIVERY_PAYLOAD_VERSION } from "./delivery";
 export type { DeliveryPayload, DeliveredScene, ScriptElement } from "./delivery";
 
+// 匯出前防呆（票券 19，§9.6）：「這份 PDF 會少掉這幾場」。誰被略過讀的是交付同一份（`deliveredRows`），
+// 草稿理由讀的是 `projectScenes` 那一次走訪記下的 —— 這裡不重判。唯一的呼叫端是匯出面板。
+export { exportPreflight } from "./export-preflight";
+export type { ExportPreflight, SkippedDraft, AppearingReminder } from "./export-preflight";
+export type { DraftReason } from "./project-scenes";
+export type { SceneMetaField } from "./scene-meta";
+
 export {
   mintId,
   mintSceneId,

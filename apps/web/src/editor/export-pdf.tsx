@@ -8,11 +8,18 @@
  * - 「交付記了、紙沒印出來」沒有說謊、可回復：印壞了，「再印一次」拿**同一筆**交付重印，
  *   不會多出第二筆（重試 ≠ 再匯出一次）。
  *
- * 編輯器不認識路由層（§6.3）：存檔、建立交付、PDF 的網址都是注入的。
+ * 匯出前防呆（票券 19，§9.6）也住在這張面板上：**「這份 PDF 會少掉這幾場」**，不是「要不要輸出這一場」
+ * —— 清單只提醒、不擋，按「匯出」照樣印。靜默地少印幾場是最糟的失敗模式，所以就算每一場都設成
+ * 不再提醒，印好之後那一行「本次略過 N 場草稿」照樣說。
+ *
+ * 編輯器不認識路由層（§6.3）：存檔、建立交付、PDF 的網址都是注入的；預檢與「不再提醒」的寫入由
+ * 編輯器注入（它手上有 doc）。
  */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+
+import type { DraftReason, ExportPreflight, SceneMetaField, SkippedDraft } from "@scenephonie/schema";
 
 import {
   DEFAULT_EXPORT_OPTIONS,
@@ -29,6 +36,10 @@ export interface ExportPdfCapability {
   createDelivery: () => Promise<string | null>;
   /** 一筆交付的 PDF 網址。`query` 是匯出選項。 */
   pdfUrl: (deliveryId: string, query: string) => string;
+  /** 這份稿現在匯出的話會少掉哪幾場、哪些登場人物該提醒（讀當下的 doc）。 */
+  preflight: () => ExportPreflight;
+  /** 「之後不再提醒勾選的場次」—— 記在那幾場上（`sceneId`）。 */
+  dismissDraftReminders: (sceneIds: string[]) => void;
 }
 
 type Phase =
@@ -37,8 +48,8 @@ type Phase =
   | { kind: "unsaved" }
   | { kind: "refused" }
   | { kind: "deliveryFailed" }
-  | { kind: "printFailed"; deliveryId: string; url: string }
-  | { kind: "done" };
+  | { kind: "printFailed"; deliveryId: string; url: string; skipped: ExportPreflight["skipped"] }
+  | { kind: "done"; skipped: ExportPreflight["skipped"] };
 
 const MESSAGE: Record<Exclude<Phase["kind"], "idle" | "working">, { text: string; alert: boolean }> = {
   unsaved: { text: "還有修改沒存進去，這次沒有匯出 —— 等存檔恢復再試。", alert: true },
@@ -48,13 +59,49 @@ const MESSAGE: Record<Exclude<Phase["kind"], "idle" | "working">, { text: string
   done: { text: "已下載。", alert: false },
 };
 
+const FIELD_NAMES: Record<SceneMetaField, string> = { intExt: "內／外", time: "時間", location: "地點" };
+
+/** 清單上那一行「為什麼是草稿」—— 逐項說，編劇才知道要回去補哪一欄。 */
+function reasonText(reason: DraftReason): string {
+  switch (reason.kind) {
+    case "manual":
+      return "手動標記為草稿";
+    case "missingMeta":
+      return `未填寫${reason.fields.map((f) => FIELD_NAMES[f]).join("、")}`;
+    case "empty":
+      return "沒有內文";
+    case "echoesParent":
+      return "內外、時間、地點與主場次相同";
+    case "echoesMember":
+      return "與同組另一場同時同地";
+    case "parentDraft":
+      return "主場次是草稿";
+  }
+}
+
+/** 印好之後那一行。一場都沒略過就不說。 */
+function skippedText({ drafts, groupMates }: ExportPreflight["skipped"]): string {
+  if (drafts === 0) return "";
+  const mates = groupMates > 0 ? `另有 ${groupMates} 場因為同組有草稿，整組一起略過。` : "";
+  return `本次略過 ${drafts} 場草稿。${mates}`;
+}
+
 const FONT_CHOICES: { font: PrintFont; label: string }[] = [
   { font: "kai", label: "楷體（範本用的字型）" },
   { font: "sans", label: "黑體" },
 ];
 
-export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability) {
+export function ExportPdf({
+  flush,
+  createDelivery,
+  pdfUrl,
+  preflight,
+  dismissDraftReminders,
+}: ExportPdfCapability) {
   const [open, setOpen] = useState(false);
+  /** 打開面板那一刻的預檢；「不再提醒」之後重讀。面板是 modal，開著時 doc 不會被別的手改。 */
+  const [check, setCheck] = useState<ExportPreflight | null>(null);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [options, setOptions] = useState<ExportOptions>(DEFAULT_EXPORT_OPTIONS);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const panel = useRef<HTMLDivElement>(null);
@@ -68,19 +115,33 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
     trigger.current?.focus();
   };
 
+  const openPanel = () => {
+    setCheck(preflight());
+    setPicked(new Set());
+    setOpen(true);
+  };
+
+  const remember = () => {
+    dismissDraftReminders([...picked]);
+    setCheck(preflight());
+    setPicked(new Set());
+    // 勾的那幾列消失了 —— 焦點別跟著掉到 body。
+    panel.current?.querySelector<HTMLButtonElement>('button[type="submit"]')?.focus();
+  };
+
   useEffect(() => {
-    if (open) panel.current?.querySelector("input")?.focus();
+    if (open) panel.current?.querySelector<HTMLInputElement>('input[type="text"]')?.focus();
   }, [open]);
 
-  async function print(deliveryId: string, url: string) {
+  async function print(deliveryId: string, url: string, skipped: ExportPreflight["skipped"]) {
     setPhase({ kind: "working", text: "正在印 PDF…" });
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`PDF ${response.status}`);
       download(await response.blob(), filenameOf(response) ?? `${deliveryId}.pdf`);
-      setPhase({ kind: "done" });
+      setPhase({ kind: "done", skipped });
     } catch {
-      setPhase({ kind: "printFailed", deliveryId, url });
+      setPhase({ kind: "printFailed", deliveryId, url, skipped });
     }
   }
 
@@ -98,7 +159,8 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
     }
     if (!deliveryId) return setPhase({ kind: "refused" });
 
-    await print(deliveryId, pdfUrl(deliveryId, exportOptionsToQuery(options)));
+    // 交付讀的是剛存進去的那一份，與手上這一份相同 —— 這裡算的就是那筆交付少掉的場數。
+    await print(deliveryId, pdfUrl(deliveryId, exportOptionsToQuery(options)), preflight().skipped);
   }
 
   return (
@@ -109,7 +171,7 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
         className="export-pdf__trigger"
         aria-expanded={open}
         onMouseDown={(e) => e.preventDefault()}
-        onClick={() => (open ? close() : setOpen(true))}
+        onClick={() => (open ? close() : openPanel())}
       >
         匯出 PDF
       </button>
@@ -137,7 +199,18 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
               }}
             >
               <h2 className="export-pdf__title">匯出 PDF（優良電影劇本獎格式）</h2>
-              <p className="export-pdf__note">草稿場次不會印出來。</p>
+              {check && check.drafts.length > 0 ? (
+                <SkippedDrafts
+                  check={check}
+                  picked={picked}
+                  onPick={setPicked}
+                  onRemember={remember}
+                  disabled={working}
+                />
+              ) : (
+                <p className="export-pdf__note">草稿場次不會印出來。</p>
+              )}
+              {check && check.appearing.length > 0 && <AppearingReminders check={check} />}
 
               <label className="export-pdf__field">
                 <span>浮水印文字</span>
@@ -190,6 +263,7 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
                   role={MESSAGE[phase.kind].alert ? "alert" : "status"}
                 >
                   {MESSAGE[phase.kind].text}
+                  {phase.kind === "done" && skippedText(phase.skipped)}
                 </p>
               )}
 
@@ -198,7 +272,7 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
                   關閉
                 </button>
                 {phase.kind === "printFailed" ? (
-                  <button type="button" onClick={() => void print(phase.deliveryId, phase.url)}>
+                  <button type="button" onClick={() => void print(phase.deliveryId, phase.url, phase.skipped)}>
                     再印一次
                   </button>
                 ) : (
@@ -212,6 +286,100 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * 「本次輸出會略過 N 場草稿」—— 每筆附內容首行（標籤對編劇是個空號）與缺了什麼；可多選、全選，
+ * 勾了的可以設成之後不再提醒。N 含已經設成不再提醒的那幾場（它們照樣不印）。
+ */
+function SkippedDrafts({
+  check,
+  picked,
+  onPick,
+  onRemember,
+  disabled,
+}: {
+  check: ExportPreflight;
+  picked: ReadonlySet<string>;
+  onPick: (next: ReadonlySet<string>) => void;
+  onRemember: () => void;
+  disabled: boolean;
+}) {
+  const { drafts, skipped } = check;
+  const quiet = skipped.drafts - drafts.length;
+  const all = drafts.every((d) => picked.has(d.sceneId));
+  const toggle = (sceneId: string) => {
+    const next = new Set(picked);
+    if (!next.delete(sceneId)) next.add(sceneId);
+    onPick(next);
+  };
+
+  return (
+    <fieldset className="export-pdf__skipped">
+      <legend>
+        本次輸出會略過 {skipped.drafts} 場草稿：
+        {quiet > 0 && <span className="export-pdf__quiet">（其中 {quiet} 場已設成不再提醒，不列出）</span>}
+      </legend>
+      <ul>
+        {drafts.map((draft) => (
+          <li key={draft.sceneId}>
+            <label className="export-pdf__check">
+              <input
+                type="checkbox"
+                checked={picked.has(draft.sceneId)}
+                onChange={() => toggle(draft.sceneId)}
+              />
+              <span>
+                {draft.label}
+                {draft.excerpt ? `「${draft.excerpt}」` : "（沒有內文）"} — {draft.reasons.map(reasonText).join("；")}
+              </span>
+            </label>
+            {draft.group && <GroupConsequence draft={draft} />}
+          </li>
+        ))}
+      </ul>
+      <div className="export-pdf__skipped-actions">
+        <label className="export-pdf__check">
+          <input
+            type="checkbox"
+            checked={all}
+            onChange={() => onPick(all ? new Set() : new Set(drafts.map((d) => d.sceneId)))}
+          />
+          全選
+        </label>
+        <button type="button" onClick={onRemember} disabled={disabled || picked.size === 0}>
+          之後不再提醒勾選的場次
+        </button>
+      </div>
+    </fieldset>
+  );
+}
+
+/** 草稿成員讓整組印不出來（殘缺的對剪比不印更糟）—— 略過它的後果比表面上大，要說出來。 */
+function GroupConsequence({ draft }: { draft: SkippedDraft }) {
+  const mates = draft.group!.groupMates;
+  return (
+    <p className="export-pdf__group">
+      這場屬於一個對剪群組，整組都不會印
+      {mates.length > 0 && `：同組的 ${mates.join("、")} 也會一起略過`}。
+    </p>
+  );
+}
+
+/** 登場人物提示（§4.7）另外列：**提醒但不阻擋**，它可能是正確狀態（聲音入鏡、人沒入鏡）。 */
+function AppearingReminders({ check }: { check: ExportPreflight }) {
+  return (
+    <div className="export-pdf__appearing" role="group" aria-labelledby="export-pdf-appearing">
+      <p id="export-pdf-appearing">有台詞、但不在登場人物欄的人（只是提醒，不影響匯出）：</p>
+      <ul>
+        {check.appearing.map(({ sceneId, label, speakers }) => (
+          <li key={sceneId}>
+            {`${label}\u3000${speakers.join("、")}`}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
