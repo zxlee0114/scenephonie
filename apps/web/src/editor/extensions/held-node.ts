@@ -8,6 +8,8 @@
  *    管的 DOM（`removeChild` 錯誤、⌘Z 回不來）。所以 copy／cut 在 document 的 capture 階段就接走。
  * 2. **選單開著時焦點在選單上**：選單用不到的鍵（⌫、Delete、打字、⌘C／⌘X）收起選單、交回編輯器。
  * 3. **點頁面空白處**：焦點掉到 body，反白還在卻按什麼都沒反應 —— 焦點拉回編輯器，選取照舊。
+ * 4. **選單開著時點文件裡面**：那一下只收起選單，選取留著 —— 給編劇一次複製、剪下的機會；
+ *    再點一下才照常放游標（使用者回饋 2026-10-22）。
  */
 import { Extension } from "@tiptap/core";
 import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state";
@@ -71,6 +73,28 @@ function menuKeys(view: EditorView) {
   };
 }
 
+/**
+ * 選單開著時點進文件：`pointerdown` 先記下這一下（選單的「點外面就收起」也在這時收），接著的
+ * `mousedown` 不交給 PM —— 它會把選取換成游標。document capture、比選單早註冊，先輪到這裡判斷。
+ */
+function firstClickCloses(view: EditorView) {
+  let swallow = false;
+  const onPointerDown = (event: Event) => {
+    const target = event.target as Element | null;
+    const anchor = openHandleMenu(view);
+    swallow =
+      !!anchor && held(view) && !!target && view.dom.contains(target) && !anchor.contains(target);
+  };
+  const onMouseDown = (event: Event) => {
+    if (!swallow) return;
+    swallow = false;
+    event.preventDefault();
+    event.stopPropagation();
+    closePointMenu();
+  };
+  return { onPointerDown, onMouseDown };
+}
+
 function keepFocus(view: EditorView) {
   return () => {
     setTimeout(() => {
@@ -92,12 +116,17 @@ export const HeldNode = Extension.create({
           const onClipboard = clipboard(view) as EventListener;
           const onKey = menuKeys(view) as EventListener;
           const onFocusOut = keepFocus(view);
+          const { onPointerDown, onMouseDown } = firstClickCloses(view);
+          document.addEventListener("pointerdown", onPointerDown, true);
+          document.addEventListener("mousedown", onMouseDown, true);
           document.addEventListener("copy", onClipboard, true);
           document.addEventListener("cut", onClipboard, true);
           document.addEventListener("keydown", onKey, true);
           view.dom.addEventListener("focusout", onFocusOut);
           return {
             destroy() {
+              document.removeEventListener("pointerdown", onPointerDown, true);
+              document.removeEventListener("mousedown", onMouseDown, true);
               document.removeEventListener("copy", onClipboard, true);
               document.removeEventListener("cut", onClipboard, true);
               document.removeEventListener("keydown", onKey, true);

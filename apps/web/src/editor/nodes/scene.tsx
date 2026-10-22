@@ -249,7 +249,10 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
       key: "delete",
       label: isMember ? "刪除這一場（連同它的片段）" : deleteSceneLabel(isSubscene, spec?.subscenes ?? 0),
       // 刪主場次一併刪子場次；⌘Z 一步整棵回來（bridge 是一個 transaction）。
-      run: () => runKernelCommand(editor, (doc) => deleteScene(doc, { sceneId })),
+      run: () =>
+        runKernelCommand(editor, (doc) => deleteScene(doc, { sceneId }), {
+          caretNear: typeof getPos === "function" ? getPos() : undefined,
+        }),
     },
   ];
 

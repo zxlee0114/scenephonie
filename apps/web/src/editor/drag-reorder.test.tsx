@@ -380,6 +380,30 @@ describe("點把手（沒拖）：選起那個節點、開選單", () => {
     expect(selected()).toBe(editor.state.doc.child(1).attrs.sceneId);
   });
 
+  it("場次號選單刪除本場：游標落在接上來的那一場開頭，不跑到文件末端", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(topScene(container, 1)));
+    });
+    pick("刪除本場");
+    expect(outline(editor)).toEqual([["客廳", "[回憶]", "回來"], ["夜"]]);
+    const { selection } = editor.state;
+    expect(selection.empty).toBe(true);
+    expect(selection.$from.parent.textContent).toBe("夜");
+    expect(selection.$from.parentOffset).toBe(0);
+  });
+
+  it("刪的是最後一場：游標落在上一場的結尾", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(topScene(container, 2)));
+    });
+    pick("刪除本場");
+    const { $from } = editor.state.selection;
+    expect($from.parent.textContent).toBe("街上");
+    expect($from.parentOffset).toBe("街上".length);
+  });
+
   it("再點一次同一個把手：收起選單，區塊仍選著", async () => {
     const { editor, container } = await mount();
     const handle = ownHandle(blockOf(container, "街上"));
@@ -550,6 +574,27 @@ describe("選起的節點：剪貼簿與鍵盤都對它作用（`held-node`）",
     expect(copy.textContent).toBe("堤上");
     expect(copy.attrs.appearingCharacters).toEqual([who]);
     expect(copy.attrs.dismissedCharacterIds).toEqual(dismissed);
+  });
+
+  it("選單開著時點文件裡面：那一下只收起選單、仍選著（留一次複製、剪下的機會）；再點才交給編輯器", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(blockOf(container, "街上")));
+    });
+    const elsewhere = blockOf(container, "夜").querySelector(".block__content")!;
+    let passed = true;
+    act(() => {
+      fireEvent.pointerDown(elsewhere);
+      passed = fireEvent.mouseDown(elsewhere);
+    });
+    expect(passed).toBe(false); // mousedown 被吃掉：PM 不會把選取換成游標
+    expect(document.querySelector(".scene-menu")).toBeNull();
+    expect((editor.state.selection as NodeSelection).node?.textContent).toBe("街上");
+    act(() => {
+      fireEvent.pointerDown(elsewhere);
+      passed = fireEvent.mouseDown(elsewhere);
+    });
+    expect(passed).toBe(true);
   });
 
   it("點頁面空白處（焦點掉到 body）：焦點拉回編輯器，仍選著", async () => {
