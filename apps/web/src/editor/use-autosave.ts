@@ -1,10 +1,10 @@
 "use client";
 
 import type { Editor } from "@tiptap/core";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { SaveToken } from "@/persistence";
-import { createSaveScheduler } from "@/persistence/save-scheduler";
+import { createSaveScheduler, type SaveScheduler } from "@/persistence/save-scheduler";
 
 import type { SaveScreenplay } from "./save-capability";
 
@@ -20,6 +20,15 @@ import { toPlainJson } from "./plain-json";
  */
 export type SaveStatus = "idle" | "saving" | "saved" | "conflict" | "forbidden" | "error";
 
+export interface Autosave {
+  status: SaveStatus;
+  /**
+   * 立刻把手上的存掉，回報**畫面上的稿是不是都進了資料庫**。匯出 PDF 之前要問這一句（票券 18）：
+   * 交付承諾的是 canonical state，存不進去（斷線、衝突、沒有權限）就是 `false`。
+   */
+  flush: () => Promise<boolean>;
+}
+
 export function useAutosave({
   editor,
   screenplayId,
@@ -30,8 +39,9 @@ export function useAutosave({
   screenplayId: string | undefined;
   initialToken: SaveToken | undefined;
   save: SaveScreenplay | undefined;
-}): SaveStatus {
+}): Autosave {
   const [status, setStatus] = useState<SaveStatus>("idle");
+  const schedulerRef = useRef<SaveScheduler | null>(null);
   const tokenRef = useRef<SaveToken | undefined>(initialToken);
   // conflict 之後就停手 —— 我們手上這份的來歷已經不明，再存就是拿舊稿覆蓋新稿。
   const stoppedRef = useRef(false);
@@ -80,6 +90,7 @@ export function useAutosave({
       if (document.visibilityState === "hidden") flushPending();
     };
 
+    schedulerRef.current = scheduler;
     editor.on("update", onUpdate);
     document.addEventListener("visibilitychange", onVisibilityChange);
     // pagehide 補的是 visibilitychange 沒涵蓋的離開方式（bfcache、部分行動瀏覽器）。
@@ -92,8 +103,16 @@ export function useAutosave({
       // 這裡只丟計時器不 flush —— 卸載時 editor 可能已經被 Tiptap 拆掉，`getJSON()` 沒有東西可讀。
       // 真正要保住稿的是上面兩個離開事件。
       scheduler.cancel();
+      schedulerRef.current = null;
     };
   }, [editor, screenplayId, save]);
 
-  return status;
+  const flush = useCallback(async () => {
+    const scheduler = schedulerRef.current;
+    if (!scheduler || stoppedRef.current) return false;
+    // conflict／forbidden 不是 reject（排程器以為落地了），所以存完要再看一次是不是停手了。
+    return (await scheduler.flush()) && !stoppedRef.current;
+  }, []);
+
+  return { status, flush };
 }

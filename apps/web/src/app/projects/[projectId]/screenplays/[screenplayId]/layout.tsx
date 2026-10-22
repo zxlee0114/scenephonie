@@ -5,7 +5,7 @@ import { authorizeProjectForUser, authorizeScreenplay } from "@/authorization";
 import { projectEntities } from "@/entities";
 import { loadScreenplay } from "@/persistence";
 
-import { createEntityAction, renameEntityAction, saveScreenplayAction } from "./actions";
+import { createDeliveryAction, createEntityAction, renameEntityAction, saveScreenplayAction } from "./actions";
 import { ScreenplayWorkspace, ViewSwitch } from "./workspace";
 
 // route handler／server component 必須連得到 Postgres —— 不可 edge-only（§13.1）。
@@ -72,6 +72,7 @@ export default async function EditorLayout({
         }}
         createEntity={createEntityAction}
         renameEntity={renameEntityAction}
+        createDelivery={createDeliveryAction}
       />
       {children}
     </main>

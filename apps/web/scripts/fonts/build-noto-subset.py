@@ -112,15 +112,15 @@ def load_or_fetch_ranges(work: Path, do_fetch: bool) -> tuple[list[dict], dict]:
     return meta["chunks"], meta
 
 
-def instance_400(work: Path, do_fetch: bool) -> Path:
+def instance_400(work: Path, do_fetch: bool, weight: int = 400) -> Path:
     vf = work / "NotoSansTC-wght.ttf"
     if do_fetch or not vf.exists():
         print(f"↓ 抓可變字型 {VF_URL}")
         vf.write_bytes(fetch(VF_URL))
-    static = work / "NotoSansTC-400.ttf"
-    print("• instancer wght=400 …")
+    static = work / f"NotoSansTC-{weight}.ttf"
+    print(f"• instancer wght={weight} …")
     subprocess.run(
-        [sys.executable, "-m", "fontTools.varLib.instancer", str(vf), "wght=400", "-o", str(static)],
+        [sys.executable, "-m", "fontTools.varLib.instancer", str(vf), f"wght={weight}", "-o", str(static)],
         check=True,
         capture_output=True,
     )
@@ -157,10 +157,12 @@ def pick_preload(chunks: list[dict]) -> list[int]:
     return sorted(latin_family + [c["ordinal"] for c in cjk_by_freq[:PRELOAD_TOP_CJK]])
 
 
-def emit_css(chunks: list[dict], sizes: dict[int, int], preload: list[int]) -> str:
+def emit_css(chunks: list[dict], sizes: dict[int, int], preload: list[int], weight: int = 400) -> str:
     lines = [
-        "/* GENERATED —— 勿手改。重跑 apps/web/scripts/fonts/build-noto-subset.py。",
-        f" * {FONT_FAMILY} Regular 400，{len(chunks)} 塊 unicode-range subset（票券 29）。",
+        "/* GENERATED —— 勿手改。重跑 apps/web/scripts/fonts/build-noto-subset.py"
+        + ("" if weight == 400 else f" --weight {weight}")
+        + "。",
+        f" * {FONT_FAMILY} {weight}，{len(chunks)} 塊 unicode-range subset（票券 29）。",
         " * font-display: swap —— 編輯器分塊載入持續發生在打字過程中，swap 是唯一不會",
         " * 「按鍵後空白」或「同頁字型永久混排」的值（research §4.2）。",
         f" * preload 目標（高頻塊，見 <head>）：{preload}",
@@ -175,7 +177,7 @@ def emit_css(chunks: list[dict], sizes: dict[int, int], preload: list[int]) -> s
             "@font-face {",
             f"  font-family: '{FONT_FAMILY}';",
             "  font-style: normal;",
-            "  font-weight: 400;",
+            f"  font-weight: {weight};",
             "  font-display: swap;",
             f"  src: url('./{c['ordinal']:03d}.woff2') format('woff2');",
             f"  unicode-range: {c['unicodeRange']};",
@@ -190,10 +192,18 @@ def main() -> int:
     ap.add_argument("--work", type=Path, default=Path("/tmp/notobuild"))
     ap.add_argument("--jobs", type=int, default=8)
     ap.add_argument("--no-fetch", dest="fetch", action="store_false")
+    # 400 是編輯器那一份（產物、preload、切分表都歸它）。其他字重只給印 PDF 用（票券 18：黑體內文
+    # 用 300，場標 400 加粗才分得開），寫到自己的目錄、不碰 preload 與切分表。
+    ap.add_argument("--weight", type=int, default=400)
     args = ap.parse_args()
+    editor_weight = args.weight == 400
+    out_dir = REPO_FONT_DIR if editor_weight else REPO_FONT_DIR.with_name(f"noto-sans-tc-{args.weight}")
+    if not editor_weight and args.fetch:
+        print("⚠ 非 400 字重只能 --no-fetch：切分表歸 400 那一份管，不在這裡重抓。")
+        return 1
 
     args.work.mkdir(parents=True, exist_ok=True)
-    REPO_FONT_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     chunks, meta = load_or_fetch_ranges(args.work, args.fetch)
     if len(chunks) != 105:
@@ -201,20 +211,23 @@ def main() -> int:
         return 1
     print(f"• 切分表 {len(chunks)} 塊（來源 {meta['fetchedOn']}）")
 
-    static = instance_400(args.work, args.fetch)
+    static = instance_400(args.work, args.fetch, args.weight)
 
-    for old in REPO_FONT_DIR.glob("*.woff2"):
+    for old in out_dir.glob("*.woff2"):
         old.unlink()
 
     sizes: dict[int, int] = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        for ordinal, size in pool.map(lambda c: subset_one(static, c, REPO_FONT_DIR), chunks):
+        for ordinal, size in pool.map(lambda c: subset_one(static, c, out_dir), chunks):
             sizes[ordinal] = size
     total = sum(sizes.values())
     print(f"• {len(sizes)} 塊 woff2，合計 {total:,} bytes（{total / 1024 / 1024:.2f} MiB）")
 
     preload = pick_preload(chunks)
-    (REPO_FONT_DIR / "fonts.css").write_text(emit_css(chunks, sizes, preload), encoding="utf-8")
+    (out_dir / "fonts.css").write_text(emit_css(chunks, sizes, preload, args.weight), encoding="utf-8")
+    if not editor_weight:
+        print("✓ 完成")
+        return 0
     # 小檔，單一事實來源：layout.tsx 讀它產生 <link rel="preload">，不必 import 整份切分表。
     (REPO_FONT_DIR / "preload.json").write_text(
         json.dumps(

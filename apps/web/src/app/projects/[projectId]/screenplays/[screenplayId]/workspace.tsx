@@ -13,6 +13,8 @@ import type { ComponentProps } from "react";
 
 import { ScreenplayEditor, type ScreenplayView } from "@/editor/ScreenplayEditor";
 
+import type { createDeliveryAction } from "./actions";
+
 const TABLE_SEGMENT = "table";
 
 function useView(): ScreenplayView {
@@ -20,11 +22,34 @@ function useView(): ScreenplayView {
 }
 
 export function ScreenplayWorkspace(
-  props: Omit<ComponentProps<typeof ScreenplayEditor>, "view" | "onShowScript"> & { base: string },
+  props: Omit<ComponentProps<typeof ScreenplayEditor>, "view" | "onShowScript" | "exportPdf"> & {
+    base: string;
+    /** 匯出意圖。型別跟著 action 走，不另抄一份。 */
+    createDelivery: typeof createDeliveryAction;
+  },
 ) {
-  const { base, ...editorProps } = props;
+  const { base, createDelivery, ...editorProps } = props;
   const router = useRouter();
-  return <ScreenplayEditor {...editorProps} view={useView()} onShowScript={() => router.push(base)} />;
+  const { screenplayId } = editorProps;
+  return (
+    <ScreenplayEditor
+      {...editorProps}
+      view={useView()}
+      onShowScript={() => router.push(base)}
+      exportPdf={
+        screenplayId
+          ? {
+              createDelivery: async () => {
+                const result = await createDelivery({ screenplayId });
+                return result.status === "delivered" ? result.deliveryId : null;
+              },
+              // 交付的 PDF 住在劇本底下（`./deliveries/[deliveryId]/pdf`）—— 讀的是那一筆交付。
+              pdfUrl: (deliveryId, query) => `${base}/deliveries/${deliveryId}/pdf?${query}`,
+            }
+          : undefined
+      }
+    />
+  );
 }
 
 /** 頁內的 segmented control：「劇本／場次表」。 */

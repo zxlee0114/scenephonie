@@ -45,3 +45,28 @@ PATH=".venv/bin:$PATH" .venv/bin/python build-noto-subset.py --no-fetch  # 沿�
 2. 微軟正黑體的 U+6C34 advance 未在 Windows 實測（`ic` 欄寬保險的推論仍有一個未量到的角）。
 3. 首屏 bytes ≠ 首屏時間 —— 未量 LCP/FCP，未在真實 4G 裝置上感受。
 4. Windows ClearType 下的渲染品質未驗證。
+
+## PDF 楷體（票券 18）
+
+`apps/web/public/fonts/tw-kai/` 是**全字庫正楷體**的 subset，只給印 PDF 的 Chromium 用，不進螢幕編輯器。
+GHSA 範本實物用標楷體，但標楷體是微軟授權、不能嵌進伺服器印出的 PDF；全字庫正楷體是政府開放授權，
+可重製、改作、嵌入，條件是註明出處（見該目錄的 `LICENSE.md`）。
+
+```bash
+curl -L -o /tmp/Fonts_Kai.zip https://www.cns11643.gov.tw/opendata/Fonts_Kai.zip   # 約 58 MB，伺服器很慢
+PATH=".venv/bin:$PATH" .venv/bin/python build-twkai-subset.py --zip /tmp/Fonts_Kai.zip
+```
+
+沿用 `unicode-ranges.json` 同一份切分表：Chromium 只會要這份稿用到的那幾塊。只收 BMP 那一檔
+（`TW-Kai-98_1.ttf`）；楷體缺的字由 Noto Sans TC 補（`render-html.ts` 的字型鏈）。
+
+## PDF 黑體內文 Light 300（票券 18）
+
+`apps/web/public/fonts/noto-sans-tc-300/` 是同一套 Noto Sans TC instance 到 `wght=300` 的 subset，只給 PDF 的黑體內文用
+（400 的內文配合成粗體的場標分不太開）。編輯器仍只載 400。
+
+```bash
+PATH=".venv/bin:$PATH" .venv/bin/python build-noto-subset.py --no-fetch --weight 300 --work /tmp/notobuild
+```
+
+非 400 字重只寫自己的目錄，不動 400 那一份的產物、`preload.json` 與 `unicode-ranges.json`。

@@ -115,8 +115,18 @@ describe("自動存檔的節奏", () => {
     const scheduler = createSaveScheduler({ save });
 
     scheduler.changed();
-    await expect(scheduler.flush()).resolves.toBeUndefined();
+    await expect(scheduler.flush()).resolves.toBe(false);
     scheduler.cancel();
+  });
+
+  it("flush 回報手上的是不是都落地了 —— 匯出 PDF 要先知道這件事（票券 18）", async () => {
+    const save = vi.fn(async () => {});
+    const scheduler = createSaveScheduler({ save });
+
+    await expect(scheduler.flush()).resolves.toBe(true); // 本來就沒有待存的
+    scheduler.changed();
+    await expect(scheduler.flush()).resolves.toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
   });
 
   it("cancel 之後不再存", async () => {
