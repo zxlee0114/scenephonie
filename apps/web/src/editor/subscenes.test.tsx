@@ -19,6 +19,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { allSceneIds } from "./address";
 import { EntityCatalogProvider } from "./entity-catalog";
 import { deleteSceneLabel } from "./scene-menu";
+import { PointMenu } from "./point-menu";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
 const living = { locationId: mintLocationId(), displayName: "公寓客廳" };
@@ -37,6 +38,7 @@ function Harness({ content, onEditor }: { content: object; onEditor: (e: Editor)
   return (
     <EntityCatalogProvider>
       <EditorContent editor={editor} />
+      <PointMenu />
     </EntityCatalogProvider>
   );
 }

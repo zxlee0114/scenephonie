@@ -435,10 +435,6 @@
 
 /* ── SceneMenu（點場次號開）── */
 .scene-menu {
-  position: absolute;
-  z-index: 20;
-  inset-inline-start: var(--space-2);
-  inset-block-start: calc(var(--scene-pad-block, 0px) + var(--space-6));
   min-inline-size: 12rem;
   background: var(--surface-page);
   border: 1px solid var(--rule-strong);
@@ -486,10 +482,15 @@
 .drag-handle {
   position: absolute;
   inset-block-start: 0;
+  /* 與這個區塊第一行字置中對齊：盒子高 ＝ 內文一行的行高，⠿ 在盒子裡上下置中（使用者驗收
+   * 2026-10-22：原本 ⠿ 坐在自己字型的基線上，比字偏高）。 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  block-size: calc(1em * var(--leading-base));
   inline-size: var(--space-4);
-  text-align: center;
   font-family: var(--font-ui);
-  line-height: inherit;
+  line-height: 1;
   color: var(--text-faint);
   cursor: grab;
   opacity: 0;
@@ -499,12 +500,24 @@
 }
 
 .block > .drag-handle {
+  --handle-gap: calc(var(--space-5) - var(--space-4));
   inset-inline-start: calc(-1 * var(--space-5));
 }
 
 /* 子場次的內容在線的右側縮了一階（線寬 ＋ --space-3）：⠿ 多退這麼多，回到跟主場次同一欄、在線的左邊。 */
 .scene--sub .block > .drag-handle {
+  --handle-gap: calc(var(--space-5) - var(--space-4) + var(--subscene-rule) + var(--space-3));
   inset-inline-start: calc(-1 * (var(--space-5) + var(--subscene-rule) + var(--space-3)));
+}
+
+/* 從字移到 ⠿ 的路上（中間隔著間距、子場次還隔著那條線）不能有讓它消失的空檔：⠿ 往右長一塊看不見的
+ * 橋接到內容邊 —— 它是 ⠿ 的一部分，滑在上面就還在 .block:hover 裡（使用者驗收 2026-10-22）。 */
+.block > .drag-handle::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 100%;
+  inline-size: var(--handle-gap);
 }
 
 .drag-handle--group {
@@ -515,8 +528,13 @@
 
 .block:hover > .drag-handle,
 .scene-group:hover > .drag-handle,
-.drag-handle:hover {
+.drag-handle:hover,
+.drag-handle.is-menu-anchor {
   opacity: 1;
+}
+
+.drag-handle.is-menu-anchor {
+  color: var(--text-secondary);
 }
 
 .drag-handle:hover {
@@ -542,14 +560,51 @@
   display: none;
 }
 
-/* 定點選單（點把手、降級時問種類）：貼在把手下方／放下的那一點，沿用 SceneMenu 的外觀與鍵盤。 */
+/* 定點選單（點把手、點場次號、降級時問種類）：位置由 JS 算（往外長，見 point-menu.tsx），沿用
+ * SceneMenu 的外觀與鍵盤。出現從錨點那一側長出來、收起淡掉 —— 都很短，只是讓它不要「啪」一下。 */
 .point-menu {
   position: fixed;
   z-index: 30;
+  animation: point-menu-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.point-menu > .scene-menu {
-  inset: 0 auto auto 0;
+.point-menu[data-side="outside"] {
+  transform-origin: top right;
+}
+
+.point-menu[data-side="below"] {
+  transform-origin: top left;
+}
+
+.point-menu[data-side="above"] {
+  transform-origin: bottom left;
+}
+
+/* 收起：React 拿掉選單後留下的複本，播完自己刪。 */
+.point-menu--leaving {
+  pointer-events: none;
+  animation: point-menu-out 110ms ease-in forwards;
+}
+
+@keyframes point-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes point-menu-out {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .point-menu,
+  .point-menu--leaving {
+    animation: none;
+  }
 }
 
 /* ── 內嵌簡表（chip row）——常駐，不可被預設 UI 收合（§7.11）── */

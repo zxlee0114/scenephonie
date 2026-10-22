@@ -24,6 +24,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { allSceneIds } from "./address";
 import { EntityCatalogProvider } from "./entity-catalog";
 import { SlashMenu } from "./extensions/slash";
+import { PointMenu } from "./point-menu";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
 const room = { locationId: mintLocationId(), displayName: "警局偵訊室" };
@@ -50,6 +51,7 @@ function Harness({ content, onEditor }: { content: object; onEditor: (e: Editor)
   return (
     <EntityCatalogProvider>
       <EditorContent editor={editor} />
+      <PointMenu />
       <SlashMenu />
     </EntityCatalogProvider>
   );

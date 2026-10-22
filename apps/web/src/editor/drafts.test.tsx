@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { EntityCatalogProvider } from "./entity-catalog";
 import { requestNextScene } from "./extensions/next-scene";
+import { PointMenu } from "./point-menu";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
 const action = (text = "") => k.node("action", null, text ? [k.text(text)] : []);
@@ -33,6 +34,7 @@ function Harness({ content, onEditor }: { content: object; onEditor: (e: Editor)
   return (
     <EntityCatalogProvider>
       <EditorContent editor={editor} />
+      <PointMenu />
     </EntityCatalogProvider>
   );
 }

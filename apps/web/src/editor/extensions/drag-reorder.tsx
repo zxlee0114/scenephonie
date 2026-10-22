@@ -48,7 +48,8 @@ import {
 } from "../drop-intent";
 import { HANDLE_SELECTOR } from "../nodes/drag-handle";
 import type { MenuRow } from "../scene-menu";
-import { pointMenus } from "../point-menu";
+import { closePointMenu, isMenuAnchor, pointMenus } from "../point-menu";
+import { scrollParentOf, visibleBoundsOf } from "../scroll-parent";
 
 /** 落點元素：最內層的那一個勝出。群組成員的 chip row 算群組的外框（成員不單獨進出群組）。 */
 const ZONE_SELECTOR = ".block, .scene, .scene-group";
@@ -192,15 +193,6 @@ export function edgeScrollStep(y: number, top: number, bottom: number): number {
   return 0;
 }
 
-/** 編輯器所在的捲動區（最近一個會捲的祖先；都不會捲就是整頁）。 */
-function scrollerOf(el: HTMLElement): HTMLElement {
-  for (let at = el.parentElement; at; at = at.parentElement) {
-    const { overflowY } = getComputedStyle(at);
-    if ((overflowY === "auto" || overflowY === "scroll") && at.scrollHeight > at.clientHeight) return at;
-  }
-  return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
-}
-
 /**
  * 拖曳期間追著指標的縱座標捲動。`dragover` 只在指標停在落點上時才發，所以座標從 document
  * 收（指標在 header 上、編輯器外面也收得到），捲動交給 animation frame 連續跑。
@@ -212,10 +204,9 @@ function edgeScroller(view: EditorView) {
     y = e.clientY;
   };
   const tick = () => {
-    const scroller = scrollerOf(view.dom);
-    const page = scroller === document.scrollingElement;
-    const r = page ? { top: 0, bottom: window.innerHeight } : scroller.getBoundingClientRect();
-    const step = y == null ? 0 : edgeScrollStep(y, Math.max(r.top, 0), Math.min(r.bottom, window.innerHeight));
+    const scroller = scrollParentOf(view.dom);
+    const { top, bottom } = visibleBoundsOf(scroller);
+    const step = y == null ? 0 : edgeScrollStep(y, top, bottom);
     if (step) scroller.scrollBy(0, step);
     frame = requestAnimationFrame(tick);
   };
@@ -309,13 +300,12 @@ function dragController(editor: Editor, view: EditorView) {
       if (!handle || !zone || zone.kind === "scene" || zone.kind === "subscene") return;
       e.preventDefault();
       e.stopPropagation();
+      if (isMenuAnchor(handle)) return closePointMenu(); // 再點一次 ＝ 收起
       const rows =
         zone.kind === "block"
           ? blockMenu(editor, view, el, { ...zone.container, blockIndex: zone.index })
           : groupMenu(editor, view, zone.groupId);
-      if (!rows) return;
-      const r = handle.getBoundingClientRect();
-      pointMenus.set({ x: r.left, y: r.bottom, rows, onClose: () => view.focus() });
+      if (rows) pointMenus.set({ anchor: handle as HTMLElement, rows, onClose: () => view.focus() });
     },
     dragstart: (e) => {
       const handle = (e.target as Element | null)?.closest?.(HANDLE_SELECTOR);
@@ -369,8 +359,7 @@ function dragController(editor: Editor, view: EditorView) {
           if (view.state.doc === dropped) run(intent, kind);
         };
         pointMenus.set({
-          x: e.clientX,
-          y: e.clientY,
+          anchor: { x: e.clientX, y: e.clientY },
           rows: [
             { key: "insert", label: "改成插入戲", run: choose("插入") },
             { key: "continue", label: "改成接續", run: choose("接續") },

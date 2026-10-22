@@ -6,7 +6,10 @@
  * 一起回來）。搬移／對調兩列歸拖曳那張票（13）。
  *
  * 場次號本身仍是 decoration：不可選、不進 content flow、不進 tab 序、`aria-hidden`（不變式 G）。
- * 它只多了一件事 —— 吃得到滑鼠，點下去開這個選單。
+ * 它只多了兩件事 —— 點下去開這個選單、按住拖是搬移（票券 13）。
+ *
+ * 這裡只管選單本身（列、鍵盤、點外面就收）；放在哪、怎麼出現由 `./point-menu` 負責 —— 把手選單與
+ * 降級時問種類的選單也是同一個。
  */
 "use client";
 
@@ -22,7 +25,16 @@ export function deleteSceneLabel(isSubscene: boolean, subscenes: number): string
 
 export type MenuRow = { readonly key: string; readonly label: string; readonly run: () => void };
 
-export function SceneMenu({ rows, onClose }: { rows: readonly MenuRow[]; onClose: () => void }) {
+export function SceneMenu({
+  rows,
+  onClose,
+  anchor = null,
+}: {
+  rows: readonly MenuRow[];
+  onClose: () => void;
+  /** 打開它的那個元素：點它不算「點外面」—— 那一下由錨點自己處理（再點一次 ＝ 收起）。 */
+  anchor?: Element | null;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
 
@@ -31,7 +43,7 @@ export function SceneMenu({ rows, onClose }: { rows: readonly MenuRow[]; onClose
     ref.current?.focus();
   }, []);
 
-  useEffect(() => dismissOnOutsidePointer(() => ref.current, onClose), [onClose]);
+  useEffect(() => dismissOnOutsidePointer(() => ref.current, onClose, () => anchor), [onClose, anchor]);
 
   const pick = (row: MenuRow | undefined) => {
     onClose();
