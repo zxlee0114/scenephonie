@@ -64,3 +64,12 @@
   黑體用既有的 Noto Sans TC。半形英數也用楷體自己的字形（半形等寬，跟標楷體一樣）—— 試過讓英數落到 Noto，
   中英混排不協調（使用者 2026-10-22）。楷體缺的字才落到 Noto。產物 7.5 MiB，由 `scripts/fonts/build-twkai-subset.py` 沿用票 29 的切分表產生。
 - 手動離線時存檔一直重試 → 另開 [65](./65-autosave-retry-backoff.md)。
+
+**2026-10-22 驗收第二輪（使用者）**：
+
+- 黑體的內文改用 Noto Sans TC **Light 300**（`public/fonts/noto-sans-tc-300/`，`build-noto-subset.py --weight 300`），
+  場標維持 400 加粗 —— 兩者拉得開。楷體不變。
+- 檔名 `劇本名稱_20261022-1430.pdf`：時間是交付的建立時間（台北），同一筆交付重印檔名不變。劇本名稱的入口還沒有，
+  眼下用**專案名稱**（v1 專案與劇本 1:1，`projectTitle`）；中文檔名走 `content-disposition` 的 `filename*`，
+  檔名不收的字換成 `_`。
+- 其他暫時維持原狀（行高 1.5、楷體場標的合成粗體）。

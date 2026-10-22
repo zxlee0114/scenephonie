@@ -77,7 +77,7 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`PDF ${response.status}`);
-      download(await response.blob(), `${deliveryId}.pdf`);
+      download(await response.blob(), filenameOf(response) ?? `${deliveryId}.pdf`);
       setPhase({ kind: "done" });
     } catch {
       setPhase({ kind: "printFailed", deliveryId, url });
@@ -215,7 +215,18 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
   );
 }
 
-/** 把 PDF 交給瀏覽器下載。檔名用交付 id —— 同一筆交付重印，檔名也一樣。 */
+/** 伺服器在 `content-disposition` 的 `filename*` 給的檔名（劇本名稱_交付時間）。 */
+function filenameOf(response: Response): string | null {
+  const match = /filename\*=UTF-8''([^;]+)/i.exec(response.headers.get("content-disposition") ?? "");
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]!);
+  } catch {
+    return null;
+  }
+}
+
+/** 把 PDF 交給瀏覽器下載。同一筆交付重印，檔名也一樣。 */
 function download(blob: Blob, filename: string) {
   const href = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

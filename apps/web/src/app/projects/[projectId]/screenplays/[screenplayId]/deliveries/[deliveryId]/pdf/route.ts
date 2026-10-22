@@ -1,8 +1,10 @@
 import { authorizeScreenplay } from "@/authorization";
 import { exportOptionsFromQuery } from "@/pdf/export-options";
+import { contentDisposition, pdfFilename } from "@/pdf/filename";
 import { printPdf } from "@/pdf/print-pdf";
 import { renderDeliveryHtml } from "@/pdf/render-html";
 import { loadDelivery } from "@/persistence";
+import { projectTitle } from "@/projects/project-store";
 
 // Chromium 要 Node runtime；印一份長稿要幾秒，給足時間（Vercel 的上限內）。
 export const runtime = "nodejs";
@@ -33,11 +35,11 @@ export async function GET(
   if (!delivery) return notFound();
 
   const html = renderDeliveryHtml(delivery, exportOptionsFromQuery(new URL(request.url).searchParams));
-  const pdf = await printPdf(html);
+  const [pdf, title] = await Promise.all([printPdf(html), projectTitle(screenplay)]);
   return new Response(pdf as Uint8Array<ArrayBuffer>, {
     headers: {
       "content-type": "application/pdf",
-      "content-disposition": `inline; filename="${delivery.deliveryId}.pdf"`,
+      "content-disposition": contentDisposition(pdfFilename(title, delivery.createdAt), `${delivery.deliveryId}.pdf`),
       // 同一筆交付、同一組選項永遠印同樣的字，但 PDF 是使用者的稿 —— 不進任何共用快取。
       "cache-control": "private, no-store",
     },

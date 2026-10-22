@@ -7,6 +7,7 @@ import {
 
 import type { ExportOptions, PrintFont } from "./export-options";
 import { GHSA as format } from "./format";
+import { taipeiParts } from "./taipei-time";
 
 /**
  * 交付 → 一份可以直接交給瀏覽器印成 PDF 的 HTML（票券 18，§9.4）。
@@ -25,13 +26,21 @@ const READABLE_PAYLOAD_VERSIONS: readonly number[] = [DELIVERY_PAYLOAD_VERSION];
  *
  * 楷體是全字庫正楷體（標楷體是微軟授權，不能放上伺服器嵌進 PDF）。它只收 BMP，缺字落到
  * Noto Sans TC（票券 29 那一份），所以兩份樣式表都掛，楷體排前面。
+ *
+ * 黑體的內文用 Light 300：400 的內文配合成粗體的場標分不太開（使用者驗收 2026-10-22）。場標要
+ * bold 時挑到的是 400 那一份再加粗，所以 300 與 400 兩份都要掛。
  */
-const FONTS: Record<PrintFont, { stylesheets: string[]; family: string }> = {
+const FONTS: Record<PrintFont, { stylesheets: string[]; family: string; bodyWeight: number }> = {
   kai: {
     stylesheets: ["/fonts/tw-kai/fonts.css", "/fonts/noto-sans-tc/fonts.css"],
     family: "'TW-Kai', 'Noto Sans TC', serif",
+    bodyWeight: 400,
   },
-  sans: { stylesheets: ["/fonts/noto-sans-tc/fonts.css"], family: "'Noto Sans TC', sans-serif" },
+  sans: {
+    stylesheets: ["/fonts/noto-sans-tc-300/fonts.css", "/fonts/noto-sans-tc/fonts.css"],
+    family: "'Noto Sans TC', sans-serif",
+    bodyWeight: 300,
+  },
 };
 
 /**
@@ -55,7 +64,7 @@ export function renderDeliveryHtml(
 <head>
 <meta charset="utf-8">
 ${FONTS[options.font].stylesheets.map((href) => `<link rel="stylesheet" href="${href}">`).join("\n")}
-<style>${stylesheet(FONTS[options.font].family, options.timestamp ? timestampText(delivery.createdAt) : null)}</style>
+<style>${stylesheet(FONTS[options.font], options.timestamp ? timestampText(delivery.createdAt) : null)}</style>
 </head>
 <body>
 ${watermark ? `<div class="watermark" aria-hidden="true">${escape(watermark)}</div>` : ""}
@@ -73,7 +82,10 @@ ${body}
  * `@page`」，要的就是這個性質；Chromium 的 `@page` 不畫背景圖、邊界盒也蓋不到版心，fixed 是
  * 同一件事在 Chromium 上做得到的寫法。
  */
-function stylesheet(fontFamily: string, timestamp: string | null): string {
+function stylesheet(
+  { family: fontFamily, bodyWeight }: { family: string; bodyWeight: number },
+  timestamp: string | null,
+): string {
   const { page, heading } = format;
   const line = `${page.lineHeight}em`;
   const gap = (lines: number) => `calc(${lines} * ${line})`;
@@ -85,13 +97,13 @@ function stylesheet(fontFamily: string, timestamp: string | null): string {
   @bottom-center { content: counter(page); ${footer} }
   ${timestamp ? `@bottom-left { content: "${timestamp}"; ${footer} color: #555; }` : ""}
 }
-html { font-family: ${fontFamily}; font-size: ${page.fontSize}; line-height: ${page.lineHeight}; color: #000; }
+html { font-family: ${fontFamily}; font-weight: ${bodyWeight}; font-size: ${page.fontSize}; line-height: ${page.lineHeight}; color: #000; }
 body { margin: 0; }
 section + section { break-before: page; }
 section > * {
   margin: ${gap(format.linesBetween)} 0 0;
   font-size: inherit;
-  font-weight: normal;
+  font-weight: inherit;
   /* 軟換行（Shift+Enter 的 \\n）照印；CJK 避頭尾用 strict，長串英數不撐破版心。 */
   white-space: pre-wrap;
   line-break: strict;
@@ -124,22 +136,10 @@ section > .dialogue + .dialogue { margin-top: 0; }
 `;
 }
 
-/** 交付的建立時間，台北時間 `2026-10-22 14:30`。劇本的讀者在台灣，伺服器跑在 UTC。 */
+/** 交付的建立時間，台北時間 `2026-10-22 14:30`。 */
 function timestampText(createdAt: Date): string {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Taipei",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(createdAt)
-      .map((p) => [p.type, p.value]),
-  );
-  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+  const { year, month, day, hour, minute } = taipeiParts(createdAt);
+  return `${year}-${month}-${day} ${hour}:${minute}`;
 }
 
 function renderElement(

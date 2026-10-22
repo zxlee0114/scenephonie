@@ -240,7 +240,14 @@ describe("renderDeliveryHtml：匯出選項", () => {
     const stylesheets = (doc: Document) =>
       [...doc.querySelectorAll<HTMLLinkElement>("link[rel=stylesheet]")].map((l) => l.getAttribute("href"));
     expect(stylesheets(render(withPeople))[0]).toBe("/fonts/tw-kai/fonts.css");
-    expect(stylesheets(render(withPeople, { font: "sans" }))).toEqual(["/fonts/noto-sans-tc/fonts.css"]);
+    expect(stylesheets(render(withPeople, { font: "sans" }))[0]).toBe("/fonts/noto-sans-tc-300/fonts.css");
+  });
+
+  it("黑體的內文用 Light 300，場標維持 400 加粗 —— 兩者拉得開（使用者驗收 2026-10-22）", () => {
+    const css = (font: "kai" | "sans") => render(withPeople, { font }).querySelector("style")!.textContent!;
+    expect(css("sans")).toMatch(/html \{[^}]*font-weight: 300;/);
+    expect(css("kai")).toMatch(/html \{[^}]*font-weight: 400;/);
+    expect(css("sans")).toMatch(/section > h2 \{[^}]*font-weight: bold;/);
   });
 
   it("輸入的字被跳脫，不會變成標記", () => {

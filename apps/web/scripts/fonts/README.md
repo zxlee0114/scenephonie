@@ -59,3 +59,14 @@ PATH=".venv/bin:$PATH" .venv/bin/python build-twkai-subset.py --zip /tmp/Fonts_K
 
 沿用 `unicode-ranges.json` 同一份切分表：Chromium 只會要這份稿用到的那幾塊。只收 BMP 那一檔
 （`TW-Kai-98_1.ttf`）；楷體缺的字由 Noto Sans TC 補（`render-html.ts` 的字型鏈）。
+
+## PDF 黑體內文 Light 300（票券 18）
+
+`apps/web/public/fonts/noto-sans-tc-300/` 是同一套 Noto Sans TC instance 到 `wght=300` 的 subset，只給 PDF 的黑體內文用
+（400 的內文配合成粗體的場標分不太開）。編輯器仍只載 400。
+
+```bash
+PATH=".venv/bin:$PATH" .venv/bin/python build-noto-subset.py --no-fetch --weight 300 --work /tmp/notobuild
+```
+
+非 400 字重只寫自己的目錄，不動 400 那一份的產物、`preload.json` 與 `unicode-ranges.json`。

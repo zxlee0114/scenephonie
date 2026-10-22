@@ -71,6 +71,20 @@ describe("匯出 PDF", () => {
     expect(downloads[0]).toBe("dl_1.pdf");
   });
 
+  it("下載的檔名用伺服器給的那一個（劇本名稱_交付時間）", async () => {
+    const name = "阿強的夏天_20261022-1430.pdf";
+    fetchMock.mockResolvedValue(
+      new Response(pdfBlob, {
+        headers: { "content-disposition": `inline; filename="dl_1.pdf"; filename*=UTF-8''${encodeURIComponent(name)}` },
+      }),
+    );
+    mount();
+    open();
+    await submit();
+
+    await waitFor(() => expect(downloads).toEqual([name]));
+  });
+
   it("選項預設：登場人物不勾、時間戳勾著、浮水印空白、字型楷體；改過的選項跟著網址走", async () => {
     const { pdfUrl } = mount();
     open();
