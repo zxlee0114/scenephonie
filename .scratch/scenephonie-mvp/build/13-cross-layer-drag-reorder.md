@@ -55,3 +55,6 @@
 **2026-10-22 驗收第四輪（使用者回饋）→ 修正**：
 - 對白的 ⠿ 點了看起來沒選起來：其實有選起（NodeSelection），但對白是 React node view，Tiptap 把 `ProseMirror-selectednode` 掛在外層 `.react-renderer`，CSS 只認 `.block.ProseMirror-selectednode`，所以沒有底色。補上 `.ProseMirror-selectednode > .block--dialogue`。
 - 「新增下一場時，剪貼簿最新一筆是場次就問要空白還是貼上」另開 [67](./67-add-scene-from-clipboard.md)。
+- 選起對白／整場後 ⌘C 貼出來是幾行動作、⌘X 之後 ⌘Z 回不來還跳 `removeChild` 錯誤：瀏覽器把 copy／cut 派給選取起點所在的元素 —— 對白是人物 chip（繼承 contenteditable，Tiptap 的 `stopEvent` 把事件留給它），整場是 body（不在編輯器裡）—— PM 都收不到，於是瀏覽器原生複製畫面上的 DOM、原生剪下直接拆 React 管的 DOM。新的 `extensions/held-node.ts` 在 document 的 capture 階段接走：選著整個節點時一律用 PM 的剪貼簿序列化，剪下走 transaction（可 ⌘Z）。
+- 同一個模組：選單開著時，選單用不到的鍵（⌫、Delete、打字、⌘C／⌘X）收起選單、交回編輯器；點頁面空白處焦點掉到 body 時拉回編輯器，選取照舊。點文件內部照常放游標（選取換掉）。
+- 順手修掉的 bug（原本就有，整場複製能用之後才露出來）：`editor/schema.ts` 的 `jsonAttr` 拿 DOM 名去讀 attr，`appearingCharacters`、`dismissedCharacterIds` 從來沒寫進剪貼簿 —— 整場貼上會掉登場人物。

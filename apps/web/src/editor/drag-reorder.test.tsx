@@ -15,8 +15,8 @@ import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { act, cleanup, createEvent, fireEvent, render, waitFor } from "@testing-library/react";
-import { mintGroupId, mintSceneId, schema as k } from "@scenephonie/schema";
-import { NodeSelection } from "@tiptap/pm/state";
+import { mintCharacterId, mintGroupId, mintSceneId, schema as k } from "@scenephonie/schema";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -422,5 +422,149 @@ describe("點把手（沒拖）：選起那個節點、開選單", () => {
       editor.view.dom.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true }));
     });
     expect(outline(editor)).toEqual([["客廳", "[回憶]"], ["街上"], ["夜"]]);
+  });
+});
+
+describe("選起的節點：剪貼簿與鍵盤都對它作用（`held-node`）", () => {
+  /** jsdom 沒有 ClipboardEvent：自己帶一份 clipboardData。 */
+  function clip(type: "copy" | "cut", target: Element) {
+    const store = new Map<string, string>();
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        setData: (t: string, v: string) => store.set(t, v),
+        getData: (t: string) => store.get(t) ?? "",
+        clearData: () => store.clear(),
+      },
+    });
+    act(() => {
+      target.dispatchEvent(event);
+    });
+    return { html: store.get("text/html") ?? "", prevented: event.defaultPrevented };
+  }
+
+  const speaker = { id: mintCharacterId(), displayName: "阿盈" };
+  const withDialogue = () =>
+    k.node("doc", null, [
+      scene([action("客廳"), k.node("dialogue", { character: speaker }, [k.text("你遲到十分鐘。")])]),
+      scene([action("街上")]),
+    ]).toJSON() as object;
+
+  /** 點對白的 ⠿；回傳人物欄 —— 瀏覽器把 copy／cut 派給選取起點，選起對白時落在人物 chip 上。 */
+  async function holdDialogue(container: HTMLElement) {
+    const dialogue = await waitFor(() => {
+      const el = container.querySelector<HTMLElement>(".block--dialogue .block__speaker-field");
+      expect(el).not.toBeNull();
+      return el!.closest<HTMLElement>(".block--dialogue")!;
+    });
+    act(() => {
+      fireEvent.click(ownHandle(dialogue));
+    });
+    const field = dialogue.querySelector<HTMLElement>(".block__speaker-field")!;
+    // 瀏覽器裡它繼承編輯器的 contenteditable（Tiptap 的 stopEvent 因此把事件留給它）；jsdom 沒實作這個屬性。
+    Object.defineProperty(field, "isContentEditable", { value: true });
+    return field;
+  }
+
+  const pasteAtEndOf = (editor: Editor, sceneIndex: number, html: string) =>
+    act(() => {
+      let end = 0;
+      editor.state.doc.forEach((_n, offset, i) => {
+        if (i === sceneIndex) end = offset + _n.nodeSize - 2;
+      });
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, end)));
+      editor.view.pasteHTML(html, new Event("paste") as ClipboardEvent);
+    });
+
+  it("對白 ⌘C（事件落在人物 chip 上）：複製的是對白本身，貼到別場還是同一個人的一句話", async () => {
+    const { editor, container } = await mount(withDialogue());
+    const chip = await holdDialogue(container);
+    const { html, prevented } = clip("copy", chip);
+    expect(prevented).toBe(true);
+    pasteAtEndOf(editor, 1, html);
+    const pasted = editor.state.doc.child(1).lastChild!;
+    expect(pasted.type.name).toBe("dialogue");
+    expect(pasted.attrs.character).toEqual(speaker);
+    expect(pasted.textContent).toBe("你遲到十分鐘。");
+  });
+
+  it("對白 ⌘X：對白拿掉（DOM 交給 PM 改，不由瀏覽器拆），⌘Z 一步回來", async () => {
+    const { editor, container } = await mount(withDialogue());
+    clip("cut", await holdDialogue(container));
+    expect(outline(editor)).toEqual([["客廳"], ["街上"]]);
+    act(() => {
+      editor.commands.undo();
+    });
+    expect(outline(editor)).toEqual([["客廳", "你遲到十分鐘。"], ["街上"]]);
+  });
+
+  it("選單開著時 ⌘X：照樣剪下，選單收起", async () => {
+    const { editor, container } = await mount(withDialogue());
+    const chip = await holdDialogue(container);
+    expect(document.querySelector(".scene-menu")).not.toBeNull();
+    clip("cut", chip);
+    expect(outline(editor)).toEqual([["客廳"], ["街上"]]);
+    expect(document.querySelector(".scene-menu")).toBeNull();
+  });
+
+  it("選單開著時按 ⌫：選單收起、那一行刪掉", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(blockOf(container, "回來")));
+    });
+    act(() => {
+      fireEvent.keyDown(document.querySelector(".scene-menu")!, { key: "Backspace" });
+    });
+    expect(document.querySelector(".scene-menu")).toBeNull();
+    expect(outline(editor)).toEqual([["客廳", "[回憶]"], ["街上"], ["夜"]]);
+  });
+
+  it("場次號選起整場 ⌘C → 貼上：多一場，拿到新的 sceneId", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(topScene(container, 1)));
+    });
+    // 選起整場時瀏覽器把 copy 派給 body（選取起點不在編輯器的元素裡）
+    const { html } = clip("copy", document.body);
+    pasteAtEndOf(editor, 2, html);
+    expect(outline(editor)).toEqual([["客廳", "[回憶]", "回來"], ["街上"], ["夜"], ["街上"]]);
+    expect(editor.state.doc.child(3).attrs.sceneId).not.toBe(editor.state.doc.child(1).attrs.sceneId);
+  });
+
+  it("整場 ⌘C → 貼上：場次 metadata（登場人物、不再提示的人物）一起帶過去", async () => {
+    const who = { id: mintCharacterId(), displayName: "建鳴" };
+    const dismissed = [mintCharacterId()];
+    const { editor, container } = await mount(
+      k.node("doc", null, [
+        k.node("scene", { sceneId: mintSceneId(), appearingCharacters: [who], dismissedCharacterIds: dismissed }, [
+          action("堤上"),
+        ]),
+        scene([action("街上")]),
+      ]).toJSON() as object,
+    );
+    act(() => {
+      fireEvent.click(ownHandle(topScene(container, 0)));
+    });
+    pasteAtEndOf(editor, 1, clip("copy", document.body).html);
+    const copy = editor.state.doc.child(2);
+    expect(copy.textContent).toBe("堤上");
+    expect(copy.attrs.appearingCharacters).toEqual([who]);
+    expect(copy.attrs.dismissedCharacterIds).toEqual(dismissed);
+  });
+
+  it("點頁面空白處（焦點掉到 body）：焦點拉回編輯器，仍選著", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(blockOf(container, "街上")));
+    });
+    act(() => {
+      fireEvent.keyDown(document.querySelector(".scene-menu")!, { key: "Escape" });
+    });
+    await act(async () => {
+      (document.activeElement as HTMLElement).blur();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(editor.view.hasFocus()).toBe(true);
+    expect(editor.state.selection).toBeInstanceOf(NodeSelection);
   });
 });

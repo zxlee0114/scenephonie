@@ -25,11 +25,14 @@ const SCENE_ATTRS = {
   manualDraft: { default: false },
 } as const;
 
-/** 場次 attr 在 DOM 上的攜帶方式：物件／陣列走 JSON 字串，純量直接放 data-*。 */
-function jsonAttr(name: string) {
+/**
+ * 場次 attr 在 DOM 上的攜帶方式：物件／陣列走 JSON 字串，純量直接放 data-*。
+ * `dom` 是 data-* 的名字；attr 名是 camelCase 時要另給（讀寫 attr 用的是 `name`）。
+ */
+function jsonAttr(name: string, dom = name) {
   return {
     parseHTML: (el: HTMLElement) => {
-      const raw = el.getAttribute(`data-${name}`);
+      const raw = el.getAttribute(`data-${dom}`);
       if (raw == null) return null;
       try {
         return JSON.parse(raw);
@@ -38,7 +41,7 @@ function jsonAttr(name: string) {
       }
     },
     renderHTML: (attrs: Record<string, unknown>) =>
-      attrs[name] == null ? {} : { [`data-${name}`]: JSON.stringify(attrs[name]) },
+      attrs[name] == null ? {} : { [`data-${dom}`]: JSON.stringify(attrs[name]) },
   };
 }
 
@@ -64,12 +67,12 @@ function sceneAttributes() {
     location: { default: SCENE_ATTRS.location.default, ...jsonAttr("location") },
     appearingCharacters: {
       default: SCENE_ATTRS.appearingCharacters.default,
-      ...jsonAttr("appearing-characters"),
+      ...jsonAttr("appearingCharacters", "appearing-characters"),
     },
     extras: { default: [...SCENE_ATTRS.extras.default], ...jsonAttr("extras") },
     dismissedCharacterIds: {
       default: [...SCENE_ATTRS.dismissedCharacterIds.default],
-      ...jsonAttr("dismissed-character-ids"),
+      ...jsonAttr("dismissedCharacterIds", "dismissed-character-ids"),
     },
     manualDraft: {
       default: SCENE_ATTRS.manualDraft.default,
