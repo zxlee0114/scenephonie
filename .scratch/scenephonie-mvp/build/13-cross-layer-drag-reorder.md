@@ -51,3 +51,7 @@
 - 順手修掉的 bug：對白的說話者是本場群演，區塊搬到別場（拖曳、剪下貼上）後群演定義沒跟上 —— chip 懸空，點它選「建立新實體」說話者整個不見。`moveBlock` 與新的 `adoptExtrasPlugin` 把定義補進新的那一場（kernel `extra-adoption.ts`）；人物欄拿起一顆懸空的群演 chip 時，「建立新實體」照字面建人物。
 - 「沒有人物的對白也要草稿防呆」不屬這張票，另開 [66](./66-dialogue-without-speaker-is-draft.md)。
 
+
+**2026-10-22 驗收第四輪（使用者回饋）→ 修正**：
+- 對白的 ⠿ 點了看起來沒選起來：其實有選起（NodeSelection），但對白是 React node view，Tiptap 把 `ProseMirror-selectednode` 掛在外層 `.react-renderer`，CSS 只認 `.block.ProseMirror-selectednode`，所以沒有底色。補上 `.ProseMirror-selectednode > .block--dialogue`。
+- 「新增下一場時，剪貼簿最新一筆是場次就問要空白還是貼上」另開 [67](./67-add-scene-from-clipboard.md)。

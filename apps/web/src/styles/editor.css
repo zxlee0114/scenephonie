@@ -172,8 +172,10 @@
   border-radius: var(--space-1);
 }
 
-/* 點區塊的 ⠿ ＝ 選起整個區塊（NodeSelection，票券 13）：同一種底色。 */
-.block.ProseMirror-selectednode {
+/* 點區塊的 ⠿ ＝ 選起整個區塊（NodeSelection，票券 13）：同一種底色。
+ * 對白是 React node view：Tiptap 把 class 掛在外層 `.react-renderer` 上，不在 `.block` 本身。 */
+.block.ProseMirror-selectednode,
+.ProseMirror-selectednode > .block--dialogue {
   background: var(--selection-bg);
   border-radius: var(--space-1);
   outline: none;

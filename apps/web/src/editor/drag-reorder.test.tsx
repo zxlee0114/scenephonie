@@ -316,6 +316,28 @@ describe("點把手（沒拖）：選起那個節點、開選單", () => {
     expect(document.querySelector(".scene-menu")).toBeNull();
   });
 
+  it("對白（React node view）：一樣選起整個區塊，反白的 class 掛在包著它的那層", async () => {
+    const { editor, container } = await mount();
+    act(() => {
+      fireEvent.click(ownHandle(blockOf(container, "街上")));
+    });
+    pick("轉成對白");
+    // React node view 晚一拍才畫出來
+    const dialogue = await waitFor(() => {
+      const el = container.querySelector<HTMLElement>(".block--dialogue");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    act(() => {
+      fireEvent.click(ownHandle(dialogue));
+    });
+    const { selection } = editor.state;
+    expect(selection).toBeInstanceOf(NodeSelection);
+    expect((selection as NodeSelection).node.type.name).toBe("dialogue");
+    // editor.css 的 `.ProseMirror-selectednode > .block--dialogue` 靠這層畫底色
+    expect(dialogue.parentElement!.classList.contains("ProseMirror-selectednode")).toBe(true);
+  });
+
   it("區塊選單：刪除這一行（那場唯一的一行 → 場次留著、補一個空的動作區塊）", async () => {
     const { editor, container } = await mount();
     act(() => {
