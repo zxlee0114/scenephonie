@@ -28,6 +28,7 @@ function mount({
 
 const open = () => fireEvent.click(screen.getByRole("button", { name: "匯出 PDF" }));
 const checkbox = (name: RegExp) => screen.getByRole("checkbox", { name }) as HTMLInputElement;
+const radio = (name: RegExp) => screen.getByRole("radio", { name }) as HTMLInputElement;
 const watermarkBox = () => screen.getByRole("textbox", { name: /浮水印/ }) as HTMLInputElement;
 const submit = () => act(async () => void fireEvent.click(screen.getByRole("button", { name: "匯出" })));
 
@@ -70,17 +71,19 @@ describe("匯出 PDF", () => {
     expect(downloads[0]).toBe("dl_1.pdf");
   });
 
-  it("選項預設：登場人物不勾、時間戳勾著、浮水印空白；改過的選項跟著網址走", async () => {
+  it("選項預設：登場人物不勾、時間戳勾著、浮水印空白、字型楷體；改過的選項跟著網址走", async () => {
     const { pdfUrl } = mount();
     open();
 
     expect(checkbox(/登場人物/).checked).toBe(false);
     expect(checkbox(/時間戳/).checked).toBe(true);
     expect(watermarkBox().value).toBe("");
+    expect(radio(/楷體/).checked).toBe(true);
 
     fireEvent.change(watermarkBox(), { target: { value: "僅供第48屆優良電影劇本獎評審使用" } });
     fireEvent.click(checkbox(/登場人物/));
     fireEvent.click(checkbox(/時間戳/));
+    fireEvent.click(radio(/黑體/));
     await submit();
 
     await waitFor(() => expect(pdfUrl).toHaveBeenCalled());
@@ -88,6 +91,7 @@ describe("匯出 PDF", () => {
     expect(query.get("watermark")).toBe("僅供第48屆優良電影劇本獎評審使用");
     expect(query.get("characters")).toBe("1");
     expect(query.get("timestamp")).toBe("0");
+    expect(query.get("font")).toBe("sans");
   });
 
   it("存不進去就不匯出 —— 不建立交付，並說出原因", async () => {

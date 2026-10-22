@@ -98,12 +98,13 @@ describe("交付 PDF 端點：印", () => {
     expect(printedHtml()).not.toContain('class="watermark"');
   });
 
-  it("選項從網址來：浮水印文字、登場人物打開、時間戳關掉", async () => {
+  it("選項從網址來：浮水印文字、登場人物打開、時間戳關掉、黑體", async () => {
     const watermark = "僅供第48屆優良電影劇本獎評審使用";
-    await get(`?watermark=${encodeURIComponent(watermark)}&characters=1&timestamp=0`);
+    await get(`?watermark=${encodeURIComponent(watermark)}&characters=1&timestamp=0&font=sans`);
 
     expect(printedHtml()).toContain(watermark);
-    expect(printedHtml()).toContain("人物：小明");
+    expect(printedHtml()).toMatch(/ 小明<\/h2>/);
     expect(printedHtml()).not.toContain("2026-10-22 14:30");
+    expect(printedHtml()).not.toContain("tw-kai");
   });
 });

@@ -14,7 +14,12 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { DEFAULT_EXPORT_OPTIONS, exportOptionsToQuery, type ExportOptions } from "@/pdf/export-options";
+import {
+  DEFAULT_EXPORT_OPTIONS,
+  exportOptionsToQuery,
+  type ExportOptions,
+  type PrintFont,
+} from "@/pdf/export-options";
 
 /** 匯出要用到的三樣能力，全部由路由層注入。 */
 export interface ExportPdfCapability {
@@ -42,6 +47,11 @@ const MESSAGE: Record<Exclude<Phase["kind"], "idle" | "working">, { text: string
   printFailed: { text: "交付已經建立，但 PDF 沒有印出來。", alert: true },
   done: { text: "已下載。", alert: false },
 };
+
+const FONT_CHOICES: { font: PrintFont; label: string }[] = [
+  { font: "kai", label: "楷體（範本用的字型）" },
+  { font: "sans", label: "黑體" },
+];
 
 export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability) {
   const [open, setOpen] = useState(false);
@@ -154,6 +164,20 @@ export function ExportPdf({ flush, createDelivery, pdfUrl }: ExportPdfCapability
                 />
                 頁尾印時間戳（交付建立的時間）
               </label>
+              <fieldset className="export-pdf__fonts">
+                <legend>字型</legend>
+                {FONT_CHOICES.map(({ font, label }) => (
+                  <label key={font} className="export-pdf__check">
+                    <input
+                      type="radio"
+                      name="export-pdf-font"
+                      checked={options.font === font}
+                      onChange={() => setOptions({ ...options, font })}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </fieldset>
 
               {phase.kind === "working" && (
                 <p className="export-pdf__status" role="status">

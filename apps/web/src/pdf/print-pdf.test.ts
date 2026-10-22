@@ -56,6 +56,12 @@ async function pageItems(pdf: Uint8Array): Promise<string[][]> {
   return pages;
 }
 
+/** PDF 嵌了哪些字型（PostScript 名，去掉 subset 前綴 `ABCDEF+`）。 */
+async function embeddedFonts(pdf: Uint8Array): Promise<string[]> {
+  const latin1 = new TextDecoder("latin1").decode(pdf);
+  return [...latin1.matchAll(/\/BaseFont\s*\/(?:[A-Z]{6}\+)?([\w-]+)/g)].map((m) => m[1]!);
+}
+
 const pageTexts = async (pdf: Uint8Array) => (await pageItems(pdf)).map((items) => items.join(""));
 
 describe.skipIf(!executable)("printPdf（需要 Chromium）", () => {
@@ -73,6 +79,17 @@ describe.skipIf(!executable)("printPdf（需要 Chromium）", () => {
     const first = pages[0]!.join("");
     expect(first).toContain("1. 內景 阿強家客廳 夜");
     expect(first).toContain("小明（V.O.）：我一直都在。");
+  });
+
+  it("嵌進 PDF 的是選定的字型：預設全字庫正楷體、選黑體就是 Noto Sans TC", { timeout: 60_000 }, async () => {
+    const payload = longPayload();
+    const kai = await embeddedFonts(await printPdf(renderDeliveryHtml({ createdAt, payload }, DEFAULT_EXPORT_OPTIONS)));
+    expect(kai.some((name) => name.startsWith("TW-Kai"))).toBe(true);
+    const sans = await embeddedFonts(
+      await printPdf(renderDeliveryHtml({ createdAt, payload }, { ...DEFAULT_EXPORT_OPTIONS, font: "sans" })),
+    );
+    expect(sans.some((name) => name.startsWith("TW-Kai"))).toBe(false);
+    expect(sans.some((name) => name.startsWith("NotoSansTC"))).toBe(true);
   });
 
   it("浮水印蓋在每一頁", { timeout: 60_000 }, async () => {

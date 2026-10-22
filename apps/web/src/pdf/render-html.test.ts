@@ -206,13 +206,13 @@ describe("renderDeliveryHtml：匯出選項", () => {
     expect(doc.body.textContent).not.toContain("路人");
   });
 
-  it("登場人物打開時，標題下一行印這一場的顯示名（編劇在這一場寫的那個名字）", () => {
+  it("登場人物打開時，接在場標列最後（TNUA 寫法），印這一場的顯示名（編劇在這一場寫的那個名字）", () => {
     const doc = render(withPeople, { appearingCharacters: true });
-    expect(lines(doc)).toEqual(["1. 內景 阿強家客廳 夜", "人物：男子、阿強"]);
+    expect(lines(doc)).toEqual(["1. 內景 阿強家客廳 夜 男子、阿強"]);
     expect(doc.body.textContent).not.toContain("路人");
   });
 
-  it("沒有登場人物的場次，打開選項也不印空的那一行", () => {
+  it("沒有登場人物的場次，打開選項也不在場標列多留空白", () => {
     const doc = render(payloadOf([scene("sc_1", "1")], [{ type: "heading", sceneId: "sc_1" }]), {
       appearingCharacters: true,
     });
@@ -234,6 +234,13 @@ describe("renderDeliveryHtml：匯出選項", () => {
     const watermark = "僅供第48屆優良電影劇本獎評審使用";
     expect(render(withPeople, { watermark }).body.textContent).toContain(watermark);
     expect(renderDeliveryHtml({ createdAt, payload: withPeople }, DEFAULT_EXPORT_OPTIONS)).not.toContain(watermark);
+  });
+
+  it("字型預設楷體（全字庫正楷體）；可選黑體（Noto Sans TC）", () => {
+    const stylesheets = (doc: Document) =>
+      [...doc.querySelectorAll<HTMLLinkElement>("link[rel=stylesheet]")].map((l) => l.getAttribute("href"));
+    expect(stylesheets(render(withPeople))[0]).toBe("/fonts/tw-kai/fonts.css");
+    expect(stylesheets(render(withPeople, { font: "sans" }))).toEqual(["/fonts/noto-sans-tc/fonts.css"]);
   });
 
   it("輸入的字被跳脫，不會變成標記", () => {

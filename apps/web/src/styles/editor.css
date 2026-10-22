@@ -2304,6 +2304,20 @@
   margin-block-end: var(--space-2);
 }
 
+.export-pdf__fonts {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.export-pdf__fonts legend {
+  margin-block-end: var(--space-1);
+  padding: 0;
+}
+
 .export-pdf__status {
   margin: var(--space-3) 0 0;
   color: var(--text-secondary);
