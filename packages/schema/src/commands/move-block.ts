@@ -12,8 +12,16 @@
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import { schema } from "../schema";
-import { type CommandResult, ok, reject } from "./result";
-import { childrenOf, findContainer, replaceAt, type ContainerAddress } from "./tree";
+import { checked } from "./checked";
+import { type CommandResult, reject } from "./result";
+import {
+  childrenOf,
+  findContainer,
+  indexAfterRemoval,
+  replaceAt,
+  samePath,
+  type ContainerAddress,
+} from "./tree";
 
 export interface BlockLocation extends ContainerAddress {
   readonly blockIndex: number;
@@ -29,36 +37,54 @@ export interface MoveBlockOptions {
   readonly to: BlockDestination;
 }
 
-export function moveBlock(doc: ProseMirrorNode, options: MoveBlockOptions): CommandResult {
+interface Plan {
+  readonly build: () => ProseMirrorNode;
+  /** 搬完（含補位）之後，搬過去的那一個在哪。 */
+  readonly landing: BlockLocation;
+}
+
+function plan(doc: ProseMirrorNode, options: MoveBlockOptions): Plan | string {
   const { from, to } = options;
   const source = findContainer(doc, from);
-  if (typeof source === "string") return reject(source);
+  if (typeof source === "string") return source;
   const moved = from.blockIndex >= 0 && from.blockIndex < source.node.childCount
     ? source.node.child(from.blockIndex)
     : null;
-  if (!moved?.isTextblock) return reject(`場次「${from.sceneId}」沒有第 ${from.blockIndex} 個區塊`);
+  if (!moved?.isTextblock) return `場次「${from.sceneId}」沒有第 ${from.blockIndex} 個區塊`;
 
   const rest = replaceAt(doc, [...source.path, from.blockIndex], null);
   const at = findContainer(rest, to);
-  if (typeof at === "string") return reject(`非法目標：${at}`);
+  if (typeof at === "string") return `非法目標：${at}`;
 
-  // 同一段內容裡搬：`index` 以搬移前計，來源在落點之前就要扣掉它自己那一格。
   const sameContainer = samePath(source.path, at.path);
-  const index = sameContainer && to.index > from.blockIndex ? to.index - 1 : to.index;
-  if (index < 0 || index > at.node.childCount) {
-    return reject(`非法目標：那段內容沒有第 ${to.index} 個位置`);
-  }
+  const index = indexAfterRemoval(to.index, sameContainer ? from.blockIndex : null);
+  if (index < 0 || index > at.node.childCount) return `非法目標：那段內容沒有第 ${to.index} 個位置`;
 
   const kids = childrenOf(at.node);
   kids.splice(index, 0, moved);
-  try {
-    const placed = replaceAt(rest, at.path, at.node.type.create(at.node.attrs, kids, at.node.marks));
-    const next = reopen(placed, from);
-    next.check();
-    return ok(next);
-  } catch (err) {
-    return reject(`搬移後 doc 不符 schema：${(err as Error).message}`);
-  }
+  // 同一段內容裡搬、放好之後打頭的是子場次：`reopen` 會在最前面補一格，搬過去的那一個跟著往後。
+  const blockIndex = sameContainer && kids[0]!.type.name === "subscene" ? index + 1 : index;
+  return {
+    build: () => reopen(replaceAt(rest, at.path, at.node.type.create(at.node.attrs, kids, at.node.marks)), from),
+    landing:
+      to.fragmentIndex == null
+        ? { sceneId: to.sceneId, blockIndex }
+        : { sceneId: to.sceneId, fragmentIndex: to.fragmentIndex, blockIndex },
+  };
+}
+
+export function moveBlock(doc: ProseMirrorNode, options: MoveBlockOptions): CommandResult {
+  const planned = plan(doc, options);
+  return typeof planned === "string" ? reject(planned) : checked(planned.build);
+}
+
+/**
+ * 搬完之後，搬過去的那個區塊在哪（以搬移**後**的 doc 計）—— 編輯器把游標放在那裡。
+ * 搬不動（`moveBlock` 會拒絕）回 `null`。
+ */
+export function movedBlockLocation(doc: ProseMirrorNode, options: MoveBlockOptions): BlockLocation | null {
+  const planned = plan(doc, options);
+  return typeof planned !== "string" && checked(planned.build).ok ? planned.landing : null;
 }
 
 /**
@@ -73,6 +99,3 @@ function reopen(doc: ProseMirrorNode, address: ContainerAddress): ProseMirrorNod
   const kids = [schema.node("action", null, []), ...childrenOf(hit.node)];
   return replaceAt(doc, hit.path, hit.node.type.create(hit.node.attrs, kids, hit.node.marks));
 }
-
-const samePath = (a: readonly number[], b: readonly number[]) =>
-  a.length === b.length && a.every((v, i) => v === b[i]);

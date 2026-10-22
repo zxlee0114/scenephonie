@@ -21,18 +21,14 @@ import {
   moveGroup,
   moveScene,
   type CommandResult,
+  type ContainerAddress,
   type MoveBlockOptions,
   type MoveGroupOptions,
   type MoveSceneOptions,
+  type SubsceneKind,
 } from "@scenephonie/schema";
 
 import type { BlockAddress } from "./address";
-
-/** 一段場次內容（主場次、子場次或片段）的定址。 */
-export interface ContainerRef {
-  readonly sceneId: string;
-  readonly fragmentIndex?: number;
-}
 
 /** 拖起來的那一個。場次不分主場次與子場次 —— 是升級、降級還是平移，看落點。 */
 export type DragPayload =
@@ -42,8 +38,8 @@ export type DragPayload =
 
 /** 滑鼠底下的那個落點（最內層的那一個）。`index` 是它在所屬那段內容裡的孩子序。 */
 export type DropZone =
-  | { readonly kind: "block"; readonly container: ContainerRef; readonly index: number }
-  | { readonly kind: "subscene"; readonly sceneId: string; readonly host: ContainerRef; readonly index: number }
+  | { readonly kind: "block"; readonly container: ContainerAddress; readonly index: number }
+  | { readonly kind: "subscene"; readonly sceneId: string; readonly host: ContainerAddress; readonly index: number }
   | { readonly kind: "scene"; readonly sceneId: string }
   | { readonly kind: "group"; readonly groupId: string };
 
@@ -56,7 +52,7 @@ export type DropIntent =
   | { readonly command: "moveGroup"; readonly options: MoveGroupOptions };
 
 /** 把意圖交給 kernel 跑（降級時帶編劇選的種類）。 */
-export function runIntent(doc: PMNode, intent: DropIntent, kind?: "插入" | "接續"): CommandResult {
+export function runIntent(doc: PMNode, intent: DropIntent, kind?: SubsceneKind): CommandResult {
   switch (intent.command) {
     case "moveBlock":
       return moveBlock(doc, intent.options);
@@ -67,11 +63,6 @@ export function runIntent(doc: PMNode, intent: DropIntent, kind?: "插入" | "�
   }
 }
 
-const withIndex = (container: ContainerRef, index: number) =>
-  container.fragmentIndex == null
-    ? { sceneId: container.sceneId, index }
-    : { sceneId: container.sceneId, fragmentIndex: container.fragmentIndex, index };
-
 function topLevelTarget(zone: DropZone, side: DropSide) {
   if (zone.kind === "scene") return { position: side, refSceneId: zone.sceneId } as const;
   if (zone.kind === "group") return { position: side, refGroupId: zone.groupId } as const;
@@ -81,8 +72,8 @@ function topLevelTarget(zone: DropZone, side: DropSide) {
 /** 落點在一段內容裡指的是哪個孩子位置（區塊或子場次的上／下半）；頂層落點回 `null`。 */
 function insideSlot(zone: DropZone, side: DropSide) {
   const shift = side === "after" ? 1 : 0;
-  if (zone.kind === "block") return withIndex(zone.container, zone.index + shift);
-  if (zone.kind === "subscene") return withIndex(zone.host, zone.index + shift);
+  if (zone.kind === "block") return { ...zone.container, index: zone.index + shift };
+  if (zone.kind === "subscene") return { ...zone.host, index: zone.index + shift };
   return null;
 }
 
@@ -98,7 +89,10 @@ function intentFor(doc: PMNode, payload: DragPayload, zone: DropZone, side: Drop
   }
   const { sceneId } = payload;
   if (top) return { command: "moveScene", options: { sceneId, target: top }, demote: false };
-  const isTopLevel = doc.content.content.some((n) => n.type.name === "scene" && n.attrs.sceneId === sceneId);
+  let isTopLevel = false;
+  doc.forEach((n) => {
+    if (n.type.name === "scene" && n.attrs.sceneId === sceneId) isTopLevel = true;
+  });
   return {
     command: "moveScene",
     options: { sceneId, target: { position: "inside", ...slot! } },

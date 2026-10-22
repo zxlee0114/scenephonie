@@ -5,7 +5,7 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 import { describe, expect, it } from "vitest";
 
 import { block, makeDoc, sceneWith, subsceneWith } from "../testing";
-import { moveBlock } from "./move-block";
+import { moveBlock, movedBlockLocation } from "./move-block";
 
 const idOf = (n: ProseMirrorNode) => n.attrs.sceneId as string;
 const texts = (n: ProseMirrorNode) => {
@@ -84,5 +84,36 @@ describe("moveBlock", () => {
     expect(moveBlock(doc, { from: { sceneId: idOf(host), blockIndex: 1 }, to: { sceneId: idOf(host), index: 0 } }).ok).toBe(false);
     expect(moveBlock(doc, { from: { sceneId: idOf(host), blockIndex: 0 }, to: { sceneId: idOf(sub), index: 5 } }).ok).toBe(false);
     expect(moveBlock(doc, { from: { sceneId: "sc_ghost", blockIndex: 0 }, to: { sceneId: idOf(host), index: 0 } }).ok).toBe(false);
+  });
+});
+
+describe("movedBlockLocation —— 搬完之後，搬過去的那個區塊在哪（編輯器把游標放在那裡）", () => {
+  it("同一段內容裡往後搬：以搬移後計，扣掉來源那一格", () => {
+    const a = sceneWith([block.action("一"), block.action("二"), block.action("三")]);
+    const options = { from: { sceneId: idOf(a), blockIndex: 0 }, to: { sceneId: idOf(a), index: 3 } };
+    expect(movedBlockLocation(makeDoc(a), options)).toEqual({ sceneId: idOf(a), blockIndex: 2 });
+  });
+
+  it("同一段內容裡搬、來源得在最前面補空動作區塊：落點跟著往後一格", () => {
+    const sub = subsceneWith([block.action("回憶")], { kind: "插入" });
+    const a = sceneWith([block.action("客廳"), sub, block.action("回來")]);
+    const doc = makeDoc(a);
+    const options = { from: { sceneId: idOf(a), blockIndex: 0 }, to: { sceneId: idOf(a), index: 3 } };
+    const out = unwrap(moveBlock(doc, options));
+    expect(texts(out.child(0))).toEqual(["", "[回憶]", "回來", "客廳"]);
+    expect(movedBlockLocation(doc, options)).toEqual({ sceneId: idOf(a), blockIndex: 3 });
+  });
+
+  it("跨場次：落在目的地那段內容的 `index`", () => {
+    const a = sceneWith([block.action("一")]);
+    const b = sceneWith([block.action("街上")]);
+    const options = { from: { sceneId: idOf(a), blockIndex: 0 }, to: { sceneId: idOf(b), index: 1 } };
+    expect(movedBlockLocation(makeDoc(a, b), options)).toEqual({ sceneId: idOf(b), blockIndex: 1 });
+  });
+
+  it("搬不動（會被拒絕）就回 `null`", () => {
+    const a = sceneWith([block.action("一")]);
+    const options = { from: { sceneId: idOf(a), blockIndex: 5 }, to: { sceneId: idOf(a), index: 0 } };
+    expect(movedBlockLocation(makeDoc(a), options)).toBeNull();
   });
 });

@@ -2286,3 +2286,56 @@
   border-inline-end-color: var(--rule-strong);
   box-shadow: var(--shadow-popover);
 }
+
+/* ── 「這一下會合併場次」確認窗（票券 13）── */
+
+.merge-confirm__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: color-mix(in srgb, var(--surface-page) 72%, transparent);
+}
+
+.merge-confirm {
+  inline-size: min(28rem, 100%);
+  padding: var(--space-5);
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-3);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+}
+
+.merge-confirm__title {
+  margin: 0 0 var(--space-3);
+  font-size: 1rem;
+}
+
+.merge-confirm__body {
+  margin: 0 0 var(--space-4);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.merge-confirm__remember {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+}
+
+.merge-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.merge-confirm__actions button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+}

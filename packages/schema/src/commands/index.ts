@@ -5,6 +5,7 @@
  * 這些 PM-state 內部型別**不從這裡漏出去** —— edge-boundary 規則（見 `admission.ts`）。
  */
 export type { CommandResult } from "./result";
+export type { ContainerAddress } from "./tree";
 
 export type { MintMoment, TopLevelEntry } from "./identity";
 export { MINT_MOMENTS, topLevelScenes, sceneIdNodes, duplicateSceneIds } from "./identity";
@@ -42,7 +43,7 @@ export type {
   InsideTarget,
 } from "./move-scene";
 
-export { moveBlock } from "./move-block";
+export { moveBlock, movedBlockLocation } from "./move-block";
 export type { MoveBlockOptions, BlockLocation, BlockDestination } from "./move-block";
 
 export {

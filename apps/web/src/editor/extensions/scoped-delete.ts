@@ -7,10 +7,14 @@
  * 不是編劇要的刪除）。打字蓋過選取、貼上、剪下走的是同一條 replace，全部中。
  *
  * 規則（使用者決定 2026-10-22）：
- * - 每一個被選到的區塊**只刪被選到的字**；中間整個被選到的區塊拿掉 —— 但一段內容（主場次、子場次、
- *   片段）至少留一個區塊、不以子場次開頭（同 `moveBlock` 的補位規則），留下來的那個只清空文字；
+ * - 每一個被選到的區塊**只刪被選到的字**；起點之後整個被選到的區塊拿掉 —— 但一段內容（主場次、
+ *   子場次、片段）至少留一個區塊、不以子場次開頭（同 `moveBlock` 的補位規則），留下來的那個只清空
+ *   文字。起點所在的那個區塊永遠留著（游標要落在那裡，接著打的字才不會跑到下一場）；
  * - 場次、子場次本身（含 metadata）**一個不少**；
- * - 打字／貼上 ＝ 先這樣刪，再在起點插入。
+ * - 打字／貼上／Enter ＝ 先這樣刪，再在起點照常做。
+ *
+ * 其餘不經這幾條路、會併掉場次的編輯（注音組字蓋過選取、拖走選取的文字…）**先問**：見
+ * `../merge-confirm`。
  *
  * 只管**跨越場次邊界**的選取（範圍裡有場次、子場次或片段的邊界）。同一段內容之內的選取照
  * ProseMirror 原生行為。整場的 `NodeSelection`（⌘A 第三層）與整份的 `AllSelection` 是編劇明確選起
@@ -18,9 +22,11 @@
  */
 import { Extension } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
+import { isHistoryTransaction } from "@tiptap/pm/history";
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
 
 import { KERNEL_REPLACE } from "../command-bridge";
+import { mergeConfirmSkipped, mergeRequests } from "../merge-confirm";
 
 /** 劃出場次邊界的節點 —— 選取跨過其中任何一個的邊界，就不准 replace 把兩邊接起來。 */
 const BOUNDARY_TYPES: ReadonlySet<string> = new Set([
@@ -55,7 +61,7 @@ function survivesRemoval(container: PMNode, index: number): boolean {
   return container.child(1).type.name !== "subscene";
 }
 
-/** 在 `tr` 上把 `[from, to)` 各場各自刪掉，游標收在起點。 */
+/** 在 `tr` 上把 `[from, to)` 各場各自刪掉，游標收在起點（起點所在的區塊裡）。 */
 export function deleteScoped(tr: Transaction, from: number, to: number): Transaction {
   const blocks: { pos: number; node: PMNode }[] = [];
   tr.doc.nodesBetween(from, to, (node, pos) => {
@@ -71,7 +77,7 @@ export function deleteScoped(tr: Transaction, from: number, to: number): Transac
     const start = pos + 1;
     const end = start + node.content.size;
     const $block = tr.doc.resolve(pos);
-    if (from <= start && to >= end && survivesRemoval($block.parent, $block.index())) {
+    if (from < start && to >= end && survivesRemoval($block.parent, $block.index())) {
       tr.delete(pos, pos + node.nodeSize);
     } else {
       const a = Math.max(from, start);
@@ -84,8 +90,8 @@ export function deleteScoped(tr: Transaction, from: number, to: number): Transac
   return tr.setSelection(TextSelection.near(tr.doc.resolve(at))).setMeta(scopedDeleteKey, true);
 }
 
-/** 這筆 transaction 會不會讓某個場次消失。 */
-function dropsScenes(before: PMNode, after: PMNode): boolean {
+/** 這筆 transaction 會讓幾個場次（含子場次）消失。 */
+function droppedScenes(before: PMNode, after: PMNode): number {
   const ids = (doc: PMNode) => {
     const out = new Set<string>();
     doc.descendants((node) => {
@@ -96,11 +102,12 @@ function dropsScenes(before: PMNode, after: PMNode): boolean {
     return out;
   };
   const kept = ids(after);
-  for (const id of ids(before)) if (!kept.has(id)) return true;
-  return false;
+  return [...ids(before)].filter((id) => !kept.has(id)).length;
 }
 
 export const scopedDeleteKey = new PluginKey("scopedDelete");
+/** 編劇在確認窗按了「仍要合併」的那一筆。 */
+const mergeConfirmedKey = new PluginKey("mergeConfirmed");
 
 export const ScopedDelete = Extension.create({
   name: "scopedDelete",
@@ -114,10 +121,38 @@ export const ScopedDelete = Extension.create({
       view.dispatch(deleteScoped(state.tr, state.selection.from, state.selection.to).scrollIntoView());
       return true;
     };
-    return { Backspace: run, Delete: run, "Mod-Backspace": run, "Mod-Delete": run };
+    return {
+      Backspace: run,
+      Delete: run,
+      "Mod-Backspace": run,
+      "Mod-Delete": run,
+      // 先各場各自刪，再交給後面的 Enter（`ContinueBlock`、登場人物提示）在起點照常斷行。
+      Enter: () => {
+        const { state, view } = this.editor;
+        if (crossSelection(state)) view.dispatch(deleteScoped(state.tr, state.selection.from, state.selection.to));
+        return false;
+      },
+    };
   },
 
   addProseMirrorPlugins() {
+    const editor = this.editor;
+    /** 攔下這一筆、問編劇；按「仍要合併」時 doc 若已經變了，這一筆就作廢（它是對著舊 doc 算的）。 */
+    const ask = (tr: Transaction, state: EditorState, count: number) => {
+      if (mergeRequests.get()) return; // 組字會連發好幾筆 —— 問一次就好
+      const close = () => {
+        mergeRequests.set(null);
+        editor.view.focus();
+      };
+      mergeRequests.set({
+        count,
+        cancel: close,
+        confirm: () => {
+          close();
+          if (editor.state.doc === state.doc) editor.view.dispatch(tr.setMeta(mergeConfirmedKey, true));
+        },
+      });
+    };
     return [
       new Plugin({
         key: scopedDeleteKey,
@@ -146,15 +181,19 @@ export const ScopedDelete = Extension.create({
           },
         },
         /**
-         * 最後一道：選取跨場次時，**任何**會讓場次消失的使用者編輯一律擋下（注音組字蓋過選取、
-         * 拖曳選取的文字…這些不經上面幾條路）。寧可那一下沒反應，也不准併掉一場。
+         * 最後一道：選取跨場次時，其餘會讓場次消失的使用者編輯（注音組字蓋過選取、拖曳選取的
+         * 文字…這些不經上面幾條路）**先問**，按了「仍要合併」才照原樣送出（`../merge-confirm`）。
          * kernel 的整份 replace、復原／重做、我們自己的各場各自刪不受影響。
          */
         filterTransaction(tr, state) {
           if (!tr.docChanged || !crossSelection(state)) return true;
           if (tr.getMeta("uiEvent") === "cut") return false; // 換成上面 `cut` 排進去的那一筆
-          if (tr.getMeta(KERNEL_REPLACE) || tr.getMeta(scopedDeleteKey) || tr.getMeta("history$")) return true;
-          return !dropsScenes(state.doc, tr.doc);
+          if (tr.getMeta(KERNEL_REPLACE) || tr.getMeta(scopedDeleteKey) || tr.getMeta(mergeConfirmedKey)) return true;
+          if (isHistoryTransaction(tr)) return true;
+          const count = droppedScenes(state.doc, tr.doc);
+          if (count === 0 || mergeConfirmSkipped()) return true;
+          ask(tr, state, count);
+          return false;
         },
       }),
     ];

@@ -20,7 +20,7 @@ import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { EntityCatalogProvider } from "./entity-catalog";
-import { DemoteKindMenu } from "./extensions/drag-reorder";
+import { DemoteKindMenu } from "./demote-kind-menu";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
 const action = (text = "") => k.node("action", null, text ? [k.text(text)] : []);
@@ -236,5 +236,34 @@ describe("拖曳排序：接上 ProseMirror 的事件", () => {
     over(blockOf(container, "夜"), 1, dt); // 要不要 preventDefault 是 ProseMirror 自己的事
     expect(dt.dropEffect).toBe("none");
     expect(lineShown()).toBe(false);
+  });
+
+  it("同一場裡搬、來源那場得在前面補一個空動作區塊：游標仍落在搬過去的那一個", async () => {
+    const { editor, container } = await mount();
+    const dt = drag(ownHandle(blockOf(container, "客廳")));
+    drop(blockOf(container, "回來"), 1, dt);
+    expect(outline(editor)[0]).toEqual(["", "[回憶]", "回來", "客廳"]);
+    expect(editor.state.selection.$from.parent.textContent).toBe("客廳");
+  });
+
+  it("降級選單開著時 doc 變了：選了種類也不搬（落點已經過期）", async () => {
+    const { editor, container } = await mount();
+    const dt = drag(ownHandle(topScene(container, 2)));
+    drop(blockOf(container, "客廳"), 1, dt);
+    const pick = await waitFor(() => {
+      const button = [...document.querySelectorAll<HTMLElement>(".scene-menu button")].find((b) =>
+        b.textContent?.includes("接續"),
+      );
+      expect(button).toBeDefined();
+      return button!;
+    });
+    act(() => {
+      editor.view.dispatch(editor.state.tr.insertText("新", 2));
+    });
+    const changed = editor.state.doc.toJSON();
+    act(() => {
+      fireEvent.mouseDown(pick);
+    });
+    expect(editor.state.doc.toJSON()).toEqual(changed);
   });
 });

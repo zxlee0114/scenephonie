@@ -71,6 +71,7 @@ import { requestNextScene } from "../extensions/next-scene";
 import { DRAFT_MARK, sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
 import { SceneMenu, deleteSceneLabel } from "../scene-menu";
 import { GroupMember, Scene, Subscene } from "../schema";
+import { DragHandle } from "./drag-handle";
 import { ignoreReactChromeMutation } from "./react-mutations";
 
 /**
@@ -379,11 +380,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
       </div>
       {/* 拖曳把手（票券 13）：主場次與子場次各一個 —— 拖到哪裡決定升級、降級還是平移。群組成員
           沒有：成員不單獨進出群組，整組由群組的把手拖。 */}
-      {!isMember && (
-        <span className="drag-handle drag-handle--scene" contentEditable={false} draggable aria-hidden="true">
-          ⠿
-        </span>
-      )}
+      {!isMember && <DragHandle scene />}
       {menuOpen && (
         <SceneMenu
           onClose={closeMenu}

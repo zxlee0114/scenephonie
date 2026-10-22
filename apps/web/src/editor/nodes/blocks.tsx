@@ -56,6 +56,7 @@ import { EntityField, type EntityOption, type EntityRef } from "../entity-field"
 import { entityUsage } from "../entity-usage";
 import { retitleOthersIn } from "../retitle-others";
 import { claimFocus, requestFocus, subscribeFocusRequest } from "../focus";
+import { DragHandle, dragHandle } from "./drag-handle";
 import { ignoreReactChromeMutation } from "./react-mutations";
 
 /** 從 node view 反推它所在場次的 id 與自己在場次裡的序（給 pending-focus 比對用）。 */
@@ -91,20 +92,6 @@ function staticBlockView(wrapperClass: string, chrome?: () => HTMLElement): Node
       ignoreMutation: (m) => m.type !== "selection" && !contentDOM.contains(m.target as Node),
     };
   };
-}
-
-/**
- * 拖曳把手（票券 13）—— 只是記號：拖起來的是什麼、能放到哪裡，由 `../extensions/drag-reorder`
- * 從它所在的節點反推。必須 `contenteditable=false`，否則會被當成內容。
- */
-export function dragHandle(): HTMLElement {
-  const handle = document.createElement("span");
-  handle.className = "drag-handle";
-  handle.contentEditable = "false";
-  handle.draggable = true;
-  handle.setAttribute("aria-hidden", "true");
-  handle.textContent = "⠿";
-  return handle;
 }
 
 function insertShotTag(): HTMLElement {
@@ -310,10 +297,7 @@ function DialogueView(props: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="block block--dialogue">
-      {/* 拖曳把手（票券 13）—— 見 `dragHandle`。 */}
-      <span className="drag-handle" contentEditable={false} draggable aria-hidden="true">
-        ⠿
-      </span>
+      <DragHandle />
       {/* 對白的人物欄**必須是實體引用而非字串**（§4.7）——「哪幾場有這個人的聲音但沒入鏡」
           只能靠這一欄回答。寫入走 domain command，引用完整性住在那裡。 */}
       <EntityField

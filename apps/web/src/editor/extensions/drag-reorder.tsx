@@ -26,8 +26,7 @@ import { Extension, type Editor } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { EditorView } from "@tiptap/pm/view";
-import { docFromJSON, type SubsceneKind } from "@scenephonie/schema";
-import { useSyncExternalStore } from "react";
+import { docFromJSON, movedBlockLocation, type SubsceneKind } from "@scenephonie/schema";
 
 import { sceneContext, type BlockAddress } from "../address";
 import { runKernelCommand } from "../command-bridge";
@@ -39,7 +38,7 @@ import {
   type DropSide,
   type DropZone,
 } from "../drop-intent";
-import { SceneMenu } from "../scene-menu";
+import { kindRequests } from "../demote-kind-menu";
 
 /** 落點元素：最內層的那一個勝出。群組成員的 chip row 算群組的外框（成員不單獨進出群組）。 */
 const ZONE_SELECTOR = ".block, .scene, .scene-group";
@@ -107,12 +106,7 @@ const sideOf = (el: HTMLElement, clientY: number): DropSide => {
 /** 放下之後游標落在搬過去的那一個的開頭 —— 編劇的視線跟著它走，捲動也不會跳到別處。 */
 function caretAfter(doc: PMNode, intent: DropIntent): BlockAddress | undefined {
   if (intent.command === "moveScene") return { sceneId: intent.options.sceneId, blockIndex: 0 };
-  if (intent.command === "moveBlock") {
-    const { from, to } = intent.options;
-    const same = from.sceneId === to.sceneId && (from.fragmentIndex ?? null) === (to.fragmentIndex ?? null);
-    const blockIndex = same && to.index > from.blockIndex ? to.index - 1 : to.index;
-    return { ...to, blockIndex };
-  }
+  if (intent.command === "moveBlock") return movedBlockLocation(doc, intent.options) ?? undefined;
   let first: string | undefined;
   doc.forEach((top) => {
     if (top.attrs.groupId !== intent.options.groupId) return;
@@ -121,49 +115,6 @@ function caretAfter(doc: PMNode, intent: DropIntent): BlockAddress | undefined {
     });
   });
   return first ? { sceneId: first, fragmentIndex: 0, blockIndex: 0 } : undefined;
-}
-
-// ── 降級時的種類選單 ─────────────────────────────────────────────────────────
-//
-// 主場次放進別場 ＝ 變成子場次，而 `種類` 必填、系統不代填（ADR-0006）。所以放下那一刻先問：用詞
-// 與 `/` 選單、區塊逃生口相同（「改成插入戲 ／ 改成接續」，CONTEXT.md），不預設任何一種。
-// 按 Esc 或點外面 ＝ 取消，什麼都不搬。
-
-interface KindRequest {
-  readonly x: number;
-  readonly y: number;
-  readonly choose: (kind: SubsceneKind) => void;
-}
-
-let kindRequest: KindRequest | null = null;
-const kindListeners = new Set<() => void>();
-const setKindRequest = (next: KindRequest | null) => {
-  kindRequest = next;
-  kindListeners.forEach((l) => l());
-};
-
-/** 降級的種類選單 —— 跟 `SlashMenu` 一樣掛在編輯器旁邊（plugin 自己沒有 React 樹）。 */
-export function DemoteKindMenu() {
-  const request = useSyncExternalStore(
-    (cb) => {
-      kindListeners.add(cb);
-      return () => kindListeners.delete(cb);
-    },
-    () => kindRequest,
-    () => null,
-  );
-  if (!request) return null;
-  return (
-    <div className="drop-kind-menu" style={{ top: request.y, left: request.x }}>
-      <SceneMenu
-        onClose={() => setKindRequest(null)}
-        rows={[
-          { key: "insert", label: "改成插入戲", run: () => request.choose("插入") },
-          { key: "continue", label: "改成接續", run: () => request.choose("接續") },
-        ]}
-      />
-    </div>
-  );
 }
 
 // ── 拖曳期間 ────────────────────────────────────────────────────────────────
@@ -224,7 +175,7 @@ function dragController(editor: Editor, view: EditorView) {
   };
 
   const run = (intent: DropIntent, kind?: SubsceneKind) => {
-    const caretAt = caretAfter(editor.state.doc, intent);
+    const caretAt = caretAfter(docFromJSON(editor.state.doc.toJSON()) as unknown as PMNode, intent);
     runKernelCommand(editor, (doc) => runIntent(doc, intent, kind), caretAt ? { caretAt } : {});
   };
 
@@ -278,12 +229,14 @@ function dragController(editor: Editor, view: EditorView) {
       if (!found) return;
       const { intent } = found;
       if (intent.command === "moveScene" && intent.demote) {
-        setKindRequest({
+        // 落點是對著放下那一刻的 doc 算的：選單開著時 doc 若變了（序可能移位），這一筆就作廢。
+        const dropped = view.state.doc;
+        kindRequests.set({
           x: e.clientX,
           y: e.clientY,
           choose: (kind) => {
-            setKindRequest(null);
-            run(intent, kind);
+            kindRequests.set(null);
+            if (view.state.doc === dropped) run(intent, kind);
           },
         });
         return;
@@ -304,7 +257,7 @@ function dragController(editor: Editor, view: EditorView) {
         view.dom.removeEventListener(type, handler as EventListener, true);
       }
       line.remove();
-      setKindRequest(null);
+      kindRequests.set(null);
     },
   };
 }

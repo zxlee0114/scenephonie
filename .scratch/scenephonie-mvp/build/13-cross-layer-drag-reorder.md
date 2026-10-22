@@ -12,3 +12,22 @@
 - [ ] 搬走場次最後一個區塊後補空動作區塊；階層化變體也有處理
 - [ ] `isolating` 保留；跨場次鍵盤選取／刪除不會把兩場合併
 - [ ] 與 PM 原生拖放的事件競用有明確處理，不吃字、不跑版、不偶爾拖不動
+
+## Comments
+
+**2026-10-22 實作。** 寫入走三支 kernel command：`moveScene`（跨層：升級／降級／子場次換住處）、`moveBlock`、`moveGroup`；
+三支都自己拒絕非法目標，最後整份 `doc.check()`。落點合法性（`apps/web/src/editor/drop-intent.ts`）不另寫規則，拿 command
+試跑：被拒或放回原地 ＝ 不畫線。手勢在 `extensions/drag-reorder.tsx`：監聽掛在 `view.dom` 的 capture 階段（React node view
+的 `stopEvent` 會吞掉 chip row 上的拖曳事件），拖曳期間 `dragover`／`drop` 一律 `preventDefault`，落點從 drop 事件重算。
+
+**使用者裁決**：
+- 主場次降級成子場次：放下時跳選單「改成插入戲／改成接續」二選一，不預設；選單開著時 doc 變了就作廢。
+- 群組只能整組拖；成員單獨進出群組走對剪／解除群組，不走拖曳。
+- 點場次號的「搬移到…／對調…」兩列不在這張票，另開。
+- 跨場次選取的編輯：各場各自刪、不接起來；仍會併場的路（組字、拖走選取的文字）先問、可「不再提醒」（§7.5）。
+
+**順手修掉的既有 bug**：main 上跨場次選取按 ⌫ 會把兩場合併（連主場次 ↔ 主場次也會）—— `isolating` 擋不住 replace 的 fitting。
+`extensions/scoped-delete.ts` 修掉。
+
+待瀏覽器驗收：把手位置與浮現時機、落點指示線的手感、降級選單與確認窗的位置；注音組字蓋過跨場選取時確認窗的行為（jsdom 測不到 IME）。
+

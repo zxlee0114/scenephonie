@@ -9,13 +9,14 @@ import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { Fragment, Slice, type Node as PMNode } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
-import { act, cleanup, render, waitFor } from "@testing-library/react";
-import { mintSceneId, schema as k } from "@scenephonie/schema";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { mintGroupId, mintSceneId, schema as k } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { allSceneIds } from "./address";
 import { EntityCatalogProvider } from "./entity-catalog";
+import { MergeConfirm } from "./merge-confirm";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
 const action = (text = "") => k.node("action", null, text ? [k.text(text)] : []);
@@ -30,17 +31,19 @@ function Harness({ content, onEditor }: { content: object; onEditor: (e: Editor)
   return (
     <EntityCatalogProvider>
       <EditorContent editor={editor} />
+      <MergeConfirm />
     </EntityCatalogProvider>
   );
 }
 
-/** A：客廳 ＋ 子場次（回憶）＋ 回來；B：街上；C：夜。 */
-async function mount() {
-  const content = k.node("doc", null, [
+/** 預設：A：客廳 ＋ 子場次（回憶）＋ 回來；B：街上；C：夜。 */
+async function mount(
+  content = k.node("doc", null, [
     scene([action("客廳"), sub([action("回憶")]), action("回來")]),
     scene([action("街上")]),
     scene([action("夜")]),
-  ]).toJSON() as object;
+  ]).toJSON() as object,
+) {
   let editor: Editor | null = null;
   render(<Harness content={content} onEditor={(e) => (editor = e)} />);
   await waitFor(() => expect(editor).not.toBeNull());
@@ -49,7 +52,10 @@ async function mount() {
   return { editor: editor! };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 /** 頂層每一場的內文（子場次以 `[…]` 標出）。 */
 function outline(editor: Editor): string[][] {
@@ -158,5 +164,125 @@ describe("isolating 保留：鍵盤刪除不跨場次合併", () => {
     });
     key(editor, "Backspace");
     expect(outline(editor)[1]).toEqual(["街"]);
+  });
+
+  it("選取從某個區塊的開頭起、那個區塊整個被選到：打的字留在起點那一場，不跑到下一場", async () => {
+    const { editor } = await mount();
+    act(() => {
+      const from = textPos(editor, 2, "start");
+      const to = textPos(editor, 3, "start") + 1;
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, from, to)));
+    });
+    act(() => {
+      const { from, to } = editor.state.selection;
+      editor.view.someProp("handleTextInput", (f) => f(editor.view, from, to, "X", () => editor.state.tr));
+    });
+    expect(outline(editor)).toEqual([["客廳", "[回憶]", "X"], ["上"], ["夜"]]);
+  });
+
+  it("跨場次選取按 Enter：先各場各自刪，再在起點斷行", async () => {
+    const { editor } = await mount();
+    const ids = allSceneIds(editor.state.doc);
+    selectAcross(editor, 2, 3);
+    key(editor, "Enter");
+    expect(allSceneIds(editor.state.doc)).toEqual(ids);
+    expect(outline(editor)).toEqual([["客廳", "[回憶]", "回", ""], ["上"], ["夜"]]);
+  });
+
+  it("剪下跨場次的選取：各場各自刪（剪貼簿照原生）", async () => {
+    const { editor } = await mount();
+    const ids = allSceneIds(editor.state.doc);
+    selectAcross(editor, 2, 3);
+    await act(async () => {
+      fireEvent.cut(editor.view.dom, { clipboardData: { setData() {}, clearData() {}, getData: () => "" } });
+      await Promise.resolve();
+    });
+    expect(allSceneIds(editor.state.doc)).toEqual(ids);
+    expect(outline(editor)).toEqual([["客廳", "[回憶]", "回"], ["上"], ["夜"]]);
+  });
+
+  it("跨群組片段的選取：每個片段各自刪，片段一個不少", async () => {
+    const m1 = k.node("groupMember", { sceneId: mintSceneId() });
+    const m2 = k.node("groupMember", { sceneId: mintSceneId() });
+    const fragment = (m: PMNode, text: string) =>
+      k.node("groupFragment", { memberId: m.attrs.sceneId as string }, [action(text)]);
+    const content = k.node("doc", null, [
+      k.node("sceneGroup", { groupId: mintGroupId() }, [m1, m2, fragment(m1, "甲一"), fragment(m2, "乙二"), fragment(m1, "丙三")]),
+    ]).toJSON() as object;
+    const { editor } = await mount(content);
+    selectAcross(editor, 0, 1);
+    key(editor, "Backspace");
+    const fragments: string[] = [];
+    editor.state.doc.child(0).forEach((c) => {
+      if (c.type.name === "groupFragment") fragments.push(c.textContent);
+    });
+    expect(fragments).toEqual(["甲", "二", "丙三"]);
+  });
+
+  describe("其餘會併掉場次的編輯（注音組字蓋過選取、拖走選取的文字…）：先問", () => {
+    /** 不經上面幾條路、照 ProseMirror 原生把跨場次的選取換掉的那一筆。 */
+    const nativeReplace = (editor: Editor) =>
+      act(() => {
+        editor.view.dispatch(editor.state.tr.insertText("注"));
+      });
+
+    it("先不動，跳出確認；取消 ＝ 什麼都沒發生", async () => {
+      const { editor } = await mount();
+      const before = editor.state.doc.toJSON();
+      selectAcross(editor, 2, 3);
+      nativeReplace(editor);
+      expect(editor.state.doc.toJSON()).toEqual(before);
+      const dialog = await screen.findByRole("alertdialog");
+      expect(dialog.textContent).toContain("1 場");
+      act(() => {
+        fireEvent.click(screen.getByRole("button", { name: "取消" }));
+      });
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(editor.state.doc.toJSON()).toEqual(before);
+    });
+
+    it("確定 ＝ 照原本那一下做（場次被併掉）；⌘Z 一步回來", async () => {
+      const { editor } = await mount();
+      const before = editor.state.doc.toJSON();
+      selectAcross(editor, 2, 3);
+      nativeReplace(editor);
+      act(() => {
+        fireEvent.click(screen.getByRole("button", { name: "仍要合併" }));
+      });
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(outline(editor)).toEqual([["客廳", "[回憶]", "回注上"], ["夜"]]);
+      act(() => {
+        editor.commands.undo();
+      });
+      expect(editor.state.doc.toJSON()).toEqual(before);
+    });
+
+    it("勾「不再提醒」再確定：之後同樣的編輯直接做，不再問", async () => {
+      const { editor } = await mount();
+      selectAcross(editor, 2, 3);
+      nativeReplace(editor);
+      act(() => {
+        fireEvent.click(screen.getByRole("checkbox", { name: "不再提醒" }));
+        fireEvent.click(screen.getByRole("button", { name: "仍要合併" }));
+      });
+      selectAcross(editor, 0, 1); // 客|廳 → 回|憶：子場次被併掉
+      nativeReplace(editor);
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(outline(editor)).toEqual([["客注憶", "回注上"], ["夜"]]);
+    });
+
+    it("確認窗開著時 doc 變了：那一筆作廢，按確定也不做", async () => {
+      const { editor } = await mount();
+      selectAcross(editor, 2, 3);
+      nativeReplace(editor);
+      const after = await act(async () => {
+        editor.view.dispatch(editor.state.tr.insertText("新", 2));
+        return editor.state.doc.toJSON();
+      });
+      act(() => {
+        fireEvent.click(screen.getByRole("button", { name: "仍要合併" }));
+      });
+      expect(editor.state.doc.toJSON()).toEqual(after);
+    });
   });
 });

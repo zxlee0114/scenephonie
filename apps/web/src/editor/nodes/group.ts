@@ -21,7 +21,7 @@ import {
   type FragmentLabelSpec,
 } from "../extensions/scene-numbers";
 import { GroupFragment, SceneGroup } from "../schema";
-import { dragHandle } from "./blocks";
+import { dragHandle } from "./drag-handle";
 
 /** 群組最後一個成員的 `sceneId` —— 「＋ 新增下一場」用它定址（滑鼠點的入口自己傳位置，§7.1）。 */
 function lastMemberId(group: PMNode): string | null {
@@ -59,9 +59,7 @@ function groupView(editor: Editor, node: PMNode, decorations: readonly Decoratio
   });
   foot.append(button);
 
-  const handle = dragHandle();
-  handle.classList.add("drag-handle--scene");
-  dom.append(handle, contentDOM, foot);
+  dom.append(dragHandle({ scene: true }), contentDOM, foot);
   return {
     dom,
     contentDOM,

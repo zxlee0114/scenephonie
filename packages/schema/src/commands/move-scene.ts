@@ -19,13 +19,16 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import { schema, type SubsceneKind } from "../schema";
 import { opensBefore } from "../subscenes";
-import { type CommandResult, ok, reject } from "./result";
+import { checked } from "./checked";
+import { type CommandResult, reject } from "./result";
 import {
   childrenOf,
   docFrom,
   findContainer,
   findScene,
+  indexAfterRemoval,
   replaceAt,
+  samePath,
   topLevelArray,
   type ContainerAddress,
 } from "./tree";
@@ -66,7 +69,7 @@ function asScene(node: ProseMirrorNode): ProseMirrorNode {
  * 在頂層序列（已拿掉搬移的那一個）裡找落點的序；找不到參考回一句理由。
  * 參考只認頂層 —— 子場次與群組成員不是頂層序列的一員。
  */
-export function topLevelIndex(
+function topLevelIndex(
   children: readonly ProseMirrorNode[],
   target: TopLevelTarget,
 ): number | string {
@@ -109,20 +112,6 @@ export function moveScene(doc: ProseMirrorNode, options: MoveSceneOptions): Comm
   return checked(() => docFrom(children));
 }
 
-/**
- * 建出搬移後的 doc 並**整份驗內容規則**。`type.create` 不驗內容（`createChecked` 才驗），
- * 而這支 command 的全部價值就在於拒絕非法目標 —— 漏網的那一個必須在這裡被攔下，不能流進編輯器。
- */
-function checked(build: () => ProseMirrorNode): CommandResult {
-  try {
-    const next = build();
-    next.check();
-    return ok(next);
-  } catch (err) {
-    return reject(`搬移後 doc 不符 schema：${(err as Error).message}`);
-  }
-}
-
 function moveInside(
   doc: ProseMirrorNode,
   rest: ProseMirrorNode,
@@ -136,19 +125,17 @@ function moveInside(
 
   let moved = hit.node;
   if (hit.node.type.name === "scene") {
-    if (hit.node.content.content.some((n) => n.type.name === "subscene")) {
+    if (childrenOf(hit.node).some((n) => n.type.name === "subscene")) {
       return reject("非法目標：帶著子場次的主場次不能放進另一場 —— 會生出第三層（不變式 ⑤）");
     }
     if (!options.kind) return reject("主場次降級成子場次要指明種類（插入／接續）—— 系統不代填");
     moved = schema.node("subscene", { ...hit.node.attrs, kind: options.kind }, hit.node.content);
   }
 
-  // 同一段內容裡搬：`index` 以搬移前計，來源在落點之前就要扣掉它自己那一格。
   const before = findContainer(doc, target);
   const sameContainer =
     typeof before !== "string" && hit.containerPath != null && samePath(before.path, hit.containerPath);
-  const fromIndex = hit.path[hit.path.length - 1]!;
-  const index = sameContainer && target.index > fromIndex ? target.index - 1 : target.index;
+  const index = indexAfterRemoval(target.index, sameContainer ? hit.path[hit.path.length - 1]! : null);
   if (index < 0 || index > at.node.childCount) {
     return reject(`非法目標：那段內容沒有第 ${target.index} 個位置`);
   }
@@ -160,9 +147,6 @@ function moveInside(
   kids.splice(index, 0, moved);
   return checked(() => replaceAt(rest, at.path, at.node.type.create(at.node.attrs, kids, at.node.marks)));
 }
-
-const samePath = (a: readonly number[], b: readonly number[]) =>
-  a.length === b.length && a.every((v, i) => v === b[i]);
 
 export interface MoveGroupOptions {
   readonly groupId: string;
