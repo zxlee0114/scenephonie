@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 
 import { mintId } from "@scenephonie/schema";
 
-import { authorizeProjectForUser, type AuthorizedProject } from "@/authorization";
+import { authorizeProjectForUser, type AuthorizedProject, type AuthorizedScreenplay } from "@/authorization";
 import { getDb } from "@/db/client";
 import { projects, screenplays, users } from "@/db/schema";
 import { emptyScreenplay } from "@/editor/empty-screenplay";
@@ -93,6 +93,12 @@ export async function projectContents(project: AuthorizedProject): Promise<Proje
   ]);
 
   return { title: row?.title ?? DEFAULT_PROJECT_TITLE, screenplayId: script?.id ?? null };
+}
+
+/** 專案名稱 —— v1 專案與劇本 1:1，它也是劇本的名稱（PDF 檔名用）。 */
+export async function projectTitle(scope: AuthorizedProject | AuthorizedScreenplay): Promise<string> {
+  const [row] = await getDb().select({ title: projects.title }).from(projects).where(eq(projects.id, scope.projectId));
+  return row?.title ?? DEFAULT_PROJECT_TITLE;
 }
 
 /**

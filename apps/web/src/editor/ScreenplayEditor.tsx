@@ -20,6 +20,7 @@ import type {
   EntityCatalogSnapshot,
   RenameEntity,
 } from "./entity-capability";
+import { ExportPdf, type ExportPdfCapability } from "./export-pdf";
 import type { SaveScreenplay } from "./save-capability";
 import { requestNextScene } from "./extensions/next-scene";
 import { cursorSceneId, revealScene, scrollToSceneOf } from "./scene-anchor";
@@ -176,6 +177,7 @@ export function ScreenplayEditor({
   renameEntity,
   view = "script",
   onShowScript,
+  exportPdf,
 }: {
   initialContent?: object;
   initialFocus?: InitialFocus;
@@ -191,9 +193,11 @@ export function ScreenplayEditor({
   view?: ScreenplayView;
   /** 場次表上點了一列：請路由切回劇本。游標落進那一場由這裡負責（切回來之後）。 */
   onShowScript?: () => void;
+  /** 匯出 PDF（票券 18）：建立交付與 PDF 網址由路由層注入；「先存檔」那一步是這裡的。 */
+  exportPdf?: Omit<ExportPdfCapability, "flush">;
 }) {
   const editor = useScreenplayEditor(initialContent, initialFocus);
-  const status = useAutosave({ editor, screenplayId, initialToken, save });
+  const { status, flush } = useAutosave({ editor, screenplayId, initialToken, save });
   /** 場次表上點的那一列，等切回劇本後再把游標送過去 —— 藏起來的編輯器拿不到焦點。 */
   const pendingReveal = useRef<string | null>(null);
   const previousView = useRef(view);
@@ -249,6 +253,7 @@ export function ScreenplayEditor({
           {/* 全部快捷鍵攤在同一張紙上（票券 34）—— 每一顆鍵各自都有理由，但合起來原本
               沒有一個地方看得到全部。⌘/ 或右上角那顆很淡的鈕。 */}
           <ShortcutOverview />
+          {exportPdf && <ExportPdf flush={flush} {...exportPdf} />}
         </div>
       </div>
       {view === "table" && editor && (

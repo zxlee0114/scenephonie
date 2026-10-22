@@ -22,8 +22,11 @@ export const SAVE_MAX_WAIT_MS = 15_000;
 export type SaveScheduler = {
   /** doc 變了。重新起算停頓；強制上限從「上次存完後的第一次變更」起算。 */
   changed(): void;
-  /** 立刻存（分頁要隱藏／關閉時）。沒有待存的變更就什麼都不做。 */
-  flush(): Promise<void>;
+  /**
+   * 立刻存（分頁要隱藏／關閉時、匯出之前）。沒有待存的變更就什麼都不做。
+   * 回傳 `true` ＝ 手上的變更都落地了；`false` ＝ 這一次沒存進去（仍然待存，排程會再試）。
+   */
+  flush(): Promise<boolean>;
   /** 丟掉待存的計時器（元件卸載）。不取消已經在路上的那一次。 */
   cancel(): void;
 };
@@ -56,11 +59,11 @@ export function createSaveScheduler({
     if (maxTimer === undefined) maxTimer = setTimeout(() => void flush(), maxWaitMs);
   }
 
-  async function flush(): Promise<void> {
+  async function flush(): Promise<boolean> {
     clearTimers();
     // 前一次存檔還在路上 —— 排在它後面，永遠不讓兩次存檔同時飛（後發的 token 會是舊的）。
     if (inFlight) await inFlight;
-    if (!dirty) return;
+    if (!dirty) return true;
     dirty = false;
     inFlight = save()
       .catch(() => {
@@ -74,6 +77,7 @@ export function createSaveScheduler({
         inFlight = undefined;
       });
     await inFlight;
+    return !dirty;
   }
 
   return {
