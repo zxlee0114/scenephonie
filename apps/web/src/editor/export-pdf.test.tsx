@@ -12,7 +12,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ExportPdf } from "./export-pdf";
 
-const pdfBlob = new Blob(["%PDF-1.7"], { type: "application/pdf" });
+// 字串不是 Blob：jsdom 的 Blob 交不進 Node 22 內建（undici）的 Response（`object.stream is not a function`）。
+const pdfBody = "%PDF-1.7";
 
 function mount({
   flush = vi.fn(async () => true),
@@ -36,7 +37,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 let downloads: string[];
 
 beforeEach(() => {
-  fetchMock = vi.fn(async () => new Response(pdfBlob, { status: 200 }));
+  fetchMock = vi.fn(async () => new Response(pdfBody, { status: 200 }));
   vi.stubGlobal("fetch", fetchMock);
   downloads = [];
   URL.createObjectURL = vi.fn(() => "blob:pdf");
@@ -59,7 +60,7 @@ describe("匯出 PDF", () => {
       flush: vi.fn(async () => (order.push("flush"), true)),
       createDelivery: vi.fn(async () => (order.push("deliver"), "dl_1")),
     });
-    fetchMock.mockImplementation(async () => (order.push("print"), new Response(pdfBlob)));
+    fetchMock.mockImplementation(async () => (order.push("print"), new Response(pdfBody)));
 
     open();
     await submit();
@@ -74,7 +75,7 @@ describe("匯出 PDF", () => {
   it("下載的檔名用伺服器給的那一個（劇本名稱_交付時間）", async () => {
     const name = "阿強的夏天_20261022-1430.pdf";
     fetchMock.mockResolvedValue(
-      new Response(pdfBlob, {
+      new Response(pdfBody, {
         headers: { "content-disposition": `inline; filename="dl_1.pdf"; filename*=UTF-8''${encodeURIComponent(name)}` },
       }),
     );
