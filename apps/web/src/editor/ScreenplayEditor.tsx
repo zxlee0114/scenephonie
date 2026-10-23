@@ -11,6 +11,8 @@ import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { useEffect, useReducer, useRef, useState } from "react";
 
+import { docFromJSON, exportPreflight, setDraftReminderDismissed } from "@scenephonie/schema";
+
 import type { SaveToken } from "@/persistence";
 
 import "../styles/editor.css";
@@ -20,7 +22,9 @@ import type {
   EntityCatalogSnapshot,
   RenameEntity,
 } from "./entity-capability";
+import { runKernelCommand } from "./command-bridge";
 import { ExportPdf, type ExportPdfCapability } from "./export-pdf";
+import { requestFocus } from "./focus";
 import type { SaveScreenplay } from "./save-capability";
 import { requestNextScene } from "./extensions/next-scene";
 import { cursorSceneId, revealScene, scrollToSceneOf } from "./scene-anchor";
@@ -193,8 +197,11 @@ export function ScreenplayEditor({
   view?: ScreenplayView;
   /** 場次表上點了一列：請路由切回劇本。游標落進那一場由這裡負責（切回來之後）。 */
   onShowScript?: () => void;
-  /** 匯出 PDF（票券 18）：建立交付與 PDF 網址由路由層注入；「先存檔」那一步是這裡的。 */
-  exportPdf?: Omit<ExportPdfCapability, "flush">;
+  /**
+   * 匯出 PDF（票券 18）：建立交付與 PDF 網址由路由層注入；「先存檔」與匯出前防呆（票券 19）
+   * 讀寫的是手上這份 doc，是這裡的。
+   */
+  exportPdf?: Pick<ExportPdfCapability, "createDelivery" | "pdfUrl">;
 }) {
   const editor = useScreenplayEditor(initialContent, initialFocus);
   const { status, flush } = useAutosave({ editor, screenplayId, initialToken, save });
@@ -253,7 +260,26 @@ export function ScreenplayEditor({
           {/* 全部快捷鍵攤在同一張紙上（票券 34）—— 每一顆鍵各自都有理由，但合起來原本
               沒有一個地方看得到全部。⌘/ 或右上角那顆很淡的鈕。 */}
           <ShortcutOverview />
-          {exportPdf && <ExportPdf flush={flush} {...exportPdf} />}
+          {exportPdf && editor && (
+            <ExportPdf
+              flush={flush}
+              preflight={() => exportPreflight(docFromJSON(editor.state.doc.toJSON()))}
+              // 只動 attr：游標留在原地、焦點留在面板上。寫進 doc 之後由自動存檔帶走，⌘Z 撤得掉。
+              setDraftReminderDismissed={(sceneIds, dismissed) =>
+                void runKernelCommand(editor, (doc) => setDraftReminderDismissed(doc, { sceneIds, dismissed }), {
+                  keepCaret: true,
+                  keepFocus: true,
+                })
+              }
+              // 「前往修改」：草稿缺的、登場人物欄少的，都在那一場的 chip row 上 —— 帶到那一場，
+              // 焦點落在第一格（與載入、建場的落點同一個）。
+              revealScene={(sceneId) => {
+                revealScene(editor, sceneId);
+                requestFocus({ kind: "sceneMeta", sceneId });
+              }}
+              {...exportPdf}
+            />
+          )}
         </div>
       </div>
       {view === "table" && editor && (

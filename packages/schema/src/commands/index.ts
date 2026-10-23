@@ -67,6 +67,9 @@ export type {
   SetDialogueCharactersOptions,
 } from "./entity-refs";
 
+export { setDraftReminderDismissed } from "./draft-reminders";
+export type { SetDraftReminderDismissedOptions } from "./draft-reminders";
+
 export { setSceneExtras, addSceneExtras, takeOneFromExtra } from "./extras";
 export type {
   SetSceneExtrasOptions,

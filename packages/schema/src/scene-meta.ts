@@ -21,8 +21,13 @@ export function hasEmptySceneMeta(scene: { readonly attrs: Record<string, unknow
   });
 }
 
+/** metadata 裡會被要求填的欄位（匯出前清單要逐項說「未填寫內／外、地點」，票券 19）。 */
+export type SceneMetaField = "intExt" | "time" | "location";
+
 /**
- * 「這一場的 metadata 完整嗎」—— 草稿推導的第三條不變式（票券 14，§4.8）。不完整 → 自動草稿。
+ * 「這一場的 metadata 完整嗎」—— 草稿推導的第三條不變式（票券 14，§4.8）。回傳沒填的欄位，依標題
+ * 順序（內外、時間、地點）；**空陣列 ＝ 完整**，有任何一欄 → 自動草稿。草稿判定與匯出前清單上的理由
+ * （票券 19）讀的是同一份，不會分歧。
  *
  * 與 `hasEmptySceneMeta`（全空）是兩個問題：那支問「還沒開工」，這支問「有沒有任何一欄沒填」。
  *
@@ -32,10 +37,13 @@ export function hasEmptySceneMeta(scene: { readonly attrs: Record<string, unknow
  * | 地點 | 有值 —— **`內外＝雜景` 時留空合法**（「完整」的定義隨內外的值改變，§4.3） |
  * | 登場人物 | **不參與**（使用者裁決 2026-10-21）：空景沒有任何人入鏡，要求它有值等於讓那場永遠是草稿 |
  */
-export function isSceneMetaIncomplete(scene: { readonly attrs: Record<string, unknown> }): boolean {
+export function missingSceneMeta(scene: { readonly attrs: Record<string, unknown> }): SceneMetaField[] {
   const { time, intExt, location } = scene.attrs;
-  if (time == null || intExt == null) return true;
-  if (intExt === MONTAGE) return false;
+  const missing: SceneMetaField[] = [];
+  if (intExt == null) missing.push("intExt");
+  if (time == null) missing.push("time");
   // 走讀取正規化：「有沒有地點」與 `sameSceneMeta`／`sameSpaceTime` 看到的是同一份。
-  return sceneLocations(location).length === 0;
+  // 雜景的完整不要求地點（§4.3）；內外還沒填時地點照常要求。
+  if (intExt !== MONTAGE && sceneLocations(location).length === 0) missing.push("location");
+  return missing;
 }

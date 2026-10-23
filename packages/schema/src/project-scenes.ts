@@ -17,7 +17,7 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import { groupMembers } from "./commands/tree";
 import { echoingMembers } from "./groups";
-import { isSceneMetaIncomplete } from "./scene-meta";
+import { missingSceneMeta, type SceneMetaField } from "./scene-meta";
 import { schema } from "./schema";
 import { sameSpaceTime, subsceneEchoesParent } from "./subscenes";
 
@@ -54,7 +54,7 @@ export interface SceneNumber {
  *
  * | 誰 | 是草稿，如果 |
  * |---|---|
- * | 每一場 | `manualDraft`，或 metadata 有空欄（雜景的地點欄除外，`isSceneMetaIncomplete`），或內文全空（`hasNoContent`） |
+ * | 每一場 | `manualDraft`，或 metadata 有空欄（雜景的地點欄除外，`missingSceneMeta`），或內文全空（`hasNoContent`） |
  * | 子場次 | 另外：主場次（或成員）是草稿；或 metadata 與它**完全相同**（不變式 ②） |
  * | 群組成員 | 另外：與另一個成員 metadata **完全相同**（不變式 ③），或**同地同時**（③ 的寬鬆版，票券 12 驗收） |
  *
@@ -100,19 +100,41 @@ export function autoDraftOf(doc: ProseMirrorNode, sceneId: string): boolean {
   return walk(doc).find((entry) => entry.scene.sceneId === sceneId)?.autoDraft ?? false;
 }
 
+/**
+ * 一場為什麼是草稿（匯出前清單逐項說給編劇聽，票券 19）。走訪判定草稿時順手記下 —— 理由與判定
+ * 出自同一次走訪，清單不會說出一個跟 `draft` 對不上的原因。
+ */
+export type DraftReason =
+  /** 編劇手動標記。 */
+  | { kind: "manual" }
+  /** metadata 有沒填的欄位（雜景的地點欄除外）。 */
+  | { kind: "missingMeta"; fields: SceneMetaField[] }
+  /** 內文全空。 */
+  | { kind: "empty" }
+  /** 子場次：metadata 與主場次（或成員）完全相同（不變式 ②）。 */
+  | { kind: "echoesParent" }
+  /** 群組成員：與同組另一個成員 metadata 相同，或同地同時（不變式 ③）。 */
+  | { kind: "echoesMember" }
+  /** 子場次：主場次（或成員）是草稿，連帶。 */
+  | { kind: "parentDraft" };
+
 interface Entry {
   scene: SceneNumber;
   /** 自動草稿原因成不成立 —— `hold` 鎖的就是這一半。 */
   autoDraft: boolean;
+  /** 這一場是草稿的理由（不套 `hold`）；正式場次是空的。 */
+  reasons: DraftReason[];
   /** 這一場的節點（主場次、子場次或成員）—— 交付投影從這裡讀 metadata。 */
   node: ProseMirrorNode;
 }
 
 /**
- * 那一次走訪的原始輸出，給同套件的交付投影用（場次表，票券 15；日後 PDF、匯出前清單）——
- * 它們要的是場次號**加上**節點，而不是再走一次樹。不從 `index.ts` 對外曝露。
+ * 那一次走訪的原始輸出，給同套件的交付投影用（場次表，票券 15；匯出前清單，票券 19）——
+ * 它們要的是場次號**加上**節點（與草稿理由），而不是再走一次樹。不從 `index.ts` 對外曝露。
  */
-export function sceneEntries(doc: ProseMirrorNode): readonly { scene: SceneNumber; node: ProseMirrorNode }[] {
+export function sceneEntries(
+  doc: ProseMirrorNode,
+): readonly { scene: SceneNumber; node: ProseMirrorNode; reasons: readonly DraftReason[] }[] {
   return walk(doc);
 }
 
@@ -127,27 +149,39 @@ function walk(doc: ProseMirrorNode, hold?: DraftHold): Entry[] {
     return inherited || scene.attrs.manualDraft === true || held;
   };
 
-  /** 一個頂層場次：它自己，接著散在 `containers` 裡的子場次。 */
+  /** 一場的理由：手動標記、自動原因、主場次連帶（`inherited`）。正式場次回空陣列。 */
+  const reasonsOf = (scene: ProseMirrorNode, auto: DraftReason[], inherited = false): DraftReason[] => [
+    ...(scene.attrs.manualDraft === true ? [{ kind: "manual" } as const] : []),
+    ...auto,
+    ...(inherited ? [{ kind: "parentDraft" } as const] : []),
+  ];
+
+  /** 一個頂層場次：它自己，接著散在 `containers` 裡的子場次。`echoesMember` 只對群組成員成立。 */
   const number = (
     scene: ProseMirrorNode,
     containers: ProseMirrorNode[],
-    metaDraft: boolean,
+    echoesMember: boolean,
     groupId?: string,
   ) => {
     const sceneId = scene.attrs.sceneId as string;
-    const autoDraft = metaDraft || hasNoContent(containers);
+    const auto = autoReasons(scene, containers, echoesMember ? [{ kind: "echoesMember" }] : []);
+    const autoDraft = auto.length > 0;
     const draft = isDraft(scene, autoDraft);
     entries.push({
       scene: { sceneId, ...next.topLevel(draft), draft, ...(groupId ? { groupId } : {}) },
       autoDraft,
+      reasons: reasonsOf(scene, auto),
       node: scene,
     });
     for (const container of containers) {
       container.forEach((child) => {
         if (child.type.name !== "subscene") return;
-        const childAuto =
-          isSceneMetaIncomplete(child) || hasNoContent([child]) || subsceneEchoesParent(scene, child);
-        const childDraft = isDraft(child, childAuto, draft);
+        const childAuto = autoReasons(
+          child,
+          [child],
+          subsceneEchoesParent(scene, child) ? [{ kind: "echoesParent" }] : [],
+        );
+        const childDraft = isDraft(child, childAuto.length > 0, draft);
         entries.push({
           scene: {
             sceneId: child.attrs.sceneId as string,
@@ -155,7 +189,8 @@ function walk(doc: ProseMirrorNode, hold?: DraftHold): Entry[] {
             draft: childDraft,
             parentSceneId: sceneId,
           },
-          autoDraft: childAuto,
+          autoDraft: childAuto.length > 0,
+          reasons: reasonsOf(child, childAuto, draft),
           node: child,
         });
       });
@@ -164,7 +199,7 @@ function walk(doc: ProseMirrorNode, hold?: DraftHold): Entry[] {
 
   doc.forEach((node) => {
     if (node.type.name === "scene") {
-      number(node, [node], isSceneMetaIncomplete(node));
+      number(node, [node], false);
       return;
     }
     if (node.type.name !== "sceneGroup") return;
@@ -177,15 +212,23 @@ function walk(doc: ProseMirrorNode, hold?: DraftHold): Entry[] {
     });
     for (const member of members) {
       const sceneId = member.attrs.sceneId as string;
-      const auto =
-        isSceneMetaIncomplete(member) ||
-        echoing.has(sceneId) ||
-        members.some((other) => other !== member && sameSpaceTime(member, other));
+      const echoes =
+        echoing.has(sceneId) || members.some((other) => other !== member && sameSpaceTime(member, other));
       const own = fragments.filter((f) => f.attrs.memberId === sceneId);
-      number(member, own, auto, groupId);
+      number(member, own, echoes, groupId);
     }
   });
   return entries;
+}
+
+/** 自動草稿原因：metadata 沒填完、內文全空，加上呼叫端判的那一條（與主場次／成員撞）。 */
+function autoReasons(scene: ProseMirrorNode, containers: ProseMirrorNode[], echo: DraftReason[]): DraftReason[] {
+  const fields = missingSceneMeta(scene);
+  return [
+    ...(fields.length > 0 ? [{ kind: "missingMeta", fields } as const] : []),
+    ...(hasNoContent(containers) ? [{ kind: "empty" } as const] : []),
+    ...echo,
+  ];
 }
 
 /**

@@ -161,6 +161,13 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
     rationale: "以 sceneId 定址（子場次可以單獨標記）；只寫宣告，草稿本身是推導值（§4.8）。",
   },
   {
+    name: "setDraftReminderDismissed",
+    enforces: [],
+    addressesById: true,
+    rationale:
+      "匯出前清單的「不再提醒」／「恢復提醒」；以 sceneId 定址（標籤是推導的，拖一下就換了），只記判斷、草稿照樣不印。",
+  },
+  {
     name: "setAppearingCharacters",
     enforces: ["⑧"],
     addressesById: true,
