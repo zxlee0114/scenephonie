@@ -147,20 +147,51 @@ describe("分享面板", () => {
     expect(within(dialog()).getByRole("button", { name: "停用所選（1）" })).toBeTruthy();
   });
 
-  it("備註：離開欄位才存；沒改就不存；讀回來的是存好的那一份", async () => {
+  it("備註：平常只有一顆鈕；點了才出現欄位，離開欄位才存、沒改不存；存好之後顯示成一行字", async () => {
     const { setNote } = mount([live]);
     await openPanel();
-    const note = within(dialog()).getByRole("textbox", { name: "即時連結的備註" }) as HTMLInputElement;
+    expect(within(dialog()).queryByRole("textbox", { name: "即時連結的備註" })).toBeNull();
 
-    fireEvent.blur(note);
-    expect(setNote).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog()).getByRole("button", { name: "新增備註" }));
+    const note = within(dialog()).getByRole("textbox", { name: "即時連結的備註" }) as HTMLInputElement;
+    expect(document.activeElement).toBe(note);
 
     fireEvent.change(note, { target: { value: "給優良劇本獎評審" } });
     await act(async () => void fireEvent.blur(note));
 
     expect(setNote).toHaveBeenCalledWith("sh_live", "給優良劇本獎評審");
-    expect((within(dialog()).getByRole("textbox", { name: "即時連結的備註" }) as HTMLInputElement).value).toBe(
-      "給優良劇本獎評審",
-    );
+    expect(within(dialog()).queryByRole("textbox", { name: "即時連結的備註" })).toBeNull();
+    expect(within(dialog()).getByText("給優良劇本獎評審")).toBeTruthy();
+
+    // 有備註之後，同一顆鈕是「編輯備註」；沒改就離開不存。
+    fireEvent.click(within(dialog()).getByRole("button", { name: "編輯備註" }));
+    await act(async () => void fireEvent.blur(within(dialog()).getByRole("textbox", { name: "即時連結的備註" })));
+    expect(setNote).toHaveBeenCalledTimes(1);
+  });
+
+  it("備註：Esc 放棄這次的修改（面板不關）；只有空白的備註不顯示", async () => {
+    const { setNote } = mount([{ ...live, note: "  " }]);
+    await openPanel();
+    expect(within(dialog()).getByRole("button", { name: "新增備註" })).toBeTruthy();
+
+    fireEvent.click(within(dialog()).getByRole("button", { name: "新增備註" }));
+    const note = within(dialog()).getByRole("textbox", { name: "即時連結的備註" });
+    fireEvent.change(note, { target: { value: "打錯了" } });
+    fireEvent.keyDown(note, { key: "Escape" });
+
+    expect(setNote).not.toHaveBeenCalled();
+    expect(within(dialog()).queryByRole("textbox", { name: "即時連結的備註" })).toBeNull();
+    expect(within(dialog()).queryByText("打錯了")).toBeNull();
+  });
+
+  it("備註：輸入法選字時的 Enter 不收欄位", async () => {
+    mount([live]);
+    await openPanel();
+    fireEvent.click(within(dialog()).getByRole("button", { name: "新增備註" }));
+    const note = within(dialog()).getByRole("textbox", { name: "即時連結的備註" });
+
+    fireEvent.keyDown(note, { key: "Enter", isComposing: true });
+
+    expect(document.activeElement).toBe(note);
   });
 });

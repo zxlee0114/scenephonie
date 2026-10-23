@@ -237,12 +237,30 @@
   border-block-start: 1px solid var(--rule);
 }
 
-/* 備註：一行、很安靜 —— 是給自己的便條，不是表單欄位。 */
+/* 備註：平常只是網址列尾端一枝很淡的鉛筆；寫了就在網址上方一行字，點鉛筆才是欄位。 */
+.share-panel .share-panel__memo-button {
+  display: inline-grid;
+  place-items: center;
+  padding: var(--space-1);
+  border-color: transparent;
+  color: var(--text-faint);
+}
+
+.share-panel .share-panel__memo-button:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.share-panel__memo-text {
+  margin: 0;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
 .share-panel__memo {
   box-sizing: border-box;
   inline-size: 100%;
   padding: var(--space-1) var(--space-2);
-  border: 1px solid transparent;
+  border: 1px solid var(--rule-strong);
   border-radius: var(--space-1);
   background: none;
   color: var(--text-primary);
@@ -253,12 +271,7 @@
   color: var(--text-faint);
 }
 
-.share-panel__memo:hover {
-  border-color: var(--rule);
-}
-
 .share-panel__memo:focus-visible {
-  border-color: var(--rule-strong);
   outline: 2px solid var(--focus-ring);
 }
 

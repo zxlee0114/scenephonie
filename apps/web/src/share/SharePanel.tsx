@@ -306,7 +306,7 @@ function FrozenLinks({
   );
 }
 
-/** 一條連結：名字、（漂移）、備註、唯讀網址、複製、停用（按兩次）。 */
+/** 一條連結：名字、（漂移）、備註、唯讀網址、複製、停用（按兩次）、備註鈕。 */
 function LinkRow({
   name,
   label,
@@ -327,6 +327,9 @@ function LinkRow({
   onRevoke: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [editingNote, setEditingNote] = useState(false);
+  // 只有空白的備註等於沒有 —— 不佔一行。
+  const shownNote = note?.trim() || null;
   return (
     <div className="share-panel__link">
       <CopyLink
@@ -340,11 +343,34 @@ function LinkRow({
           )
         }
         url={url}
-        above={<NoteField name={name} saved={note} onSave={onNote} />}
+        above={
+          editingNote ? (
+            <NoteField
+              name={name}
+              saved={shownNote}
+              onDone={(changed) => {
+                setEditingNote(false);
+                if (changed !== null) onNote(changed);
+              }}
+            />
+          ) : (
+            shownNote && <p className="share-panel__memo-text">{shownNote}</p>
+          )
+        }
       >
         {/* 確認期間留在原位（變灰），網址那一列才不會跳。 */}
         <button type="button" onClick={() => setConfirming(true)} disabled={working || confirming}>
           停用
+        </button>
+        <button
+          type="button"
+          className="share-panel__memo-button"
+          aria-label={shownNote ? "編輯備註" : "新增備註"}
+          title={shownNote ? "編輯備註" : "新增備註"}
+          onClick={() => setEditingNote(true)}
+          disabled={working || editingNote}
+        >
+          <NoteIcon />
         </button>
       </CopyLink>
       {confirming && (
@@ -364,25 +390,56 @@ function LinkRow({
   );
 }
 
-/** 備註欄：離開欄位（或按 Enter）才存，沒改就不存。存好的值回來之後以它為準。 */
-function NoteField({ name, saved, onSave }: { name: string; saved: string | null; onSave: (note: string) => void }) {
+/**
+ * 備註欄：點了備註鈕才出現，一出現就聚焦。離開欄位（或 Enter）收起來，有改才存（`onDone` 給新值；
+ * 沒改給 `null`）；Esc 放棄這次的修改 —— 只收欄位，不關面板。
+ */
+function NoteField({
+  name,
+  saved,
+  onDone,
+}: {
+  name: string;
+  saved: string | null;
+  onDone: (changed: string | null) => void;
+}) {
   const [value, setValue] = useState(saved ?? "");
-  useEffect(() => setValue(saved ?? ""), [saved]);
+  const cancelled = useRef(false);
   return (
     <input
       type="text"
       className="share-panel__memo"
       aria-label={`${name}的備註`}
-      placeholder="備註：這條連結給了誰（只有你看得到）"
+      placeholder="這條連結給了誰（只有你看得到）"
       maxLength={SHARE_NOTE_MAX_LENGTH}
+      autoFocus
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={(e) => {
+        // 輸入法選字時的 Enter 是在確認選字，不是「寫完了」。
+        if (e.nativeEvent.isComposing) return;
         if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          cancelled.current = true;
+          onDone(null);
+        }
       }}
       onBlur={() => {
-        if (value.trim() !== (saved ?? "")) onSave(value);
+        if (cancelled.current) return;
+        onDone(value.trim() !== (saved ?? "") ? value : null);
       }}
     />
+  );
+}
+
+/** 一枝鉛筆（備註）。裝飾用 —— 名字在鈕上。 */
+function NoteIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M11.5 2.5l2 2L6 12H4v-2z" strokeLinejoin="round" />
+      <path d="M3 14h10" strokeLinecap="round" />
+    </svg>
   );
 }
