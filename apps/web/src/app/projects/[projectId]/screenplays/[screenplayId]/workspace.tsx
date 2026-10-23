@@ -1,34 +1,50 @@
 /**
- * 「劇本／場次表」的路由那一半（票券 15，§7.10）：**子路由 ＋ 頁內 segmented control**。
- * split view 已否決（場次表沒有寫入路徑，並排看不能編輯）。
- *
- * 網址是視圖的定位：`./` 是劇本、`./table` 是場次表。編輯器不認識路由層 —— 這裡把網址段翻成
- * `view`，把「請切回劇本」翻成一次導覽，交給它。
+ * 編輯器頁的路由接線：把網址段翻成 `view`，把「請切回劇本」翻成一次導覽，交給編輯器（編輯器不認識
+ * 路由層）。「劇本／場次表」那一組在 `@/app/view-switch`，分享頁也用同一組。
  */
 "use client";
 
-import Link from "next/link";
-import { useRouter, useSelectedLayoutSegment } from "next/navigation";
+import { useRouter } from "next/navigation";
 import type { ComponentProps } from "react";
 
-import { ScreenplayEditor, type ScreenplayView } from "@/editor/ScreenplayEditor";
+import { useView } from "@/app/view-switch";
+import { ScreenplayEditor } from "@/editor/ScreenplayEditor";
 
-import type { createDeliveryAction } from "./actions";
+import type {
+  createDeliveryAction,
+  revokeShareLinksAction,
+  setShareLinkNoteAction,
+  shareDeliveryAction,
+  shareLinksAction,
+  shareLiveAction,
+  shareSnapshotAction,
+} from "./actions";
 
-const TABLE_SEGMENT = "table";
-
-function useView(): ScreenplayView {
-  return useSelectedLayoutSegment() === TABLE_SEGMENT ? "table" : "script";
+/** 分享（票券 20）的六支 action。型別跟著 action 走。 */
+export interface SharingActions {
+  shareDelivery: typeof shareDeliveryAction;
+  shareLive: typeof shareLiveAction;
+  shareSnapshot: typeof shareSnapshotAction;
+  shareLinks: typeof shareLinksAction;
+  revoke: typeof revokeShareLinksAction;
+  setNote: typeof setShareLinkNoteAction;
 }
 
+/** 分享連結的完整網址 —— 分享出去的是網址，不是 token。 */
+const shareUrl = (token: string) => `${window.location.origin}/s/${token}`;
+
 export function ScreenplayWorkspace(
-  props: Omit<ComponentProps<typeof ScreenplayEditor>, "view" | "onShowScript" | "exportPdf"> & {
+  props: Omit<
+    ComponentProps<typeof ScreenplayEditor>,
+    "view" | "onShowScript" | "exportPdf" | "share"
+  > & {
     base: string;
     /** 匯出意圖。型別跟著 action 走，不另抄一份。 */
     createDelivery: typeof createDeliveryAction;
+    sharing: SharingActions;
   },
 ) {
-  const { base, createDelivery, ...editorProps } = props;
+  const { base, createDelivery, sharing, ...editorProps } = props;
   const router = useRouter();
   const { screenplayId } = editorProps;
   return (
@@ -36,6 +52,19 @@ export function ScreenplayWorkspace(
       {...editorProps}
       view={useView()}
       onShowScript={() => router.push(base)}
+      share={
+        screenplayId
+          ? {
+              list: () => sharing.shareLinks({ screenplayId }),
+              shareLive: () => sharing.shareLive({ screenplayId }),
+              shareSnapshot: () => sharing.shareSnapshot({ screenplayId }),
+              revoke: (shareIds) => sharing.revoke({ screenplayId, shareIds }),
+              setNote: (shareId, note) =>
+                sharing.setNote({ screenplayId, shareId, note }),
+              urlOf: shareUrl,
+            }
+          : undefined
+      }
       exportPdf={
         screenplayId
           ? {
@@ -44,29 +73,19 @@ export function ScreenplayWorkspace(
                 return result.status === "delivered" ? result.deliveryId : null;
               },
               // 交付的 PDF 住在劇本底下（`./deliveries/[deliveryId]/pdf`）—— 讀的是那一筆交付。
-              pdfUrl: (deliveryId, query) => `${base}/deliveries/${deliveryId}/pdf?${query}`,
+              pdfUrl: (deliveryId, query) =>
+                `${base}/deliveries/${deliveryId}/pdf?${query}`,
+              // 凍結分享：按了「取得這次交付的連結」才鑄（票券 20）。
+              shareDelivery: async (deliveryId) => {
+                const token = await sharing.shareDelivery({
+                  screenplayId,
+                  deliveryId,
+                });
+                return token ? shareUrl(token) : null;
+              },
             }
           : undefined
       }
     />
-  );
-}
-
-/** 頁內的 segmented control：「劇本／場次表」。 */
-export function ViewSwitch({ base }: { base: string }) {
-  const view = useView();
-  return (
-    <nav className="view-switch" aria-label="檢視">
-      <Link href={base} className="view-switch__item" aria-current={view === "script" ? "page" : undefined}>
-        劇本
-      </Link>
-      <Link
-        href={`${base}/${TABLE_SEGMENT}`}
-        className="view-switch__item"
-        aria-current={view === "table" ? "page" : undefined}
-      >
-        場次表
-      </Link>
-    </nav>
   );
 }

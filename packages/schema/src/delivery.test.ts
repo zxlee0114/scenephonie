@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 
 import { mintCharacterId, mintLocationId } from "./entities";
-import { DELIVERY_PAYLOAD_VERSION, projectDelivery } from "./delivery";
+import { DELIVERY_PAYLOAD_VERSION, deliveredSceneTable, projectDelivery, type DeliveryPayload } from "./delivery";
 import { block, filled, fragmentOf, groupWith, makeDoc, memberWith, sceneWith, subsceneWith } from "./testing";
 
 const noNames = { characters: new Map<string, string>(), locations: new Map<string, string>() };
@@ -231,5 +231,62 @@ describe("projectDelivery：payload 自己讀得懂", () => {
     const payload = projectDelivery(doc, noNames);
 
     expect(JSON.parse(JSON.stringify(payload))).toEqual(payload);
+  });
+});
+
+describe("deliveredSceneTable：分享頁的場次表從交付讀，不從 doc 重算（票券 20）", () => {
+  const payload = (scenes: DeliveryPayload["scenes"]): DeliveryPayload => ({
+    version: DELIVERY_PAYLOAD_VERSION,
+    scenes,
+    script: [],
+  });
+
+  it("每場一列，格子寫法與編輯器的場次表相同：`實體名（這一場的顯示名）`，懸空引用只印顯示名", () => {
+    const rows = deliveredSceneTable(
+      payload([
+        {
+          sceneId: "sc_a",
+          label: "1",
+          intExt: "內景",
+          time: "夜",
+          locations: [{ name: "海豚公寓房間", displayName: "未知大樓房間" }],
+          appearingCharacters: [
+            { name: "小明", displayName: "小明" },
+            { name: null, displayName: "男子" },
+          ],
+          extras: "路人（3）",
+        },
+        { sceneId: "sc_b", label: "1.1", parentSceneId: "sc_a", intExt: "外景", time: "日", locations: [], appearingCharacters: [], extras: "" },
+      ]),
+    );
+
+    expect(rows).toEqual([
+      {
+        sceneId: "sc_a",
+        label: "1",
+        intExt: "內景",
+        time: "夜",
+        location: "海豚公寓房間（未知大樓房間）",
+        appearingCharacters: "小明、男子",
+        extras: "路人（3）",
+      },
+      {
+        sceneId: "sc_b",
+        label: "1.1",
+        parentSceneId: "sc_a",
+        intExt: "外景",
+        time: "日",
+        location: "",
+        appearingCharacters: "",
+        extras: "",
+      },
+    ]);
+  });
+
+  it("雜景沒有地點時，那一格同編輯器的場次表印「參照敘述」", () => {
+    const [row] = deliveredSceneTable(
+      payload([{ sceneId: "sc_m", label: "3", intExt: "雜景", time: "日", locations: [], appearingCharacters: [], extras: "" }]),
+    );
+    expect(row?.location).toBe("參照敘述");
   });
 });

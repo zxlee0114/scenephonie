@@ -14,7 +14,11 @@
  * 靜默地少印幾場是最糟的失敗模式，所以就算每一場都設成不再提醒，印好之後那一行
  * 「本次略過 N 場草稿」照樣說。
  *
- * 編輯器不認識路由層（§6.3）：存檔、建立交付、PDF 的網址都是注入的；預檢、「不再提醒」的寫入與
+ * **凍結分享是這個面板的副產品**（票券 20，§10.2）：印完（或印壞了）之後多一顆「取得這次交付的連結」。
+ * 快照必然、連結自願 —— 交付每次匯出都建立，連結只在按了這顆之後才鑄；否則「我只是想印一份 PDF」
+ * 會在背後多出一條公開網址。它不是分享面板上的第二個選項：分享面板只有即時連結。
+ *
+ * 編輯器不認識路由層（§6.3）：存檔、建立交付、PDF 的網址、鑄連結都是注入的；預檢、「不再提醒」的寫入與
  * 「前往修改」由編輯器注入（它手上有 doc）。
  */
 "use client";
@@ -35,6 +39,7 @@ import {
   type ExportOptions,
   type PrintFont,
 } from "@/pdf/export-options";
+import { CopyLink } from "@/share/CopyLink";
 
 /** 匯出要用到的三樣能力，全部由路由層注入。 */
 export interface ExportPdfCapability {
@@ -44,6 +49,8 @@ export interface ExportPdfCapability {
   createDelivery: () => Promise<string | null>;
   /** 一筆交付的 PDF 網址。`query` 是匯出選項。 */
   pdfUrl: (deliveryId: string, query: string) => string;
+  /** 「取得這次交付的連結」：鑄（或拿回）那一筆交付的凍結分享連結，回傳完整網址；`null` ＝ 沒鑄出來。 */
+  shareDelivery: (deliveryId: string) => Promise<string | null>;
   /** 這份稿現在匯出的話會少掉哪幾場、哪些登場人物該提醒（讀當下的 doc）。 */
   preflight: () => ExportPreflight;
   /** 「之後不再提醒」（`true`）／「恢復提醒」（`false`）—— 記在那幾場上（`sceneId`）。 */
@@ -67,7 +74,10 @@ type Phase =
       url: string;
       skipped: SkippedCount;
     }
-  | { kind: "done"; skipped: SkippedCount };
+  | { kind: "done"; deliveryId: string; skipped: SkippedCount };
+
+/** 「取得這次交付的連結」那一格。 */
+type Link = { kind: "idle" } | { kind: "working" } | { kind: "ready"; url: string } | { kind: "failed" };
 
 const MESSAGE: Record<
   Exclude<Phase["kind"], "idle" | "working">,
@@ -130,6 +140,7 @@ export function ExportPdf({
   preflight,
   setDraftReminderDismissed,
   revealScene,
+  shareDelivery,
 }: ExportPdfCapability) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("options");
@@ -139,6 +150,7 @@ export function ExportPdf({
   const [check, setCheck] = useState<ExportPreflight | null>(null);
   const [options, setOptions] = useState<ExportOptions>(DEFAULT_EXPORT_OPTIONS);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  const [link, setLink] = useState<Link>({ kind: "idle" });
   const panel = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const working = phase.kind === "working";
@@ -152,6 +164,7 @@ export function ExportPdf({
     if (working) return;
     setOpen(false);
     setPhase({ kind: "idle" });
+    setLink({ kind: "idle" });
     trigger.current?.focus();
   };
 
@@ -202,13 +215,25 @@ export function ExportPdf({
         await response.blob(),
         filenameOf(response) ?? `${deliveryId}.pdf`,
       );
-      setPhase({ kind: "done", skipped });
+      setPhase({ kind: "done", deliveryId, skipped });
     } catch {
       setPhase({ kind: "printFailed", deliveryId, url, skipped });
     }
   }
 
+  async function getLink(deliveryId: string) {
+    setLink({ kind: "working" });
+    try {
+      const url = await shareDelivery(deliveryId);
+      setLink(url ? { kind: "ready", url } : { kind: "failed" });
+    } catch {
+      setLink({ kind: "failed" });
+    }
+  }
+
   async function exportPdf() {
+    // 新的一次匯出是新的一筆交付 —— 上一筆的連結不是它的。
+    setLink({ kind: "idle" });
     setPhase({ kind: "working", text: "正在存檔…" });
     if (!(await flush())) return setPhase({ kind: "unsaved" });
 
@@ -366,6 +391,10 @@ export function ExportPdf({
                   </p>
                 )}
 
+                {(phase.kind === "done" || phase.kind === "printFailed") && (
+                  <DeliveryLink link={link} onGet={() => void getLink(phase.deliveryId)} />
+                )}
+
                 <div className="export-pdf__actions">
                   {hasCheck && (
                     <button
@@ -405,6 +434,32 @@ export function ExportPdf({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * 凍結分享的把手。按了才鑄；鑄好了直接複製進剪貼簿（按這顆鈕就是要那條網址），框右邊說「已複製」。
+ */
+function DeliveryLink({ link, onGet }: { link: Link; onGet: () => void }) {
+  if (link.kind === "ready") {
+    return (
+      <div className="export-pdf__link">
+        <CopyLink name="這次交付的連結" label="這次交付的連結" url={link.url} autoCopy />
+      </div>
+    );
+  }
+  return (
+    <div className="export-pdf__link">
+      <button type="button" onClick={onGet} disabled={link.kind === "working"}>
+        取得這次交付的連結
+      </button>
+      <p className="export-pdf__hint">此連結將是這次交付內容的快照，不會受後續編輯影響。</p>
+      {link.kind === "failed" && (
+        <p className="export-pdf__status export-pdf__status--loud" role="alert">
+          連結沒有建立起來（連線問題？），再按一次試試。
+        </p>
+      )}
+    </div>
   );
 }
 

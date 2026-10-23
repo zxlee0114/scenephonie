@@ -88,9 +88,10 @@
 .save-status {
   position: fixed;
   inset-block-start: 0;
-  /* 右端讓給快捷鍵鈕與匯出鈕。 */
+  /* 右端讓給快捷鍵鈕、匯出鈕與分享鈕。 */
   inset-inline-end: calc(
-    var(--space-5) + var(--shortcut-trigger-width) + var(--space-4) + var(--export-trigger-width) + var(--space-4)
+    var(--space-5) + var(--shortcut-trigger-width) + var(--space-4) + var(--export-trigger-width) + var(--space-4) +
+      var(--share-trigger-width) + var(--space-4)
   );
   z-index: 30;
   display: flex;
@@ -1617,11 +1618,14 @@
 
 /* 住在 header 的右端、存檔狀態的右邊。原本在左上角，跟「← 專案」疊在一起（使用者回饋 2026-10-22）。
  * 寬度寫死，存檔狀態才知道要讓出多少（見 .save-status）。 */
-.screenplay-page {
+/* 掛在 shell 上而不是 `.screenplay-page`：分享鈕（票券 20）住在稿子外面，也要讀得到這一排的寬度。 */
+.editor-shell {
   /* 「⌘/ 快捷鍵」的寬度（text-sm 的 em）—— 觸發鈕與讓位給它的存檔狀態共用。 */
   --shortcut-trigger-width: 5.5em;
   /* 「匯出 PDF」的寬度，同上（票券 18）。 */
   --export-trigger-width: 5em;
+  /* 「分享」的寬度，同上（票券 20）。 */
+  --share-trigger-width: 2.5em;
 }
 
 .shortcut-overview__trigger {
@@ -2686,6 +2690,26 @@
 .export-pdf__actions button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* 「取得這次交付的連結」（票券 20）：凍結分享是匯出的副產品，住在面板裡、狀態列下面。 */
+
+.export-pdf__link {
+  margin-block-start: var(--space-3);
+}
+
+.export-pdf__link button {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-1);
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.export-pdf__link .export-pdf__hint {
+  margin-block: var(--space-1) 0;
 }
 
 /* ── 「這一下會合併場次」確認窗（票券 13）── */

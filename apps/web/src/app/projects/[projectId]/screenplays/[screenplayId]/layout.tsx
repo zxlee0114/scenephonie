@@ -1,12 +1,24 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ViewSwitch } from "@/app/view-switch";
 import { authorizeProjectForUser, authorizeScreenplay } from "@/authorization";
 import { projectEntities } from "@/entities";
 import { loadScreenplay } from "@/persistence";
 
-import { createDeliveryAction, createEntityAction, renameEntityAction, saveScreenplayAction } from "./actions";
-import { ScreenplayWorkspace, ViewSwitch } from "./workspace";
+import {
+  createDeliveryAction,
+  createEntityAction,
+  renameEntityAction,
+  revokeShareLinksAction,
+  saveScreenplayAction,
+  setShareLinkNoteAction,
+  shareDeliveryAction,
+  shareLinksAction,
+  shareLiveAction,
+  shareSnapshotAction,
+} from "./actions";
+import { ScreenplayWorkspace } from "./workspace";
 
 // route handler／server component 必須連得到 Postgres —— 不可 edge-only（§13.1）。
 export const runtime = "nodejs";
@@ -73,6 +85,14 @@ export default async function EditorLayout({
         createEntity={createEntityAction}
         renameEntity={renameEntityAction}
         createDelivery={createDeliveryAction}
+        sharing={{
+          shareDelivery: shareDeliveryAction,
+          shareLive: shareLiveAction,
+          shareSnapshot: shareSnapshotAction,
+          shareLinks: shareLinksAction,
+          revoke: revokeShareLinksAction,
+          setNote: setShareLinkNoteAction,
+        }}
       />
       {children}
     </main>

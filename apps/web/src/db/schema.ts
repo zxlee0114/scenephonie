@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -357,4 +358,51 @@ export const deliveries = pgTable(
   },
   // 凍結分享（票券 20）與編劇自己的分享清單問的是「這份劇本有哪些交付」。
   (table) => [index("deliveries_screenplay_id_created_at_idx").on(table.screenplayId, table.createdAt.desc())],
+).enableRLS();
+
+/**
+ * 分享 —— 一次具有獨立 identity 與生命週期的對外分享關係（票券 20，§10、ADR-0008 ①）。
+ *
+ * **劇本是它的欄位，不是它的身分**：凍結連結指的是劇本的某個過去，在劇本身分下沒有位置可站。
+ *
+ * - `delivery_id` 為 `null` ＝ **即時分享**（讀 live doc 的投影）；有值 ＝ **凍結分享**，一筆交付的
+ *   公開把手。**快照必然、連結自願**：交付每次匯出都建立，這一列只在編劇按「取得這次交付的連結」
+ *   時才鑄 —— 否則「我只是想印一份 PDF」會在背後多出一條公開網址。
+ * - `token` **opaque 且不可枚舉**（nanoid 是實作選擇，不寫進規格）。
+ * - **撤銷寫 `revoked_at`、保留該列**：刪掉就查不出這條連結曾經存在。重新分享 ＝ 鑄新的一列。
+ * - **沒有有效期**（§10.3）：過期是安全劇場，撤銷才是控制。
+ * - **零配置**：沒有標題、沒有密碼、沒有視圖組合 —— 選這個 identity 是為了讓凍結有地方站，
+ *   不是為了長出開關。唯一的例外是 `note`（使用者裁決，2026-10-23）：編劇寫給自己的「這條給了誰」，
+ *   **讀者永遠看不到**，它不改變連結的任何行為。
+ */
+export const shareLinks = pgTable(
+  "share_links",
+  {
+    /** `sh_` ＋ nanoid。 */
+    id: text("id").primaryKey(),
+    screenplayId: text("screenplay_id")
+      .notNull()
+      .references(() => screenplays.id, { onDelete: "cascade" }),
+    deliveryId: text("delivery_id").references(() => deliveries.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** 編劇的備註（這條給了誰）。只在編劇自己的清單上出現；`null` ＝ 沒寫。 */
+    note: text("note"),
+  },
+  (table) => [
+    // 訪客打開 `/s/<token>` 時問的就是這一句。
+    uniqueIndex("share_links_token_uidx").on(table.token),
+    // 編劇自己的分享清單：「這份劇本有哪些連結」。
+    index("share_links_screenplay_id_idx").on(table.screenplayId),
+    // 「取得連結」是 get-or-mint：同時有效的只能有一條（一次交付＝一條連結；即時分享一份劇本一條）。
+    // 兩次並行的點擊由這兩條 partial unique 排成序，晚到的那次拿到先到的那一條，不會多鑄一條公開網址。
+    // 撤銷過的不算 —— 重新分享 ＝ 鑄新的一列，舊的那列留著。
+    uniqueIndex("share_links_active_delivery_uidx")
+      .on(table.deliveryId)
+      .where(sql`${table.revokedAt} is null`),
+    uniqueIndex("share_links_active_live_uidx")
+      .on(table.screenplayId)
+      .where(sql`${table.deliveryId} is null and ${table.revokedAt} is null`),
+  ],
 ).enableRLS();

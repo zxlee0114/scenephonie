@@ -1,8 +1,16 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { and, eq } from "drizzle-orm";
 
-import { docFromJSON, mintId, projectDelivery, type DeliveryPayload } from "@scenephonie/schema";
+import {
+  deliveredEntityIds,
+  docFromJSON,
+  mintId,
+  projectDelivery,
+  type DeliveryPayload,
+} from "@scenephonie/schema";
 
-import type { AuthorizedScreenplay } from "@/authorization";
+import type { AuthorizedScreenplay, ShareViewer } from "@/authorization";
 import { getDb } from "@/db/client";
 import { characters, deliveries, locations, screenplays } from "@/db/schema";
 
@@ -50,38 +58,76 @@ export type Delivery = {
 export async function createDelivery(screenplay: AuthorizedScreenplay): Promise<Delivery | null> {
   return getDb().transaction(
     async (tx) => {
-      const [current] = await tx
-        .select({ doc: screenplays.doc, docSchemaVersion: screenplays.docSchemaVersion })
-        .from(screenplays)
-        .where(eq(screenplays.id, screenplay.screenplayId))
-        .limit(1);
+      const current = await projectCanonical(tx, screenplay);
       if (!current) return null;
-
-      const [characterRows, locationRows] = await Promise.all([
-        tx
-          .select({ id: characters.id, name: characters.name })
-          .from(characters)
-          .where(eq(characters.projectId, screenplay.projectId)),
-        tx
-          .select({ id: locations.id, name: locations.name })
-          .from(locations)
-          .where(eq(locations.projectId, screenplay.projectId)),
-      ]);
-
-      const doc = docFromJSON(migrateDocToCurrent(current.doc as PersistedDoc, current.docSchemaVersion));
-      const payload = projectDelivery(doc, {
-        characters: new Map(characterRows.map((r) => [r.id, r.name])),
-        locations: new Map(locationRows.map((r) => [r.id, r.name])),
-      });
 
       const [row] = await tx
         .insert(deliveries)
-        .values({ id: mintId(DELIVERY_ID_PREFIX), screenplayId: screenplay.screenplayId, payload })
+        .values({
+          id: mintId(DELIVERY_ID_PREFIX),
+          screenplayId: screenplay.screenplayId,
+          payload: current.payload,
+        })
         .returning({ deliveryId: deliveries.id, createdAt: deliveries.createdAt });
-      return { deliveryId: row!.deliveryId, createdAt: row!.createdAt, payload };
+      return { deliveryId: row!.deliveryId, createdAt: row!.createdAt, payload: current.payload };
     },
     { isolationLevel: "repeatable read" },
   );
+}
+
+type Transaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+/**
+ * 已存檔的 doc ＋ 專案的實體名 → 交付投影（`projectDelivery`）。交付（寫進去）與即時分享（只拿來看，
+ * 票券 20）走同一條：「草稿不進、場次號跳號、群組殘缺整組不進」只有一個答案。
+ *
+ * `updatedAt` 是這份投影最後一次變的時刻：劇本存檔，或交付印得出名字的實體改名 —— 改名不推進
+ * `doc_seq`（實體屬於專案，不屬於這份 doc），但印出來的字變了，讀的人該知道（票券 20）。
+ *
+ * 呼叫端要給一個 `repeatable read` 交易 —— doc 與實體名才是同一個快照。模組內部用，不從 `./index` 出去。
+ *
+ * @returns 劇本不在了是 `null`。
+ */
+export async function projectCanonical(
+  tx: Transaction,
+  // 只收 handle：讀 live doc 的路一律要先過 gate（編劇的劇本 handle，或分享連結的 viewer）。
+  screenplay: AuthorizedScreenplay | ShareViewer,
+): Promise<{ payload: DeliveryPayload; updatedAt: Date } | null> {
+  const [current] = await tx
+    .select({
+      doc: screenplays.doc,
+      docSchemaVersion: screenplays.docSchemaVersion,
+      updatedAt: screenplays.updatedAt,
+    })
+    .from(screenplays)
+    .where(eq(screenplays.id, screenplay.screenplayId))
+    .limit(1);
+  if (!current) return null;
+
+  const [characterRows, locationRows] = await Promise.all([
+    tx
+      .select({ id: characters.id, name: characters.name, updatedAt: characters.updatedAt })
+      .from(characters)
+      .where(eq(characters.projectId, screenplay.projectId)),
+    tx
+      .select({ id: locations.id, name: locations.name, updatedAt: locations.updatedAt })
+      .from(locations)
+      .where(eq(locations.projectId, screenplay.projectId)),
+  ]);
+
+  const doc = docFromJSON(migrateDocToCurrent(current.doc as PersistedDoc, current.docSchemaVersion));
+  const payload = projectDelivery(doc, {
+    characters: new Map(characterRows.map((r) => [r.id, r.name])),
+    locations: new Map(locationRows.map((r) => [r.id, r.name])),
+  });
+
+  const { characterIds, locationIds } = deliveredEntityIds(doc);
+  const renamedAt = [
+    ...characterRows.filter((r) => characterIds.has(r.id)),
+    ...locationRows.filter((r) => locationIds.has(r.id)),
+  ].map((r) => r.updatedAt.getTime());
+  const updatedAt = new Date(Math.max(current.updatedAt.getTime(), ...renamedAt));
+  return { payload, updatedAt };
 }
 
 /**
@@ -101,4 +147,33 @@ export async function loadDelivery(
     .limit(1);
   if (!row) return null;
   return { deliveryId: row.deliveryId, createdAt: row.createdAt, payload: row.payload as DeliveryPayload };
+}
+
+/**
+ * 這份劇本的哪幾筆交付，交付出去的內容之後又變了（票券 20）—— 編劇自己的分享清單上那一句
+ * 「之後劇本已有修改」。
+ *
+ * 判準是**投影**，不是 `doc_seq`、也不是時間戳：用現在的存檔與實體名再推導一次交付，跟那筆交付拍下的
+ * payload 比。草稿不進交付，所以只改草稿不算；改了交付印得出名字的實體算（改名不推進 `doc_seq`）；
+ * 改了又改回來也不算 —— 讀那條連結的人看到的，跟現在分享出去會看到的一模一樣（使用者裁決，2026-10-23）。
+ * jsonb 不保留鍵序，所以用結構相等比。日後 payload 換版本，舊交付會一律被當成「改過」（保守）。
+ *
+ * ⚠️ **只給編劇看**（handle 是劇本的）：不對凍結連結的讀者說「作者後來又改了」（§10.2）。
+ */
+export async function deliveriesChangedSince(screenplay: AuthorizedScreenplay): Promise<Set<string>> {
+  return getDb().transaction(
+    async (tx) => {
+      const current = await projectCanonical(tx, screenplay);
+      if (!current) return new Set<string>();
+      // 記憶體裡的投影可能帶著值為 `undefined` 的鍵（`parentSceneId`），存進 jsonb 的那份沒有。
+      const now = JSON.parse(JSON.stringify(current.payload)) as DeliveryPayload;
+
+      const rows = await tx
+        .select({ deliveryId: deliveries.id, payload: deliveries.payload })
+        .from(deliveries)
+        .where(eq(deliveries.screenplayId, screenplay.screenplayId));
+      return new Set(rows.filter((r) => !isDeepStrictEqual(r.payload, now)).map((r) => r.deliveryId));
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" },
+  );
 }

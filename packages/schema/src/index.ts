@@ -115,8 +115,9 @@ export type { LabeledSceneTableRow } from "./scene-table";
 // 渲染器與凍結分享頁只讀它，不准從它重算語意推導值（不變式 E）。唯一的套件外呼叫端是
 // persistence 的 `createDelivery`／`loadDelivery`。元素型別與 `DELIVERY_PAYLOAD_VERSION` 的讀者是
 // 票券 18 的渲染器 —— 它認得哪一版形狀、照元素印字，不重算任何一個值。
-export { projectDelivery, DELIVERY_PAYLOAD_VERSION } from "./delivery";
-export type { DeliveryPayload, DeliveredScene, ScriptElement } from "./delivery";
+// `deliveredEntityIds` 是即時分享頁「最後更新於」的另一半：交付印得出名字的實體（票券 20）。
+export { projectDelivery, deliveredSceneTable, deliveredEntityIds, DELIVERY_PAYLOAD_VERSION } from "./delivery";
+export type { DeliveryPayload, DeliveredRef, DeliveredScene, ScriptElement } from "./delivery";
 
 // 匯出前防呆（票券 19，§9.6）：「這份 PDF 會少掉這幾場」。誰被略過讀的是交付同一份（`deliveredRows`），
 // 草稿理由讀的是 `projectScenes` 那一次走訪記下的 —— 這裡不重判。唯一的呼叫端是匯出面板。

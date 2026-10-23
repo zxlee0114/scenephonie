@@ -8,7 +8,7 @@
  * 每列形如 `S1 內 日 廚房`（欄序比照 §8：場次號、內外、時間、地點）。地點印**這一場的顯示名** ——
  * 編劇在 chip row 裡看到的那個字；實體名只進篩選。
  */
-import type { SceneIntExt, SceneNumber } from "@scenephonie/schema";
+import type { DeliveredRef, DeliveryPayload, SceneIntExt, SceneNumber } from "@scenephonie/schema";
 import {
   extrasLabel,
   referenceLabel,
@@ -122,4 +122,36 @@ function searchFields(scene: SceneNumber, node: PMNode, names: SceneNavNames): S
       .join("、"),
     extras: extrasLabel(sceneExtras(node.attrs.extras)),
   };
+}
+
+/**
+ * 分享頁的 sidebar 列（票券 20，§7.10）—— **同一種場次導航能力，依 delivery context 重建**：
+ * 列從交付投影來（即時分享也是當場推導的交付投影），所以**沒有草稿**；場次號是交付的那一個；
+ * 篩選比的字與場次表同一套（`實體名（顯示名）`）。
+ */
+export function deliveredNavRows(payload: DeliveryPayload): SceneNavRow[] {
+  const groupOf = new Map<string, string>();
+  return payload.scenes.map((scene) => {
+    const groupId = scene.groupId ?? (scene.parentSceneId ? groupOf.get(scene.parentSceneId) : undefined);
+    if (scene.groupId) groupOf.set(scene.sceneId, scene.groupId);
+    const refs = (list: DeliveredRef[]) => list.map((r) => referenceLabel(r.displayName, r.name)).join("、");
+    return {
+      sceneId: scene.sceneId,
+      label: `S${scene.label}`,
+      draft: false,
+      sub: scene.parentSceneId !== undefined,
+      ...(groupId ? { groupId } : {}),
+      intExt: INT_EXT_SHORT[scene.intExt] ?? "",
+      time: scene.time,
+      location: scene.locations.map((r) => r.displayName).join("、"),
+      search: {
+        label: scene.label,
+        intExt: scene.intExt,
+        time: scene.time,
+        location: refs(scene.locations),
+        appearingCharacters: refs(scene.appearingCharacters),
+        extras: scene.extras,
+      },
+    };
+  });
 }

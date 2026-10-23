@@ -28,6 +28,8 @@ import { requestFocus } from "./focus";
 import type { SaveScreenplay } from "./save-capability";
 import { requestNextScene } from "./extensions/next-scene";
 import { cursorSceneId, revealScene, scrollToSceneOf } from "./scene-anchor";
+import { SharePanel, type SharePanelCapability } from "@/share/SharePanel";
+
 import { SceneNavView } from "./scene-nav-view";
 import { SceneTableView } from "./scene-table-view";
 import { PointMenu } from "./point-menu";
@@ -167,6 +169,7 @@ export function ScreenplayEditor({
   view = "script",
   onShowScript,
   exportPdf,
+  share,
 }: {
   initialContent?: object;
   initialFocus?: InitialFocus;
@@ -183,10 +186,15 @@ export function ScreenplayEditor({
   /** 場次表上點了一列：請路由切回劇本。游標落進那一場由這裡負責（切回來之後）。 */
   onShowScript?: () => void;
   /**
-   * 匯出 PDF（票券 18）：建立交付與 PDF 網址由路由層注入；「先存檔」與匯出前防呆（票券 19）
+   * 匯出 PDF（票券 18）：建立交付、PDF 網址與凍結分享連結（票券 20）由路由層注入；「先存檔」與匯出前防呆（票券 19）
    * 讀寫的是手上這份 doc，是這裡的。
    */
-  exportPdf?: Pick<ExportPdfCapability, "createDelivery" | "pdfUrl">;
+  exportPdf?: Pick<ExportPdfCapability, "createDelivery" | "pdfUrl" | "shareDelivery">;
+  /**
+   * 分享面板（票券 20）：連結的讀寫由路由層注入；「建立交付連結」之前先存檔，存檔是這裡的。
+   * 劇本與場次表兩個視圖都有它。
+   */
+  share?: Omit<SharePanelCapability, "flush">;
 }) {
   const editor = useScreenplayEditor(initialContent, initialFocus);
   const autosave = useAutosave({ editor, screenplayId, initialToken, save });
@@ -262,6 +270,7 @@ export function ScreenplayEditor({
           )}
         </div>
       </div>
+      {share && <SharePanel flush={flush} {...share} />}
       {view === "table" && editor && (
         <SceneTableView
           editor={editor}

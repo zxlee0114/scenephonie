@@ -28,7 +28,7 @@ import { MONTAGE, type CharacterRef, type ExtraRef, type LocationRef, type Scene
  * 雜景留空地點時印的**推導文字**（§4.3、§8）。不是一筆實體 —— 不建垃圾實體，地點在敘述裡。
  * 雜景是刻意接受的資訊密度損失：不拆成多列。
  */
-const MONTAGE_UNSPECIFIED_LOCATION = "參照敘述";
+export const MONTAGE_UNSPECIFIED_LOCATION = "參照敘述";
 
 /** 場次表的一列 —— 一個正式場次（主場次、子場次或群組成員）的原始值，還沒接上實體名。 */
 export interface SceneTableRow {

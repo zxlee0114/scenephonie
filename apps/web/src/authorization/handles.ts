@@ -11,10 +11,10 @@
  * handle 只能由 `./gate` 鑄造（`grantProject`／`grantScreenplay` 沒有從 `./index` 出去），
  * 因為 brand 是 `unique symbol`，模組外湊不出這個型別。
  *
- * ⚠️ **授權主體不只有 `UserId`**（ADR-0011 §②）：票券 12 的 `/s/<token>` 唯讀分享頁沒有帳號，
- * 卻仍要決定能看哪個 project。那是**另一種 authorization subject**（`ShareViewer`），不是
- * 第二套授權機制 —— 它日後鑄造的是同一種 handle 的唯讀變體，寫路徑不接受它。具體型別留到
- * 分享連結實作（階段 8），此刻只保證這裡是它唯一該長出來的地方。
+ * ⚠️ **授權主體不只有 `UserId`**（ADR-0011 §②）：`/s/<token>` 唯讀分享頁沒有帳號，卻仍要決定
+ * 能看哪份劇本。那是**另一種 authorization subject**（`ShareViewer`，票券 20），不是第二套授權
+ * 機制 —— 同一個 gate、同一種 brand，只是 brand 的值不同（`"share"`），所以它結構上塞不進任何
+ * 要 `AuthorizedScreenplay` 的地方：**寫路徑不接受它**是型別說的，不是 handler 記得的。
  */
 
 declare const authorized: unique symbol;
@@ -37,9 +37,27 @@ export type AuthorizedScreenplay = {
   readonly [authorized]: "screenplay";
 };
 
+/**
+ * 「拿著這條分享連結的人可以讀這份劇本（的這一個投影）」的證據（票券 20）。
+ *
+ * 唯讀：只有讀取分享內容的那一支（persistence 的 `loadSharedScript`）收它。`deliveryId` 為 `null`
+ * ＝ 即時分享（讀 live doc 的投影）；有值 ＝ 凍結分享，只讀那筆交付，永遠不碰 live doc。
+ *
+ * 沒有 `ownerId`：訪客不是任何人，這個 handle 也不該攜帶「這是誰的」。
+ */
+export type ShareViewer = {
+  readonly shareId: string;
+  readonly screenplayId: string;
+  readonly projectId: string;
+  readonly deliveryId: string | null;
+  readonly [authorized]: "share";
+};
+
 export const grantProject = (grant: Omit<AuthorizedProject, typeof authorized>): AuthorizedProject =>
   grant as AuthorizedProject;
 
 export const grantScreenplay = (
   grant: Omit<AuthorizedScreenplay, typeof authorized>,
 ): AuthorizedScreenplay => grant as AuthorizedScreenplay;
+
+export const grantShareViewer = (grant: Omit<ShareViewer, typeof authorized>): ShareViewer => grant as ShareViewer;

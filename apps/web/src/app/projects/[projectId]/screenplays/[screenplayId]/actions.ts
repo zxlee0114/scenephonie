@@ -7,6 +7,14 @@ import { createCharacter, createLocation, renameCharacter, renameLocation } from
 import type { CreateEntityRequest, RenameEntityRequest } from "@/editor/entity-capability";
 import type { SaveOutcome, SaveScreenplayRequest } from "@/editor/save-capability";
 import { createDelivery, saveScreenplay } from "@/persistence";
+import {
+  listShareLinks,
+  revokeShareLinks,
+  setShareLinkNote,
+  shareDelivery,
+  shareLive,
+  type ListedShareLink,
+} from "@/share/share-store";
 
 /**
  * 編輯器的存檔入口。
@@ -106,4 +114,64 @@ export async function renameEntityAction(request: RenameEntityRequest): Promise<
       : await renameLocation(project, request.entityId, name);
 
   return renamed !== null;
+}
+
+/**
+ * 「取得這次交付的連結」—— 凍結分享（票券 20，§10.2）。**token 懶惰鑄造**：匯出不會走到這裡，
+ * 只有編劇按了那顆鈕才會。已經有一條有效的就拿回那一條。
+ *
+ * @returns token；不是你的劇本、或交付不在這份劇本底下，都是 `null`（同一個答案）。
+ */
+export async function shareDeliveryAction(request: { screenplayId: string; deliveryId: string }): Promise<string | null> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return null;
+  return (await shareDelivery(screenplay, request.deliveryId))?.token ?? null;
+}
+
+/**
+ * 分享面板的「建立交付連結」：用現在的存檔建立一筆交付（不印 PDF），再鑄它的連結。存檔是呼叫端先做的。
+ * 交付建了、連結沒鑄成也無妨 —— 快照必然、連結自願（§10.2），重按是另一筆交付。
+ */
+export async function shareSnapshotAction(request: { screenplayId: string }): Promise<boolean> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return false;
+  const delivery = await createDelivery(screenplay);
+  if (!delivery) return false;
+  return (await shareDelivery(screenplay, delivery.deliveryId)) !== null;
+}
+
+/** 建立即時連結（已有就拿回那一條）。 */
+export async function shareLiveAction(request: { screenplayId: string }): Promise<boolean> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return false;
+  await shareLive(screenplay);
+  return true;
+}
+
+/**
+ * 編劇自己的分享清單。凍結連結帶著「之後劇本已有修改」—— **只在這裡說**，凍結頁的讀者看不到（§10.2）。
+ * 沒有權限就是空清單：不給存在性探針。
+ */
+export async function shareLinksAction(request: { screenplayId: string }): Promise<ListedShareLink[]> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return [];
+  return listShareLinks(screenplay);
+}
+
+/** 停用連結（一條，或勾選的幾條）：寫 `revoked_at`、保留那幾列（§10.3）。`false` ＝ 一條都沒停到。 */
+export async function revokeShareLinksAction(request: { screenplayId: string; shareIds: string[] }): Promise<boolean> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return false;
+  return (await revokeShareLinks(screenplay, request.shareIds)) > 0;
+}
+
+/** 寫一條連結的備註（只有編劇看得到）。 */
+export async function setShareLinkNoteAction(request: {
+  screenplayId: string;
+  shareId: string;
+  note: string;
+}): Promise<boolean> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return false;
+  return setShareLinkNote(screenplay, request.shareId, request.note);
 }
