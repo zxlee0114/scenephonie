@@ -133,6 +133,8 @@ export function ExportPdf({
 }: ExportPdfCapability) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("options");
+  /** 這次打開走過第一步沒有 —— 走過，回頭的鈕才叫「上一步」；沒走過（直接到選項）叫「查看提醒」。 */
+  const [sawCheck, setSawCheck] = useState(false);
   /** 打開面板那一刻的預檢；改了提醒設定之後重讀。面板是 modal，開著時 doc 不會被別的手改。 */
   const [check, setCheck] = useState<ExportPreflight | null>(null);
   const [options, setOptions] = useState<ExportOptions>(DEFAULT_EXPORT_OPTIONS);
@@ -142,7 +144,7 @@ export function ExportPdf({
   const working = phase.kind === "working";
   const loud = check ? check.drafts.filter((d) => !d.dismissed) : [];
   const quiet = check ? check.drafts.filter((d) => d.dismissed) : [];
-  /** 第一步有沒有東西可看 —— 有就給「上一步」，就算這次沒有攔在那裡。 */
+  /** 第一步有沒有東西可看 —— 有就給回頭的鈕，就算這次沒有攔在那裡。 */
   const hasCheck =
     !!check && (check.drafts.length > 0 || check.appearing.length > 0);
 
@@ -156,7 +158,9 @@ export function ExportPdf({
   const openPanel = () => {
     const next = preflight();
     setCheck(next);
-    setStep(next.drafts.some((d) => !d.dismissed) ? "check" : "options");
+    const stop = next.drafts.some((d) => !d.dismissed);
+    setStep(stop ? "check" : "options");
+    setSawCheck(stop);
     setOpen(true);
   };
 
@@ -295,7 +299,7 @@ export function ExportPdf({
                     ? `本次會略過 ${check.skipped.drafts} 場草稿。`
                     : "草稿場次不會印出來。"}
                   {check.appearing.length > 0 &&
-                    `另有 ${check.appearing.length} 場的台詞有人不在登場人物欄，上一步可以查看。`}
+                    `另有 ${check.appearing.length} 場的台詞有人不在登場人物欄${sawCheck ? "，上一步可以查看" : ""}。`}
                 </p>
 
                 <label className="export-pdf__field">
@@ -370,10 +374,11 @@ export function ExportPdf({
                       onClick={() => {
                         setPhase({ kind: "idle" });
                         setStep("check");
+                        setSawCheck(true);
                       }}
                       disabled={working}
                     >
-                      上一步
+                      {sawCheck ? "上一步" : "查看提醒"}
                     </button>
                   )}
                   <button type="button" onClick={close} disabled={working}>
@@ -569,7 +574,7 @@ function AppearingReminders({
         有台詞、但不在登場人物欄的人：
       </p>
       <p className="export-pdf__hint">
-        不阻擋匯出；但如果要在場次標題下印登場人物，這幾位不會出現在 PDF 上。
+        不阻擋匯出；但如果要在場次標題下印登場人物，這幾位不會出現在上方。
       </p>
       <ul className="export-pdf__appearing-rows">
         {check.appearing.map(({ sceneId, label, speakers }) => (

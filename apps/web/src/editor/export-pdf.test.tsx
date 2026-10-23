@@ -372,15 +372,15 @@ describe("匯出前防呆", () => {
       ],
     };
 
-    it("只有登場人物提示時不攔在第一步：選項那一步說一聲，上一步看得到清單", () => {
+    it("只有登場人物提示時不攔在第一步：選項那一步說一聲，「查看提醒」看得到清單", () => {
       mount({ preflight: () => appearing });
       open();
 
       expect(watermarkBox()).toBeTruthy();
-      expect(screen.getByRole("dialog").textContent).toMatch(
-        /另有 2 場的台詞有人不在登場人物欄，上一步可以查看。/,
-      );
-      fireEvent.click(button("上一步"));
+      expect(screen.getByRole("dialog").textContent).toMatch(/另有 2 場的台詞有人不在登場人物欄。/);
+      // 沒走過第一步，「上一步」說不通。
+      expect(screen.queryByRole("button", { name: "上一步" })).toBeNull();
+      fireEvent.click(button("查看提醒"));
 
       const reminder = screen.getByRole("group", {
         name: /有台詞、但不在登場人物欄的人/,
@@ -405,12 +405,13 @@ describe("匯出前防呆", () => {
       expect(revealScene).toHaveBeenCalledWith("sc_d");
     });
 
-    it("沒有草稿也沒有提醒：選項那一步什麼都不多說，也沒有上一步", () => {
+    it("沒有草稿也沒有提醒：選項那一步什麼都不多說，也沒有回頭的鈕", () => {
       mount();
       open();
 
       expect(screen.getByRole("dialog").textContent).not.toMatch(/登場人物欄/);
       expect(screen.queryByRole("button", { name: "上一步" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "查看提醒" })).toBeNull();
     });
   });
 });
