@@ -2,8 +2,8 @@
  * 匯出前防呆（票券 19，§9.6）—— **「這份 PDF 會少掉這幾場」**，不是「要不要輸出這一場」：草稿本來就
  * 不輸出，這裡只把它說出來。
  *
- * 靜默地少印幾場，對一個要拿去投劇本獎的人是最糟的失敗模式；所以「不再提醒」只讓那一場不再列進
- * 清單，**照樣算進 `skipped`** —— 匯出完成後那一行「本次略過 N 場草稿」讀的就是它。
+ * 靜默地少印幾場，對一個要拿去投劇本獎的人是最糟的失敗模式；所以「不再提醒」只讓那一場在清單裡收起來，
+ * **照樣算進 `skipped`** —— 匯出完成後那一行「本次略過 N 場草稿」讀的就是它。
  *
  * 判定全部來自 `projectScenes` 那一次走訪（§6.4：PDF、場次表、匯出前清單共用同一次走訪）——
  * 這裡不重判誰是草稿，只把走訪記下的理由翻成清單。
@@ -25,6 +25,8 @@ export interface SkippedDraft {
   excerpt: string;
   /** 為什麼是草稿，依走訪記下的順序。 */
   reasons: DraftReason[];
+  /** 編劇設成「之後不再提醒」過 —— 面板把它收進可展開的那一區（可以恢復），照樣不印。 */
+  dismissed: boolean;
   /**
    * 這場是對剪群組的成員 —— 它一缺，整組印不出來（殘缺的對剪比不印更糟）。`groupMates` 是同組
    * 本身不是草稿、卻要跟著被略過的場次標籤，讓編劇看見略過它的後果比表面上大。
@@ -54,7 +56,7 @@ export interface SkippedCount {
 }
 
 export interface ExportPreflight {
-  /** 還要提醒的草稿（「不再提醒」過的不列），依文件順序。 */
+  /** 會被略過的草稿（含「不再提醒」過的，標 `dismissed`），依文件順序。 */
   drafts: SkippedDraft[];
   /** 這次匯出實際會少掉幾場（印好之後那一行讀它）。 */
   skipped: SkippedCount;
@@ -70,25 +72,33 @@ export function exportPreflight(doc: ProseMirrorNode): ExportPreflight {
   const printed = new Set(deliveredRows(doc).map((row) => row.sceneId));
   const fragments = fragmentsByMember(doc);
   /** 本身不是草稿、但不會印出來的 —— 只有殘缺群組裡的場次會這樣。 */
-  const stranded = entries.filter((e) => !e.scene.draft && !printed.has(e.scene.sceneId));
+  const stranded = entries.filter(
+    (e) => !e.scene.draft && !printed.has(e.scene.sceneId),
+  );
   /** 成員 `sceneId` → 群組；成員的子場次跟著它的成員走。 */
-  const memberGroup = new Map(entries.flatMap((e) => (e.scene.groupId ? [[e.scene.sceneId, e.scene.groupId]] : [])));
+  const memberGroup = new Map(
+    entries.flatMap((e) =>
+      e.scene.groupId ? [[e.scene.sceneId, e.scene.groupId]] : [],
+    ),
+  );
   const groupOf = ({ scene }: (typeof entries)[number]) =>
-    scene.groupId ?? (scene.parentSceneId ? memberGroup.get(scene.parentSceneId) : undefined);
+    scene.groupId ??
+    (scene.parentSceneId ? memberGroup.get(scene.parentSceneId) : undefined);
 
   const drafts = entries.filter((entry) => entry.scene.draft);
   return {
-    drafts: drafts
-      .filter(({ node }) => node.attrs.draftReminderDismissed !== true)
-      .map(({ scene, node, reasons }) => ({
+    drafts: drafts.map(({ scene, node, reasons }) => ({
       sceneId: scene.sceneId,
       label: scene.label,
       excerpt: excerptOf(fragments.get(scene.sceneId) ?? [node]),
       reasons: [...reasons],
+      dismissed: node.attrs.draftReminderDismissed === true,
       ...(scene.groupId
         ? {
             group: {
-              groupMates: stranded.filter((e) => groupOf(e) === scene.groupId).map((e) => e.scene.label),
+              groupMates: stranded
+                .filter((e) => groupOf(e) === scene.groupId)
+                .map((e) => e.scene.label),
             },
           }
         : {}),
@@ -97,7 +107,9 @@ export function exportPreflight(doc: ProseMirrorNode): ExportPreflight {
     appearing: entries.flatMap(({ scene, node }) => {
       if (!printed.has(scene.sceneId)) return [];
       const speakers = unlistedIn(node, fragments.get(scene.sceneId) ?? [node]);
-      return speakers.length > 0 ? [{ sceneId: scene.sceneId, label: scene.label, speakers }] : [];
+      return speakers.length > 0
+        ? [{ sceneId: scene.sceneId, label: scene.label, speakers }]
+        : [];
     }),
   };
 }
@@ -106,7 +118,10 @@ export function exportPreflight(doc: ProseMirrorNode): ExportPreflight {
  * 一場的內文裡該被問一句的說話者 —— 逐句問 `unlistedSpeakers`（編輯器裡 Enter 那一刻問的同一支），
  * 子場次不算（它是另一場，自己的登場人物欄）。
  */
-function unlistedIn(scene: ProseMirrorNode, containers: readonly ProseMirrorNode[]): string[] {
+function unlistedIn(
+  scene: ProseMirrorNode,
+  containers: readonly ProseMirrorNode[],
+): string[] {
   const seen = new Map<string, string>();
   for (const container of containers) {
     for (let i = 0; i < container.childCount; i++) {
@@ -119,7 +134,9 @@ function unlistedIn(scene: ProseMirrorNode, containers: readonly ProseMirrorNode
 }
 
 /** 群組成員的內文住在片段裡（票券 12）：成員 `sceneId` → 它的片段，依文件順序。 */
-function fragmentsByMember(doc: ProseMirrorNode): Map<string, ProseMirrorNode[]> {
+function fragmentsByMember(
+  doc: ProseMirrorNode,
+): Map<string, ProseMirrorNode[]> {
   const out = new Map<string, ProseMirrorNode[]>();
   doc.forEach((node) => {
     if (node.type.name !== "sceneGroup") return;
@@ -148,11 +165,15 @@ function excerptOf(containers: readonly ProseMirrorNode[]): string {
 /** 對白照紙上的樣子（行內式，§9.4）：`小明：`。沒有說話者、或不是對白，就是空的。 */
 function speakerOf(block: ProseMirrorNode): string {
   if (block.type.name !== "dialogue") return "";
-  const names = dialogueCharacters(block.attrs.character).map((ref) => ref.displayName);
+  const names = dialogueCharacters(block.attrs.character).map(
+    (ref) => ref.displayName,
+  );
   return names.length > 0 ? `${names.join("、")}：` : "";
 }
 
 function clip(text: string): string {
   const chars = [...text];
-  return chars.length > EXCERPT_LENGTH ? `${chars.slice(0, EXCERPT_LENGTH).join("")}……` : text;
+  return chars.length > EXCERPT_LENGTH
+    ? `${chars.slice(0, EXCERPT_LENGTH).join("")}……`
+    : text;
 }

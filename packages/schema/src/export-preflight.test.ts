@@ -4,7 +4,7 @@
  * `exportPreflight(doc)` 回答兩件事，兩件分開：
  *
  * 1. **會被略過的草稿**：每筆帶標籤（`S1[D1]`）、內容首行（標籤對編劇是個空號，首行才是他認得的）、
- *    為什麼是草稿；草稿成員讓整個群組印不出來，那一筆要說出後果。「不再提醒」過的不列，但照樣算進
+ *    為什麼是草稿；草稿成員讓整個群組印不出來，那一筆要說出後果。「不再提醒」過的標 `dismissed`，照樣算進
  *    「本次略過 N 場」。
  * 2. **登場人物提示**：有一般發聲的對白、卻不在登場人物欄的人 —— 提醒不阻擋，只看會印出來的場次。
  */
@@ -30,6 +30,7 @@ describe("exportPreflight：會被略過的草稿", () => {
         label: "S1[D1]",
         excerpt: "小明在雨中奔跑",
         reasons: [{ kind: "missingMeta", fields: ["intExt", "location"] }],
+        dismissed: false,
       },
     ]);
     expect(skipped).toEqual({ drafts: 1, groupMates: 0 });
@@ -37,13 +38,16 @@ describe("exportPreflight：會被略過的草稿", () => {
 });
 
 describe("exportPreflight：不再提醒", () => {
-  it("「不再提醒」過的不列進清單，但照樣算進這次略過的場數", () => {
+  it("「不再提醒」過的標成 dismissed（面板收進可展開的那一區、可以恢復），照樣算進這次略過的場數", () => {
     const quiet = scene([block.action("留著備用")], { ...filled(), manualDraft: true, draftReminderDismissed: true });
     const loud = scene([block.action("還沒寫完")], { manualDraft: true });
 
     const { drafts, skipped } = exportPreflight(makeDoc(quiet, loud));
 
-    expect(drafts.map((d) => d.sceneId)).toEqual([loud.attrs.sceneId]);
+    expect(drafts.map(({ sceneId, dismissed }) => ({ sceneId, dismissed }))).toEqual([
+      { sceneId: quiet.attrs.sceneId, dismissed: true },
+      { sceneId: loud.attrs.sceneId, dismissed: false },
+    ]);
     expect(skipped).toEqual({ drafts: 2, groupMates: 0 });
   });
 });
@@ -91,6 +95,7 @@ describe("exportPreflight：對剪群組", () => {
         label: "S2[D1]",
         excerpt: "她接起電話",
         reasons: [{ kind: "missingMeta", fields: ["time"] }],
+        dismissed: false,
         group: { groupMates: ["2", "2.1"] },
       },
     ]);

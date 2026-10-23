@@ -2282,8 +2282,24 @@
   color: var(--text-faint);
 }
 
-/* 匯出前防呆（票券 19）：「這份 PDF 會少掉這幾場」。`error` 是 action consequence，只在這個彈窗出現、
-   可以刺眼（§7 色彩表）；登場人物提示不是錯誤，用中性色。 */
+/* 匯出前防呆（票券 19）是面板的第一步：「這份 PDF 會少掉這幾場」。草稿可能很多 —— 面板加寬，清單在
+   面板裡捲，「下一步」永遠看得到。`error` 是 action consequence，只在這個彈窗出現、可以刺眼（§7 色彩表）；
+   登場人物提示不是錯誤，用中性色。 */
+.export-pdf--check {
+  inline-size: min(36rem, 100%);
+}
+
+.export-pdf__check-body {
+  max-block-size: calc(100dvh - var(--bar-height) - 14rem);
+  overflow-y: auto;
+  margin-block-start: var(--space-3);
+}
+
+.export-pdf__hint {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+}
+
 .export-pdf__skipped {
   margin: 0 0 var(--space-4);
   padding: var(--space-3);
@@ -2298,23 +2314,39 @@
   font-weight: 600;
 }
 
-.export-pdf__quiet {
-  font-weight: 400;
-}
-
-.export-pdf__skipped ul,
-.export-pdf__appearing ul {
+.export-pdf__rows,
+.export-pdf__appearing-rows {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.export-pdf__skipped .export-pdf__check {
+/* 一筆兩行：勾選＋標籤「摘錄」／理由，右側是「前往修改」。 */
+.export-pdf__rows li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: var(--space-3);
+  align-items: start;
+  margin-block-end: var(--space-2);
+}
+
+.export-pdf__rows .export-pdf__check {
   align-items: flex-start;
+  margin: 0;
+}
+
+.export-pdf__reason {
+  grid-column: 1;
+  margin: 0 0 0 calc(var(--space-2) + 1em);
+  color: var(--text-secondary);
+}
+
+.export-pdf__rows .export-pdf__goto {
+  grid-column: 2;
+  grid-row: 1 / span 2;
 }
 
 .export-pdf__group {
-  margin: calc(-1 * var(--space-1)) 0 var(--space-2) calc(var(--space-2) + 1em);
   color: var(--error-fg);
 }
 
@@ -2330,13 +2362,15 @@
   margin: 0;
 }
 
-.export-pdf__skipped-actions button {
+.export-pdf__skipped-actions button,
+.export-pdf__goto {
   padding: var(--space-1) var(--space-3);
   border: 1px solid var(--rule-strong);
   border-radius: var(--space-1);
   background: var(--surface-page);
   color: var(--text-primary);
   font: inherit;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -2345,13 +2379,52 @@
   cursor: default;
 }
 
+.export-pdf__quiet {
+  margin-block-start: var(--space-3);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--rule-strong);
+}
+
+.export-pdf__quiet summary {
+  margin-block-end: var(--space-2);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
 .export-pdf__appearing {
   margin: 0 0 var(--space-4);
   color: var(--text-secondary);
 }
 
-.export-pdf__appearing p {
+.export-pdf__appearing-title {
   margin: 0 0 var(--space-1);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* 場次號、名字、「前往修改」三欄對齊 —— 每列用 subgrid 共用同一組欄線（`1`、`15`、`123` 才排得齊）。 */
+.export-pdf__appearing-rows {
+  display: grid;
+  grid-template-columns: max-content 1fr auto;
+  column-gap: var(--space-4);
+  row-gap: var(--space-2);
+  align-items: center;
+}
+
+.export-pdf__appearing-rows li {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+
+.export-pdf__appearing-label {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 「上一步」靠左，關閉與主要動作靠右。 */
+.export-pdf__actions .export-pdf__back {
+  margin-inline-end: auto;
 }
 
 .export-pdf__field {

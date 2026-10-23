@@ -11,7 +11,7 @@ import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { useEffect, useReducer, useRef, useState } from "react";
 
-import { dismissDraftReminders, docFromJSON, exportPreflight } from "@scenephonie/schema";
+import { docFromJSON, exportPreflight, setDraftReminderDismissed } from "@scenephonie/schema";
 
 import type { SaveToken } from "@/persistence";
 
@@ -24,6 +24,7 @@ import type {
 } from "./entity-capability";
 import { runKernelCommand } from "./command-bridge";
 import { ExportPdf, type ExportPdfCapability } from "./export-pdf";
+import { requestFocus } from "./focus";
 import type { SaveScreenplay } from "./save-capability";
 import { requestNextScene } from "./extensions/next-scene";
 import { cursorSceneId, revealScene, scrollToSceneOf } from "./scene-anchor";
@@ -198,7 +199,7 @@ export function ScreenplayEditor({
    * 匯出 PDF（票券 18）：建立交付與 PDF 網址由路由層注入；「先存檔」與匯出前防呆（票券 19）
    * 讀寫的是手上這份 doc，是這裡的。
    */
-  exportPdf?: Omit<ExportPdfCapability, "flush" | "preflight" | "dismissDraftReminders">;
+  exportPdf?: Pick<ExportPdfCapability, "createDelivery" | "pdfUrl">;
 }) {
   const editor = useScreenplayEditor(initialContent, initialFocus);
   const { status, flush } = useAutosave({ editor, screenplayId, initialToken, save });
@@ -260,12 +261,18 @@ export function ScreenplayEditor({
               flush={flush}
               preflight={() => exportPreflight(docFromJSON(editor.state.doc.toJSON()))}
               // 只動 attr：游標留在原地、焦點留在面板上。寫進 doc 之後由自動存檔帶走，⌘Z 撤得掉。
-              dismissDraftReminders={(sceneIds) =>
-                void runKernelCommand(editor, (doc) => dismissDraftReminders(doc, { sceneIds }), {
+              setDraftReminderDismissed={(sceneIds, dismissed) =>
+                void runKernelCommand(editor, (doc) => setDraftReminderDismissed(doc, { sceneIds, dismissed }), {
                   keepCaret: true,
                   keepFocus: true,
                 })
               }
+              // 「前往修改」：草稿缺的、登場人物欄少的，都在那一場的 chip row 上 —— 帶到那一場，
+              // 焦點落在第一格（與載入、建場的落點同一個）。
+              revealScene={(sceneId) => {
+                revealScene(editor, sceneId);
+                requestFocus({ kind: "sceneMeta", sceneId });
+              }}
               {...exportPdf}
             />
           )}
