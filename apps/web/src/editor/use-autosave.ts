@@ -27,6 +27,8 @@ export interface Autosave {
    * 交付承諾的是 canonical state，存不進去（斷線、衝突、沒有權限）就是 `false`。
    */
   flush: () => Promise<boolean>;
+  /** 存不進去時下一次重試排在什麼時候（epoch ms）；沒有在等重試就是 `undefined`。畫面拿它倒數。 */
+  nextRetryAt: () => number | undefined;
 }
 
 export function useAutosave({
@@ -53,8 +55,11 @@ export function useAutosave({
       save: async () => {
         const token = tokenRef.current;
         if (!token || stoppedRef.current) return;
-        setStatus("saving");
         try {
+          // `onLine === false` 只保證「一定斷線」，所以只拿來省掉一定失敗的請求；
+          // 照失敗處理，排程器才會維持待存、繼續退避（票券 65）。
+          if (!navigator.onLine) throw new Error("offline");
+          setStatus("saving");
           const result = await save({
             screenplayId,
             // toPlainJson 不是防禦性複製，是必要的 —— ProseMirror 的 attrs 是 null-prototype
@@ -89,19 +94,33 @@ export function useAutosave({
     const onVisibilityChange = (): void => {
       if (document.visibilityState === "hidden") flushPending();
     };
+    // 還有沒落地的稿就攔一下關分頁／重新整理（票券 65）。存不進去時稿只活在這個分頁裡，
+    // 離開就沒了 —— 這是唯一還來得及說的時機。停手了（conflict／forbidden）也算：
+    // 停手之後打的字根本沒排進去。框裡的字由瀏覽器決定，這裡給不了措辭。
+    const onBeforeUnload = (event: BeforeUnloadEvent): void => {
+      if (!scheduler.hasPending() && !stoppedRef.current) return;
+      // 順手趕一次：使用者按了「留下」的話，這一下多半已經存好了。
+      flushPending();
+      event.preventDefault();
+    };
 
     schedulerRef.current = scheduler;
     editor.on("update", onUpdate);
     document.addEventListener("visibilitychange", onVisibilityChange);
     // pagehide 補的是 visibilitychange 沒涵蓋的離開方式（bfcache、部分行動瀏覽器）。
     window.addEventListener("pagehide", flushPending);
+    // 網路回來就補存，不等退避排的下一次（最久要等一分鐘）。
+    window.addEventListener("online", flushPending);
+    window.addEventListener("beforeunload", onBeforeUnload);
 
     return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
       editor.off("update", onUpdate);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", flushPending);
+      window.removeEventListener("online", flushPending);
       // 這裡只丟計時器不 flush —— 卸載時 editor 可能已經被 Tiptap 拆掉，`getJSON()` 沒有東西可讀。
-      // 真正要保住稿的是上面兩個離開事件。
+      // 真正要保住稿的是上面 visibilitychange／pagehide 兩個離開事件。
       scheduler.cancel();
       schedulerRef.current = null;
     };
@@ -114,5 +133,7 @@ export function useAutosave({
     return (await scheduler.flush()) && !stoppedRef.current;
   }, []);
 
-  return { status, flush };
+  const nextRetryAt = useCallback(() => schedulerRef.current?.nextRetryAt(), []);
+
+  return { status, flush, nextRetryAt };
 }

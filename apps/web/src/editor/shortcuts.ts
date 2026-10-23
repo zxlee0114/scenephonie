@@ -38,6 +38,7 @@ export const SHORTCUTS: readonly ShortcutGroup[] = [
       { keys: ["⌘", "A"], what: "漸進式全選：這個區塊 → 這一場 → 整份" },
       { keys: ["⌘", "Z"], what: "還原" },
       { keys: ["⌘", "⇧", "Z"], what: "重做" },
+      { keys: ["⌘", "S"], what: "立刻存檔（平常會自動存，存不進去時不用等重試）" },
     ],
   },
   {

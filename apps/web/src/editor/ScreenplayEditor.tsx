@@ -36,24 +36,9 @@ import { PointMenu } from "./point-menu";
 import { MergeConfirm } from "./merge-confirm";
 import { SlashMenu } from "./extensions/slash";
 import { ShortcutOverview } from "./shortcut-overview";
-import { useAutosave, type SaveStatus } from "./use-autosave";
+import { SaveStatusLine } from "./save-status";
+import { useAutosave } from "./use-autosave";
 import { useScreenplayEditor, type InitialFocus } from "./use-screenplay-editor";
-
-/**
- * 每個狀態說什麼、要不要出聲 —— **一張表**。
- *
- * 自動存檔是承諾不是功能，所以它平時沉默；`loud` 是「這件事使用者非知道不可」。
- * 兩件事併在一起，是因為分成「文字表 ＋ 另一處的白名單」時，加一個狀態要記得改兩個地方，
- * 而其中一處漏改不會有人發現。
- */
-const STATUS: Record<SaveStatus, { text: string; loud: boolean }> = {
-  idle: { text: "", loud: false },
-  saving: { text: "儲存中…", loud: false },
-  saved: { text: "已儲存", loud: false },
-  error: { text: "存檔失敗，會再試一次", loud: true },
-  conflict: { text: "這份劇本在別的地方被改過了，請重新整理再繼續", loud: true },
-  forbidden: { text: "沒有權限存這份劇本，請重新登入", loud: true },
-};
 
 /**
  * 零場次時的出口（票券 32）。
@@ -212,7 +197,8 @@ export function ScreenplayEditor({
   share?: Omit<SharePanelCapability, "flush">;
 }) {
   const editor = useScreenplayEditor(initialContent, initialFocus);
-  const { status, flush } = useAutosave({ editor, screenplayId, initialToken, save });
+  const autosave = useAutosave({ editor, screenplayId, initialToken, save });
+  const { flush } = autosave;
   /** 場次表上點的那一列，等切回劇本後再把游標送過去 —— 藏起來的編輯器拿不到焦點。 */
   const pendingReveal = useRef<string | null>(null);
   const previousView = useRef(view);
@@ -253,13 +239,7 @@ export function ScreenplayEditor({
         {/* 場次導覽 sidebar（票券 16）只陪劇本 —— 場次表本身就是一張場次清單。 */}
         {view === "script" && editor && <SceneNavView editor={editor} />}
         <div className="screenplay-page" hidden={view !== "script"}>
-          <p
-            className={`save-status${STATUS[status].loud ? " save-status--loud" : ""}`}
-            role="status"
-            aria-live="polite"
-          >
-            {STATUS[status].text}
-          </p>
+          <SaveStatusLine {...autosave} />
           <EditorContent editor={editor} />
           <EmptyScreenplayState editor={editor} />
           <SlashMenu />

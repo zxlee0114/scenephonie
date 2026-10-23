@@ -96,6 +96,7 @@
   z-index: 30;
   display: flex;
   align-items: center;
+  gap: var(--space-2);
   block-size: var(--bar-height);
   margin: 0;
   font-family: var(--font-ui);
@@ -105,6 +106,35 @@
 
 .save-status--loud {
   color: var(--error-fg);
+}
+
+.save-status__text {
+  margin: 0;
+}
+
+/* 倒數的秒數：每秒都在變，寬度不能跟著變 —— 狀態列靠右貼齊，數字一寬一窄（1 比 8 窄）、
+ * 一位兩位（10 → 9），前面那串字就會每秒左右晃。等寬數字 ＋ 預留兩位（封頂 60 秒）。 */
+.save-status__seconds {
+  display: inline-block;
+  min-inline-size: 2ch;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+/* 「立刻重試」—— 只在存不進去時出現，跟快捷鍵鈕同一種很淡的鈕，只是帶底線讓它讀得出是可以按的。 */
+.save-status__retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.save-status__retry:focus-visible {
+  outline: 2px solid var(--focus-ring);
 }
 
 /* ─────────────────────────────────────────── 內容區 */
