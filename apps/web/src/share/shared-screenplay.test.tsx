@@ -99,12 +99,17 @@ describe("場次表視圖", () => {
     ]);
   });
 
-  it("點一列回到劇本視圖、定位到那一場（分享頁沒有預覽要開 —— 劇本本身就是唯讀的）", () => {
+  it("點一列先開預覽（跟編輯器的場次表同一個手勢）；按「到劇本這一場」才回到劇本視圖", () => {
     const onShowScript = vi.fn();
     render(<SharedScreenplay payload={payload} view="table" onShowScript={onShowScript} />);
 
     fireEvent.click(screen.getByRole("button", { name: "3" }));
 
+    const preview = screen.getByRole("dialog");
+    expect(preview.textContent).toMatch("點菸");
+    expect(onShowScript).not.toHaveBeenCalled();
+
+    fireEvent.click(within(preview).getByRole("button", { name: "到劇本這一場" }));
     expect(onShowScript).toHaveBeenCalled();
   });
 });

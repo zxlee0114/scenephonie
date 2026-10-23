@@ -148,47 +148,47 @@ describe("分享面板", () => {
   });
 
   it("備註：平常只有一顆鈕；點了才出現欄位，離開欄位才存、沒改不存；存好之後顯示成一行字", async () => {
-    const { setNote } = mount([live]);
+    const { setNote } = mount([frozen(false)]);
     await openPanel();
-    expect(within(dialog()).queryByRole("textbox", { name: "即時連結的備註" })).toBeNull();
+    expect(within(dialog()).queryByRole("textbox", { name: "2026-10-20 14:30 交付的備註" })).toBeNull();
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "新增備註" }));
-    const note = within(dialog()).getByRole("textbox", { name: "即時連結的備註" }) as HTMLInputElement;
+    const note = within(dialog()).getByRole("textbox", { name: "2026-10-20 14:30 交付的備註" }) as HTMLInputElement;
     expect(document.activeElement).toBe(note);
 
     fireEvent.change(note, { target: { value: "給優良劇本獎評審" } });
     await act(async () => void fireEvent.blur(note));
 
-    expect(setNote).toHaveBeenCalledWith("sh_live", "給優良劇本獎評審");
-    expect(within(dialog()).queryByRole("textbox", { name: "即時連結的備註" })).toBeNull();
+    expect(setNote).toHaveBeenCalledWith("sh_frozen0", "給優良劇本獎評審");
+    expect(within(dialog()).queryByRole("textbox", { name: "2026-10-20 14:30 交付的備註" })).toBeNull();
     expect(within(dialog()).getByText("給優良劇本獎評審")).toBeTruthy();
 
     // 有備註之後，同一顆鈕是「編輯備註」；沒改就離開不存。
     fireEvent.click(within(dialog()).getByRole("button", { name: "編輯備註" }));
-    await act(async () => void fireEvent.blur(within(dialog()).getByRole("textbox", { name: "即時連結的備註" })));
+    await act(async () => void fireEvent.blur(within(dialog()).getByRole("textbox", { name: "2026-10-20 14:30 交付的備註" })));
     expect(setNote).toHaveBeenCalledTimes(1);
   });
 
   it("備註：Esc 放棄這次的修改（面板不關）；只有空白的備註不顯示", async () => {
-    const { setNote } = mount([{ ...live, note: "  " }]);
+    const { setNote } = mount([{ ...frozen(false), note: "  " }]);
     await openPanel();
     expect(within(dialog()).getByRole("button", { name: "新增備註" })).toBeTruthy();
 
     fireEvent.click(within(dialog()).getByRole("button", { name: "新增備註" }));
-    const note = within(dialog()).getByRole("textbox", { name: "即時連結的備註" });
+    const note = within(dialog()).getByRole("textbox", { name: "2026-10-20 14:30 交付的備註" });
     fireEvent.change(note, { target: { value: "打錯了" } });
     fireEvent.keyDown(note, { key: "Escape" });
 
     expect(setNote).not.toHaveBeenCalled();
-    expect(within(dialog()).queryByRole("textbox", { name: "即時連結的備註" })).toBeNull();
+    expect(within(dialog()).queryByRole("textbox", { name: "2026-10-20 14:30 交付的備註" })).toBeNull();
     expect(within(dialog()).queryByText("打錯了")).toBeNull();
   });
 
   it("備註：輸入法選字時的 Enter 不收欄位", async () => {
-    mount([live]);
+    mount([frozen(false)]);
     await openPanel();
     fireEvent.click(within(dialog()).getByRole("button", { name: "新增備註" }));
-    const note = within(dialog()).getByRole("textbox", { name: "即時連結的備註" });
+    const note = within(dialog()).getByRole("textbox", { name: "2026-10-20 14:30 交付的備註" });
 
     fireEvent.keyDown(note, { key: "Enter", isComposing: true });
 
@@ -197,10 +197,16 @@ describe("分享面板", () => {
 
   it("備註太長只顯示開頭，完整的放在 title", async () => {
     const long = "寄給優良電影劇本獎第四十八屆評審委員會的初審委員們";
-    mount([{ ...live, note: long }]);
+    mount([{ ...frozen(false), note: long }]);
     await openPanel();
 
     const shown = within(dialog()).getByTitle(long);
     expect(shown.textContent).toBe(`${long.slice(0, 20)}…`);
+  });
+
+  it("即時連結沒有備註 —— 一份劇本只有一條，不需要認", async () => {
+    mount([live]);
+    await openPanel();
+    expect(within(dialog()).queryByRole("button", { name: "新增備註" })).toBeNull();
   });
 });

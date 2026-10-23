@@ -254,18 +254,30 @@
 }
 
 .share-panel__latest {
-  padding: 0 var(--space-2);
+  padding: 2px var(--space-2);
   border-radius: var(--space-1);
   background: var(--surface-sunken);
   color: var(--text-secondary);
   font-size: 0.85em;
 }
 
+/* 鉛筆與備註是一組：中間不留空，備註框貼著鉛筆。這一組吃掉這一行剩下的寬。 */
+.share-panel__heading > .share-panel__memo-group {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-inline-size: 0;
+}
+
+.share-panel__memo-group > * {
+  flex: none;
+}
+
 .share-panel .share-panel__memo-button {
   display: inline-grid;
   place-items: center;
   block-size: var(--memo-height);
-  padding: 0 var(--space-1);
+  padding: 0 2px 0 var(--space-1);
   border-color: transparent;
   color: var(--text-faint);
 }
@@ -280,14 +292,14 @@
 .share-panel__memo-grow::after {
   box-sizing: border-box;
   block-size: var(--memo-height);
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-1);
   border: 1px solid transparent;
   border-radius: var(--space-1);
   font: inherit;
   line-height: calc(var(--memo-height) - 2px);
 }
 
-.share-panel__heading > .share-panel__memo-text {
+.share-panel__memo-group > .share-panel__memo-text {
   flex: 0 1 auto;
   min-inline-size: 0;
   overflow: hidden;
@@ -296,7 +308,7 @@
 }
 
 /* 欄位跟著字長變寬：隱形的那一份字（`data-value`）撐開這一格，欄位疊在同一格上。 */
-.share-panel__heading > .share-panel__memo-grow {
+.share-panel__memo-group > .share-panel__memo-grow {
   flex: 0 1 auto;
 }
 

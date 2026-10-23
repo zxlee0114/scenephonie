@@ -24,7 +24,10 @@ import {
 
 import { SceneNav } from "@/scene-nav/SceneNav";
 import { deliveredNavRows } from "@/scene-nav/rows";
+import { ScenePreview } from "@/scene-table/ScenePreview";
 import { SceneTable } from "@/scene-table/SceneTable";
+
+import { deliveredScenePreview } from "./delivered-preview";
 
 import "../styles/editor.css";
 import "../styles/share.css";
@@ -38,7 +41,7 @@ export function SharedScreenplay({
 }: {
   payload: DeliveryPayload;
   view: SharedView;
-  /** 場次表上點了一列：請路由切回劇本。定位到那一場由這裡負責（切回來之後）。 */
+  /** 場次表的預覽裡按了「到劇本這一場」：請路由切回劇本。定位到那一場由這裡負責（切回來之後）。 */
   onShowScript: () => void;
 }) {
   const scenes = useMemo(() => new Map(payload.scenes.map((s) => [s.sceneId, s])), [payload]);
@@ -52,7 +55,10 @@ export function SharedScreenplay({
    */
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  /** 場次表上點的那一列 —— 等劇本顯示出來再捲過去（藏著的元素捲不動）。 */
+  // 點一列先開預覽，不直接跳 —— 跟編輯器的場次表同一個手勢（整列可點太容易誤按）。
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  const previewRow = tableRows.find((r) => r.sceneId === previewing);
+  /** 預覽裡按了「到劇本這一場」的那一場 —— 等劇本顯示出來再捲過去（藏著的元素捲不動）。 */
   const pendingReveal = useRef<string | null>(null);
 
   // 場次的第一個標記（標題；對剪成員之後還有片段標記，跳到標題）。
@@ -77,11 +83,15 @@ export function SharedScreenplay({
           ))}
         </article>
       </div>
-      {view === "table" && (
-        <SceneTable
-          rows={tableRows}
-          anchorSceneId={null}
-          onSelect={(sceneId) => {
+      {view === "table" && <SceneTable rows={tableRows} anchorSceneId={null} onSelect={setPreviewing} />}
+      {view === "table" && previewRow && (
+        <ScenePreview
+          row={previewRow}
+          segments={deliveredScenePreview(payload, previewRow.sceneId)}
+          labelOf={(id) => tableRows.find((r) => r.sceneId === id)?.label}
+          onClose={() => setPreviewing(null)}
+          onOpenScene={(sceneId) => {
+            setPreviewing(null);
             pendingReveal.current = sceneId;
             onShowScript();
           }}

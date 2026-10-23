@@ -8,8 +8,8 @@
  *   （§10.2：有用且零洩漏）。
  * - **停用**要確認一次：停了就打不開，重新分享是新的網址（舊的那列留著，不復活）。交付連結可以勾選
  *   幾條（或全選）一次停用 —— 不設上限、不自動停用最舊的：最舊的往往正是寄給評審的那一條。
- * - **備註**：每條連結一行「這條給了誰」，只有編劇看得到（使用者裁決，2026-10-23）。除此之外仍是
- *   零配置：沒有標題、沒有密碼、沒有有效期（§10.3）。
+ * - **備註**：每條交付連結一行「這條給了誰」，只有編劇看得到（使用者裁決，2026-10-23）。即時連結
+ *   沒有 —— 一份劇本只有一條，不需要認。除此之外仍是零配置：沒有標題、沒有密碼、沒有有效期（§10.3）。
  *
  * 讀寫都是注入的（路由層接 Server Action，存檔是編輯器的）—— 這裡只認得 token，網址怎麼組也由
  * 呼叫端決定。
@@ -148,9 +148,7 @@ export function SharePanel({ list, shareLive, flush, shareSnapshot, revoke, setN
                     <LinkRow
                       name="即時連結"
                       url={urlOf(live.token)}
-                      note={live.note}
                       working={working}
-                      onNote={noteOf(live)}
                       onRevoke={() => void run(() => revoke([live.shareId]))}
                     />
                   ) : (
@@ -330,9 +328,10 @@ function LinkRow({
   /** 內容跟現在分享出去的一樣（交付連結才有意義）。 */
   latest?: boolean;
   url: string;
-  note: string | null;
+  /** 備註與它的鉛筆鈕；省略 ＝ 這條連結不需要備註（即時連結）。 */
+  note?: string | null;
   working: boolean;
-  onNote: (note: string) => void;
+  onNote?: (note: string) => void;
   onRevoke: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -345,36 +344,43 @@ function LinkRow({
       <CopyLink
         name={name}
         label={
-          <span className="share-panel__heading">
-            {label && <span>{label}</span>}
-            {latest && <span className="share-panel__latest">最新版本</span>}
-            <button
-              type="button"
-              className="share-panel__memo-button"
-              aria-label={shownNote ? "編輯備註" : "新增備註"}
-              title={shownNote ? "編輯備註" : "新增備註"}
-              onClick={() => setEditingNote(true)}
-              disabled={working || editingNote}
-            >
-              <NoteIcon />
-            </button>
-            {editingNote ? (
-              <NoteField
-                name={name}
-                saved={shownNote}
-                onDone={(changed) => {
-                  setEditingNote(false);
-                  if (changed !== null) onNote(changed);
-                }}
-              />
-            ) : (
-              shownNote && (
-                <span className="share-panel__memo-text" title={shownNote}>
-                  {truncated ? `${shownNote.slice(0, NOTE_SHOWN_CHARS)}…` : shownNote}
+          (label || onNote) && (
+            <span className="share-panel__heading">
+              {label && <span>{label}</span>}
+              {latest && <span className="share-panel__latest">最新版本</span>}
+              {onNote && (
+                // 鉛筆與備註是一組：中間不留空。
+                <span className="share-panel__memo-group">
+                  <button
+                    type="button"
+                    className="share-panel__memo-button"
+                    aria-label={shownNote ? "編輯備註" : "新增備註"}
+                    title={shownNote ? "編輯備註" : "新增備註"}
+                    onClick={() => setEditingNote(true)}
+                    disabled={working || editingNote}
+                  >
+                    <NoteIcon />
+                  </button>
+                  {editingNote ? (
+                    <NoteField
+                      name={name}
+                      saved={shownNote}
+                      onDone={(changed) => {
+                        setEditingNote(false);
+                        if (changed !== null) onNote(changed);
+                      }}
+                    />
+                  ) : (
+                    shownNote && (
+                      <span className="share-panel__memo-text" title={shownNote}>
+                        {truncated ? `${shownNote.slice(0, NOTE_SHOWN_CHARS)}…` : shownNote}
+                      </span>
+                    )
+                  )}
                 </span>
-              )
-            )}
-          </span>
+              )}
+            </span>
+          )
         }
         url={url}
       >

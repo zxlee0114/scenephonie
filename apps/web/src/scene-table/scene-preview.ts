@@ -14,7 +14,8 @@ export type PreviewBlock =
  * **依文件順序**的好幾段；`subscene` 標出那一段是哪個子場次。
  */
 export interface PreviewSegment {
-  subscene?: { sceneId: string; kind: SubsceneKind };
+  /** 子場次的種類；分享頁的預覽讀交付投影，那裡沒有種類（只印場次號）。 */
+  subscene?: { sceneId: string; kind?: SubsceneKind };
   blocks: PreviewBlock[];
 }
 
