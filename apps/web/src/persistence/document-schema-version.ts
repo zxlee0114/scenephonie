@@ -3,7 +3,7 @@ import type { DocumentKind } from "@scenephonie/schema";
 import type { PersistedDoc } from "./doc-schema-version";
 
 /**
- * 交件文件的 schema 版本與 lazy 遷移（票券 21，§6.2）。
+ * 劇本外文件的 schema 版本與 lazy 遷移（票券 21，§6.2）。
  *
  * 與劇本那一份（`doc-schema-version.ts`）同一套規則 —— 隨程式碼走、部署時變、遷移永遠在記憶體、
  * 讀取路徑不寫回 —— 只差一件事：**每個 kind 有自己的版本號與自己的遷移鏈**。`documents` 那一列的

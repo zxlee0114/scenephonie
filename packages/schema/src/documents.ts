@@ -1,5 +1,5 @@
 /**
- * 交件文件（票券 21，§6.2、[ADR-0009](../../../docs/adr/0009-documents-hang-on-the-creative-unit-they-describe.md)）。
+ * 劇本外文件（票券 21，§6.2、[ADR-0009](../../../docs/adr/0009-documents-hang-on-the-creative-unit-they-describe.md)）。
  *
  * 劇本之外、編劇另外寫的文件：交件大綱、分場大綱（角色設定表在下一片）。它們跟劇本一樣是
  * ProseMirror doc —— doc 是唯一權威（ADR-0007）—— 但**每個 kind 有自己的 node schema 與自己的
@@ -7,8 +7,9 @@
  *
  * ── 不變式 F：kind 固定其合法層級 ──────────────────────────────────────
  * 文件掛在它描述的創作單位上：描述整部作品 → 專案；描述單一劇本 → 劇本。**層級是 kind 定義的
- * 一部分，不是資料的自由度** —— 沒有「這一份分場大綱掛專案」這種事。下面那張表是這條規則唯一
- * 的權威；寫入路徑（persistence）照它拒絕違反者。
+ * 一部分，不是資料的自由度** —— 沒有「這一份分場大綱掛專案」這種事。下面那張表是這條規則的
+ * 權威；寫入路徑（persistence）照它拒絕違反者，資料庫的 CHECK（`documents_kind_level_check`）
+ * 是它在資料層的抄本 —— 新增一種劇本層的 kind 時兩邊一起改。
  */
 import { Schema, type Node as ProseMirrorNode } from "prosemirror-model";
 
@@ -28,9 +29,6 @@ const LEVELS = {
 
 export type DocumentKind = keyof typeof LEVELS;
 export type ProjectDocumentKind = { [K in DocumentKind]: (typeof LEVELS)[K] extends "project" ? K : never }[DocumentKind];
-export type ScreenplayDocumentKind = Exclude<DocumentKind, ProjectDocumentKind>;
-
-export const DOCUMENT_KINDS = Object.keys(LEVELS) as DocumentKind[];
 
 /** 這個 kind 的文件掛在哪一層（不變式 F）。 */
 export function documentLevel(kind: DocumentKind): DocumentLevel {
@@ -83,14 +81,14 @@ export function emptyDocument(): Record<string, unknown> {
 }
 
 /**
- * 字數 —— 交件大綱的計數器（§9.7）。**只計數、不執行規則**：上限是各案特例（GHSA 800–1200／TFC
+ * 字數 —— 交件大綱的計數器（§9.7）。叫 `wordCount` 不叫字元數：一個英文單字算一個，跟 Word 一樣。**只計數、不執行規則**：上限是各案特例（GHSA 800–1200／TFC
  * 無上限／高雄拍 500…），寫死任何一個數字都是錯的。
  *
  * 算法照 Word 的「字數」：中日韓文字與全形標點**一個字算一個**，連續的英數（含黏在上面的半形
  * 標點）**算一個字**，空白不算。照 Word 是因為編劇與主辦單位核對字數時手上拿的就是它 ——
  * 我們的數字跟它不一樣，編劇得先搞清楚該信哪一個。
  */
-export function countCharacters(doc: ProseMirrorNode): number {
+export function wordCount(doc: ProseMirrorNode): number {
   // 段落之間插一個換行，否則上一段結尾與下一段開頭的英文單字會被接成一個。
   const text = doc.textBetween(0, doc.content.size, "\n");
   let count = 0;

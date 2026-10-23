@@ -33,7 +33,7 @@ import { createScreenplay } from "./screenplay-store";
 import type { SaveToken } from "./save-token";
 
 /**
- * 交件文件的真實行為（票券 21）—— 不變式 F、並行、遷移鏈都要真的 Postgres 才成立。
+ * 劇本外文件的真實行為（票券 21）—— 不變式 F、並行、遷移鏈都要真的 Postgres 才成立。
  * 沒有 `DATABASE_URL` 就整組跳過（同 `screenplay-store.integration.test.ts`）。
  *
  * handle 一律從 gate 拿 —— 測試裡捏得出來的東西，正式程式碼裡遲早也捏得出來。唯一的例外是
@@ -87,7 +87,7 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
     const created = await createDocument(project, "交件大綱", { title: "劇情大綱" });
     expect(created).toMatchObject({ kind: "交件大綱", title: "劇情大綱" });
 
-    tokenAfterSave(await saveDocument({ scope: project, documentId: created.documentId, body: prose("一個雨夜"), token: created.token }));
+    tokenAfterSave(await saveDocument({ unit: project, documentId: created.documentId, body: prose("一個雨夜"), token: created.token }));
 
     const reloaded = await loadDocument(project, created.documentId);
     expect(reloaded?.body).toEqual(prose("一個雨夜"));
@@ -144,6 +144,16 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
       await expect(createDocument(project, "分場大綱" as never, {})).rejects.toThrow(/不變式 F/);
     });
 
+    it("繞過 persistence 直接寫進資料庫：資料層也拒絕掛錯層的那一列（§11：資料層 ＋ command）", async () => {
+      const row = { kind: "分場大綱", body: {}, docSchemaVersion: 1, projectId: project.projectId };
+      await expect(getDb().insert(documents).values({ ...row, id: mintId("dc_"), screenplayId: null })).rejects.toThrow();
+      await expect(
+        getDb()
+          .insert(documents)
+          .values({ ...row, id: mintId("dc_"), kind: "交件大綱", screenplayId: screenplay.screenplayId }),
+      ).rejects.toThrow();
+    });
+
     it("分場大綱從專案層讀不到（同一份文件只有一個合法位址）", async () => {
       const sceneOutline = await openSceneOutline(screenplay);
       expect(await loadDocument(project, sceneOutline.documentId)).toBeNull();
@@ -162,7 +172,7 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
 
       expect(await loadDocument(strangerProject, outline.documentId)).toBeNull();
       expect(
-        (await saveDocument({ scope: strangerProject, documentId: outline.documentId, body: prose("偷改"), token: outline.token })).status,
+        (await saveDocument({ unit: strangerProject, documentId: outline.documentId, body: prose("偷改"), token: outline.token })).status,
       ).toBe("conflict");
       expect(await renameDocument(strangerProject, outline.documentId, "偷改")).toBe(false);
       expect(await loadDocument(project, outline.documentId)).toMatchObject({ title: "我的", body: outline.body });
@@ -199,8 +209,8 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
       const tabA = await loadDocument(project, created.documentId);
       const tabB = await loadDocument(project, created.documentId);
 
-      const first = await saveDocument({ scope: project, documentId: created.documentId, body: prose("A"), token: tabA!.token });
-      const second = await saveDocument({ scope: project, documentId: created.documentId, body: prose("B"), token: tabB!.token });
+      const first = await saveDocument({ unit: project, documentId: created.documentId, body: prose("A"), token: tabA!.token });
+      const second = await saveDocument({ unit: project, documentId: created.documentId, body: prose("B"), token: tabB!.token });
 
       expect(first.status).toBe("saved");
       expect(second.status).toBe("conflict");
@@ -209,8 +219,8 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
 
     it("同一個分頁連續存：每次拿回的 token 都接得上", async () => {
       const created = await createDocument(project, "交件大綱", {});
-      const t1 = tokenAfterSave(await saveDocument({ scope: project, documentId: created.documentId, body: prose("1"), token: created.token }));
-      const t2 = tokenAfterSave(await saveDocument({ scope: project, documentId: created.documentId, body: prose("2"), token: t1 }));
+      const t1 = tokenAfterSave(await saveDocument({ unit: project, documentId: created.documentId, body: prose("1"), token: created.token }));
+      const t2 = tokenAfterSave(await saveDocument({ unit: project, documentId: created.documentId, body: prose("2"), token: t1 }));
       expect(t2).not.toBe(t1);
     });
   });
@@ -219,7 +229,7 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
     const created = await createDocument(project, "交件大綱", {});
     const notProse = { type: "doc", content: [{ type: "scene", attrs: { sceneId: "sc_x" } }] };
     await expect(
-      saveDocument({ scope: project, documentId: created.documentId, body: notProse, token: created.token }),
+      saveDocument({ unit: project, documentId: created.documentId, body: notProse, token: created.token }),
     ).rejects.toThrow();
     expect((await loadDocument(project, created.documentId))?.body).toEqual(created.body);
   });
@@ -264,7 +274,7 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
         const outline = await createDocument(project, "交件大綱", {});
         await seedOld("交件大綱", outline.documentId);
         const loaded = await loadDocument(project, outline.documentId);
-        tokenAfterSave(await saveDocument({ scope: project, documentId: outline.documentId, body: prose("新"), token: loaded!.token }));
+        tokenAfterSave(await saveDocument({ unit: project, documentId: outline.documentId, body: prose("新"), token: loaded!.token }));
 
         const [row] = await getDb()
           .select({ version: documents.docSchemaVersion })

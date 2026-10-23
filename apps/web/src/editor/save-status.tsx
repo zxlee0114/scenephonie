@@ -31,7 +31,7 @@ const statusText = (noun: string): Record<SaveStatus, { text: string; loud: bool
  * 沒有意義。沒有待存的變更時它什麼都不做，跟自動存檔一樣沉默。
  */
 export function SaveStatusLine({ status, flush, nextRetryAt, noun = "劇本" }: Autosave & { noun?: string }) {
-  const STATUS = statusText(noun);
+  const texts = statusText(noun);
   const failed = status === "error";
   const retryIn = useRetryCountdown(failed, nextRetryAt);
   const counting = failed && retryIn !== undefined && retryIn > 0;
@@ -47,9 +47,9 @@ export function SaveStatusLine({ status, flush, nextRetryAt, noun = "劇本" }: 
   }, [flush]);
 
   return (
-    <div className={`save-status${STATUS[status].loud ? " save-status--loud" : ""}`}>
+    <div className={`save-status${texts[status].loud ? " save-status--loud" : ""}`}>
       <p className={counting ? "sr-only" : "save-status__text"} role="status" aria-live="polite">
-        {STATUS[status].text}
+        {texts[status].text}
       </p>
       {counting && (
         <span aria-hidden="true">

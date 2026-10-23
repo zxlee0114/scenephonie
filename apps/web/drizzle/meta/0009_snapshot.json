@@ -1,5 +1,5 @@
 {
-  "id": "57edd4b8-c9d2-4483-8840-b1ae693d5db7",
+  "id": "0c34d313-955a-4e79-88c0-aba6ddde01c9",
   "prevId": "51242cb9-9d6b-49a8-afd1-43e7ffe844dc",
   "version": "7",
   "dialect": "postgresql",
@@ -440,7 +440,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "documents_kind_level_check": {
+          "name": "documents_kind_level_check",
+          "value": "(\"documents\".\"kind\" in ('分場大綱')) = (\"documents\".\"screenplay_id\" is not null)"
+        }
+      },
       "isRLSEnabled": true
     },
     "public.locations": {

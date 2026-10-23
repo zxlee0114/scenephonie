@@ -8,7 +8,8 @@ CREATE TABLE "documents" (
 	"doc_schema_version" integer NOT NULL,
 	"doc_seq" bigint DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "documents_kind_level_check" CHECK (("documents"."kind" in ('分場大綱')) = ("documents"."screenplay_id" is not null))
 );
 --> statement-breakpoint
 ALTER TABLE "documents" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint

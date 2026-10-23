@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -326,16 +327,20 @@ export const screenplayBackups = pgTable(
 
 
 /**
- * 交件文件 —— 劇本之外、編劇另外寫的文件（票券 21，§6.2、ADR-0009）：交件大綱、分場大綱。
+ * 劇本外文件 —— 劇本之外、編劇另外寫的文件（票券 21，§6.2、ADR-0009）：交件大綱、分場大綱。
  *
  * 跟 `screenplays` 同型：一份 ProseMirror doc ＋ `doc_schema_version` ＋ `doc_seq`。差別只在掛哪一層 ——
  * 所以是一張表、`screenplay_id` 可為 null，而不是兩張表（ADR-0009 否決了拆表：同型的東西分家，
  * 換來的只是把一條不變式編碼進 schema）。
  *
  * **不變式 F：`kind` 固定其合法層級。** `screenplay_id` 該不該有值是 kind 定義的一部分，
- * 不由使用者決定；那張 kind → 層級的表住在 `@scenephonie/schema` 的 `documentLevel`，寫入路徑
- * （`persistence/document-store.ts`）照它拒絕。這裡**刻意不寫 CHECK** —— 那會是同一張表的第二份
- * 抄本，新增一種 kind 時兩邊都得記得改。
+ * 不由使用者決定。規格 §11 要它守在**資料層 ＋ command** 兩處：command 那一半是寫入路徑
+ * （`persistence/document-store.ts`）照 `@scenephonie/schema` 的 `documentLevel` 拒絕；資料層這一半
+ * 是下面那條 CHECK —— 繞過 persistence 直接寫進來的那一列也掛不錯層。
+ *
+ * ⚠️ CHECK 是 `documentLevel` 那張表的抄本（劇本層的 kind 列在 SQL 裡），**新增一種劇本層的 kind 時
+ * 兩邊一起改**；新增專案層的 kind 不必動它。抄本的代價換的是 §11 那條保證，而且抄錯會大聲失敗
+ * （寫入被拒），不會靜默放行。
  *
  * `doc_schema_version` 是**該 kind 的版本**，不是全域數字：每個 kind 有自己的 node schema 與自己的
  * 遷移鏈，交件大綱升版時分場大綱不動。
@@ -371,6 +376,8 @@ export const documents = pgTable(
     uniqueIndex("documents_scene_outline_uidx")
       .on(table.screenplayId)
       .where(sql`${table.kind} = '分場大綱'`),
+    // 不變式 F 的資料層：劇本層的 kind 一定有劇本，其餘一定沒有。
+    check("documents_kind_level_check", sql`(${table.kind} in ('分場大綱')) = (${table.screenplayId} is not null)`),
   ],
 ).enableRLS();
 

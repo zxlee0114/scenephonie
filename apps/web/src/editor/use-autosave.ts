@@ -17,7 +17,7 @@ import { toPlainJson } from "./plain-json";
  * 備份、並行控制、schema 遷移都在 persistence 模組後面（§6.7）。
  *
  * 存檔函式是**注入**的，不是這裡 import 的 —— 編輯器不認識路由層（§6.3 edge boundary）。
- * 它也不認識「存的是哪一份」：劇本與交件文件（票券 21）共用這一支，id 由注入的那個函式自己帶著。
+ * 它也不認識「存的是哪一份」：劇本與劇本外文件（票券 21）共用這一支，id 由注入的那個函式自己帶著。
  */
 export type SaveStatus = "idle" | "saving" | "saved" | "conflict" | "forbidden" | "error";
 

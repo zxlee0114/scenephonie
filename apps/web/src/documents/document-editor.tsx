@@ -1,5 +1,5 @@
 /**
- * 交件文件的編輯器（票券 21）：交件大綱、分場大綱 —— 兩份都是散文。
+ * 劇本外文件的編輯器（票券 21）：交件大綱、分場大綱 —— 兩份都是散文。
  *
  * 跟劇本編輯器共用的只有存檔那一條（`useAutosave`／`SaveStatusLine`）：場次、chip、slash 選單在這裡
  * 都沒有容身處。節點只有段落與字，對齊 `@scenephonie/schema` 那個 kind 的 schema（`block+`／`text*`）——
@@ -17,7 +17,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { useEffect, useState } from "react";
 
-import { countCharacters, type DocumentKind } from "@scenephonie/schema";
+import { wordCount, type DocumentKind } from "@scenephonie/schema";
 
 import { SaveStatusLine } from "@/editor/save-status";
 import type { SaveDoc } from "@/editor/save-capability";
@@ -76,7 +76,7 @@ export function DocumentEditor({
     editorProps: { attributes: { class: "document-page__body", "aria-label": kind } },
   });
   const autosave = useAutosave({ editor, initialToken, save });
-  const count = useCharacterCount(COUNTED.has(kind) ? editor : null);
+  const count = useWordCount(COUNTED.has(kind) ? editor : null);
 
   return (
     <div className="document-page">
@@ -93,11 +93,11 @@ export function DocumentEditor({
 }
 
 /** 這份 doc 現在幾個字，每次改動後重算；沒有 editor（或這個 kind 不計數）就是 `null`。 */
-function useCharacterCount(editor: Editor | null): number | null {
+function useWordCount(editor: Editor | null): number | null {
   const [count, setCount] = useState<number | null>(null);
   useEffect(() => {
     if (!editor) return;
-    const recount = () => setCount(countCharacters(editor.state.doc));
+    const recount = () => setCount(wordCount(editor.state.doc));
     recount();
     editor.on("update", recount);
     return () => {

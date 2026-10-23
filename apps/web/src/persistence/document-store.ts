@@ -19,7 +19,7 @@ import { CURRENT_DOCUMENT_SCHEMA_VERSIONS, migrateDocumentToCurrent } from "./do
 import { decodeSaveToken, encodeSaveToken, type SaveToken } from "./save-token";
 
 /**
- * 交件文件的存／載（票券 21，§6.2、ADR-0009）。
+ * 劇本外文件的存／載（票券 21，§6.2、ADR-0009）。
  *
  * 與 `screenplay-store.ts` 同一套承諾：整份 doc 覆蓋、`doc_seq` 樂觀並行、lazy 遷移、讀取路徑不寫回。
  * 不同的只有兩件事：
@@ -36,8 +36,11 @@ import { decodeSaveToken, encodeSaveToken, type SaveToken } from "./save-token";
 
 const DOCUMENT_ID_PREFIX = "dc_";
 
-/** 一份文件掛的那一層的 handle。 */
-export type DocumentScope = AuthorizedProject | AuthorizedScreenplay;
+/**
+ * 一份文件描述的那個**創作單位**的 handle（ADR-0009）：整部作品 → 專案；單一劇本 → 劇本。
+ * 文件掛在哪、從哪讀、存到哪，都是問這一個。
+ */
+export type CreativeUnit = AuthorizedProject | AuthorizedScreenplay;
 
 /** hub 列清單用：不帶內文。 */
 export type DocumentSummary = {
@@ -45,8 +48,6 @@ export type DocumentSummary = {
   kind: DocumentKind;
   /** 編劇給的名字；`null` ＝ 沒命名（畫面顯示 kind）。 */
   title: string | null;
-  /** 劇本層的文件掛在哪一份劇本；專案層的是 `null`。 */
-  screenplayId: string | null;
 };
 
 /** 一份載進記憶體的文件。`token` 是不透明的 —— 存檔時原封帶回。 */
@@ -63,40 +64,37 @@ export type DocumentSaveResult =
   /** 別處改過了、或這份文件不在這個 handle 底下（兩者對呼叫端是同一件事：這次寫入沒有落點）。 */
   | { status: "conflict" };
 
-const isScreenplayScope = (scope: DocumentScope): scope is AuthorizedScreenplay => "screenplayId" in scope;
+const isScreenplayUnit = (unit: CreativeUnit): unit is AuthorizedScreenplay => "screenplayId" in unit;
 
 /** 「這份文件就在這個 handle 底下」—— 專案與劇本兩個欄位一起鎖。 */
-function inScope(scope: DocumentScope): SQL {
+function inUnit(unit: CreativeUnit): SQL {
   return and(
-    eq(documents.projectId, scope.projectId),
-    isScreenplayScope(scope) ? eq(documents.screenplayId, scope.screenplayId) : isNull(documents.screenplayId),
+    eq(documents.projectId, unit.projectId),
+    isScreenplayUnit(unit) ? eq(documents.screenplayId, unit.screenplayId) : isNull(documents.screenplayId),
   )!;
 }
 
 /** 不變式 F 的寫入側：kind 掛的那一層必須就是 handle 的那一層。 */
-function assertLevel(scope: DocumentScope, kind: DocumentKind): void {
-  const level = isScreenplayScope(scope) ? "screenplay" : "project";
+function assertLevel(unit: CreativeUnit, kind: DocumentKind): void {
+  const level = isScreenplayUnit(unit) ? "screenplay" : "project";
   if (!isDocumentKind(kind) || documentLevel(kind) !== level) {
     throw new Error(`不變式 F：${String(kind)}不能掛在${level === "project" ? "專案" : "劇本"}上`);
   }
 }
 
-async function insertDocument(scope: DocumentScope, kind: DocumentKind, title: string | null): Promise<LoadedDocument> {
-  assertLevel(scope, kind);
-  const body = emptyDocument();
-  const documentId = mintId(DOCUMENT_ID_PREFIX);
-  await getDb()
-    .insert(documents)
-    .values({
-      id: documentId,
-      projectId: scope.projectId,
-      screenplayId: isScreenplayScope(scope) ? scope.screenplayId : null,
-      kind,
-      title,
-      body,
-      docSchemaVersion: CURRENT_DOCUMENT_SCHEMA_VERSIONS[kind],
-    });
-  return { documentId, kind, title, body, token: encodeSaveToken(0) };
+/** 一份新文件的那一列：內文從一個空段落開始、版本是該 kind 的現行版本。先過不變式 F。 */
+function newRow(unit: CreativeUnit, kind: DocumentKind, title: string | null) {
+  assertLevel(unit, kind);
+  return {
+    id: mintId(DOCUMENT_ID_PREFIX),
+    projectId: unit.projectId,
+    screenplayId: isScreenplayUnit(unit) ? unit.screenplayId : null,
+    kind,
+    title,
+    body: emptyDocument(),
+    docSchemaVersion: CURRENT_DOCUMENT_SCHEMA_VERSIONS[kind],
+    docSeq: 0,
+  };
 }
 
 /** 在專案底下開一份新的專案層文件（交件大綱可多份）。內文從一個空段落開始。 */
@@ -105,7 +103,9 @@ export async function createDocument(
   kind: ProjectDocumentKind,
   { title = null }: { title?: string | null },
 ): Promise<LoadedDocument> {
-  return insertDocument(project, kind, normalizeTitle(title));
+  const row = newRow(project, kind, normalizeTitle(title));
+  await getDb().insert(documents).values(row);
+  return { documentId: row.id, kind, title: row.title, body: row.body, token: encodeSaveToken(row.docSeq) };
 }
 
 /**
@@ -116,23 +116,12 @@ export async function createDocument(
  */
 export async function openSceneOutline(screenplay: AuthorizedScreenplay): Promise<LoadedDocument> {
   const kind = "分場大綱";
-  assertLevel(screenplay, kind);
-  await getDb()
-    .insert(documents)
-    .values({
-      id: mintId(DOCUMENT_ID_PREFIX),
-      projectId: screenplay.projectId,
-      screenplayId: screenplay.screenplayId,
-      kind,
-      body: emptyDocument(),
-      docSchemaVersion: CURRENT_DOCUMENT_SCHEMA_VERSIONS[kind],
-    })
-    .onConflictDoNothing();
+  await getDb().insert(documents).values(newRow(screenplay, kind, null)).onConflictDoNothing();
 
   const [row] = await getDb()
     .select({ id: documents.id })
     .from(documents)
-    .where(and(inScope(screenplay), eq(documents.kind, kind)))
+    .where(and(inUnit(screenplay), eq(documents.kind, kind)))
     .limit(1);
   const loaded = row && (await loadDocument(screenplay, row.id));
   if (!loaded) throw new Error("分場大綱剛建立卻讀不到 —— 這代表寫入沒有落地");
@@ -142,7 +131,7 @@ export async function openSceneOutline(screenplay: AuthorizedScreenplay): Promis
 /** 這個專案的所有文件（兩層都列），早建立的在前。 */
 export async function listDocuments(project: AuthorizedProject): Promise<DocumentSummary[]> {
   const rows = await getDb()
-    .select({ documentId: documents.id, kind: documents.kind, title: documents.title, screenplayId: documents.screenplayId })
+    .select({ documentId: documents.id, kind: documents.kind, title: documents.title })
     .from(documents)
     .where(eq(documents.projectId, project.projectId))
     .orderBy(asc(documents.createdAt), asc(documents.id));
@@ -155,7 +144,7 @@ export async function listDocuments(project: AuthorizedProject): Promise<Documen
  *
  * @returns 不在這個 handle 底下（別人的、或掛在另一層）就是 `null`。
  */
-export async function loadDocument(scope: DocumentScope, documentId: string): Promise<LoadedDocument | null> {
+export async function loadDocument(unit: CreativeUnit, documentId: string): Promise<LoadedDocument | null> {
   const [row] = await getDb()
     .select({
       documentId: documents.id,
@@ -166,7 +155,7 @@ export async function loadDocument(scope: DocumentScope, documentId: string): Pr
       docSeq: documents.docSeq,
     })
     .from(documents)
-    .where(and(eq(documents.id, documentId), inScope(scope)))
+    .where(and(eq(documents.id, documentId), inUnit(unit)))
     .limit(1);
   if (!row || !isDocumentKind(row.kind)) return null;
 
@@ -186,12 +175,12 @@ export async function loadDocument(scope: DocumentScope, documentId: string): Pr
  * 壞掉的 body 只會是一次大聲的失敗，不會變成壞掉的文件。
  */
 export async function saveDocument({
-  scope,
+  unit,
   documentId,
   body,
   token,
 }: {
-  scope: DocumentScope;
+  unit: CreativeUnit;
   documentId: string;
   body: PersistedDoc;
   token: SaveToken;
@@ -203,7 +192,7 @@ export async function saveDocument({
     const [current] = await tx
       .select({ kind: documents.kind, docSeq: documents.docSeq })
       .from(documents)
-      .where(and(eq(documents.id, documentId), inScope(scope)))
+      .where(and(eq(documents.id, documentId), inUnit(unit)))
       .limit(1)
       .for("update");
     if (!current || !isDocumentKind(current.kind) || current.docSeq !== expectedDocSeq) return { status: "conflict" };
@@ -229,11 +218,11 @@ export async function saveDocument({
  *
  * @returns 不在這個 handle 底下就是 `false`。
  */
-export async function renameDocument(scope: DocumentScope, documentId: string, title: string): Promise<boolean> {
+export async function renameDocument(unit: CreativeUnit, documentId: string, title: string): Promise<boolean> {
   const renamed = await getDb()
     .update(documents)
     .set({ title: normalizeTitle(title), updatedAt: new Date() })
-    .where(and(eq(documents.id, documentId), inScope(scope)))
+    .where(and(eq(documents.id, documentId), inUnit(unit)))
     .returning({ id: documents.id });
   return renamed.length > 0;
 }

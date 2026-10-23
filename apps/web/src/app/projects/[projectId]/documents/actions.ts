@@ -8,13 +8,13 @@ import {
   createDocument,
   renameDocument,
   saveDocument,
-  type DocumentScope,
+  type CreativeUnit,
   type PersistedDoc,
   type SaveToken,
 } from "@/persistence";
 
 /**
- * 交件文件的寫入入口（票券 21）。
+ * 劇本外文件的寫入入口（票券 21）。
  *
  * **授權在這裡，而且只在這裡**（不變式 H）：瀏覽器給的是字串，先換成**那份文件掛的那一層**的 handle
  * 才進得了 persistence —— 專案層的文件過 `authorizeProject`，劇本層的過 `authorizeScreenplay`。
@@ -28,7 +28,7 @@ import {
 /** 一份文件掛在哪裡：專案層給專案 id，劇本層給劇本 id。 */
 export type DocumentAddress = { projectId: string } | { screenplayId: string };
 
-async function scopeOf(address: DocumentAddress): Promise<DocumentScope | null> {
+async function unitOf(address: DocumentAddress): Promise<CreativeUnit | null> {
   return "screenplayId" in address ? authorizeScreenplay(address.screenplayId) : authorizeProject(address.projectId);
 }
 
@@ -39,16 +39,16 @@ export async function saveDocumentAction(
   doc: PersistedDoc,
   token: SaveToken,
 ): Promise<SaveOutcome> {
-  const scope = await scopeOf(address);
-  if (!scope) return { status: "forbidden" };
-  return saveDocument({ scope, documentId, body: doc, token });
+  const unit = await unitOf(address);
+  if (!unit) return { status: "forbidden" };
+  return saveDocument({ unit, documentId, body: doc, token });
 }
 
 /** 改名。名字不是內文 —— 不會跟另一個分頁的存檔衝突。 */
 export async function renameDocumentAction(address: DocumentAddress, documentId: string, title: string): Promise<boolean> {
-  const scope = await scopeOf(address);
-  if (!scope) return false;
-  return renameDocument(scope, documentId, title);
+  const unit = await unitOf(address);
+  if (!unit) return false;
+  return renameDocument(unit, documentId, title);
 }
 
 /**

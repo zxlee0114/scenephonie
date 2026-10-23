@@ -1,9 +1,9 @@
 /**
- * 交件文件（票券 21，§6.2、ADR-0009）：kind 與層級、各 kind 的 node schema、字數計數器。
+ * 劇本外文件（票券 21，§6.2、ADR-0009）：kind 與層級、各 kind 的 node schema、字數計數器。
  */
 import { describe, expect, it } from "vitest";
 
-import { countCharacters, documentFromJSON, documentLevel, documentSchema, isDocumentKind } from "./documents";
+import { wordCount, documentFromJSON, documentLevel, documentSchema, isDocumentKind } from "./documents";
 
 /** 一份交件大綱，每個字串是一段。 */
 const outline = (...paragraphs: string[]) =>
@@ -12,37 +12,37 @@ const outline = (...paragraphs: string[]) =>
     content: paragraphs.map((text) => (text ? { type: "paragraph", content: [{ type: "text", text }] } : { type: "paragraph" })),
   });
 
-describe("countCharacters：字數照 Word 的「字數」算", () => {
+describe("wordCount：字數照 Word 的「字數」算", () => {
   it("中文一個字算一個", () => {
-    expect(countCharacters(outline("小明在雨中奔跑"))).toBe(7);
+    expect(wordCount(outline("小明在雨中奔跑"))).toBe(7);
   });
 
   it("全形標點算字（簡章的字數含標點）", () => {
-    expect(countCharacters(outline("他說：「走吧。」"))).toBe(8);
+    expect(wordCount(outline("他說：「走吧。」"))).toBe(8);
   });
 
   it("空白與換段不算字", () => {
-    expect(countCharacters(outline("小明　奔跑", "", "  雨停了 "))).toBe(7);
+    expect(wordCount(outline("小明　奔跑", "", "  雨停了 "))).toBe(7);
   });
 
   it("連續的英數算一個字（一個英文單字、一個數字）", () => {
-    expect(countCharacters(outline("Taipei 101 的夜景"))).toBe(5);
+    expect(wordCount(outline("Taipei 101 的夜景"))).toBe(5);
   });
 
   it("英文單字黏著的半形標點不另算", () => {
-    expect(countCharacters(outline("Hello, world."))).toBe(2);
+    expect(wordCount(outline("Hello, world."))).toBe(2);
   });
 
   it("中英相鄰時各自計數", () => {
-    expect(countCharacters(outline("他用iPhone拍照"))).toBe(5);
+    expect(wordCount(outline("他用iPhone拍照"))).toBe(5);
   });
 
   it("兩段的英文單字不會被接成一個", () => {
-    expect(countCharacters(outline("end", "start"))).toBe(2);
+    expect(wordCount(outline("end", "start"))).toBe(2);
   });
 
   it("空文件是零", () => {
-    expect(countCharacters(outline(""))).toBe(0);
+    expect(wordCount(outline(""))).toBe(0);
   });
 });
 
