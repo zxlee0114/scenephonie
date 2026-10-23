@@ -143,6 +143,19 @@ export function deliveredSceneTable(payload: DeliveryPayload): LabeledSceneTable
 }
 
 /**
+ * 交付印得出名字的實體（票券 20）—— 正式場次的地點與出場人物，與 `projectDelivery` 拍下實體名的是
+ * 同一批列。改了這裡面任何一個的名字，交付投影就跟著變：即時分享頁的「最後更新於」要動。
+ * （對白的說話者印的是顯示名，不在這裡。）
+ */
+export function deliveredEntityIds(doc: ProseMirrorNode): { characterIds: Set<string>; locationIds: Set<string> } {
+  const rows = deliveredRows(doc);
+  return {
+    characterIds: new Set(rows.flatMap((row) => row.appearingCharacters.map((r) => r.characterId))),
+    locationIds: new Set(rows.flatMap((row) => row.locations.map((r) => r.locationId))),
+  };
+}
+
+/**
  * 會進交付的場次：場次表的列（草稿已濾掉），再去掉殘缺群組的成員與它們的子場次。匯出前清單
  * （票券 19）用同一份問「哪些場次會印出來」—— 誰被略過只有這一個答案。不從 `index.ts` 對外曝露。
  */

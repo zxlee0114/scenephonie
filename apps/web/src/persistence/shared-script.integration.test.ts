@@ -5,6 +5,7 @@ import { mintId, mintSceneId } from "@scenephonie/schema";
 
 import { authorizeProjectForUser, authorizeScreenplayForUser, authorizeShareToken } from "@/authorization";
 import { USER_ID_PREFIX } from "@/auth/auth";
+import { createLocation, renameLocation } from "@/entities";
 import { getDb } from "@/db/client";
 import { projects, users } from "@/db/schema";
 import { PROJECT_ID_PREFIX, SINGLE_SCREENPLAY_PROJECT } from "@/projects/project-store";
@@ -22,9 +23,9 @@ import { loadSharedScript } from "./shared-script";
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 
 /** 內外、時間、地點都填了 ＝ 正式場次。地點引用不必真的有實體 —— 投影照樣印顯示名。 */
-const formal = (text: string) => ({
+const formal = (text: string, locationId = "lo_x") => ({
   type: "scene",
-  attrs: { sceneId: mintSceneId(), time: "日", intExt: "內景", location: { locationId: "lo_x", displayName: "客廳" } },
+  attrs: { sceneId: mintSceneId(), time: "日", intExt: "內景", location: { locationId, displayName: "客廳" } },
   content: [{ type: "action", content: [{ type: "text", text }] }],
 });
 /** 沒填內外 ＝ 草稿（§4.8）。 */
@@ -71,6 +72,20 @@ describe.skipIf(!hasDatabase)("loadSharedScript（需要 Postgres）", () => {
     const second = await loadSharedScript(viewer!);
     expect(texts(second!.payload.script)).toEqual(["走出房間"]);
     expect(second?.kind === "live" && first?.kind === "live" && second.updatedAt > first.updatedAt).toBe(true);
+  });
+
+  it("即時：改實體名（劇本沒存檔）也推進「最後更新於」，頁面上是新名字", async () => {
+    const project = (await authorizeProjectForUser(ownerId, projectId))!;
+    const location = await createLocation(project, { name: "未知大樓房間" });
+    const screenplay = await freshScreenplay(docOf(formal("走進房間", location.id)));
+    const viewer = await authorizeShareToken((await shareLive(screenplay)).token);
+    const before = await loadSharedScript(viewer!);
+
+    await renameLocation(project, location.id, "海豚公寓房間");
+
+    const after = await loadSharedScript(viewer!);
+    expect(after?.payload.scenes[0]?.locations[0]?.name).toBe("海豚公寓房間");
+    expect(after?.kind === "live" && before?.kind === "live" && after.updatedAt > before.updatedAt).toBe(true);
   });
 
   it("凍結：讀的是那筆交付與它的交付時間；之後改稿碰不到它", async () => {

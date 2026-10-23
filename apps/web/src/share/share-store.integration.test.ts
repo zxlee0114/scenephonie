@@ -7,6 +7,7 @@ import { authorizeProjectForUser, authorizeScreenplayForUser, type AuthorizedScr
 import { USER_ID_PREFIX } from "@/auth/auth";
 import { getDb } from "@/db/client";
 import { projects, screenplays, shareLinks, users } from "@/db/schema";
+import { createLocation, renameLocation } from "@/entities";
 import { createDelivery, createScreenplay, loadScreenplay, saveScreenplay, type PersistedDoc } from "@/persistence";
 import { PROJECT_ID_PREFIX, SINGLE_SCREENPLAY_PROJECT } from "@/projects/project-store";
 
@@ -23,16 +24,22 @@ const scene = (text: string) => ({
   attrs: { sceneId: mintSceneId(), time: "日", intExt: "內景", location: null },
   content: [{ type: "action", content: [{ type: "text", text }] }],
 });
-const docOf = (...scenes: ReturnType<typeof scene>[]): PersistedDoc => ({ type: "doc", content: scenes });
+/** 內外、時間、地點都填了 ＝ 正式場次 —— 會進交付。 */
+const formalAt = (locationId: string, displayName: string) => ({
+  type: "scene",
+  attrs: { sceneId: mintSceneId(), time: "日", intExt: "內景", location: { locationId, displayName } },
+  content: [{ type: "action", content: [{ type: "text", text: "走進房間" }] }],
+});
+const docOf = (...scenes: object[]): PersistedDoc => ({ type: "doc", content: scenes });
 
 describe.skipIf(!hasDatabase)("share store（需要 Postgres）", () => {
   const ownerId = mintId(USER_ID_PREFIX);
   let projectId: string;
   const created: string[] = [];
 
-  const freshScreenplay = async (): Promise<AuthorizedScreenplay> => {
+  const freshScreenplay = async (doc = docOf(scene("走進房間"))): Promise<AuthorizedScreenplay> => {
     const project = await authorizeProjectForUser(ownerId, projectId);
-    const fresh = await createScreenplay(project!, docOf(scene("走進房間")));
+    const fresh = await createScreenplay(project!, doc);
     created.push(fresh.screenplayId);
     const handle = await authorizeScreenplayForUser(ownerId, fresh.screenplayId);
     if (!handle) throw new Error("gate 不認得剛建立的劇本");
@@ -126,5 +133,20 @@ describe.skipIf(!hasDatabase)("share store（需要 Postgres）", () => {
 
     const [after] = await listShareLinks(screenplay);
     expect(after).toMatchObject({ shareId: link!.shareId, delivery: { changedSince: true } });
+  });
+
+  it("改實體名也算「之後改過」—— 只算交付裡印得出來的那幾個（劇本本身沒存檔）", async () => {
+    const project = (await authorizeProjectForUser(ownerId, projectId))!;
+    const delivered = await createLocation(project, { name: "未知大樓房間" });
+    const elsewhere = await createLocation(project, { name: "海邊" });
+    const screenplay = await freshScreenplay(docOf(formalAt(delivered.id, "房間")));
+    const delivery = await createDelivery(screenplay);
+    await shareDelivery(screenplay, delivery!.deliveryId);
+
+    await renameLocation(project, elsewhere.id, "沙灘");
+    expect((await listShareLinks(screenplay))[0]?.delivery?.changedSince).toBe(false);
+
+    await renameLocation(project, delivered.id, "海豚公寓房間");
+    expect((await listShareLinks(screenplay))[0]?.delivery?.changedSince).toBe(true);
   });
 });
