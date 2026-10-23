@@ -1,0 +1,125 @@
+/*
+ * 交件文件頁 —— 交件大綱、分場大綱（票券 21）。
+ *
+ * 與劇本編輯器同一套閱讀呈現（§7.9 不變式 G）：沒有 A4 紙感、沒有邊框，只有一條由全形字數決定的
+ * 閱讀行長。字數計數器只是一行淡字 —— 它計數、不評判，所以沒有顏色在說「太多了」。
+ *
+ * 只用 var(--*)（tokens.css）。這個檔案不得出現任何 hex。
+ */
+
+.document-shell {
+  min-block-size: 100dvh;
+  background: var(--surface-page);
+}
+
+.document-shell__bar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  block-size: var(--bar-height);
+  padding-inline: var(--space-5);
+  border-block-end: 1px solid var(--rule);
+  background: var(--surface-page);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.document-shell__home {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.document-page {
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) 40vh;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  /* 先 em、再 ic —— 靠級聯自然降級（§7.10）。 */
+  max-inline-size: 36em;
+  max-inline-size: calc(var(--measure-body-ic) * 1ic);
+}
+
+.document-page__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-block-end: var(--space-5);
+}
+
+.document-page__title {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+/* 名字欄看起來就是標題，聚焦時才露出它是一個欄位。 */
+.document-page__title-input {
+  padding: 0;
+  border: 0;
+  border-block-end: 1px solid transparent;
+  background: none;
+  color: inherit;
+}
+
+.document-page__title-input::placeholder {
+  color: var(--text-faint);
+}
+
+.document-page__title-input:focus {
+  outline: none;
+  border-block-end-color: var(--rule-strong);
+}
+
+.document-page__count {
+  margin: 0;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 存檔狀態：劇本編輯器把它釘在 header 右端（那裡還有匯出、分享鈕）；這裡沒有那些，跟著標題列走。 */
+.document-page .save-status {
+  position: static;
+  block-size: auto;
+  min-block-size: 1lh;
+  margin-block-end: var(--space-3);
+  color: var(--text-faint);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.document-page .save-status--loud {
+  color: var(--error-fg);
+}
+
+.document-page .save-status p {
+  margin: 0;
+}
+
+.document-page__body {
+  min-block-size: 50vh;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.document-page__body:focus {
+  outline: none;
+}
+
+.document-page__body p {
+  margin: 0 0 1em;
+}
+
+.document-page ::selection {
+  background: var(--selection-bg);
+}

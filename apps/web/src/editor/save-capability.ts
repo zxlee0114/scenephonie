@@ -33,3 +33,9 @@ export type SaveScreenplayRequest = {
 export type SaveOutcome = SaveResult | { status: "forbidden" };
 
 export type SaveScreenplay = (request: SaveScreenplayRequest) => Promise<SaveOutcome>;
+
+/**
+ * 自動存檔手上那個函式（`useAutosave`）：只管「這份 doc、帶著這個 token」。存的是哪一份劇本或
+ * 哪一份交件文件（票券 21），由注入它的那一層綁好。
+ */
+export type SaveDoc = (doc: PersistedDoc, token: SaveToken) => Promise<SaveOutcome>;

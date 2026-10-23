@@ -17,8 +17,8 @@ import {
   shareLinksAction,
   shareLiveAction,
   shareSnapshotAction,
-} from "./actions";
-import { ScreenplayWorkspace } from "./workspace";
+} from "../actions";
+import { ScreenplayWorkspace } from "../workspace";
 
 // route handler／server component 必須連得到 Postgres —— 不可 edge-only（§13.1）。
 export const runtime = "nodejs";
@@ -33,7 +33,11 @@ export const dynamic = "force-dynamic";
  * 它們只決定網址；哪個視圖由 `ScreenplayWorkspace` 讀網址段決定。
  *
  * **gate 在這裡**（不變式 H）：不是你的劇本就是 404 —— 與「不存在」同一個答案。UI 藏不藏
- * 不算保護，存檔那條路（`./actions.ts`）也各自再過一次 gate，因為 Server Action 是公開端點。
+ * 不算保護，存檔那條路（`../actions.ts`）也各自再過一次 gate，因為 Server Action 是公開端點。
+ *
+ * **住在 route group `(editor)` 裡**（票券 21）：劇本層的其他文件（`../scene-outline`）也掛在這份劇本
+ * 的網址底下 —— route tree 本身在編碼掛載層級（ADR-0009）—— 但它們不是這份劇本的另一種讀法，
+ * 不該被包進編輯器。group 不改網址，只把這個 layout 的範圍收回劇本與場次表兩頁。
  *
  * 進站的游標落點跟著「剛建的還是載回來的」走（票券 26）：新建引導去填第一場的內外景欄，
  * 載回既有的稿就停在上次寫到的地方。這件事只有伺服器端知道，所以在這裡決定、往下傳。

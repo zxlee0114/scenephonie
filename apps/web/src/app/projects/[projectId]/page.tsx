@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { documentLevel } from "@scenephonie/schema";
+
 import { authorizeProject } from "@/authorization";
+import { listDocuments } from "@/persistence";
 import { projectContents } from "@/projects/project-store";
 
+import { createSubmissionOutlineAction } from "./documents/actions";
 import { SignOut } from "./sign-out";
 
 // route handler／server component 必須連得到 Postgres —— 不可 edge-only（§13.1）。
@@ -18,7 +22,8 @@ export const dynamic = "force-dynamic";
  * route tree `/projects/:id/screenplays/:id` 已經把層級編碼進去，sidebar 是漸進增強。
  *
  * 分成「專案層」與「劇本層」兩區，是因為**導覽形狀本身在教 [ADR-0009] 的掛載規則**：
- * 文件掛在它描述的創作單位上。所以即使 v1 的專案層還沒有任何文件，這一區也照樣站在這裡。
+ * 文件掛在它描述的創作單位上。哪一份進哪一區看的是 `documentLevel(kind)`（不變式 F），
+ * 不是文件叫什麼名字 —— 編劇把交件大綱改名成「分場大綱」，它也還是在專案層。
  *
  * ⚠️ **gate 在這裡，不在 UI**：`authorizeProject` 過不了就是 404 —— 與「這個專案不存在」
  * 同一個答案，否則這一頁會變成一支專案 id 的存在性探針。
@@ -32,7 +37,8 @@ export default async function ProjectHubPage({
   const project = await authorizeProject(projectId);
   if (!project) notFound();
 
-  const { title, screenplayId } = await projectContents(project);
+  const [{ title, screenplayId }, documents] = await Promise.all([projectContents(project), listDocuments(project)]);
+  const projectDocuments = documents.filter((document) => documentLevel(document.kind) === "project");
 
   return (
     <main className="project-hub">
@@ -58,17 +64,42 @@ export default async function ProjectHubPage({
       </section>
 
       {/* 兩區並排就是那條掛載規則本身：**文件掛在它描述的創作單位上**（ADR-0009）。
-          交件大綱與角色設定表描述的是整個專案，分場大綱描述的是那一份劇本。
-          v1 兩區都還沒有內容（票券 21），但位置是對的 —— 空著比掛錯地方好，而且形狀
-          先站在這裡，日後加文件時不會有人需要重新決定它該掛哪。 */}
+          交件大綱描述的是整部作品，分場大綱描述的是那一份劇本。 */}
       <section className="project-hub__section">
         <h2 className="project-hub__heading">專案層文件</h2>
-        <p className="project-hub__empty">交件大綱與角色設定表尚未開放。</p>
+        {projectDocuments.length > 0 && (
+          <ul className="project-hub__list">
+            {projectDocuments.map((document) => (
+              <li key={document.documentId}>
+                <Link href={`/projects/${project.projectId}/documents/${document.documentId}`}>
+                  {document.title ?? document.kind}
+                  {/* 名字是編劇給的（劇情大綱、故事大綱…），kind 才是它是什麼 —— 有名字時兩個都說。 */}
+                  {document.title && <span className="project-hub__kind">{document.kind}</span>}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={createSubmissionOutlineAction.bind(null, project.projectId)}>
+          <button type="submit" className="project-hub__add">
+            ＋ 新增交件大綱
+          </button>
+        </form>
+        <p className="project-hub__empty">角色設定表尚未開放。</p>
       </section>
 
       <section className="project-hub__section">
         <h2 className="project-hub__heading">劇本層文件</h2>
-        <p className="project-hub__empty">分場大綱尚未開放。</p>
+        {screenplayId ? (
+          <ul className="project-hub__list">
+            <li>
+              {/* 一份劇本一份分場大綱，第一次打開時才建立 —— 它在概念上一直都在，所以連結一直都在。 */}
+              <Link href={`/projects/${project.projectId}/screenplays/${screenplayId}/scene-outline`}>分場大綱</Link>
+            </li>
+          </ul>
+        ) : (
+          <p className="project-hub__empty">這個專案還沒有劇本。</p>
+        )}
       </section>
     </main>
   );

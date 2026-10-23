@@ -9,7 +9,7 @@
 
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { docFromJSON, exportPreflight, setDraftReminderDismissed } from "@scenephonie/schema";
 
@@ -25,7 +25,7 @@ import type {
 import { runKernelCommand } from "./command-bridge";
 import { ExportPdf, type ExportPdfCapability } from "./export-pdf";
 import { requestFocus } from "./focus";
-import type { SaveScreenplay } from "./save-capability";
+import type { SaveDoc, SaveScreenplay } from "./save-capability";
 import { requestNextScene } from "./extensions/next-scene";
 import { cursorSceneId, revealScene, scrollToSceneOf } from "./scene-anchor";
 import { SharePanel, type SharePanelCapability } from "@/share/SharePanel";
@@ -197,7 +197,11 @@ export function ScreenplayEditor({
   share?: Omit<SharePanelCapability, "flush">;
 }) {
   const editor = useScreenplayEditor(initialContent, initialFocus);
-  const autosave = useAutosave({ editor, screenplayId, initialToken, save });
+  const saveDoc = useMemo<SaveDoc | undefined>(
+    () => (screenplayId && save ? (doc, token) => save({ screenplayId, doc, token }) : undefined),
+    [screenplayId, save],
+  );
+  const autosave = useAutosave({ editor, initialToken, save: saveDoc });
   const { flush } = autosave;
   /** 場次表上點的那一列，等切回劇本後再把游標送過去 —— 藏起來的編輯器拿不到焦點。 */
   const pendingReveal = useRef<string | null>(null);

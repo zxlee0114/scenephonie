@@ -163,6 +163,40 @@
   color: var(--color-accent);
 }
 
+/* 交件大綱的名字是編劇給的，kind 才說它是什麼 —— 跟在名字後面、淡一階。 */
+.project-hub__kind {
+  margin-inline-start: var(--space-3);
+  color: var(--text-faint);
+  font-size: var(--text-sm);
+}
+
+/* 「＋ 新增交件大綱」—— 跟清單同一條基線的一列，不是一顆醒目的主按鈕。 */
+.project-hub__add {
+  display: block;
+  inline-size: 100%;
+  padding: var(--space-3) 0;
+  border: 0;
+  border-block-end: 1px solid var(--rule);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.project-hub__add:hover {
+  color: var(--color-accent);
+}
+
+.project-hub__add:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.project-hub__add + .project-hub__empty {
+  margin-block-start: var(--space-3);
+}
+
 .project-hub__empty {
   margin: 0;
   color: var(--text-faint);

@@ -326,6 +326,55 @@ export const screenplayBackups = pgTable(
 
 
 /**
+ * 交件文件 —— 劇本之外、編劇另外寫的文件（票券 21，§6.2、ADR-0009）：交件大綱、分場大綱。
+ *
+ * 跟 `screenplays` 同型：一份 ProseMirror doc ＋ `doc_schema_version` ＋ `doc_seq`。差別只在掛哪一層 ——
+ * 所以是一張表、`screenplay_id` 可為 null，而不是兩張表（ADR-0009 否決了拆表：同型的東西分家，
+ * 換來的只是把一條不變式編碼進 schema）。
+ *
+ * **不變式 F：`kind` 固定其合法層級。** `screenplay_id` 該不該有值是 kind 定義的一部分，
+ * 不由使用者決定；那張 kind → 層級的表住在 `@scenephonie/schema` 的 `documentLevel`，寫入路徑
+ * （`persistence/document-store.ts`）照它拒絕。這裡**刻意不寫 CHECK** —— 那會是同一張表的第二份
+ * 抄本，新增一種 kind 時兩邊都得記得改。
+ *
+ * `doc_schema_version` 是**該 kind 的版本**，不是全域數字：每個 kind 有自己的 node schema 與自己的
+ * 遷移鏈，交件大綱升版時分場大綱不動。
+ *
+ * `title` 是編劇給的名字（交件大綱可多份、各自命名）。它**不是 kind**：同一份東西 GHSA 叫「劇情大綱」、
+ * 高雄拍叫「故事大綱」，可變的顯示值不承載身分（ADR-0009）。`null` ＝ 沒命名，畫面顯示 kind。
+ * 規格 §6.2 那張表沒列它，但「各自命名」得有地方住；名字不在 doc 裡（它不是內文）。
+ *
+ * 沒有備份表 —— §6.7 的自動備份只承諾劇本。
+ */
+export const documents = pgTable(
+  "documents",
+  {
+    /** `dc_` ＋ nanoid。 */
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    screenplayId: text("screenplay_id").references(() => screenplays.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    title: text("title"),
+    body: jsonb("body").notNull(),
+    docSchemaVersion: integer("doc_schema_version").notNull(),
+    docSeq: bigint("doc_seq", { mode: "number" }).notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // 專案 hub 問的是「這個專案有哪些文件」（兩層都列）。
+    index("documents_project_id_idx").on(table.projectId),
+    // 分場大綱一份劇本一份。打開它是 get-or-create，兩個分頁同時第一次打開時由這條排成序，
+    // 晚到的那一次拿到先到的那一份，不會多出第二份。
+    uniqueIndex("documents_scene_outline_uidx")
+      .on(table.screenplayId)
+      .where(sql`${table.kind} = '分場大綱'`),
+  ],
+).enableRLS();
+
+/**
  * 交付 —— 一則承諾：「這份內容，在你之後改稿時仍保持不變。」（票券 17，§4.9、§6.2、ADR-0008）
  *
  * **唯一刻意不可變的表**：程式碼只 `INSERT` 與 `SELECT`，沒有 `updated_at`。

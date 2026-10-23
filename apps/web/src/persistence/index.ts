@@ -18,3 +18,13 @@ export type { Delivery } from "./delivery-store";
 // 分享頁的唯一讀取口（票券 20）：只收 `ShareViewer`。
 export { loadSharedScript } from "./shared-script";
 export type { SharedScript } from "./shared-script";
+// 交件文件（票券 21）：交件大綱、分場大綱。每一支吃的 handle 就是那份文件掛的那一層（不變式 F）。
+export {
+  createDocument,
+  listDocuments,
+  loadDocument,
+  openSceneOutline,
+  renameDocument,
+  saveDocument,
+} from "./document-store";
+export type { DocumentSaveResult, DocumentScope, DocumentSummary, LoadedDocument } from "./document-store";

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SaveToken } from "@/persistence";
 import { createSaveScheduler, type SaveScheduler } from "@/persistence/save-scheduler";
 
-import type { SaveScreenplay } from "./save-capability";
+import type { SaveDoc } from "./save-capability";
 
 import { toPlainJson } from "./plain-json";
 
@@ -17,6 +17,7 @@ import { toPlainJson } from "./plain-json";
  * 備份、並行控制、schema 遷移都在 persistence 模組後面（§6.7）。
  *
  * 存檔函式是**注入**的，不是這裡 import 的 —— 編輯器不認識路由層（§6.3 edge boundary）。
+ * 它也不認識「存的是哪一份」：劇本與交件文件（票券 21）共用這一支，id 由注入的那個函式自己帶著。
  */
 export type SaveStatus = "idle" | "saving" | "saved" | "conflict" | "forbidden" | "error";
 
@@ -33,14 +34,12 @@ export interface Autosave {
 
 export function useAutosave({
   editor,
-  screenplayId,
   initialToken,
   save,
 }: {
   editor: Editor | null;
-  screenplayId: string | undefined;
   initialToken: SaveToken | undefined;
-  save: SaveScreenplay | undefined;
+  save: SaveDoc | undefined;
 }): Autosave {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const schedulerRef = useRef<SaveScheduler | null>(null);
@@ -49,7 +48,7 @@ export function useAutosave({
   const stoppedRef = useRef(false);
 
   useEffect(() => {
-    if (!editor || !screenplayId || !save || !tokenRef.current) return;
+    if (!editor || !save || !tokenRef.current) return;
 
     const scheduler = createSaveScheduler({
       save: async () => {
@@ -60,13 +59,12 @@ export function useAutosave({
           // 照失敗處理，排程器才會維持待存、繼續退避（票券 65）。
           if (!navigator.onLine) throw new Error("offline");
           setStatus("saving");
-          const result = await save({
-            screenplayId,
+          const result = await save(
             // toPlainJson 不是防禦性複製，是必要的 —— ProseMirror 的 attrs 是 null-prototype
             // 物件，直接交給 Server Action 會被靜默丟掉（見 ./plain-json.ts）。
-            doc: toPlainJson(editor.getJSON()) as Record<string, unknown>,
+            toPlainJson(editor.getJSON()) as Record<string, unknown>,
             token,
-          });
+          );
           // conflict 與 forbidden 都是「再存下去只會更糟」——前者會拿舊稿蓋掉新稿，
           // 後者根本不該有人在這裡寫。兩者都停手，但要分開說：使用者的處置不同。
           if (result.status !== "saved") {
@@ -124,7 +122,7 @@ export function useAutosave({
       scheduler.cancel();
       schedulerRef.current = null;
     };
-  }, [editor, screenplayId, save]);
+  }, [editor, save]);
 
   const flush = useCallback(async () => {
     const scheduler = schedulerRef.current;
