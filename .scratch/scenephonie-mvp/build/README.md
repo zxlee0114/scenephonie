@@ -104,9 +104,10 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [61](./61-speaker-field-left-exits-to-previous-block.md) | 對白人物欄最前面按 ← 走不回上一個區塊。落點與場次第一個區塊的情況開工前問。**從票券 10 驗收撈到**。 | `open` |
 | [62](./62-empty-dialogue-backspace-reverts.md) | 空的對白（人物欄與台詞都空）按 Backspace 不收回區塊。退回描述還是整塊拿掉，開工前問。**從票券 10 驗收撈到**。 | `open` |
 | [63](./63-canonical-host-redirect.md) | 非正式網域一律 308 轉到 `BETTER_AUTH_URL` 的 host —— 從 deployment 網址登入時 `state` cookie 跨網域，Google 登入偶爾失敗。無 blocker。 | `open` |
-| [64](./64-login-error-code-swallowed.md) | bug：登入頁讀不到 Better Auth 的錯誤碼（`error` 被接成兩個 query），「不在受邀清單上」永遠顯示不出來。無 blocker。 | `open` |
+| [64](./64-login-error-code-swallowed.md) | bug：登入頁讀不到 Better Auth 的錯誤碼（`error` 被接成兩個 query），「不在受邀清單上」永遠顯示不出來。無 blocker。 | ✅ verified |
 | [65](./65-autosave-retry-backoff.md) | 存檔失敗後退避重試（2.5 秒起跳加倍、封頂 60 秒、持續再試）；狀態列倒數、「立刻重試」與 ⌘S、離開前提醒。無 blocker。 | ✅ verified |
 | [66](./66-dialogue-without-speaker-is-draft.md) | 沒有人物的對白也讓場次成為草稿（票券 14 的草稿判定）。無 blocker。 | `needs-triage` |
 | [67](./67-add-scene-from-clipboard.md) | 新增下一場時，可以改成貼上剛複製的場次。blocked by 13。 | `needs-triage` |
 | [68](./68-scene-menu-move-and-swap.md) | 場次選單的「搬移到…」與「對調…」—— 拖曳之外的另一條路，規則與拖曳相同。blocked by 13。 | `needs-triage` |
 | [69](./69-unsaved-draft-local-backup.md) | 存不進去的稿，關掉分頁之後救得回來（本機備份）。碰到 spec 排除的離線編輯，範圍開工前先定。**從票券 65 驗收切出來**，blocked by 65。 | `needs-triage` |
+| [70](./70-oauth-state-cookie-expiry.md) | Google 登入超過 5 分鐘才回來就失敗（state cookie 寫死 300 秒，DB 那筆是 10 分鐘），畫面只說「請再試一次」。**從票券 64 驗收切出來**，無 blocker。 | `needs-triage` |
