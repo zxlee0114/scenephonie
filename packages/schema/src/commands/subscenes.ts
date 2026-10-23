@@ -12,7 +12,7 @@
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import { mintSceneId } from "../ids";
-import { hasOwnContent } from "../subscenes";
+import { opensBefore } from "../subscenes";
 import { schema, SUBSCENE_KINDS, type SubsceneKind } from "../schema";
 import { removeGroupMember } from "./groups";
 import { type CommandResult, ok, reject } from "./result";
@@ -83,9 +83,7 @@ function placement(doc: ProseMirrorNode, anchor: SubsceneAnchor): Placement | st
 
   // 不變式 ①：插入點之前必須已經有主場次自己的內容 —— 否則主場次就不是起點場次，結構在說謊。
   // 片段比照辦理：一段以子場次開頭的片段，讀起來就是那個成員的內容沒有起點。
-  let opened = false;
-  for (let i = 0; i < insertAt; i++) if (hasOwnContent(at.node.child(i))) opened = true;
-  if (!opened) {
+  if (!opensBefore(at.node, insertAt)) {
     return "主場次的內容必須以主場次自己的內容開始 —— 空場次裡不能建立子場次（不變式 ①）";
   }
   return { container: at.node, path: at.path, insertAt };

@@ -21,6 +21,7 @@ import {
   type FragmentLabelSpec,
 } from "../extensions/scene-numbers";
 import { GroupFragment, SceneGroup } from "../schema";
+import { dragHandle } from "./drag-handle";
 
 /** 群組最後一個成員的 `sceneId` —— 「＋ 新增下一場」用它定址（滑鼠點的入口自己傳位置，§7.1）。 */
 function lastMemberId(group: PMNode): string | null {
@@ -34,6 +35,8 @@ function groupView(editor: Editor, node: PMNode, decorations: readonly Decoratio
   const dom = document.createElement("section");
   dom.className = "scene-group";
   dom.dataset.type = "scene-group";
+  // 拖曳（票券 13）從這裡認群組：整組在頂層搬移，以 `groupId` 定址。
+  dom.dataset.groupId = node.attrs.groupId as string;
   // 整個群組被選起來時的反白（同 `.scene.is-node-selected`）—— 片段沒有自己的反白可畫。
   const paint = (decos: readonly Decoration[]) =>
     dom.classList.toggle("is-node-selected", groupSelectedOf(decos));
@@ -56,13 +59,14 @@ function groupView(editor: Editor, node: PMNode, decorations: readonly Decoratio
   });
   foot.append(button);
 
-  dom.append(contentDOM, foot);
+  dom.append(dragHandle({ group: true }), contentDOM, foot);
   return {
     dom,
     contentDOM,
     update(next, decos) {
       if (next.type !== current.type) return false;
       current = next;
+      dom.dataset.groupId = next.attrs.groupId as string;
       paint(decos);
       return true;
     },

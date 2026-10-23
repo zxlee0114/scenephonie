@@ -16,6 +16,17 @@ export function hasOwnContent(node: ProseMirrorNode): boolean {
 }
 
 /**
+ * 不變式 ①：一個子場次放在這段內容（主場次或片段）的第 `insertAt` 個孩子位置時，它之前有沒有
+ * 主場次自己的內容。建立子場次（`createSubscene`）與搬進子場次（`moveScene`）共用這一個判準。
+ */
+export function opensBefore(container: ProseMirrorNode, insertAt: number): boolean {
+  for (let i = 0; i < insertAt && i < container.childCount; i++) {
+    if (hasOwnContent(container.child(i))) return true;
+  }
+  return false;
+}
+
+/**
  * 一場的地點印成一串字：顯示名，雜景多地點以頓號串起；還沒填回 `null`。折返標記、`/back-to` 的
  * 標籤、套用清單都印這一串，所以只有一個定義點。
  */

@@ -33,7 +33,7 @@
  * selection 與 focusin 都不看，等下一筆編劇自己的 transaction。
  */
 import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
@@ -89,9 +89,15 @@ function initialHold(doc: PMNode): DraftHold | null {
   return { sceneId: only.attrs.sceneId as string, autoDraft: false };
 }
 
-/** 焦點在內文時，游標所在的那一場（片段算它的成員）。焦點不在內文回 `null`。 */
+/**
+ * 焦點在內文時，游標所在的那一場（片段算它的成員）。焦點不在內文回 `null`。
+ *
+ * 選起整個節點（點場次號、點區塊的 ⠿、⌘A 第三段）不算進了那一場 —— 那是在對它下指令，不是在
+ * 那裡寫字；從 A 點 B 的場次號標記草稿，A 的鎖不動（使用者裁決 2026-10-21／22）。
+ */
 function caretScene(view: EditorView): string | null {
   if (view.dom.ownerDocument.activeElement !== view.dom) return null;
+  if (view.state.selection instanceof NodeSelection) return null;
   return sceneContext(view.state.selection.$from)?.sceneId ?? null;
 }
 

@@ -74,6 +74,18 @@ export function replaceAt(
   return rebuild(doc, 0);
 }
 
+export const samePath = (a: TreePath, b: TreePath): boolean =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
+
+/**
+ * 「先拆下來、再放回去」的落點序：`index` 以**搬移前**計（呼叫端看到的就是那份），來源若在同一段
+ * 內容裡、排在落點之前，拆下來之後落點就往前一格。`removedAt` ＝ 來源在同一段內容裡的序，不在
+ * 同一段就是 `null`。
+ */
+export function indexAfterRemoval(index: number, removedAt: number | null): number {
+  return removedAt != null && index > removedAt ? index - 1 : index;
+}
+
 /**
  * 以 `sceneId` 找到的一個場次節點 —— 頂層 `scene`、群組裡的 `groupMember`，或某個主場次／
  * 片段底下的 `subscene`。

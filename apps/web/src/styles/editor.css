@@ -168,9 +168,19 @@
 /* 整場被選取（⌘+A 的第三段：NodeSelection）時的整塊反白。
  * 不靠瀏覽器原生選取畫 —— 場次 DOM 混了 contentEditable=false 的 chip row 與腳部按鈕，
  * 原生高亮跨過那些區域畫不出來（原型 scene-schema.tsx 註解）。 */
-.scene.is-node-selected {
+.scene.is-node-selected,
+.scene.is-menu-target {
   background: var(--selection-bg);
   border-radius: var(--space-1);
+}
+
+/* 點區塊的 ⠿ ＝ 選起整個區塊（NodeSelection，票券 13）：同一種底色。
+ * 對白是 React node view：Tiptap 把 class 掛在外層 `.react-renderer` 上，不在 `.block` 本身。 */
+.block.ProseMirror-selectednode,
+.ProseMirror-selectednode > .block--dialogue {
+  background: var(--selection-bg);
+  border-radius: var(--space-1);
+  outline: none;
 }
 
 /* 新增下一場：新場次柔和地浮現淺底色再淡出 —— §7.10「明確 append」的即時回饋。
@@ -429,10 +439,6 @@
 
 /* ── SceneMenu（點場次號開）── */
 .scene-menu {
-  position: absolute;
-  z-index: 20;
-  inset-inline-start: var(--space-2);
-  inset-block-start: calc(var(--scene-pad-block, 0px) + var(--space-6));
   min-inline-size: 12rem;
   background: var(--surface-page);
   border: 1px solid var(--rule-strong);
@@ -459,6 +465,150 @@
 
 .scene-menu button.is-active {
   background: var(--selection-bg);
+}
+
+/* ── 拖曳排序（票券 13、§7.5）──
+ * 場次（主場次、子場次）的把手就是場次號 —— 不另畫 ⠿（擠在號碼旁邊跟版面打架，使用者驗收
+ * 2026-10-22）。區塊與群組的 ⠿ 平常不畫（常駐的 ⠿ 一頁幾十個，是噪音），滑過才浮現；區塊的 ⠿
+ * 一律住 gutter 裡同一欄（離內容邊 --space-5），子場次裡的區塊也一樣 —— 不壓在子場次那條線上。
+ * 都是 decoration：不可選、不進 content flow。點一下開選單，按住拖 ＝ 搬移。 */
+.scene__number[data-drag-handle] {
+  cursor: grab;
+}
+
+.scene__number[data-drag-handle]:active {
+  cursor: grabbing;
+}
+.block {
+  position: relative;
+}
+
+.drag-handle {
+  position: absolute;
+  inset-block-start: 0;
+  /* 與這個區塊第一行字置中對齊：盒子高 ＝ 內文一行的行高，⠿ 在盒子裡上下置中（使用者驗收
+   * 2026-10-22：原本 ⠿ 坐在自己字型的基線上，比字偏高）。 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  block-size: calc(1em * var(--leading-base));
+  inline-size: var(--space-4);
+  font-family: var(--font-ui);
+  line-height: 1;
+  color: var(--text-faint);
+  cursor: grab;
+  opacity: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: opacity 120ms ease;
+}
+
+.block > .drag-handle {
+  --handle-gap: calc(var(--space-5) - var(--space-4));
+  inset-inline-start: calc(-1 * var(--space-5));
+}
+
+/* 子場次的內容在線的右側縮了一階（線寬 ＋ --space-3）：⠿ 多退這麼多，回到跟主場次同一欄、在線的左邊。 */
+.scene--sub .block > .drag-handle {
+  --handle-gap: calc(var(--space-5) - var(--space-4) + var(--subscene-rule) + var(--space-3));
+  inset-inline-start: calc(-1 * (var(--space-5) + var(--subscene-rule) + var(--space-3)));
+}
+
+/* 從字移到 ⠿ 的路上（中間隔著間距、子場次還隔著那條線）不能有讓它消失的空檔：⠿ 往右長一塊看不見的
+ * 橋接到內容邊 —— 它是 ⠿ 的一部分，滑在上面就還在 .block:hover 裡（使用者驗收 2026-10-22）。 */
+.block > .drag-handle::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 100%;
+  inline-size: var(--handle-gap);
+}
+
+.drag-handle--group {
+  inset-inline-start: 0;
+  inset-block-start: var(--space-1);
+  z-index: 1;
+}
+
+.block:hover > .drag-handle,
+.scene-group:hover > .drag-handle,
+.drag-handle:hover,
+.drag-handle.is-menu-anchor {
+  opacity: 1;
+}
+
+.drag-handle.is-menu-anchor {
+  color: var(--text-secondary);
+}
+
+.drag-handle:hover {
+  color: var(--text-secondary);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* 落點指示線：全編輯器一條，fixed 定位、用視窗座標畫；不吃滑鼠，才不會變成自己的落點。 */
+.drop-indicator {
+  position: fixed;
+  z-index: 30;
+  block-size: 2px;
+  margin-block-start: -1px;
+  background: var(--focus-ring);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.drop-indicator[hidden] {
+  display: none;
+}
+
+/* 定點選單（點把手、點場次號、降級時問種類）：位置由 JS 算（往外長，見 point-menu.tsx），沿用
+ * SceneMenu 的外觀與鍵盤。出現從錨點那一側長出來、收起淡掉 —— 都很短，只是讓它不要「啪」一下。 */
+.point-menu {
+  position: fixed;
+  z-index: 30;
+  animation: point-menu-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.point-menu[data-side="outside"] {
+  transform-origin: top right;
+}
+
+.point-menu[data-side="below"] {
+  transform-origin: top left;
+}
+
+.point-menu[data-side="above"] {
+  transform-origin: bottom left;
+}
+
+/* 收起：React 拿掉選單後留下的複本，播完自己刪。 */
+.point-menu--leaving {
+  pointer-events: none;
+  animation: point-menu-out 110ms ease-in forwards;
+}
+
+@keyframes point-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes point-menu-out {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .point-menu,
+  .point-menu--leaving {
+    animation: none;
+  }
 }
 
 /* ── 內嵌簡表（chip row）——常駐，不可被預設 UI 收合（§7.11）── */
@@ -2506,4 +2656,57 @@
 .export-pdf__actions button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* ── 「這一下會合併場次」確認窗（票券 13）── */
+
+.merge-confirm__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: color-mix(in srgb, var(--surface-page) 72%, transparent);
+}
+
+.merge-confirm {
+  inline-size: min(28rem, 100%);
+  padding: var(--space-5);
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-3);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+}
+
+.merge-confirm__title {
+  margin: 0 0 var(--space-3);
+  font-size: 1rem;
+}
+
+.merge-confirm__body {
+  margin: 0 0 var(--space-4);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.merge-confirm__remember {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+}
+
+.merge-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.merge-confirm__actions button:focus-visible {
+  outline: 2px solid var(--focus-ring);
 }

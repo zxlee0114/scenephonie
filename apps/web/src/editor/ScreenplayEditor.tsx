@@ -30,6 +30,8 @@ import { requestNextScene } from "./extensions/next-scene";
 import { cursorSceneId, revealScene, scrollToSceneOf } from "./scene-anchor";
 import { SceneNavView } from "./scene-nav-view";
 import { SceneTableView } from "./scene-table-view";
+import { PointMenu } from "./point-menu";
+import { MergeConfirm } from "./merge-confirm";
 import { SlashMenu } from "./extensions/slash";
 import { ShortcutOverview } from "./shortcut-overview";
 import { useAutosave, type SaveStatus } from "./use-autosave";
@@ -253,6 +255,8 @@ export function ScreenplayEditor({
           <EditorContent editor={editor} />
           <EmptyScreenplayState editor={editor} />
           <SlashMenu />
+          <PointMenu />
+          <MergeConfirm />
           {/* 全部快捷鍵攤在同一張紙上（票券 34）—— 每一顆鍵各自都有理由，但合起來原本
               沒有一個地方看得到全部。⌘/ 或右上角那顆很淡的鈕。 */}
           <ShortcutOverview />
