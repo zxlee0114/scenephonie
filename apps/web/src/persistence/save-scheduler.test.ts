@@ -214,6 +214,56 @@ describe("自動存檔的節奏", () => {
     scheduler.cancel();
   });
 
+  it("報得出下一次重試排在什麼時候 —— 畫面要倒數「x 秒後重試」", async () => {
+    const save = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("網路斷了"))
+      .mockRejectedValueOnce(new Error("網路斷了"))
+      .mockResolvedValue(undefined);
+    const start = Date.now();
+    const scheduler = createSaveScheduler({ save });
+
+    // 還沒失敗過：只是在等停頓，那不是重試。
+    scheduler.changed();
+    expect(scheduler.nextRetryAt()).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(2_500); // 第一次失敗
+    expect(scheduler.nextRetryAt()).toBe(start + 2_500 + 2_500);
+
+    await vi.advanceTimersByTimeAsync(2_500); // 第二次失敗
+    expect(scheduler.nextRetryAt()).toBe(start + 5_000 + 5_000);
+
+    await vi.advanceTimersByTimeAsync(5_000); // 存進去了
+    expect(scheduler.nextRetryAt()).toBeUndefined();
+  });
+
+  it("報得出手上還有沒有沒落地的變更 —— 關分頁前要問這一句", async () => {
+    let settle: ((ok: boolean) => void) | undefined;
+    const save = vi.fn(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          settle = (ok) => (ok ? resolve() : reject(new Error("網路斷了")));
+        }),
+    );
+    const scheduler = createSaveScheduler({ save });
+    expect(scheduler.hasPending()).toBe(false);
+
+    scheduler.changed();
+    expect(scheduler.hasPending()).toBe(true); // 還在等停頓
+
+    await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS);
+    expect(scheduler.hasPending()).toBe(true); // 送出去了，但還沒落地
+
+    settle?.(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(scheduler.hasPending()).toBe(true); // 存不進去，等重試
+
+    await vi.advanceTimersByTimeAsync(SAVE_PAUSE_MS);
+    settle?.(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(scheduler.hasPending()).toBe(false);
+  });
+
   it("cancel 時還在路上的那一次失敗了，也不會再排重試", async () => {
     const save = vi.fn(async () => {
       await new Promise((resolve) => setTimeout(resolve, 1_000));

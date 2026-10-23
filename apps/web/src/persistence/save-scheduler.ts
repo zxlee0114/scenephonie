@@ -37,6 +37,13 @@ export type SaveScheduler = {
   flush(): Promise<boolean>;
   /** 丟掉待存的計時器（元件卸載）。不取消已經在路上的那一次。 */
   cancel(): void;
+  /**
+   * 存不進去、正在等重試時，下一次排在什麼時候（epoch ms）；沒有在等重試就是 `undefined`。
+   * 畫面拿它倒數「x 秒後重試」—— 說「會再試」就要說得出什麼時候（票券 65）。
+   */
+  nextRetryAt(): number | undefined;
+  /** 手上還有沒落地的變更：還在等著存、正在路上、或存不進去在等重試。關分頁前要問這一句。 */
+  hasPending(): boolean;
 };
 
 export function createSaveScheduler({
@@ -55,6 +62,7 @@ export function createSaveScheduler({
   let dirty = false;
   let inFlight: Promise<void> | undefined;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let retryAt: number | undefined;
   /** 連續失敗幾次了。存成功一次就歸零。 */
   let failures = 0;
   /** `cancel()` 過了：路上那一次落地之後也不再排任何計時器。 */
@@ -74,6 +82,7 @@ export function createSaveScheduler({
     pauseTimer = undefined;
     maxTimer = undefined;
     retryTimer = undefined;
+    retryAt = undefined;
   }
 
   /** 起算停頓；強制上限已經在跑的話不重設，否則一直打字就一直沒有上限。 */
@@ -113,7 +122,11 @@ export function createSaveScheduler({
         dueWhileInFlight = false;
         // 請求在路上時打的字排了停頓計時器；失敗之後由退避接手，那些不能插隊。
         clearTimers();
-        if (!cancelled) retryTimer = setTimeout(onTimer, retryDelay(failures));
+        if (!cancelled) {
+          const delay = retryDelay(failures);
+          retryAt = Date.now() + delay;
+          retryTimer = setTimeout(onTimer, delay);
+        }
       })
       .finally(() => {
         inFlight = undefined;
@@ -149,6 +162,13 @@ export function createSaveScheduler({
     cancel(): void {
       cancelled = true;
       clearTimers();
+    },
+    nextRetryAt(): number | undefined {
+      return retryAt;
+    },
+    hasPending(): boolean {
+      // 路上那一次送出時就把 dirty 放下了，但它還沒落地 —— 這時關分頁一樣會丟稿。
+      return dirty || inFlight !== undefined;
     },
   };
 }
