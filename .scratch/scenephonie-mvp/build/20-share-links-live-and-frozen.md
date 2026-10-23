@@ -4,13 +4,24 @@
 
 **Blocked by:** 18, 06
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] `/s/<token>` 免註冊可看劇本與場次表，兩個 URL 同一條 token、同一生命週期
-- [ ] 即時分享頁頂顯示「最後更新於 X」；變更判準是 `doc_seq`
-- [ ] 凍結連結來自匯出 PDF 的副產品，token 懶惰鑄造（只印 PDF 不會多出公開網址）
-- [ ] 凍結頁顯示「這是 X 時交付的版本」；不對讀者洩漏「作者又改了」
-- [ ] 編劇自己的分享清單顯示凍結連結的 canonical 漂移
-- [ ] 撤銷寫 `revoked_at`、保留列、訪客見中性頁
-- [ ] 分享頁不顯示草稿；`ShareViewer` 無法進入寫路徑
-- [ ] 有效期：v1 不實作
+- [x] `/s/<token>` 免註冊可看劇本與場次表，兩個 URL 同一條 token、同一生命週期
+- [x] 即時分享頁頂顯示「最後更新於 X」；變更判準是 `doc_seq`
+- [x] 凍結連結來自匯出 PDF 的副產品，token 懶惰鑄造（只印 PDF 不會多出公開網址）
+- [x] 凍結頁顯示「這是 X 時交付的版本」；不對讀者洩漏「作者又改了」
+- [x] 編劇自己的分享清單顯示凍結連結的 canonical 漂移
+- [x] 撤銷寫 `revoked_at`、保留列、訪客見中性頁
+- [x] 分享頁不顯示草稿；`ShareViewer` 無法進入寫路徑
+- [x] 有效期：v1 不實作
+
+## Comments
+
+**2026-10-23 實作筆記**
+
+- **漂移判準（使用者裁決）**：`deliveries` 加 `source_doc_seq`，建立交付時在同一個 repeatable-read 交易裡拍下。它是來源記錄、只寫一次，不是並行 token，也不是遷移鏈的一節 —— §10.4 與 `delivery-boundary.test.ts` 已同步改寫。既有的交付補 0（寧可多說一句「之後改過」）。`doc_seq` 仍不出 persistence：外面只拿得到 `deliveriesChangedSince()` 回的「哪幾筆」。
+- **`ShareViewer` 的具體型別**：與兩種 handle 同一個 `unique symbol` brand，值是 `"share"`，所以結構上塞不進任何要 `AuthorizedScreenplay` 的地方。`share-gate.integration.test.ts` 用 `@ts-expect-error` 釘住存檔、建立交付、鑄連結、撤銷都不收它。唯一收它的是 `loadSharedScript`。
+- **即時分享讀的是交付投影**（`projectDelivery`，當場推導、不寫回），所以「不顯示草稿」與 PDF 是同一個答案；分享頁只有一套畫法。
+- **get-or-mint**：兩條 partial unique index（每筆交付／每份劇本的即時分享，同時只有一條未撤銷的）讓並行的兩次點擊不會多鑄一條公開網址。
+- **撤銷與不存在的 token** 回同一個中性頁「這條連結已停用。」。
+- 分享面板的「停用」要按兩次（確認）；撤銷後重新建立的是新 token。

@@ -7,6 +7,8 @@ import { createCharacter, createLocation, renameCharacter, renameLocation } from
 import type { CreateEntityRequest, RenameEntityRequest } from "@/editor/entity-capability";
 import type { SaveOutcome, SaveScreenplayRequest } from "@/editor/save-capability";
 import { createDelivery, saveScreenplay } from "@/persistence";
+import type { SharedLinkSummary } from "@/share/SharePanel";
+import { listShareLinks, revokeShareLink, shareDelivery, shareLive } from "@/share/share-store";
 
 /**
  * 編輯器的存檔入口。
@@ -106,4 +108,45 @@ export async function renameEntityAction(request: RenameEntityRequest): Promise<
       : await renameLocation(project, request.entityId, name);
 
   return renamed !== null;
+}
+
+/**
+ * 「取得這次交付的連結」—— 凍結分享（票券 20，§10.2）。**token 懶惰鑄造**：匯出不會走到這裡，
+ * 只有編劇按了那顆鈕才會。已經有一條有效的就拿回那一條。
+ *
+ * @returns token；不是你的劇本、或交付不在這份劇本底下，都是 `null`（同一個答案）。
+ */
+export async function shareDeliveryAction(request: { screenplayId: string; deliveryId: string }): Promise<string | null> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return null;
+  return (await shareDelivery(screenplay, request.deliveryId))?.token ?? null;
+}
+
+/** 建立即時連結（已有就拿回那一條）—— 分享面板上唯一可以建立的東西。 */
+export async function shareLiveAction(request: { screenplayId: string }): Promise<boolean> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return false;
+  await shareLive(screenplay);
+  return true;
+}
+
+/**
+ * 編劇自己的分享清單。凍結連結帶著「之後劇本已有修改」—— **只在這裡說**，凍結頁的讀者看不到（§10.2）。
+ * 沒有權限就是空清單：不給存在性探針。
+ */
+export async function shareLinksAction(request: { screenplayId: string }): Promise<SharedLinkSummary[]> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return [];
+  return (await listShareLinks(screenplay)).map(({ shareId, token, delivery }) => ({
+    shareId,
+    token,
+    delivery: delivery && { deliveredAt: delivery.deliveredAt, changedSince: delivery.changedSince },
+  }));
+}
+
+/** 停用一條連結：寫 `revoked_at`、保留那一列（§10.3）。 */
+export async function revokeShareLinkAction(request: { screenplayId: string; shareId: string }): Promise<boolean> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return false;
+  return revokeShareLink(screenplay, request.shareId);
 }

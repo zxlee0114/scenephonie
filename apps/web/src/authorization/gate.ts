@@ -1,13 +1,15 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { getDb } from "@/db/client";
-import { projects, screenplays } from "@/db/schema";
+import { projects, screenplays, shareLinks } from "@/db/schema";
 
 import {
   grantProject,
   grantScreenplay,
+  grantShareViewer,
   type AuthorizedProject,
   type AuthorizedScreenplay,
+  type ShareViewer,
 } from "./handles";
 
 /**
@@ -71,4 +73,29 @@ export async function authorizeScreenplayForUser(
 
   if (!row || row.ownerId !== userId) return null;
   return grantScreenplay(row);
+}
+
+/**
+ * 這條分享連結現在讀得到哪份劇本（票券 20，ADR-0011 §②）。
+ *
+ * 沒有帳號的那一種 authorization subject —— **同一個 gate、不是第二套機制**：判斷的依據仍是資料庫
+ * 裡的一列（`share_links`），換到的仍是一個只能從這裡鑄出的 handle，只是它唯讀。
+ *
+ * 撤銷過的與不存在的回同一個答案（`null`）：分享頁對兩者顯示同一個中性頁面，不透露劇本是否存在、
+ * 也不透露這條連結曾經有效過（§10.3）。
+ */
+export async function authorizeShareToken(token: string): Promise<ShareViewer | null> {
+  const [row] = await getDb()
+    .select({
+      shareId: shareLinks.id,
+      screenplayId: screenplays.id,
+      projectId: screenplays.projectId,
+      deliveryId: shareLinks.deliveryId,
+    })
+    .from(shareLinks)
+    .innerJoin(screenplays, eq(shareLinks.screenplayId, screenplays.id))
+    .where(and(eq(shareLinks.token, token), isNull(shareLinks.revokedAt)))
+    .limit(1);
+
+  return row ? grantShareViewer(row) : null;
 }

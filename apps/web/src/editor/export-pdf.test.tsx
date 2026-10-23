@@ -37,12 +37,14 @@ function mount({
   preflight = () => nothingSkipped,
   setDraftReminderDismissed = vi.fn(),
   revealScene = vi.fn(),
+  shareDelivery = vi.fn(async (deliveryId: string): Promise<string | null> => `https://x.test/s/tok-${deliveryId}`),
 }: {
   flush?: () => Promise<boolean>;
   createDelivery?: () => Promise<string | null>;
   preflight?: () => ExportPreflight;
   setDraftReminderDismissed?: (sceneIds: string[], dismissed: boolean) => void;
   revealScene?: (sceneId: string) => void;
+  shareDelivery?: (deliveryId: string) => Promise<string | null>;
 } = {}) {
   const pdfUrl = vi.fn(
     (deliveryId: string, query: string) => `/pdf/${deliveryId}?${query}`,
@@ -55,9 +57,11 @@ function mount({
       preflight={preflight}
       setDraftReminderDismissed={setDraftReminderDismissed}
       revealScene={revealScene}
+      shareDelivery={shareDelivery}
     />,
   );
   return {
+    shareDelivery,
     flush,
     createDelivery,
     pdfUrl,
@@ -415,3 +419,49 @@ describe("匯出前防呆", () => {
     });
   });
 });
+
+/**
+ * 凍結分享是匯出 PDF 的副產品（票券 20，§10.2）：**快照必然、連結自願** —— 交付每次都建立，但連結
+ * 只在編劇按「取得這次交付的連結」時才鑄。否則「我只是想印一份 PDF」會在背後多出一條公開網址。
+ */
+describe("取得這次交付的連結", () => {
+  it("匯出本身不鑄連結；印好之後按了才鑄，連結指向剛才那一筆交付", async () => {
+    const { shareDelivery } = mount();
+    open();
+    await submit();
+    await waitFor(() => expect(downloads).toHaveLength(1));
+
+    expect(shareDelivery).not.toHaveBeenCalled();
+
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "取得這次交付的連結" })));
+
+    expect(shareDelivery).toHaveBeenCalledWith("dl_1");
+    const link = screen.getByRole("textbox", { name: "這次交付的連結" }) as HTMLInputElement;
+    expect(link.value).toBe("https://x.test/s/tok-dl_1");
+    expect(link.readOnly).toBe(true);
+  });
+
+  it("PDF 沒印出來也拿得到連結 —— 交付已經建立了，連結指的是它，不是那份紙", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 500 }));
+    const { shareDelivery } = mount();
+    open();
+    await submit();
+
+    await act(async () => void fireEvent.click(await screen.findByRole("button", { name: "取得這次交付的連結" })));
+
+    expect(shareDelivery).toHaveBeenCalledWith("dl_1");
+  });
+
+  it("連結沒鑄出來就說出來，不假裝有", async () => {
+    mount({ shareDelivery: vi.fn(async () => null) });
+    open();
+    await submit();
+    await waitFor(() => expect(downloads).toHaveLength(1));
+
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "取得這次交付的連結" })));
+
+    expect(screen.queryByRole("textbox", { name: "這次交付的連結" })).toBeNull();
+    expect(screen.getByRole("alert").textContent).toMatch(/連結沒有建立起來/);
+  });
+});
+

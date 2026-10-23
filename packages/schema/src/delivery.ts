@@ -27,10 +27,17 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import { groupMembers } from "./commands/tree";
 import { projectScenes } from "./project-scenes";
-import { projectSceneTable, type SceneTableNames, type SceneTableRow } from "./scene-table";
+import {
+  MONTAGE_UNSPECIFIED_LOCATION,
+  projectSceneTable,
+  type LabeledSceneTableRow,
+  type SceneTableNames,
+  type SceneTableRow,
+} from "./scene-table";
+import { referenceLabel } from "./entities";
 import { extrasLabel } from "./extras";
 import { hasOwnContent, sceneLocationLabel } from "./subscenes";
-import type { SceneIntExt, SceneTime, VoiceStyle } from "./schema";
+import { MONTAGE, type SceneIntExt, type SceneTime, type VoiceStyle } from "./schema";
 
 export const DELIVERY_PAYLOAD_VERSION = 1;
 
@@ -117,6 +124,22 @@ export function projectDelivery(doc: ProseMirrorNode, names: SceneTableNames): D
   });
 
   return { version: DELIVERY_PAYLOAD_VERSION, scenes, script };
+}
+
+/**
+ * 一筆交付的場次表（票券 20）—— 分享頁的「場次表」視圖。
+ *
+ * **只讀 payload**（不變式 E）：場次號、實體名、群演的字都是交付當時拍下的，這裡只把它們排成格子。
+ * 格子的寫法與編輯器的場次表（`labelSceneTable`）是同一套 —— `實體名（這一場的顯示名）`、雜景沒有
+ * 地點印「參照敘述」—— 同一場戲在兩邊長得一樣。懸空引用（實體名 `null`）只印顯示名。
+ */
+export function deliveredSceneTable(payload: DeliveryPayload): LabeledSceneTableRow[] {
+  const cell = (refs: DeliveredRef[]) => refs.map((r) => referenceLabel(r.displayName, r.name)).join("、");
+  return payload.scenes.map(({ locations, appearingCharacters, ...rest }) => ({
+    ...rest,
+    location: locations.length === 0 && rest.intExt === MONTAGE ? MONTAGE_UNSPECIFIED_LOCATION : cell(locations),
+    appearingCharacters: cell(appearingCharacters),
+  }));
 }
 
 /**

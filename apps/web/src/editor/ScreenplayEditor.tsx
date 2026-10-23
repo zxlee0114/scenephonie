@@ -198,10 +198,10 @@ export function ScreenplayEditor({
   /** 場次表上點了一列：請路由切回劇本。游標落進那一場由這裡負責（切回來之後）。 */
   onShowScript?: () => void;
   /**
-   * 匯出 PDF（票券 18）：建立交付與 PDF 網址由路由層注入；「先存檔」與匯出前防呆（票券 19）
+   * 匯出 PDF（票券 18）：建立交付、PDF 網址與凍結分享連結（票券 20）由路由層注入；「先存檔」與匯出前防呆（票券 19）
    * 讀寫的是手上這份 doc，是這裡的。
    */
-  exportPdf?: Pick<ExportPdfCapability, "createDelivery" | "pdfUrl">;
+  exportPdf?: Pick<ExportPdfCapability, "createDelivery" | "pdfUrl" | "shareDelivery">;
 }) {
   const editor = useScreenplayEditor(initialContent, initialFocus);
   const { status, flush } = useAutosave({ editor, screenplayId, initialToken, save });

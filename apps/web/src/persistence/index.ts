@@ -12,7 +12,9 @@ export { createScreenplay, loadScreenplay, saveScreenplay } from "./screenplay-s
 export type { LoadedScreenplay, SaveRequest, SaveResult } from "./screenplay-store";
 export type { SaveToken } from "./save-token";
 export type { PersistedDoc } from "./doc-schema-version";
-// `loadDelivery` 此刻還沒有產品呼叫端 —— 它是票 17 本身要的「重試＝用同一筆交付重跑」那個入口，
-// 渲染器（票券 18）與凍結分享（票券 20）都從這裡讀，不讀 live doc。
-export { createDelivery, loadDelivery } from "./delivery-store";
+// 渲染器（票券 18）從 `loadDelivery` 讀交付，不讀 live doc。`deliveriesChangedSince` 只給編劇的分享清單。
+export { createDelivery, deliveriesChangedSince, loadDelivery } from "./delivery-store";
 export type { Delivery } from "./delivery-store";
+// 分享頁的唯一讀取口（票券 20）：只收 `ShareViewer`。
+export { loadSharedScript } from "./shared-script";
+export type { SharedScript } from "./shared-script";
