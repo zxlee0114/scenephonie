@@ -4,7 +4,7 @@
 
 **Blocked by:** 18, 06
 
-**Status:** in-review
+**Status:** verified
 
 - [x] `/s/<token>` 免註冊可看劇本與場次表，兩個 URL 同一條 token、同一生命週期
 - [x] 即時分享頁頂顯示「最後更新於 X」；變更判準改成交付投影（見 Comments）
