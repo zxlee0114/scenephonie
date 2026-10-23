@@ -4,6 +4,7 @@ import { currentUserId } from "@/authorization";
 
 import { GoogleSignIn } from "./google-sign-in";
 import { GuestSignIn } from "./guest-sign-in";
+import { signInFailure } from "./sign-in-failure";
 
 // route handler／server component 必須連得到 Postgres —— 不可 edge-only（§13.1）。
 export const runtime = "nodejs";
@@ -18,11 +19,11 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string | string[] }>;
 }) {
   if (await currentUserId()) redirect("/projects");
 
-  const { error } = await searchParams;
+  const failure = signInFailure((await searchParams).error);
 
   return (
     <main className="sign-in">
@@ -32,13 +33,12 @@ export default async function LoginPage({
       {/* 兩道門並排。它們在畫面上是兩顆按鈕，在程式碼裡從第二步之後就是同一條路
           （`landingProject()`）—— domain 不知道使用者是從哪一顆進來的（ADR-0011 §③）。 */}
       <GuestSignIn />
-      {/* 只有 allowlist 那一種失敗說得出原因；其餘（使用者按取消、Google 端出錯…）
-          不硬猜，否則會把「你被拒絕了」栽贓給一個只是點錯的人。 */}
-      {error === "not-allowed" ? (
+      {/* 哪些失敗說得出原因、哪些不硬猜，見 `signInFailure`。 */}
+      {failure === "uninvited" ? (
         <p className="sign-in__error" role="alert">
           這個 Google 帳號不在受邀清單上。v1 不公開註冊。
         </p>
-      ) : error ? (
+      ) : failure === "generic" ? (
         <p className="sign-in__error" role="alert">
           登入沒有完成，請再試一次。
         </p>
