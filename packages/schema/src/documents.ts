@@ -11,8 +11,8 @@
  * 權威；寫入路徑（persistence）照它拒絕違反者，資料庫的 CHECK（`documents_kind_level_check`）
  * 是它在資料層的抄本 —— 新增一種劇本層的 kind 時兩邊一起改。
  *
- * 層級是資料的規則，不是畫面的分類：單一劇本專案的 hub 把所有文件列成一份清單（§7.10），
- * 編劇不需要知道哪一份掛在哪一層。
+ * 掛載是資料的規則，不是畫面的分類：單一劇本專案的 hub 把所有文件列成一份清單（§7.10），
+ * 編劇不需要知道哪一份掛在哪個創作單位上。
  */
 import { Schema, type Node as ProseMirrorNode } from "prosemirror-model";
 
@@ -36,7 +36,6 @@ const KINDS = {
 } as const satisfies Record<string, { level: DocumentLevel; fixed: boolean }>;
 
 export type DocumentKind = keyof typeof KINDS;
-export type ProjectDocumentKind = { [K in DocumentKind]: (typeof KINDS)[K]["level"] extends "project" ? K : never }[DocumentKind];
 
 /** 這個 kind 的文件掛在哪一層（不變式 F）。 */
 export function documentLevel(kind: DocumentKind): DocumentLevel {
@@ -125,7 +124,7 @@ export function emptyDocument(): Record<string, unknown> {
 /**
  * 字數 —— 每份散文文件的計數器（§9.7）。叫 `wordCount` 不叫字元數：一個英文單字算一個，跟 Word 一樣。
  * **只計數、不執行規則**：上限是各案特例（GHSA 800–1200／TFC 無上限／高雄拍 500…），寫死任何一個數字都是錯的。
- * 只算內文：粗體、標題、清單是結構，不是字。
+ * 標題、清單、引用裡的字照算；不算的只有格式本身（粗體、標題、清單這些標記不是字）。
  *
  * 算法照 Word 的「字數」：中日韓文字與全形標點**一個字算一個**，連續的英數（含黏在上面的半形
  * 標點）**算一個字**，空白不算。照 Word 是因為編劇與主辦單位核對字數時手上拿的就是它 ——

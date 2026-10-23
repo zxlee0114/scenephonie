@@ -137,7 +137,7 @@ export {
   emptyDocument,
   wordCount,
 } from "./documents";
-export type { DocumentKind, ProjectDocumentKind } from "./documents";
+export type { DocumentKind } from "./documents";
 
 export {
   mintId,

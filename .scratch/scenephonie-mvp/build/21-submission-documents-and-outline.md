@@ -48,3 +48,7 @@
 5. **粗體要 Noto Sans TC 700**：產了 `public/fonts/noto-sans-tc-700/`（105 塊，2.25 MiB），只由 `DocumentShell` 掛上，劇本頁不載。⚠️ 第 ④ 片的交件 PDF 要印粗體與標題時，印的那一端也要送這套字型。
 6. **字數計數器三種文字文件都有。**
 7. `documents` 還沒合併進 main，所以 0009 直接重產（多了 `deleted_at` 與交件大綱的 unique index），schema 版本號維持 1，不寫遷移。
+
+**2026-10-24 改寫後的兩軸 review**：修了字型說明（`docs/editor-typography.md`、spec 鎖定表）與實作不一致、排程檔 JSDoc 懸空、`ProjectDocumentKind` 死碼、hub 判斷自由文件改用 `isFixedDocument`、註解改掉「層級」（CONTEXT _Avoid_）、`wordCount` 註解易誤讀。無障礙：「復原」提示改用 portal 掛在 `body`（不再是清單裡的一項）；**用鍵盤刪除時焦點直接交給「復原」**（那一列連同按鈕一起消失，焦點原本會掉回 `body`），滑鼠刪除不搶焦點。
+
+**已知、未處理**：8 秒內連刪兩份，第一份的「復原」會被第二份的蓋掉（資料還在，排程清掉前仍在資料庫裡，只是畫面上救不回來）。規格沒寫這種情況，等有人真的碰到再定（排隊多個提示，或一個提示「已刪除 2 份」）。

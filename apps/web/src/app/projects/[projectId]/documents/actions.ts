@@ -46,6 +46,11 @@ export async function saveDocumentAction(
   return saveDocument({ unit, documentId, body: doc, token });
 }
 
+/*
+ * 以下幾支只碰自由文件，而自由文件只掛在專案上，所以吃專案 id 就夠了；存檔那一支兩層的文件都要存，
+ * 才需要 `DocumentAddress`。
+ */
+
 /** 自由文件改名。名字不是內文 —— 不會跟另一個分頁的存檔衝突。固定文件改不了名。 */
 export async function renameDocumentAction(projectId: string, documentId: string, title: string): Promise<boolean> {
   const project = await authorizeProject(projectId);

@@ -6,6 +6,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
+ * 刪掉的自由文件留多久才真的清掉。畫面上救得回來的只有那 8 秒的「復原」，所以這裡不是使用者看得到的期限 ——
+ * 一天只是讓「剛刪就碰上排程」不會吃掉還在倒數的那一份。
+ */
+const DELETED_DOCUMENT_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+/**
  * 每日排程：清掉過期的訪客（票券 25 §6／§7、`vercel.json` 的 `crons`），以及刪除超過一天的自由文件（票券 21）。
  *
  * 文件那一件併進來，是票 07 同一條理由：週期一樣（每天）、失敗後果一樣（只是晚一天清），不值得第二支排程。
@@ -24,12 +30,6 @@ export const dynamic = "force-dynamic";
  * 而不是「誰能操作哪個 project」。這個端點也因此不接受任何參數 —— 它不能被用來指定
  * 刪誰，只能執行那條寫死的政策。
  */
-/**
- * 刪掉的自由文件留多久才真的清掉。畫面上救得回來的只有那 8 秒的「復原」，所以這裡不是使用者看得到的期限 ——
- * 一天只是讓「剛刪就碰上排程」不會吃掉還在倒數的那一份。
- */
-const DELETED_DOCUMENT_RETENTION_MS = 24 * 60 * 60 * 1000;
-
 export async function GET(request: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
 

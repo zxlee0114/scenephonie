@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { isFixedDocument } from "@scenephonie/schema";
+
 import { authorizeProject } from "@/authorization";
 import { FreeDocumentList } from "@/documents/free-document-list";
 import { documentLabel } from "@/documents/labels";
@@ -22,7 +24,7 @@ export const dynamic = "force-dynamic";
  * route tree `/projects/:id/screenplays/:id` 已經把層級編碼進去，sidebar 是漸進增強。
  *
  * 文件是**一份平的清單**，不分「專案層／劇本層」（2026-10-24 使用者裁決，取代 §7.10 原本的兩區）：
- * 單一劇本專案的專案與劇本是 1:1，掛哪一層在畫面上沒有可觀測的差別，編劇也不需要知道 ADR-0009
+ * 單一劇本專案的專案與劇本是 1:1，掛在哪個創作單位上在畫面上沒有可觀測的差別，編劇也不需要知道 ADR-0009
  * 那條掛載規則 —— 它是給系統用的。資料層照舊守著不變式 F；系列劇本專案那天，「哪一集的文件」才第一次有意義。
  *
  * 順序固定：故事大綱、分場大綱、人物介紹，再來是編劇自己新增的自由文件（早建立的在前）。
@@ -42,7 +44,7 @@ export default async function ProjectHubPage({
 
   const [{ title, screenplayId }, documents] = await Promise.all([projectContents(project), listDocuments(project)]);
   const freeDocuments = documents
-    .filter((document) => document.kind === "自由文件")
+    .filter((document) => !isFixedDocument(document.kind))
     .map(({ documentId, title }) => ({ documentId, title }));
   const projectPath = `/projects/${project.projectId}`;
 
