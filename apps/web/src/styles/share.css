@@ -228,8 +228,9 @@
   gap: var(--space-2);
 }
 
+/* 勾選框對齊上方那一行的中線。 */
 .share-panel__item-pick {
-  margin-block-start: 0.2em;
+  margin: calc((1.75rem - 13px) / 2) 0 0;
 }
 
 .share-panel__item + .share-panel__item {
@@ -237,11 +238,34 @@
   border-block-start: 1px solid var(--rule);
 }
 
-/* 備註：平常只是網址列尾端一枝很淡的鉛筆；寫了就在網址上方一行字，點鉛筆才是欄位。 */
+/* 連結上方那一行：`[交付時間][最新版本] ✎ [備註]`。每一格同高 —— 備註換成欄位時整行不跳。 */
+.share-panel__heading {
+  --memo-height: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--memo-height);
+  /* 不換行：備註長了在這一行裡收成省略號，網址列不會被擠下去。 */
+  white-space: nowrap;
+}
+
+.share-panel__heading > * {
+  flex: none;
+}
+
+.share-panel__latest {
+  padding: 0 var(--space-2);
+  border-radius: var(--space-1);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-size: 0.85em;
+}
+
 .share-panel .share-panel__memo-button {
   display: inline-grid;
   place-items: center;
-  padding: var(--space-1);
+  block-size: var(--memo-height);
+  padding: 0 var(--space-1);
   border-color: transparent;
   color: var(--text-faint);
 }
@@ -250,34 +274,65 @@
   color: var(--text-primary);
 }
 
-.share-panel__memo-text {
-  margin: 0;
+/* 備註的字與備註欄是同一個盒子：同樣的 padding、同樣 1px 邊（字的那一份是透明的）、同樣的高。 */
+.share-panel__memo-text,
+.share-panel__memo,
+.share-panel__memo-grow::after {
+  box-sizing: border-box;
+  block-size: var(--memo-height);
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--space-1);
+  font: inherit;
+  line-height: calc(var(--memo-height) - 2px);
+}
+
+.share-panel__heading > .share-panel__memo-text {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--text-secondary);
-  overflow-wrap: anywhere;
+}
+
+/* 欄位跟著字長變寬：隱形的那一份字（`data-value`）撐開這一格，欄位疊在同一格上。 */
+.share-panel__heading > .share-panel__memo-grow {
+  flex: 0 1 auto;
+}
+
+.share-panel__memo-grow {
+  display: inline-grid;
+  /* 字再長也只到整行為止，長出去的在欄位裡捲。 */
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 8em;
+  max-inline-size: 100%;
+}
+
+.share-panel__memo-grow::after {
+  content: attr(data-value) " ";
+  grid-area: 1 / 1;
+  visibility: hidden;
+  white-space: pre;
+  overflow: hidden;
 }
 
 .share-panel__memo {
-  box-sizing: border-box;
+  grid-area: 1 / 1;
   inline-size: 100%;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--space-1);
+  min-inline-size: 0;
+  border-color: var(--rule);
   background: none;
   color: var(--text-primary);
-  font: inherit;
 }
 
 .share-panel__memo::placeholder {
   color: var(--text-faint);
 }
 
-.share-panel__memo:focus-visible {
-  outline: 2px solid var(--focus-ring);
-}
-
-/* 漂移只說給編劇聽（§10.2）—— 是提醒不是錯誤，用 draft 的警示色而不是 error。 */
-.share-panel__note {
-  color: var(--draft-fg);
+/* 有焦點認得出來就好：邊深一階，不加粗框、不改尺寸。 */
+.share-panel__memo:focus {
+  outline: none;
+  border-color: var(--text-secondary);
 }
 
 /* 停用的確認：說明靠左、鈕靠右，排在網址那一列底下。 */

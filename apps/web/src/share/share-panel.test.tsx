@@ -69,17 +69,17 @@ describe("分享面板", () => {
     expect(url.readOnly).toBe(true);
   });
 
-  it("交付的連結列出交付時間；交付之後劇本又改過才說「之後劇本已有修改」", async () => {
+  it("交付的連結列出交付時間；內容跟現在一樣的才標「最新版本」", async () => {
     mount([frozen(true)]);
     await openPanel();
     const item = within(dialog()).getByRole("listitem");
     expect(item.textContent).toMatch("2026-10-20 14:30 交付");
-    expect(item.textContent).toMatch("之後劇本已有修改");
+    expect(item.textContent).not.toMatch("最新版本");
 
     cleanup();
     mount([frozen(false)]);
     await openPanel();
-    expect(within(dialog()).getByRole("listitem").textContent).not.toMatch("之後劇本已有修改");
+    expect(within(dialog()).getByRole("listitem").textContent).toMatch("最新版本");
   });
 
   it("停用要按兩次（確認）；停用之後那條從清單上消失，即時連結可以再建一條新的", async () => {
@@ -193,5 +193,14 @@ describe("分享面板", () => {
     fireEvent.keyDown(note, { key: "Enter", isComposing: true });
 
     expect(document.activeElement).toBe(note);
+  });
+
+  it("備註太長只顯示開頭，完整的放在 title", async () => {
+    const long = "寄給優良電影劇本獎第四十八屆評審委員會的初審委員們";
+    mount([{ ...live, note: long }]);
+    await openPanel();
+
+    const shown = within(dialog()).getByTitle(long);
+    expect(shown.textContent).toBe(`${long.slice(0, 20)}…`);
   });
 });

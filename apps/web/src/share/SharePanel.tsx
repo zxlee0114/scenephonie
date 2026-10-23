@@ -291,7 +291,7 @@ function FrozenLinks({
               <LinkRow
                 name={name}
                 label={name}
-                drift={link.delivery!.changedSince ? "之後劇本已有修改" : undefined}
+                latest={!link.delivery!.changedSince}
                 url={urlOf(link.token)}
                 note={link.note}
                 working={working}
@@ -306,11 +306,19 @@ function FrozenLinks({
   );
 }
 
-/** 一條連結：名字、（漂移）、備註、唯讀網址、複製、停用（按兩次）、備註鈕。 */
+/** 顯示的備註超過這麼多字就截斷（那一行放不下時 CSS 再收成省略號）；完整的一律放在 `title`。 */
+const NOTE_SHOWN_CHARS = 20;
+
+/**
+ * 一條連結：`[交付時間][最新版本] ✎ [備註]`，底下是網址列（網址、複製、停用）。停用要按兩次。
+ *
+ * 備註就地編輯：點鉛筆，備註那一格換成欄位，**同一個位置、同樣的高度** —— 有沒有焦點、在不在編輯，
+ * 那一行都不位移。
+ */
 function LinkRow({
   name,
   label,
-  drift,
+  latest = false,
   url,
   note,
   working,
@@ -319,7 +327,8 @@ function LinkRow({
 }: {
   name: string;
   label?: string;
-  drift?: string;
+  /** 內容跟現在分享出去的一樣（交付連結才有意義）。 */
+  latest?: boolean;
   url: string;
   note: string | null;
   working: boolean;
@@ -328,49 +337,50 @@ function LinkRow({
 }) {
   const [confirming, setConfirming] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
-  // 只有空白的備註等於沒有 —— 不佔一行。
+  // 只有空白的備註等於沒有 —— 不佔位置。
   const shownNote = note?.trim() || null;
+  const truncated = shownNote && shownNote.length > NOTE_SHOWN_CHARS;
   return (
     <div className="share-panel__link">
       <CopyLink
         name={name}
         label={
-          label && (
-            <>
-              {label}
-              {drift && <span className="share-panel__note"> · {drift}</span>}
-            </>
-          )
+          <span className="share-panel__heading">
+            {label && <span>{label}</span>}
+            {latest && <span className="share-panel__latest">最新版本</span>}
+            <button
+              type="button"
+              className="share-panel__memo-button"
+              aria-label={shownNote ? "編輯備註" : "新增備註"}
+              title={shownNote ? "編輯備註" : "新增備註"}
+              onClick={() => setEditingNote(true)}
+              disabled={working || editingNote}
+            >
+              <NoteIcon />
+            </button>
+            {editingNote ? (
+              <NoteField
+                name={name}
+                saved={shownNote}
+                onDone={(changed) => {
+                  setEditingNote(false);
+                  if (changed !== null) onNote(changed);
+                }}
+              />
+            ) : (
+              shownNote && (
+                <span className="share-panel__memo-text" title={shownNote}>
+                  {truncated ? `${shownNote.slice(0, NOTE_SHOWN_CHARS)}…` : shownNote}
+                </span>
+              )
+            )}
+          </span>
         }
         url={url}
-        above={
-          editingNote ? (
-            <NoteField
-              name={name}
-              saved={shownNote}
-              onDone={(changed) => {
-                setEditingNote(false);
-                if (changed !== null) onNote(changed);
-              }}
-            />
-          ) : (
-            shownNote && <p className="share-panel__memo-text">{shownNote}</p>
-          )
-        }
       >
         {/* 確認期間留在原位（變灰），網址那一列才不會跳。 */}
         <button type="button" onClick={() => setConfirming(true)} disabled={working || confirming}>
           停用
-        </button>
-        <button
-          type="button"
-          className="share-panel__memo-button"
-          aria-label={shownNote ? "編輯備註" : "新增備註"}
-          title={shownNote ? "編輯備註" : "新增備註"}
-          onClick={() => setEditingNote(true)}
-          disabled={working || editingNote}
-        >
-          <NoteIcon />
         </button>
       </CopyLink>
       {confirming && (
@@ -391,8 +401,8 @@ function LinkRow({
 }
 
 /**
- * 備註欄：點了備註鈕才出現，一出現就聚焦。離開欄位（或 Enter）收起來，有改才存（`onDone` 給新值；
- * 沒改給 `null`）；Esc 放棄這次的修改 —— 只收欄位，不關面板。
+ * 備註欄：點了鉛筆才出現，一出現就聚焦。寬度跟著字長（有最小寬度，到整行為止）。離開欄位（或 Enter）
+ * 收起來，有改才存（`onDone` 給新值；沒改給 `null`）；Esc 放棄這次的修改 —— 只收欄位，不關面板。
  */
 function NoteField({
   name,
@@ -406,31 +416,34 @@ function NoteField({
   const [value, setValue] = useState(saved ?? "");
   const cancelled = useRef(false);
   return (
-    <input
-      type="text"
-      className="share-panel__memo"
-      aria-label={`${name}的備註`}
-      placeholder="這條連結給了誰（只有你看得到）"
-      maxLength={SHARE_NOTE_MAX_LENGTH}
-      autoFocus
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onKeyDown={(e) => {
-        // 輸入法選字時的 Enter 是在確認選字，不是「寫完了」。
-        if (e.nativeEvent.isComposing) return;
-        if (e.key === "Enter") e.currentTarget.blur();
-        if (e.key === "Escape") {
-          e.preventDefault();
-          e.stopPropagation();
-          cancelled.current = true;
-          onDone(null);
-        }
-      }}
-      onBlur={() => {
-        if (cancelled.current) return;
-        onDone(value.trim() !== (saved ?? "") ? value : null);
-      }}
-    />
+    // 隱形的那一份字撐出寬度，欄位疊在它上面 —— 欄位就跟著字長變寬。
+    <span className="share-panel__memo-grow" data-value={value || "輸入備註"}>
+      <input
+        type="text"
+        className="share-panel__memo"
+        aria-label={`${name}的備註`}
+        placeholder="輸入備註"
+        maxLength={SHARE_NOTE_MAX_LENGTH}
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          // 輸入法選字時的 Enter 是在確認選字，不是「寫完了」。
+          if (e.nativeEvent.isComposing) return;
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            cancelled.current = true;
+            onDone(null);
+          }
+        }}
+        onBlur={() => {
+          if (cancelled.current) return;
+          onDone(value.trim() !== (saved ?? "") ? value : null);
+        }}
+      />
+    </span>
   );
 }
 

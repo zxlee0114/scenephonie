@@ -7,7 +7,7 @@
  */
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import "../styles/share.css";
 
@@ -27,21 +27,20 @@ export function CopyLink({
   label,
   url,
   autoCopy = false,
-  above,
   children,
 }: {
   /** 網址框的名字（無障礙）。沒有 `label` 時它就是唯一的名字。 */
   name: string;
-  /** 框上方看得到的那一行；省略 ＝ 由外面的標題說明。 */
+  /**
+   * 框上方那一行；省略 ＝ 由外面的標題說明。它可以裝鈕與欄位（分享面板的備註），所以不是 `<label>`
+   * —— 網址框的名字由 `name` 給。
+   */
   label?: ReactNode;
   url: string;
   autoCopy?: boolean;
-  /** 夾在 `label` 與網址那一列之間的東西（分享面板的備註欄）。 */
-  above?: ReactNode;
   /** 同一列、排在「複製」後面的鈕（分享面板的「停用」）。 */
   children?: ReactNode;
 }) {
-  const id = useId();
   const [copied, setCopied] = useState(false);
 
   const copy = async () => setCopied(await copyText(url));
@@ -58,14 +57,9 @@ export function CopyLink({
 
   return (
     <div className="copy-link">
-      {label && (
-        <label className="copy-link__label" htmlFor={id}>
-          {label}
-        </label>
-      )}
-      {above}
+      {label && <div className="copy-link__label">{label}</div>}
       <div className="copy-link__row">
-        <input id={id} type="text" readOnly value={url} aria-label={name} onFocus={(e) => e.currentTarget.select()} />
+        <input type="text" readOnly value={url} aria-label={name} onFocus={(e) => e.currentTarget.select()} />
         <button type="button" className="copy-link__copy" aria-live="polite" onClick={() => void copy()}>
           {copied ? "已複製" : "複製"}
         </button>
