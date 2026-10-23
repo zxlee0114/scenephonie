@@ -7,8 +7,7 @@ import { createCharacter, createLocation, renameCharacter, renameLocation } from
 import type { CreateEntityRequest, RenameEntityRequest } from "@/editor/entity-capability";
 import type { SaveOutcome, SaveScreenplayRequest } from "@/editor/save-capability";
 import { createDelivery, saveScreenplay } from "@/persistence";
-import type { SharedLinkSummary } from "@/share/SharePanel";
-import { listShareLinks, revokeShareLink, shareDelivery, shareLive } from "@/share/share-store";
+import { listShareLinks, revokeShareLink, shareDelivery, shareLive, type ListedShareLink } from "@/share/share-store";
 
 /**
  * 編輯器的存檔入口。
@@ -134,14 +133,10 @@ export async function shareLiveAction(request: { screenplayId: string }): Promis
  * 編劇自己的分享清單。凍結連結帶著「之後劇本已有修改」—— **只在這裡說**，凍結頁的讀者看不到（§10.2）。
  * 沒有權限就是空清單：不給存在性探針。
  */
-export async function shareLinksAction(request: { screenplayId: string }): Promise<SharedLinkSummary[]> {
+export async function shareLinksAction(request: { screenplayId: string }): Promise<ListedShareLink[]> {
   const screenplay = await authorizeScreenplay(request.screenplayId);
   if (!screenplay) return [];
-  return (await listShareLinks(screenplay)).map(({ shareId, token, delivery }) => ({
-    shareId,
-    token,
-    delivery: delivery && { deliveredAt: delivery.deliveredAt, changedSince: delivery.changedSince },
-  }));
+  return listShareLinks(screenplay);
 }
 
 /** 停用一條連結：寫 `revoked_at`、保留那一列（§10.3）。 */

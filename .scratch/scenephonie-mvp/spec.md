@@ -574,7 +574,7 @@ future collaboration = Yjs（票券 19 已驗證可行）
 | `characters` | `id`（`ch_`）, `project_id`, `name`, `description` | append-only |
 | `locations` | `id`（`lo_`）, `project_id`, `name` | append-only，**無描述欄** |
 | `documents` | `id`, **`project_id`（必填）**, **`screenplay_id`（可為 null）**, `kind`, `body jsonb`, `doc_schema_version`, `doc_seq` | 見不變式 F |
-| `deliveries` | `id`, `screenplay_id`, `created_at`, `payload jsonb` | append-only、**唯一刻意不可變**、**無** `doc_seq`／`doc_schema_version` |
+| `deliveries` | `id`, `screenplay_id`, `created_at`, `payload jsonb`, `source_doc_seq` | append-only、**唯一刻意不可變**、**無** `doc_seq`／`doc_schema_version`；`source_doc_seq` 是建立時拍下的來源記錄（票券 20，ADR-0007 修訂） |
 | `share_links` | `id`, `screenplay_id`, `delivery_id`（null ＝ 即時分享）, `token`, `created_at`, `revoked_at` | token **opaque 且不可枚舉** |
 | `screenplay_backups` | `id`, `screenplay_id`, `doc jsonb`, `created_at` | append-only before-image、**無 UI** |
 
@@ -725,7 +725,7 @@ PDF、場次表、匯出前草稿清單**共用同一次走訪**（場次號、�
 
 一個隨程式碼走、一個隨資料走。**命名刻意避開「版本／版次／revision／鎖定」**，因為版本鎖定是已否決的功能：
 
-> `doc_seq` 是每一次**成功改變 canonical document state** 的 optimistic concurrency token。它不是自動存檔次數、不是版次、不是任何產品概念。不對使用者曝露，與交付無關。
+> `doc_seq` 是每一次**成功改變 canonical document state** 的 optimistic concurrency token。它不是自動存檔次數、不是版次、不是任何產品概念。不對使用者曝露，與交付無關（唯一的接點：交付記下它建立時的 `source_doc_seq`，見 ADR-0007 2026-10-23 修訂）。
 
 **`doc_schema_version` 存成欄位，不存在 doc JSON 裡** —— 查得到「還有幾份停在舊版」、載入前就知道要不要遷移、避免兩個權威。
 

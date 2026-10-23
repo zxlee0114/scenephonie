@@ -2,7 +2,7 @@ import { and, eq, lt } from "drizzle-orm";
 
 import { docFromJSON, mintId, projectDelivery, type DeliveryPayload } from "@scenephonie/schema";
 
-import type { AuthorizedScreenplay } from "@/authorization";
+import type { AuthorizedScreenplay, ShareViewer } from "@/authorization";
 import { getDb } from "@/db/client";
 import { characters, deliveries, locations, screenplays } from "@/db/schema";
 
@@ -81,7 +81,8 @@ type Transaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]
  */
 export async function projectCanonical(
   tx: Transaction,
-  screenplay: { screenplayId: string; projectId: string },
+  // 只收 handle：讀 live doc 的路一律要先過 gate（編劇的劇本 handle，或分享連結的 viewer）。
+  screenplay: AuthorizedScreenplay | ShareViewer,
 ): Promise<{ payload: DeliveryPayload; docSeq: number; updatedAt: Date } | null> {
   const [current] = await tx
     .select({
