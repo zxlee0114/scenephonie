@@ -111,3 +111,6 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [68](./68-scene-menu-move-and-swap.md) | 場次選單的「搬移到…」與「對調…」—— 拖曳之外的另一條路，規則與拖曳相同。blocked by 13。 | `needs-triage` |
 | [69](./69-unsaved-draft-local-backup.md) | 存不進去的稿，關掉分頁之後救得回來（本機備份）。碰到 spec 排除的離線編輯，範圍開工前先定。**從票券 65 驗收切出來**，blocked by 65。 | `needs-triage` |
 | [70](./70-oauth-state-cookie-expiry.md) | Google 登入超過 5 分鐘才回來就失敗（state cookie 寫死 300 秒，DB 那筆是 10 分鐘），畫面只說「請再試一次」。**從票券 64 驗收切出來**，無 blocker。 | `needs-triage` |
+| [71](./71-project-dashboard-and-create-flow.md) | 登入後先到專案儀表板，按「建立專案」才建立；建立流程「片名 → 交件大綱 → 劇本」，每步可略過、可直接開始寫。補上票 06 當成轉接口的 `/projects`。無 blocker。 | `needs-triage` |
+| [72](./72-project-archive-and-delete.md) | 專案封存（資料不動、可還原）與刪除（保留 30 天後永久清除，搭票 07 的 cron）；封存期間分享連結照常、刪除即失效。blocked by 71。 | `needs-triage` |
+| [73](./73-onboarding-tour.md) | 引導：首次註冊者與訪客跟著一份範例專案走完整個流程，只看不填；跳過或走完才算用掉，可隨時重看。blocked by 71、21。 | `needs-triage` |
