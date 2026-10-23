@@ -295,7 +295,7 @@ export function ExportPdf({
                     ? `本次會略過 ${check.skipped.drafts} 場草稿。`
                     : "草稿場次不會印出來。"}
                   {check.appearing.length > 0 &&
-                    `另有 ${check.appearing.length} 場的台詞有人不在登場人物欄（只是提醒，上一步可以查看）。`}
+                    `另有 ${check.appearing.length} 場的台詞有人不在登場人物欄，上一步可以查看。`}
                 </p>
 
                 <label className="export-pdf__field">
@@ -428,8 +428,7 @@ function SkippedDrafts({
       {loud.length > 0 && (
         <DraftRows
           drafts={loud}
-          action="之後不再提醒勾選的場次"
-          selectAll
+          action="不再提醒"
           onAct={(ids) => onRemind(ids, true)}
           onGoTo={onGoTo}
         />
@@ -443,7 +442,7 @@ function SkippedDrafts({
           >
             <DraftRows
               drafts={quiet}
-              action="恢復提醒勾選的場次"
+              action="恢復提醒"
               onAct={(ids) => onRemind(ids, false)}
               onGoTo={onGoTo}
             />
@@ -454,17 +453,15 @@ function SkippedDrafts({
   );
 }
 
-/** 一串可勾選的草稿，底下一顆對勾了的那幾場動手的鈕。勾選是這一串自己的事，動完就清掉。 */
+/** 一串可勾選的草稿，底下「全選」與一顆對勾了的那幾場動手的鈕。勾選是這一串自己的事，動完就清掉。 */
 function DraftRows({
   drafts,
   action,
-  selectAll = false,
   onAct,
   onGoTo,
 }: {
   drafts: SkippedDraft[];
   action: string;
-  selectAll?: boolean;
   onAct: (sceneIds: string[]) => void;
   onGoTo: (sceneId: string) => void;
 }) {
@@ -503,20 +500,16 @@ function DraftRows({
         ))}
       </ul>
       <div className="export-pdf__skipped-actions">
-        {selectAll && (
-          <label className="export-pdf__check">
-            <input
-              type="checkbox"
-              checked={all}
-              onChange={() =>
-                setPicked(
-                  all ? new Set() : new Set(drafts.map((d) => d.sceneId)),
-                )
-              }
-            />
-            全選
-          </label>
-        )}
+        <label className="export-pdf__check">
+          <input
+            type="checkbox"
+            checked={all}
+            onChange={() =>
+              setPicked(all ? new Set() : new Set(drafts.map((d) => d.sceneId)))
+            }
+          />
+          全選
+        </label>
         <button
           type="button"
           onClick={() => {

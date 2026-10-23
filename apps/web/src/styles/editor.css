@@ -2308,10 +2308,18 @@
   background: var(--error-bg);
 }
 
+/* 標題放在框線內，不騎在框線上：legend 一 float 就不再嵌進邊框，仍是這個 fieldset 的名字。 */
 .export-pdf__skipped legend {
-  padding: 0 var(--space-1);
+  float: inline-start;
+  inline-size: 100%;
+  margin-block-end: var(--space-1);
+  padding: 0;
   color: var(--error-fg);
   font-weight: 600;
+}
+
+.export-pdf__skipped legend + * {
+  clear: both;
 }
 
 .export-pdf__rows,

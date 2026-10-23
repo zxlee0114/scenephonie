@@ -277,7 +277,7 @@ describe("匯出前防呆", () => {
   it("多選與全選；「之後不再提醒」只記勾了的那幾場（sceneId）", () => {
     const { setDraftReminderDismissed } = mount({ preflight: () => twoDrafts });
     open();
-    const remember = () => button("之後不再提醒勾選的場次");
+    const remember = () => button("不再提醒");
 
     expect(remember().disabled).toBe(true);
     fireEvent.click(checkbox(/S2\[D1\]/));
@@ -294,7 +294,7 @@ describe("匯出前防呆", () => {
     );
   });
 
-  it("不再提醒過的收進「其中 y 場已標記不再提醒」，展開可以恢復提醒", () => {
+  it("不再提醒過的收進「其中 y 場已標記不再提醒」，展開可以全選、恢復提醒", () => {
     let current = twoDrafts;
     const { setDraftReminderDismissed } = mount({
       preflight: () => current,
@@ -309,7 +309,7 @@ describe("匯出前防呆", () => {
     });
     open();
     fireEvent.click(checkbox(/S11\[D1\]/));
-    fireEvent.click(button("之後不再提醒勾選的場次"));
+    fireEvent.click(button("不再提醒"));
 
     const quiet = screen.getByRole("group", {
       name: /其中 1 場已標記不再提醒/,
@@ -318,8 +318,9 @@ describe("匯出前防呆", () => {
     expect(draftList().textContent).toMatch(/以下 2 場草稿/);
     expect(row(/S2\[D1\]/).querySelector("input")!.checked).toBe(false);
 
-    fireEvent.click(checkbox(/S11\[D1\]/));
-    fireEvent.click(button("恢復提醒勾選的場次"));
+    fireEvent.click(within(quiet).getByRole("checkbox", { name: /全選/ }));
+    expect(checkbox(/S11\[D1\]/).checked).toBe(true);
+    fireEvent.click(button("恢復提醒"));
     expect(setDraftReminderDismissed).toHaveBeenLastCalledWith(["sc_a"], false);
     expect(screen.queryByRole("group", { name: /已標記不再提醒/ })).toBeNull();
   });
@@ -377,7 +378,7 @@ describe("匯出前防呆", () => {
 
       expect(watermarkBox()).toBeTruthy();
       expect(screen.getByRole("dialog").textContent).toMatch(
-        /2 場的台詞有人不在登場人物欄/,
+        /另有 2 場的台詞有人不在登場人物欄，上一步可以查看。/,
       );
       fireEvent.click(button("上一步"));
 
