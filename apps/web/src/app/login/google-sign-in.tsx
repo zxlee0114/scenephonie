@@ -25,7 +25,8 @@ export function GoogleSignIn() {
           callbackURL: "/projects",
           // 不在受邀清單上的人會在 OAuth callback 被擋下來（allowlist 是 registration policy）。
           // 把他送回登入頁並說清楚為什麼 —— 沉默的失敗會讓人以為是 Google 壞了。
-          errorCallbackURL: "/login?error=not-allowed",
+          // ⚠️ 不帶 query：Better Auth 是把自己的 `?error=<code>` **接上去**，不是取代（票券 64）。
+          errorCallbackURL: "/login",
         });
       }}
     >

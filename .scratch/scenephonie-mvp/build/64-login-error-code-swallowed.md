@@ -25,7 +25,7 @@
 
 **Blocked by:** 無
 
-**Status:** open
+**Status:** verified
 
 ## 開工前要定的事
 
@@ -38,12 +38,22 @@
 
 ## 驗收
 
-- [ ] 不在 allowlist 的 Google 帳號登入，會回到 `/login`，顯示「這個 Google 帳號不在受邀清單上」
-- [ ] 其他錯誤碼（如 `state_mismatch`）顯示通用訊息
-- [ ] `/login?error=a&error=b` 這類多值 query 不會讓頁面拋錯
-- [ ] 有測試把「allowlist 拒絕 → redirect URL 帶的 error code」釘住，Better Auth 升版時改了錯誤碼會報錯
+- [x] 不在 allowlist 的 Google 帳號登入，會回到 `/login`，顯示「這個 Google 帳號不在受邀清單上」
+- [x] 其他錯誤碼（如 `state_mismatch`）顯示通用訊息
+- [x] `/login?error=a&error=b` 這類多值 query 不會讓頁面拋錯
+- [x] 有測試把「allowlist 拒絕 → redirect URL 帶的 error code」釘住，Better Auth 升版時改了錯誤碼會報錯
 
 ## Comments
 
 **開票（2026-10-07）**：跟 [63](./63-canonical-host-redirect.md) 在同一次調查中發現。Vercel log 的
 `errorURL: '/login?error=not-allowed'` 加上 `appendQueryParams` 的實作，確認了兩個 `error` 疊在一起的情況。
+
+**實作（2026-10-23）**：實際情況比開票時更糟 —— `user.create` hook 拋的 `APIError` **沒有 `body.code`**，
+callback 只在有 code 時才 `redirectOnError`，否則原樣 rethrow，被擋的人拿到的是一頁 403 JSON，連 `/login`
+都回不去（整合測試第一次跑就紅在這裡）。現在 hook 帶 `not_invited`（`NOT_INVITED_ERROR`，在 `allowlist.ts`），
+`errorCallbackURL` 改成 `/login`，登入頁改由 `signInFailure` 決定訊息。整合測試走真的
+`sign-in/social` → `callback/google`，只 stub Google token endpoint。
+
+**驗收通過（2026-10-23）**：第一條用一個本機 DB 沒有帳號的 Google 帳號、`AUTH_ALLOWED_EMAILS=nobody@example.test`
+起 dev server 驗。第一次試回來的是 `state_mismatch`：在 Google 那邊登入另一個帳號花太久，state cookie
+（5 分鐘）過期了。先把 Google 帳號登好再走流程就正常。這個 5 分鐘另開 [70](./70-oauth-state-cookie-expiry.md)。

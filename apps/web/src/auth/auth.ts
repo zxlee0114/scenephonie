@@ -8,7 +8,7 @@ import { anonymous } from "better-auth/plugins/anonymous";
 import { getDb } from "@/db/client";
 import { accounts, sessions, users, verifications } from "@/db/schema";
 
-import { ALLOWLIST_ENV, isAllowedEmail } from "./allowlist";
+import { ALLOWLIST_ENV, isAllowedEmail, NOT_INVITED_ERROR } from "./allowlist";
 
 /**
  * authentication —— 回答「你是誰」，**只回答這一句**。
@@ -136,11 +136,18 @@ function createAuth() {
            * 其餘任何來源（未知 path、或根本不在 endpoint 裡，例如測試直呼 adapter）
            * **一律查清單** —— fail closed：漏掉一道門的後果是「誰都進得來」，
            * 而漏掉訪客的後果只是「訪客入口壞掉」。這兩種失敗的代價不對稱。
+           *
+           * ⚠️ **`code` 不能省**（票券 64）：OAuth callback 只在錯誤**帶 `body.code`** 時才
+           * `redirectOnError(code)` 把人送回 `errorCallbackURL`；沒有 code 就原樣 rethrow，
+           * 被擋的人拿到的是一頁 403 JSON，連登入頁都回不去。
            */
           before: async (user, ctx) => {
             if (ctx?.path === GUEST_SIGN_IN_PATH) return;
             if (!isAllowedEmail(user.email, process.env[ALLOWLIST_ENV])) {
-              throw new APIError("FORBIDDEN", { message: "這個帳號不在受邀清單上" });
+              throw new APIError("FORBIDDEN", {
+                code: NOT_INVITED_ERROR,
+                message: "這個帳號不在受邀清單上",
+              });
             }
           },
         },

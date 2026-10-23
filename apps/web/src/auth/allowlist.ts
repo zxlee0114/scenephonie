@@ -15,6 +15,14 @@
 /** 清單的環境變數名。 */
 export const ALLOWLIST_ENV = "AUTH_ALLOWED_EMAILS";
 
+/**
+ * 被清單擋下時的錯誤碼 —— OAuth callback 會把它原樣接在 `errorCallbackURL` 後面
+ * （`/login?error=not_invited&error_description=…`），登入頁靠它認出「這是 allowlist，不是 Google 壞了」。
+ *
+ * 寫法跟 Better Auth 自己的 callback 錯誤碼一樣是小寫 snake case（`state_mismatch`…）。
+ */
+export const NOT_INVITED_ERROR = "not_invited";
+
 /** 逗號分隔 → 正規化過的 email 集合。空白與空項目一律丟掉。 */
 export function parseAllowlist(raw: string | undefined): string[] {
   return (raw ?? "")
