@@ -15,6 +15,7 @@ import {
   shareDeliveryAction,
   shareLinksAction,
   shareLiveAction,
+  shareSnapshotAction,
 } from "./actions";
 import { ScreenplayWorkspace } from "./workspace";
 
@@ -86,6 +87,7 @@ export default async function EditorLayout({
         sharing={{
           shareDelivery: shareDeliveryAction,
           shareLive: shareLiveAction,
+          shareSnapshot: shareSnapshotAction,
           shareLinks: shareLinksAction,
           revoke: revokeShareLinkAction,
         }}

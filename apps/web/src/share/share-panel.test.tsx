@@ -17,11 +17,16 @@ const frozen = (changedSince: boolean): SharedLinkSummary => ({
   delivery: { deliveredAt: new Date("2026-10-20T06:30:00Z"), changedSince },
 });
 
-function mount(initial: SharedLinkSummary[]) {
+function mount(initial: SharedLinkSummary[], { saved = true } = {}) {
   let links = [...initial];
   const list = vi.fn(async () => links);
   const shareLive = vi.fn(async () => {
     links = [live, ...links];
+    return true;
+  });
+  const flush = vi.fn(async () => saved);
+  const shareSnapshot = vi.fn(async () => {
+    links = [...links, frozen(false)];
     return true;
   });
   const revoke = vi.fn(async (shareId: string) => {
@@ -29,9 +34,16 @@ function mount(initial: SharedLinkSummary[]) {
     return true;
   });
   render(
-    <SharePanel list={list} shareLive={shareLive} revoke={revoke} urlOf={(token) => `https://x.test/s/${token}`} />,
+    <SharePanel
+      list={list}
+      shareLive={shareLive}
+      flush={flush}
+      shareSnapshot={shareSnapshot}
+      revoke={revoke}
+      urlOf={(token) => `https://x.test/s/${token}`}
+    />,
   );
-  return { list, shareLive, revoke };
+  return { list, shareLive, flush, shareSnapshot, revoke };
 }
 
 const openPanel = () => act(async () => void fireEvent.click(screen.getByRole("button", { name: "分享" })));
@@ -75,5 +87,36 @@ describe("分享面板", () => {
     expect(revoke).toHaveBeenCalledWith("sh_live");
     expect(within(dialog()).queryByRole("textbox", { name: "即時連結" })).toBeNull();
     expect(within(dialog()).getByRole("button", { name: "建立即時連結" })).toBeTruthy();
+  });
+
+  it("「複製」把網址放進剪貼簿，鈕上換成「已複製」", async () => {
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    mount([live]);
+    await openPanel();
+
+    await act(async () => void fireEvent.click(within(dialog()).getByRole("button", { name: "複製" })));
+
+    expect(writeText).toHaveBeenCalledWith("https://x.test/s/tok-live");
+    expect(within(dialog()).getByRole("button", { name: "已複製" })).toBeTruthy();
+  });
+
+  it("「建立交付連結」先存檔，再用那一刻的存檔建交付連結；存不進去就不建", async () => {
+    const { flush, shareSnapshot } = mount([]);
+    await openPanel();
+
+    await act(async () => void fireEvent.click(within(dialog()).getByRole("button", { name: "建立交付連結" })));
+
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(shareSnapshot).toHaveBeenCalledTimes(1);
+    expect(within(dialog()).getByRole("textbox", { name: "2026-10-20 14:30 交付" })).toBeTruthy();
+
+    cleanup();
+    const unsaved = mount([], { saved: false });
+    await openPanel();
+    await act(async () => void fireEvent.click(within(dialog()).getByRole("button", { name: "建立交付連結" })));
+
+    expect(unsaved.shareSnapshot).not.toHaveBeenCalled();
+    expect(within(dialog()).getByRole("alert")).toBeTruthy();
   });
 });

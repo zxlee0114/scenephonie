@@ -28,6 +28,8 @@ import { requestFocus } from "./focus";
 import type { SaveScreenplay } from "./save-capability";
 import { requestNextScene } from "./extensions/next-scene";
 import { cursorSceneId, revealScene, scrollToSceneOf } from "./scene-anchor";
+import { SharePanel, type SharePanelCapability } from "@/share/SharePanel";
+
 import { SceneNavView } from "./scene-nav-view";
 import { SceneTableView } from "./scene-table-view";
 import { PointMenu } from "./point-menu";
@@ -182,6 +184,7 @@ export function ScreenplayEditor({
   view = "script",
   onShowScript,
   exportPdf,
+  share,
 }: {
   initialContent?: object;
   initialFocus?: InitialFocus;
@@ -202,6 +205,11 @@ export function ScreenplayEditor({
    * 讀寫的是手上這份 doc，是這裡的。
    */
   exportPdf?: Pick<ExportPdfCapability, "createDelivery" | "pdfUrl" | "shareDelivery">;
+  /**
+   * 分享面板（票券 20）：連結的讀寫由路由層注入；「建立交付連結」之前先存檔，存檔是這裡的。
+   * 劇本與場次表兩個視圖都有它。
+   */
+  share?: Omit<SharePanelCapability, "flush">;
 }) {
   const editor = useScreenplayEditor(initialContent, initialFocus);
   const { status, flush } = useAutosave({ editor, screenplayId, initialToken, save });
@@ -282,6 +290,7 @@ export function ScreenplayEditor({
           )}
         </div>
       </div>
+      {share && <SharePanel flush={flush} {...share} />}
       {view === "table" && editor && (
         <SceneTableView
           editor={editor}

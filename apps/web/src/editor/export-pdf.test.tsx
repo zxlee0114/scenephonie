@@ -425,7 +425,9 @@ describe("匯出前防呆", () => {
  * 只在編劇按「取得這次交付的連結」時才鑄。否則「我只是想印一份 PDF」會在背後多出一條公開網址。
  */
 describe("取得這次交付的連結", () => {
-  it("匯出本身不鑄連結；印好之後按了才鑄，連結指向剛才那一筆交付", async () => {
+  it("匯出本身不鑄連結；印好之後按了才鑄，連結指向剛才那一筆交付，並且直接複製", async () => {
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     const { shareDelivery } = mount();
     open();
     await submit();
@@ -439,6 +441,8 @@ describe("取得這次交付的連結", () => {
     const link = screen.getByRole("textbox", { name: "這次交付的連結" }) as HTMLInputElement;
     expect(link.value).toBe("https://x.test/s/tok-dl_1");
     expect(link.readOnly).toBe(true);
+    expect(writeText).toHaveBeenCalledWith("https://x.test/s/tok-dl_1");
+    expect(await screen.findByRole("button", { name: "已複製" })).toBeTruthy();
   });
 
   it("PDF 沒印出來也拿得到連結 —— 交付已經建立了，連結指的是它，不是那份紙", async () => {

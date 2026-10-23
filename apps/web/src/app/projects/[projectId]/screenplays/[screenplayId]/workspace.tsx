@@ -9,7 +9,6 @@ import type { ComponentProps } from "react";
 
 import { useView } from "@/app/view-switch";
 import { ScreenplayEditor } from "@/editor/ScreenplayEditor";
-import { SharePanel } from "@/share/SharePanel";
 
 import type {
   createDeliveryAction,
@@ -17,12 +16,14 @@ import type {
   shareDeliveryAction,
   shareLinksAction,
   shareLiveAction,
+  shareSnapshotAction,
 } from "./actions";
 
-/** 分享（票券 20）的四支 action。型別跟著 action 走。 */
+/** 分享（票券 20）的五支 action。型別跟著 action 走。 */
 export interface SharingActions {
   shareDelivery: typeof shareDeliveryAction;
   shareLive: typeof shareLiveAction;
+  shareSnapshot: typeof shareSnapshotAction;
   shareLinks: typeof shareLinksAction;
   revoke: typeof revokeShareLinkAction;
 }
@@ -31,7 +32,10 @@ export interface SharingActions {
 const shareUrl = (token: string) => `${window.location.origin}/s/${token}`;
 
 export function ScreenplayWorkspace(
-  props: Omit<ComponentProps<typeof ScreenplayEditor>, "view" | "onShowScript" | "exportPdf"> & {
+  props: Omit<
+    ComponentProps<typeof ScreenplayEditor>,
+    "view" | "onShowScript" | "exportPdf" | "share"
+  > & {
     base: string;
     /** 匯出意圖。型別跟著 action 走，不另抄一份。 */
     createDelivery: typeof createDeliveryAction;
@@ -42,37 +46,42 @@ export function ScreenplayWorkspace(
   const router = useRouter();
   const { screenplayId } = editorProps;
   return (
-    <>
-      {screenplayId && (
-        <SharePanel
-          list={() => sharing.shareLinks({ screenplayId })}
-          shareLive={() => sharing.shareLive({ screenplayId })}
-          revoke={(shareId) => sharing.revoke({ screenplayId, shareId })}
-          urlOf={shareUrl}
-        />
-      )}
-      <ScreenplayEditor
-        {...editorProps}
-        view={useView()}
-        onShowScript={() => router.push(base)}
-        exportPdf={
-          screenplayId
-            ? {
-                createDelivery: async () => {
-                  const result = await createDelivery({ screenplayId });
-                  return result.status === "delivered" ? result.deliveryId : null;
-                },
-                // 交付的 PDF 住在劇本底下（`./deliveries/[deliveryId]/pdf`）—— 讀的是那一筆交付。
-                pdfUrl: (deliveryId, query) => `${base}/deliveries/${deliveryId}/pdf?${query}`,
-                // 凍結分享：按了「取得這次交付的連結」才鑄（票券 20）。
-                shareDelivery: async (deliveryId) => {
-                  const token = await sharing.shareDelivery({ screenplayId, deliveryId });
-                  return token ? shareUrl(token) : null;
-                },
-              }
-            : undefined
-        }
-      />
-    </>
+    <ScreenplayEditor
+      {...editorProps}
+      view={useView()}
+      onShowScript={() => router.push(base)}
+      share={
+        screenplayId
+          ? {
+              list: () => sharing.shareLinks({ screenplayId }),
+              shareLive: () => sharing.shareLive({ screenplayId }),
+              shareSnapshot: () => sharing.shareSnapshot({ screenplayId }),
+              revoke: (shareId) => sharing.revoke({ screenplayId, shareId }),
+              urlOf: shareUrl,
+            }
+          : undefined
+      }
+      exportPdf={
+        screenplayId
+          ? {
+              createDelivery: async () => {
+                const result = await createDelivery({ screenplayId });
+                return result.status === "delivered" ? result.deliveryId : null;
+              },
+              // 交付的 PDF 住在劇本底下（`./deliveries/[deliveryId]/pdf`）—— 讀的是那一筆交付。
+              pdfUrl: (deliveryId, query) =>
+                `${base}/deliveries/${deliveryId}/pdf?${query}`,
+              // 凍結分享：按了「取得這次交付的連結」才鑄（票券 20）。
+              shareDelivery: async (deliveryId) => {
+                const token = await sharing.shareDelivery({
+                  screenplayId,
+                  deliveryId,
+                });
+                return token ? shareUrl(token) : null;
+              },
+            }
+          : undefined
+      }
+    />
   );
 }

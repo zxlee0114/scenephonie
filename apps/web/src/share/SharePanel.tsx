@@ -1,14 +1,16 @@
 /**
  * 分享面板（票券 20，§10）—— 編劇自己的那一側。
  *
- * - **即時連結是面板上唯一可以建立的東西。** 凍結連結不是這裡的第二個選項（那會退化成 Figma 藏在
- *   版本歷史裡的那個開關），而是匯出 PDF 的副產品「取得這次交付的連結」。
- * - **交付的連結**只列出來：交付時間，與「之後劇本已有修改」—— 這句只在編劇自己的清單上說，凍結頁
- *   的讀者永遠看不到（§10.2：有用且零洩漏）。
+ * - **即時連結**：一份劇本一條，建立了就一直跟著存檔走。
+ * - **交付連結**：匯出 PDF 時「取得這次交付的連結」是一條路；這裡的「建立交付連結」是另一條 ——
+ *   先把手上的存掉，用那一刻的存檔建立一筆交付（不印 PDF），再鑄它的連結（使用者裁決，2026-10-23）。
+ *   清單上有交付時間，與「之後劇本已有修改」—— 這句只在編劇自己的清單上說，凍結頁的讀者永遠看不到
+ *   （§10.2：有用且零洩漏）。
  * - **停用**要確認一次：停了就打不開，重新分享是新的網址（舊的那列留著，不復活）。
  * - **零配置**：沒有標題、沒有密碼、沒有有效期（§10.3）。
  *
- * 讀寫都是注入的（路由層接 Server Action）—— 這裡只認得 token，網址怎麼組也由呼叫端決定。
+ * 讀寫都是注入的（路由層接 Server Action，存檔是編輯器的）—— 這裡只認得 token，網址怎麼組也由
+ * 呼叫端決定。
  */
 "use client";
 
@@ -16,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
 
 import "../styles/share.css";
 import { minuteText } from "./banner";
+import { CopyLink } from "./CopyLink";
 
 /** 清單上的一條有效連結。`delivery` 為 `null` ＝ 即時連結。 */
 export interface SharedLinkSummary {
@@ -29,13 +32,17 @@ export interface SharePanelCapability {
   list: () => Promise<SharedLinkSummary[]>;
   /** 建立即時連結（已有就拿回那一條）。`false` ＝ 沒建起來。 */
   shareLive: () => Promise<boolean>;
+  /** 把手上還沒存的存掉。`false` ＝ 沒存進去 —— 那就不建交付連結（拍到的不會是編劇眼前那一份）。 */
+  flush: () => Promise<boolean>;
+  /** 用現在的存檔建立一筆交付並鑄它的連結。`false` ＝ 沒建起來。 */
+  shareSnapshot: () => Promise<boolean>;
   /** 停用一條。`false` ＝ 沒停到。 */
   revoke: (shareId: string) => Promise<boolean>;
   /** token → 完整網址。 */
   urlOf: (token: string) => string;
 }
 
-export function SharePanel({ list, shareLive, revoke, urlOf }: SharePanelCapability) {
+export function SharePanel({ list, shareLive, flush, shareSnapshot, revoke, urlOf }: SharePanelCapability) {
   const [open, setOpen] = useState(false);
   const [links, setLinks] = useState<SharedLinkSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -120,13 +127,14 @@ export function SharePanel({ list, shareLive, revoke, urlOf }: SharePanelCapabil
               </p>
             ) : (
               <>
+                <p className="share-panel__hint">任何有連結的人都可以觀看劇本及場次表，不含草稿。</p>
+
                 <section className="share-panel__section">
-                  <p className="share-panel__hint">
-                    拿到連結的人不必登入，就能看劇本與場次表。看到的永遠是最新存檔的版本，不含草稿。
-                  </p>
+                  <h3 className="share-panel__subtitle">即時連結</h3>
+                  <p className="share-panel__hint">此連結在每次存檔時都會即時更新內容。</p>
                   {live ? (
                     <LinkRow
-                      label="即時連結"
+                      name="即時連結"
                       url={urlOf(live.token)}
                       working={working}
                       onRevoke={() => void run(() => revoke(live.shareId))}
@@ -138,25 +146,37 @@ export function SharePanel({ list, shareLive, revoke, urlOf }: SharePanelCapabil
                   )}
                 </section>
 
-                {frozen.length > 0 && (
-                  <section className="share-panel__section">
-                    <h3 className="share-panel__subtitle">交付的連結</h3>
-                    <p className="share-panel__hint">每一條都停在那一次交付的內容；讀的人不會知道之後的改動。</p>
+                <section className="share-panel__section">
+                  <h3 className="share-panel__subtitle">交付連結</h3>
+                  <p className="share-panel__hint">顯示產生連結時的內容頁面，不受後續編輯影響。</p>
+                  {frozen.length > 0 && (
                     <ul className="share-panel__list">
-                      {frozen.map((link) => (
-                        <li key={link.shareId}>
-                          <LinkRow
-                            label={`${minuteText(link.delivery!.deliveredAt)} 交付`}
-                            note={link.delivery!.changedSince ? "之後劇本已有修改" : undefined}
-                            url={urlOf(link.token)}
-                            working={working}
-                            onRevoke={() => void run(() => revoke(link.shareId))}
-                          />
-                        </li>
-                      ))}
+                      {frozen.map((link) => {
+                        const name = `${minuteText(link.delivery!.deliveredAt)} 交付`;
+                        return (
+                          <li key={link.shareId}>
+                            <LinkRow
+                              name={name}
+                              label={name}
+                              note={link.delivery!.changedSince ? "之後劇本已有修改" : undefined}
+                              url={urlOf(link.token)}
+                              working={working}
+                              onRevoke={() => void run(() => revoke(link.shareId))}
+                            />
+                          </li>
+                        );
+                      })}
                     </ul>
-                  </section>
-                )}
+                  )}
+                  <button
+                    type="button"
+                    className="share-panel__create"
+                    disabled={working}
+                    onClick={() => void run(async () => (await flush()) && (await shareSnapshot()))}
+                  >
+                    建立交付連結
+                  </button>
+                </section>
               </>
             )}
 
@@ -178,15 +198,17 @@ export function SharePanel({ list, shareLive, revoke, urlOf }: SharePanelCapabil
   );
 }
 
-/** 一條連結：名字、（漂移）、唯讀網址（點一下全選好複製）、停用（按兩次）。 */
+/** 一條連結：名字、（漂移）、唯讀網址、複製、停用（按兩次）。 */
 function LinkRow({
+  name,
   label,
   note,
   url,
   working,
   onRevoke,
 }: {
-  label: string;
+  name: string;
+  label?: string;
   note?: string;
   url: string;
   working: boolean;
@@ -195,27 +217,35 @@ function LinkRow({
   const [confirming, setConfirming] = useState(false);
   return (
     <div className="share-panel__link">
-      <label className="share-panel__field">
-        <span>
-          {label}
-          {note && <span className="share-panel__note"> · {note}</span>}
-        </span>
-        <input type="text" readOnly value={url} onFocus={(e) => e.currentTarget.select()} />
-      </label>
-      {confirming ? (
-        <span className="share-panel__confirm">
-          停用後這個網址就打不開了。
-          <button type="button" onClick={() => setConfirming(false)} disabled={working}>
-            取消
-          </button>
-          <button type="button" className="share-panel__danger" onClick={onRevoke} disabled={working}>
-            確定停用
-          </button>
-        </span>
-      ) : (
-        <button type="button" onClick={() => setConfirming(true)} disabled={working}>
+      <CopyLink
+        name={name}
+        label={
+          label && (
+            <>
+              {label}
+              {note && <span className="share-panel__note"> · {note}</span>}
+            </>
+          )
+        }
+        url={url}
+      >
+        {/* 確認期間留在原位（變灰），網址那一列才不會跳。 */}
+        <button type="button" onClick={() => setConfirming(true)} disabled={working || confirming}>
           停用
         </button>
+      </CopyLink>
+      {confirming && (
+        <div className="share-panel__confirm">
+          <span>停用之後，連結將會失效</span>
+          <span className="share-panel__confirm-actions">
+            <button type="button" onClick={() => setConfirming(false)} disabled={working}>
+              取消
+            </button>
+            <button type="button" className="share-panel__danger" onClick={onRevoke} disabled={working}>
+              確定停用
+            </button>
+          </span>
+        </div>
       )}
     </div>
   );

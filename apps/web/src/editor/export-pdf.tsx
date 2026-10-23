@@ -39,6 +39,7 @@ import {
   type ExportOptions,
   type PrintFont,
 } from "@/pdf/export-options";
+import { CopyLink } from "@/share/CopyLink";
 
 /** 匯出要用到的三樣能力，全部由路由層注入。 */
 export interface ExportPdfCapability {
@@ -437,15 +438,14 @@ export function ExportPdf({
 }
 
 /**
- * 凍結分享的把手。按了才鑄；鑄好了是一格唯讀的網址（點一下全選，好複製）。
+ * 凍結分享的把手。按了才鑄；鑄好了直接複製進剪貼簿（按這顆鈕就是要那條網址），框右邊說「已複製」。
  */
 function DeliveryLink({ link, onGet }: { link: Link; onGet: () => void }) {
   if (link.kind === "ready") {
     return (
-      <label className="export-pdf__field export-pdf__link">
-        <span>這次交付的連結</span>
-        <input type="text" readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} />
-      </label>
+      <div className="export-pdf__link">
+        <CopyLink name="這次交付的連結" label="這次交付的連結" url={link.url} autoCopy />
+      </div>
     );
   }
   return (
@@ -453,7 +453,7 @@ function DeliveryLink({ link, onGet }: { link: Link; onGet: () => void }) {
       <button type="button" onClick={onGet} disabled={link.kind === "working"}>
         取得這次交付的連結
       </button>
-      <p className="export-pdf__hint">拿到連結的人看到的永遠是這一次交付的內容，之後改稿不會影響它。</p>
+      <p className="export-pdf__hint">此連結將是這次交付內容的快照，不會受後續編輯影響。</p>
       {link.kind === "failed" && (
         <p className="export-pdf__status export-pdf__status--loud" role="alert">
           連結沒有建立起來（連線問題？），再按一次試試。

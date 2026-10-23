@@ -121,7 +121,19 @@ export async function shareDeliveryAction(request: { screenplayId: string; deliv
   return (await shareDelivery(screenplay, request.deliveryId))?.token ?? null;
 }
 
-/** 建立即時連結（已有就拿回那一條）—— 分享面板上唯一可以建立的東西。 */
+/**
+ * 分享面板的「建立交付連結」：用現在的存檔建立一筆交付（不印 PDF），再鑄它的連結。存檔是呼叫端先做的。
+ * 交付建了、連結沒鑄成也無妨 —— 快照必然、連結自願（§10.2），重按是另一筆交付。
+ */
+export async function shareSnapshotAction(request: { screenplayId: string }): Promise<boolean> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return false;
+  const delivery = await createDelivery(screenplay);
+  if (!delivery) return false;
+  return (await shareDelivery(screenplay, delivery.deliveryId)) !== null;
+}
+
+/** 建立即時連結（已有就拿回那一條）。 */
 export async function shareLiveAction(request: { screenplayId: string }): Promise<boolean> {
   const screenplay = await authorizeScreenplay(request.screenplayId);
   if (!screenplay) return false;
