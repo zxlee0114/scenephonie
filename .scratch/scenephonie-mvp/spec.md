@@ -574,7 +574,7 @@ future collaboration = Yjs（票券 19 已驗證可行）
 | `characters` | `id`（`ch_`）, `project_id`, `name`, `description` | append-only |
 | `locations` | `id`（`lo_`）, `project_id`, `name` | append-only，**無描述欄** |
 | `documents` | `id`, **`project_id`（必填）**, **`screenplay_id`（可為 null）**, `kind`, `body jsonb`, `doc_schema_version`, `doc_seq` | 見不變式 F |
-| `deliveries` | `id`, `screenplay_id`, `created_at`, `payload jsonb`, `source_doc_seq` | append-only、**唯一刻意不可變**、**無** `doc_seq`／`doc_schema_version`；`source_doc_seq` 是建立時拍下的來源記錄（票券 20，ADR-0007 修訂） |
+| `deliveries` | `id`, `screenplay_id`, `created_at`, `payload jsonb` | append-only、**唯一刻意不可變**、**無** `doc_seq`／`doc_schema_version` |
 | `share_links` | `id`, `screenplay_id`, `delivery_id`（null ＝ 即時分享）, `token`, `created_at`, `revoked_at` | token **opaque 且不可枚舉** |
 | `screenplay_backups` | `id`, `screenplay_id`, `doc jsonb`, `created_at` | append-only before-image、**無 UI** |
 
@@ -725,7 +725,7 @@ PDF、場次表、匯出前草稿清單**共用同一次走訪**（場次號、�
 
 一個隨程式碼走、一個隨資料走。**命名刻意避開「版本／版次／revision／鎖定」**，因為版本鎖定是已否決的功能：
 
-> `doc_seq` 是每一次**成功改變 canonical document state** 的 optimistic concurrency token。它不是自動存檔次數、不是版次、不是任何產品概念。不對使用者曝露，與交付無關（唯一的接點：交付記下它建立時的 `source_doc_seq`，見 ADR-0007 2026-10-23 修訂）。
+> `doc_seq` 是每一次**成功改變 canonical document state** 的 optimistic concurrency token。它不是自動存檔次數、不是版次、不是任何產品概念。不對使用者曝露，與交付無關。
 
 **`doc_schema_version` 存成欄位，不存在 doc JSON 裡** —— 查得到「還有幾份停在舊版」、載入前就知道要不要遷移、避免兩個權威。
 
@@ -1205,7 +1205,7 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 - 路徑 `/s/<token>`，**免註冊可看**，劇本與場次表是**同一個 share 的兩個視圖**（頁內切換）。
 - **頁頂固定一行**：「即時連結 · 最後更新於 X」。它的價值不在資訊量，而在**讓漂移變得可察覺** —— PDF 有實體差異可察覺，活連結什麼都沒有。
 - ⚠️ **「內容是否變更」以 `doc_seq` 定義；timestamp 只是那個 canonical 事實的人類可讀投影，不是判準本身。**
-  > **補充（2026-10-23，票券 20 使用者裁決）**：**改實體名也算變更** —— 只算分享內容印得出名字的那幾個（正式場次的地點與出場人物）。改名不推進 `doc_seq`（實體屬於專案、不屬於 doc），所以即時頁的「最後更新於」取劇本存檔與那些實體改名的較晚者；編劇清單的漂移判準是「`source_doc_seq` 落後」**或**「doc 沒動、但現在的投影與交付拍下的不同」。
+  > **補充（2026-10-23，票券 20 使用者裁決）**：分享出去的是**交付投影**（草稿不進），所以「變更」量的是投影，不是 `doc_seq`。**改實體名算**（只算正式場次的地點與出場人物 —— 改名不推進 `doc_seq`，但印出來的字變了）；**只改草稿不算**。編劇清單的漂移＝用現在的存檔與實體名再推導一次，跟交付拍下的 payload 不同。即時頁的「最後更新於」取劇本存檔與那些實體改名的較晚者 —— 它目前仍會因只改草稿的存檔而前進（要精確得另存投影的變更時間，v1 不做）。
 
 ### 10.2 凍結分享
 
@@ -1229,7 +1229,7 @@ GHSA 範本把**行內式**與**置中分行式**都列為可接受的參考範�
 | 性質 | **唯一刻意不可變** | before-image、recovery |
 | UI | 凍結連結 | **無** |
 | 清理策略 | 不可碰 | 可被清理策略碰 |
-| `doc_seq`／`doc_schema_version` | **無**（不被載入編輯、不遷移）；只有 `source_doc_seq` —— 建立時拍下的來源記錄，只寫一次，給編劇的分享清單判斷「之後改過沒」（票券 20，2026-10-23 使用者裁決） | 有 |
+| `doc_seq`／`doc_schema_version` | **無**（不被載入編輯、不遷移） | 有 |
 
 **混用會讓「唯一刻意不可變」這條分野失效。**
 

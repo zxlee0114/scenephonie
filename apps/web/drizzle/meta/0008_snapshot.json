@@ -262,12 +262,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
-        },
-        "source_doc_seq": {
-          "name": "source_doc_seq",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
         }
       },
       "indexes": {

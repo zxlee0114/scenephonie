@@ -355,14 +355,6 @@ export const deliveries = pgTable(
       .references(() => screenplays.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     payload: jsonb("payload").notNull(),
-    /**
-     * 交付拍下的是哪一個 canonical state —— 建立當下劇本的 `doc_seq`，同一個交易裡讀的（票券 20）。
-     *
-     * **來源記錄，不是並行 token、也不是遷移鏈的一節**（§10.4 擋的是「交付被載入編輯、被遷移」，
-     * 這一欄兩件事都不做）。它只回答一個問題：編劇的分享清單上「這條連結凍結之後，劇本又改過了嗎」
-     * —— 「是否變更」以 `doc_seq` 定義（§10.1），timestamp 只是它的人類可讀投影。只寫一次。
-     */
-    sourceDocSeq: bigint("source_doc_seq", { mode: "number" }).notNull(),
   },
   // 凍結分享（票券 20）與編劇自己的分享清單問的是「這份劇本有哪些交付」。
   (table) => [index("deliveries_screenplay_id_created_at_idx").on(table.screenplayId, table.createdAt.desc())],

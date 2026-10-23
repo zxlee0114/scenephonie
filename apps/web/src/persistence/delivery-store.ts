@@ -67,8 +67,6 @@ export async function createDelivery(screenplay: AuthorizedScreenplay): Promise<
           id: mintId(DELIVERY_ID_PREFIX),
           screenplayId: screenplay.screenplayId,
           payload: current.payload,
-          // 拍的是哪一個 canonical state —— 同一個快照裡讀的，分享清單拿它判斷「之後改過沒」（票券 20）。
-          sourceDocSeq: current.docSeq,
         })
         .returning({ deliveryId: deliveries.id, createdAt: deliveries.createdAt });
       return { deliveryId: row!.deliveryId, createdAt: row!.createdAt, payload: current.payload };
@@ -94,12 +92,11 @@ export async function projectCanonical(
   tx: Transaction,
   // 只收 handle：讀 live doc 的路一律要先過 gate（編劇的劇本 handle，或分享連結的 viewer）。
   screenplay: AuthorizedScreenplay | ShareViewer,
-): Promise<{ payload: DeliveryPayload; docSeq: number; updatedAt: Date } | null> {
+): Promise<{ payload: DeliveryPayload; updatedAt: Date } | null> {
   const [current] = await tx
     .select({
       doc: screenplays.doc,
       docSchemaVersion: screenplays.docSchemaVersion,
-      docSeq: screenplays.docSeq,
       updatedAt: screenplays.updatedAt,
     })
     .from(screenplays)
@@ -130,7 +127,7 @@ export async function projectCanonical(
     ...locationRows.filter((r) => locationIds.has(r.id)),
   ].map((r) => r.updatedAt.getTime());
   const updatedAt = new Date(Math.max(current.updatedAt.getTime(), ...renamedAt));
-  return { payload, docSeq: current.docSeq, updatedAt };
+  return { payload, updatedAt };
 }
 
 /**
@@ -153,16 +150,13 @@ export async function loadDelivery(
 }
 
 /**
- * 這份劇本的哪幾筆交付，之後 canonical state 又變過了（票券 20）—— 編劇自己的分享清單上那一句
- * 「這條連結凍結在 3 天前，之後劇本已有修改」。
+ * 這份劇本的哪幾筆交付，交付出去的內容之後又變了（票券 20）—— 編劇自己的分享清單上那一句
+ * 「之後劇本已有修改」。
  *
- * 判準不是時間戳（§10.1），是兩件事其一：
- * - 交付拍下的 `source_doc_seq` 落後劇本現在的 `doc_seq` ＝ 之後存過檔；
- * - doc 沒動，但現在推導出來的投影跟交付拍下的不一樣 ＝ 交付裡印得出名字的實體改過名。改名不推進
- *   `doc_seq`，所以只能比投影本身 —— doc 相同時兩份投影只可能差在實體名，比較是精確的（改了沒印
- *   出來的實體不算）。jsonb 不保留鍵序，所以用結構相等比。
- *
- * `doc_seq` 因此不必離開這個模組 —— 外面拿到的只有「哪幾筆」。
+ * 判準是**投影**，不是 `doc_seq`、也不是時間戳：用現在的存檔與實體名再推導一次交付，跟那筆交付拍下的
+ * payload 比。草稿不進交付，所以只改草稿不算；改了交付印得出名字的實體算（改名不推進 `doc_seq`）；
+ * 改了又改回來也不算 —— 讀那條連結的人看到的，跟現在分享出去會看到的一模一樣（使用者裁決，2026-10-23）。
+ * jsonb 不保留鍵序，所以用結構相等比。日後 payload 換版本，舊交付會一律被當成「改過」（保守）。
  *
  * ⚠️ **只給編劇看**（handle 是劇本的）：不對凍結連結的讀者說「作者後來又改了」（§10.2）。
  */
@@ -175,14 +169,10 @@ export async function deliveriesChangedSince(screenplay: AuthorizedScreenplay): 
       const now = JSON.parse(JSON.stringify(current.payload)) as DeliveryPayload;
 
       const rows = await tx
-        .select({ deliveryId: deliveries.id, sourceDocSeq: deliveries.sourceDocSeq, payload: deliveries.payload })
+        .select({ deliveryId: deliveries.id, payload: deliveries.payload })
         .from(deliveries)
         .where(eq(deliveries.screenplayId, screenplay.screenplayId));
-      return new Set(
-        rows
-          .filter((r) => r.sourceDocSeq < current.docSeq || !isDeepStrictEqual(r.payload, now))
-          .map((r) => r.deliveryId),
-      );
+      return new Set(rows.filter((r) => !isDeepStrictEqual(r.payload, now)).map((r) => r.deliveryId));
     },
     { isolationLevel: "repeatable read", accessMode: "read only" },
   );

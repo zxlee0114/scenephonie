@@ -116,8 +116,11 @@ describe.skipIf(!hasDatabase)("share store（需要 Postgres）", () => {
     expect(await shareDelivery(mine, delivery!.deliveryId)).toBeNull();
   });
 
-  it("編劇的清單看得到漂移：交付之後存過檔才算「之後改過」", async () => {
-    const screenplay = await freshScreenplay();
+  it("編劇的清單看得到漂移：交付出去的內容之後變了才算「之後改過」，只改草稿不算", async () => {
+    const project = (await authorizeProjectForUser(ownerId, projectId))!;
+    const room = await createLocation(project, { name: "房間" });
+    const formal = formalAt(room.id, "房間");
+    const screenplay = await freshScreenplay(docOf(formal));
     const delivery = await createDelivery(screenplay);
     const link = await shareDelivery(screenplay, delivery!.deliveryId);
 
@@ -128,8 +131,14 @@ describe.skipIf(!hasDatabase)("share store（需要 Postgres）", () => {
       changedSince: false,
     });
 
-    const loaded = await loadScreenplay(screenplay);
-    await saveScreenplay({ screenplay, doc: docOf(scene("改過的稿")), token: loaded!.token });
+    // 存了檔，但只多了一場草稿 —— 交付出去的那一份長得一模一樣。
+    let loaded = await loadScreenplay(screenplay);
+    await saveScreenplay({ screenplay, doc: docOf(formal, scene("還沒想好")), token: loaded!.token });
+    expect((await listShareLinks(screenplay))[0]?.delivery?.changedSince).toBe(false);
+
+    loaded = await loadScreenplay(screenplay);
+    const rewritten = { ...formal, content: [{ type: "action", content: [{ type: "text", text: "改過的稿" }] }] };
+    await saveScreenplay({ screenplay, doc: docOf(rewritten, scene("還沒想好")), token: loaded!.token });
 
     const [after] = await listShareLinks(screenplay);
     expect(after).toMatchObject({ shareId: link!.shareId, delivery: { changedSince: true } });
