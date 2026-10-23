@@ -282,7 +282,7 @@
   color: var(--text-faint);
 }
 
-.share-panel .share-panel__memo-button:hover:not(:disabled) {
+.share-panel .share-panel__memo-button:hover:not(:disabled, [aria-disabled="true"]) {
   color: var(--text-primary);
 }
 
@@ -373,7 +373,8 @@
   cursor: pointer;
 }
 
-.share-panel button:disabled {
+.share-panel button:disabled,
+.share-panel button[aria-disabled="true"] {
   opacity: 0.5;
   cursor: default;
 }

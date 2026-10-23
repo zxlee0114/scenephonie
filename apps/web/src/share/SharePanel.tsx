@@ -356,8 +356,16 @@ function LinkRow({
                     className="share-panel__memo-button"
                     aria-label={shownNote ? "編輯備註" : "新增備註"}
                     title={shownNote ? "編輯備註" : "新增備註"}
-                    onClick={() => setEditingNote(true)}
-                    disabled={working || editingNote}
+                    // 編輯中不用 `disabled`：點一顆停用的鈕，焦點照樣離開欄位 —— 欄位先 blur 收起來、
+                    // 鈕又恢復可按，看起來就閃一下。改成按下去不搶焦點、點了沒作用。
+                    aria-disabled={editingNote || undefined}
+                    onMouseDown={(e) => {
+                      if (editingNote) e.preventDefault();
+                    }}
+                    onClick={() => {
+                      if (!editingNote) setEditingNote(true);
+                    }}
+                    disabled={working}
                   >
                     <NoteIcon />
                   </button>

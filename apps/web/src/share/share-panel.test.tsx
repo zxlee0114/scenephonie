@@ -209,4 +209,20 @@ describe("分享面板", () => {
     await openPanel();
     expect(within(dialog()).queryByRole("button", { name: "新增備註" })).toBeNull();
   });
+
+  it("備註：編輯中再按鉛筆沒有作用 —— 欄位不收起來、焦點不離開（不閃）", async () => {
+    const { setNote } = mount([frozen(false)]);
+    await openPanel();
+    fireEvent.click(within(dialog()).getByRole("button", { name: "新增備註" }));
+    const note = within(dialog()).getByRole("textbox", { name: "2026-10-20 14:30 交付的備註" });
+    const pencil = within(dialog()).getByRole("button", { name: "新增備註" });
+
+    expect(pencil.getAttribute("aria-disabled")).toBe("true");
+    // 按下去的那一刻不搶走焦點 —— 欄位就不會先 blur 收起來、再被 click 打開。
+    expect(fireEvent.mouseDown(pencil)).toBe(false);
+    fireEvent.click(pencil);
+
+    expect(within(dialog()).getByRole("textbox", { name: "2026-10-20 14:30 交付的備註" })).toBe(note);
+    expect(setNote).not.toHaveBeenCalled();
+  });
 });
