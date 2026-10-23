@@ -10,8 +10,9 @@ import {
   createDeliveryAction,
   createEntityAction,
   renameEntityAction,
-  revokeShareLinkAction,
+  revokeShareLinksAction,
   saveScreenplayAction,
+  setShareLinkNoteAction,
   shareDeliveryAction,
   shareLinksAction,
   shareLiveAction,
@@ -89,7 +90,8 @@ export default async function EditorLayout({
           shareLive: shareLiveAction,
           shareSnapshot: shareSnapshotAction,
           shareLinks: shareLinksAction,
-          revoke: revokeShareLinkAction,
+          revoke: revokeShareLinksAction,
+          setNote: setShareLinkNoteAction,
         }}
       />
       {children}

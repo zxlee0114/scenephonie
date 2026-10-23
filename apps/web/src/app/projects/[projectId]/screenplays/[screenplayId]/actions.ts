@@ -7,7 +7,14 @@ import { createCharacter, createLocation, renameCharacter, renameLocation } from
 import type { CreateEntityRequest, RenameEntityRequest } from "@/editor/entity-capability";
 import type { SaveOutcome, SaveScreenplayRequest } from "@/editor/save-capability";
 import { createDelivery, saveScreenplay } from "@/persistence";
-import { listShareLinks, revokeShareLink, shareDelivery, shareLive, type ListedShareLink } from "@/share/share-store";
+import {
+  listShareLinks,
+  revokeShareLinks,
+  setShareLinkNote,
+  shareDelivery,
+  shareLive,
+  type ListedShareLink,
+} from "@/share/share-store";
 
 /**
  * 編輯器的存檔入口。
@@ -151,9 +158,20 @@ export async function shareLinksAction(request: { screenplayId: string }): Promi
   return listShareLinks(screenplay);
 }
 
-/** 停用一條連結：寫 `revoked_at`、保留那一列（§10.3）。 */
-export async function revokeShareLinkAction(request: { screenplayId: string; shareId: string }): Promise<boolean> {
+/** 停用連結（一條，或勾選的幾條）：寫 `revoked_at`、保留那幾列（§10.3）。`false` ＝ 一條都沒停到。 */
+export async function revokeShareLinksAction(request: { screenplayId: string; shareIds: string[] }): Promise<boolean> {
   const screenplay = await authorizeScreenplay(request.screenplayId);
   if (!screenplay) return false;
-  return revokeShareLink(screenplay, request.shareId);
+  return (await revokeShareLinks(screenplay, request.shareIds)) > 0;
+}
+
+/** 寫一條連結的備註（只有編劇看得到）。 */
+export async function setShareLinkNoteAction(request: {
+  screenplayId: string;
+  shareId: string;
+  note: string;
+}): Promise<boolean> {
+  const screenplay = await authorizeScreenplay(request.screenplayId);
+  if (!screenplay) return false;
+  return setShareLinkNote(screenplay, request.shareId, request.note);
 }

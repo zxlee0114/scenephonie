@@ -12,20 +12,22 @@ import { ScreenplayEditor } from "@/editor/ScreenplayEditor";
 
 import type {
   createDeliveryAction,
-  revokeShareLinkAction,
+  revokeShareLinksAction,
+  setShareLinkNoteAction,
   shareDeliveryAction,
   shareLinksAction,
   shareLiveAction,
   shareSnapshotAction,
 } from "./actions";
 
-/** 分享（票券 20）的五支 action。型別跟著 action 走。 */
+/** 分享（票券 20）的六支 action。型別跟著 action 走。 */
 export interface SharingActions {
   shareDelivery: typeof shareDeliveryAction;
   shareLive: typeof shareLiveAction;
   shareSnapshot: typeof shareSnapshotAction;
   shareLinks: typeof shareLinksAction;
-  revoke: typeof revokeShareLinkAction;
+  revoke: typeof revokeShareLinksAction;
+  setNote: typeof setShareLinkNoteAction;
 }
 
 /** 分享連結的完整網址 —— 分享出去的是網址，不是 token。 */
@@ -56,7 +58,9 @@ export function ScreenplayWorkspace(
               list: () => sharing.shareLinks({ screenplayId }),
               shareLive: () => sharing.shareLive({ screenplayId }),
               shareSnapshot: () => sharing.shareSnapshot({ screenplayId }),
-              revoke: (shareId) => sharing.revoke({ screenplayId, shareId }),
+              revoke: (shareIds) => sharing.revoke({ screenplayId, shareIds }),
+              setNote: (shareId, note) =>
+                sharing.setNote({ screenplayId, shareId, note }),
               urlOf: shareUrl,
             }
           : undefined

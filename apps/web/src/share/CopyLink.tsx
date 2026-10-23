@@ -27,6 +27,7 @@ export function CopyLink({
   label,
   url,
   autoCopy = false,
+  above,
   children,
 }: {
   /** 網址框的名字（無障礙）。沒有 `label` 時它就是唯一的名字。 */
@@ -35,6 +36,8 @@ export function CopyLink({
   label?: ReactNode;
   url: string;
   autoCopy?: boolean;
+  /** 夾在 `label` 與網址那一列之間的東西（分享面板的備註欄）。 */
+  above?: ReactNode;
   /** 同一列、排在「複製」後面的鈕（分享面板的「停用」）。 */
   children?: ReactNode;
 }) {
@@ -60,6 +63,7 @@ export function CopyLink({
           {label}
         </label>
       )}
+      {above}
       <div className="copy-link__row">
         <input id={id} type="text" readOnly value={url} aria-label={name} onFocus={(e) => e.currentTarget.select()} />
         <button type="button" className="copy-link__copy" aria-live="polite" onClick={() => void copy()}>

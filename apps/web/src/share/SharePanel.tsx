@@ -6,8 +6,10 @@
  *   先把手上的存掉，用那一刻的存檔建立一筆交付（不印 PDF），再鑄它的連結（使用者裁決，2026-10-23）。
  *   清單上有交付時間，與「之後劇本已有修改」—— 這句只在編劇自己的清單上說，凍結頁的讀者永遠看不到
  *   （§10.2：有用且零洩漏）。
- * - **停用**要確認一次：停了就打不開，重新分享是新的網址（舊的那列留著，不復活）。
- * - **零配置**：沒有標題、沒有密碼、沒有有效期（§10.3）。
+ * - **停用**要確認一次：停了就打不開，重新分享是新的網址（舊的那列留著，不復活）。交付連結可以勾選
+ *   幾條（或全選）一次停用 —— 不設上限、不自動停用最舊的：最舊的往往正是寄給評審的那一條。
+ * - **備註**：每條連結一行「這條給了誰」，只有編劇看得到（使用者裁決，2026-10-23）。除此之外仍是
+ *   零配置：沒有標題、沒有密碼、沒有有效期（§10.3）。
  *
  * 讀寫都是注入的（路由層接 Server Action，存檔是編輯器的）—— 這裡只認得 token，網址怎麼組也由
  * 呼叫端決定。
@@ -19,11 +21,14 @@ import { useEffect, useRef, useState } from "react";
 import "../styles/share.css";
 import { minuteText } from "./banner";
 import { CopyLink } from "./CopyLink";
+import { SHARE_NOTE_MAX_LENGTH } from "./share-note";
 
 /** 清單上的一條有效連結。`delivery` 為 `null` ＝ 即時連結。 */
 export interface SharedLinkSummary {
   shareId: string;
   token: string;
+  /** 編劇的備註；`null` ＝ 沒寫。 */
+  note: string | null;
   delivery: { deliveredAt: Date; changedSince: boolean } | null;
 }
 
@@ -36,13 +41,15 @@ export interface SharePanelCapability {
   flush: () => Promise<boolean>;
   /** 用現在的存檔建立一筆交付並鑄它的連結。`false` ＝ 沒建起來。 */
   shareSnapshot: () => Promise<boolean>;
-  /** 停用一條。`false` ＝ 沒停到。 */
-  revoke: (shareId: string) => Promise<boolean>;
+  /** 停用一條或幾條。`false` ＝ 一條都沒停到。 */
+  revoke: (shareIds: string[]) => Promise<boolean>;
+  /** 寫備註（空白 ＝ 拿掉）。`false` ＝ 沒寫進去。 */
+  setNote: (shareId: string, note: string) => Promise<boolean>;
   /** token → 完整網址。 */
   urlOf: (token: string) => string;
 }
 
-export function SharePanel({ list, shareLive, flush, shareSnapshot, revoke, urlOf }: SharePanelCapability) {
+export function SharePanel({ list, shareLive, flush, shareSnapshot, revoke, setNote, urlOf }: SharePanelCapability) {
   const [open, setOpen] = useState(false);
   const [links, setLinks] = useState<SharedLinkSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -82,14 +89,19 @@ export function SharePanel({ list, shareLive, flush, shareSnapshot, revoke, urlO
     trigger.current?.focus();
   };
 
-  // 讀完清單才有東西可以聚焦：落在面板的第一個控制項（建立即時連結，或那一格網址）。
+  // 讀完清單才有東西可以聚焦：落在即時連結那一格網址（或「建立即時連結」）—— 不落在備註欄，
+  // 一打開就像在等人打字。
   const loading = links === null;
   useEffect(() => {
-    if (open && !loading) panel.current?.querySelector<HTMLElement>(".share-panel__section button, .share-panel__section input")?.focus();
+    if (open && !loading)
+      panel.current
+        ?.querySelector<HTMLElement>(".share-panel__section .copy-link__row input, .share-panel__section > button")
+        ?.focus();
   }, [open, loading]);
 
   const live = links?.find((l) => l.delivery === null);
   const frozen = links?.filter((l) => l.delivery !== null) ?? [];
+  const noteOf = (link: SharedLinkSummary) => (note: string) => void run(() => setNote(link.shareId, note));
 
   return (
     <>
@@ -136,8 +148,10 @@ export function SharePanel({ list, shareLive, flush, shareSnapshot, revoke, urlO
                     <LinkRow
                       name="即時連結"
                       url={urlOf(live.token)}
+                      note={live.note}
                       working={working}
-                      onRevoke={() => void run(() => revoke(live.shareId))}
+                      onNote={noteOf(live)}
+                      onRevoke={() => void run(() => revoke([live.shareId]))}
                     />
                   ) : (
                     <button type="button" disabled={working} onClick={() => void run(shareLive)}>
@@ -150,23 +164,13 @@ export function SharePanel({ list, shareLive, flush, shareSnapshot, revoke, urlO
                   <h3 className="share-panel__subtitle">交付連結</h3>
                   <p className="share-panel__hint">顯示產生連結時的內容頁面，不受後續編輯影響。</p>
                   {frozen.length > 0 && (
-                    <ul className="share-panel__list">
-                      {frozen.map((link) => {
-                        const name = `${minuteText(link.delivery!.deliveredAt)} 交付`;
-                        return (
-                          <li key={link.shareId}>
-                            <LinkRow
-                              name={name}
-                              label={name}
-                              note={link.delivery!.changedSince ? "之後劇本已有修改" : undefined}
-                              url={urlOf(link.token)}
-                              working={working}
-                              onRevoke={() => void run(() => revoke(link.shareId))}
-                            />
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    <FrozenLinks
+                      links={frozen}
+                      urlOf={urlOf}
+                      working={working}
+                      onNote={noteOf}
+                      onRevoke={(shareIds) => void run(() => revoke(shareIds))}
+                    />
                   )}
                   <button
                     type="button"
@@ -198,20 +202,128 @@ export function SharePanel({ list, shareLive, flush, shareSnapshot, revoke, urlO
   );
 }
 
-/** 一條連結：名字、（漂移）、唯讀網址、複製、停用（按兩次）。 */
+/**
+ * 交付連結清單：每條可以勾選，上方「全選」與「停用所選（N）」，停用前確認一次。清單太長就在這一塊
+ * 裡捲動（即時連結與底下的鈕留在原地）—— 不分頁：分頁會讓「全選」變得含糊（這一頁？全部？）。
+ */
+function FrozenLinks({
+  links,
+  urlOf,
+  working,
+  onNote,
+  onRevoke,
+}: {
+  links: SharedLinkSummary[];
+  urlOf: (token: string) => string;
+  working: boolean;
+  onNote: (link: SharedLinkSummary) => (note: string) => void;
+  onRevoke: (shareIds: string[]) => void;
+}) {
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+  // 停用之後清單重讀：已經不在的那幾條不算勾著。
+  const selected = links.filter((l) => picked.has(l.shareId)).map((l) => l.shareId);
+  const allPicked = selected.length === links.length;
+
+  const toggle = (shareId: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(shareId)) next.add(shareId);
+      return next;
+    });
+
+  return (
+    <>
+      <div className="share-panel__bulk">
+        <label className="share-panel__pick">
+          <input
+            type="checkbox"
+            checked={allPicked}
+            ref={(el) => {
+              if (el) el.indeterminate = selected.length > 0 && !allPicked;
+            }}
+            onChange={() => setPicked(allPicked ? new Set() : new Set(links.map((l) => l.shareId)))}
+            disabled={working}
+          />
+          全選
+        </label>
+        {selected.length > 0 && (
+          <button type="button" onClick={() => setConfirming(true)} disabled={working || confirming}>
+            停用所選（{selected.length}）
+          </button>
+        )}
+      </div>
+      {confirming && selected.length > 0 && (
+        <div className="share-panel__confirm">
+          <span>將停用 {selected.length} 條交付連結，停用之後連結將會失效</span>
+          <span className="share-panel__confirm-actions">
+            <button type="button" onClick={() => setConfirming(false)} disabled={working}>
+              取消
+            </button>
+            <button
+              type="button"
+              className="share-panel__danger"
+              onClick={() => {
+                setConfirming(false);
+                setPicked(new Set());
+                onRevoke(selected);
+              }}
+              disabled={working}
+            >
+              確定停用
+            </button>
+          </span>
+        </div>
+      )}
+      <ul className="share-panel__list">
+        {links.map((link) => {
+          const name = `${minuteText(link.delivery!.deliveredAt)} 交付`;
+          return (
+            <li key={link.shareId} className="share-panel__item">
+              <input
+                type="checkbox"
+                className="share-panel__item-pick"
+                aria-label={`選取 ${name}`}
+                checked={picked.has(link.shareId)}
+                onChange={() => toggle(link.shareId)}
+                disabled={working}
+              />
+              <LinkRow
+                name={name}
+                label={name}
+                drift={link.delivery!.changedSince ? "之後劇本已有修改" : undefined}
+                url={urlOf(link.token)}
+                note={link.note}
+                working={working}
+                onNote={onNote(link)}
+                onRevoke={() => onRevoke([link.shareId])}
+              />
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
+/** 一條連結：名字、（漂移）、備註、唯讀網址、複製、停用（按兩次）。 */
 function LinkRow({
   name,
   label,
-  note,
+  drift,
   url,
+  note,
   working,
+  onNote,
   onRevoke,
 }: {
   name: string;
   label?: string;
-  note?: string;
+  drift?: string;
   url: string;
+  note: string | null;
   working: boolean;
+  onNote: (note: string) => void;
   onRevoke: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -223,11 +335,12 @@ function LinkRow({
           label && (
             <>
               {label}
-              {note && <span className="share-panel__note"> · {note}</span>}
+              {drift && <span className="share-panel__note"> · {drift}</span>}
             </>
           )
         }
         url={url}
+        above={<NoteField name={name} saved={note} onSave={onNote} />}
       >
         {/* 確認期間留在原位（變灰），網址那一列才不會跳。 */}
         <button type="button" onClick={() => setConfirming(true)} disabled={working || confirming}>
@@ -248,5 +361,28 @@ function LinkRow({
         </div>
       )}
     </div>
+  );
+}
+
+/** 備註欄：離開欄位（或按 Enter）才存，沒改就不存。存好的值回來之後以它為準。 */
+function NoteField({ name, saved, onSave }: { name: string; saved: string | null; onSave: (note: string) => void }) {
+  const [value, setValue] = useState(saved ?? "");
+  useEffect(() => setValue(saved ?? ""), [saved]);
+  return (
+    <input
+      type="text"
+      className="share-panel__memo"
+      aria-label={`${name}的備註`}
+      placeholder="備註：這條連結給了誰（只有你看得到）"
+      maxLength={SHARE_NOTE_MAX_LENGTH}
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+      onBlur={() => {
+        if (value.trim() !== (saved ?? "")) onSave(value);
+      }}
+    />
   );
 }

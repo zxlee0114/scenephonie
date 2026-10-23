@@ -8,7 +8,7 @@ import { getDb } from "@/db/client";
 import { projects, users } from "@/db/schema";
 import { createDelivery, createScreenplay, saveScreenplay } from "@/persistence";
 import { PROJECT_ID_PREFIX, SINGLE_SCREENPLAY_PROJECT } from "@/projects/project-store";
-import { revokeShareLink, shareDelivery, shareLive } from "@/share/share-store";
+import { revokeShareLinks, setShareLinkNote, shareDelivery, shareLive } from "@/share/share-store";
 
 import { authorizeProjectForUser, authorizeScreenplayForUser, authorizeShareToken, type ShareViewer } from ".";
 
@@ -62,7 +62,7 @@ describe.skipIf(!hasDatabase)("authorizeShareToken（需要 Postgres）", () => 
   it("撤銷過的與不存在的 token 是同一個答案（null）—— 不透露劇本是否存在", async () => {
     const screenplay = await freshScreenplay();
     const live = await shareLive(screenplay);
-    await revokeShareLink(screenplay, live.shareId);
+    await revokeShareLinks(screenplay, [live.shareId]);
 
     expect(await authorizeShareToken(live.token)).toBeNull();
     expect(await authorizeShareToken("not-a-token")).toBeNull();
@@ -83,7 +83,9 @@ describe("ShareViewer 進不了寫路徑", () => {
       // @ts-expect-error —— 鑄連結是編劇的動作
       void shareLive(viewer);
       // @ts-expect-error —— 撤銷也是
-      void revokeShareLink(viewer, "sh_x");
+      void revokeShareLinks(viewer, ["sh_x"]);
+      // @ts-expect-error —— 讀者不能改編劇的備註。
+      void setShareLinkNote(viewer, "sh_x", "x");
     };
     expect(writes).toBeTypeOf("function");
   });

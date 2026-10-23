@@ -10,11 +10,12 @@ import { SharePanel, type SharedLinkSummary } from "./SharePanel";
 
 afterEach(cleanup);
 
-const live: SharedLinkSummary = { shareId: "sh_live", token: "tok-live", delivery: null };
-const frozen = (changedSince: boolean): SharedLinkSummary => ({
-  shareId: "sh_frozen",
-  token: "tok-frozen",
-  delivery: { deliveredAt: new Date("2026-10-20T06:30:00Z"), changedSince },
+const live: SharedLinkSummary = { shareId: "sh_live", token: "tok-live", note: null, delivery: null };
+const frozen = (changedSince: boolean, n = 0): SharedLinkSummary => ({
+  shareId: `sh_frozen${n}`,
+  token: `tok-frozen${n}`,
+  note: null,
+  delivery: { deliveredAt: new Date(Date.UTC(2026, 9, 20, 6, 30 + n)), changedSince },
 });
 
 function mount(initial: SharedLinkSummary[], { saved = true } = {}) {
@@ -29,8 +30,12 @@ function mount(initial: SharedLinkSummary[], { saved = true } = {}) {
     links = [...links, frozen(false)];
     return true;
   });
-  const revoke = vi.fn(async (shareId: string) => {
-    links = links.filter((l) => l.shareId !== shareId);
+  const revoke = vi.fn(async (shareIds: string[]) => {
+    links = links.filter((l) => !shareIds.includes(l.shareId));
+    return true;
+  });
+  const setNote = vi.fn(async (shareId: string, note: string) => {
+    links = links.map((l) => (l.shareId === shareId ? { ...l, note: note.trim() || null } : l));
     return true;
   });
   render(
@@ -40,10 +45,11 @@ function mount(initial: SharedLinkSummary[], { saved = true } = {}) {
       flush={flush}
       shareSnapshot={shareSnapshot}
       revoke={revoke}
+      setNote={setNote}
       urlOf={(token) => `https://x.test/s/${token}`}
     />,
   );
-  return { list, shareLive, flush, shareSnapshot, revoke };
+  return { list, shareLive, flush, shareSnapshot, revoke, setNote };
 }
 
 const openPanel = () => act(async () => void fireEvent.click(screen.getByRole("button", { name: "分享" })));
@@ -84,7 +90,7 @@ describe("分享面板", () => {
     expect(revoke).not.toHaveBeenCalled();
     await act(async () => void fireEvent.click(within(dialog()).getByRole("button", { name: "確定停用" })));
 
-    expect(revoke).toHaveBeenCalledWith("sh_live");
+    expect(revoke).toHaveBeenCalledWith(["sh_live"]);
     expect(within(dialog()).queryByRole("textbox", { name: "即時連結" })).toBeNull();
     expect(within(dialog()).getByRole("button", { name: "建立即時連結" })).toBeTruthy();
   });
@@ -118,5 +124,43 @@ describe("分享面板", () => {
 
     expect(unsaved.shareSnapshot).not.toHaveBeenCalled();
     expect(within(dialog()).getByRole("alert")).toBeTruthy();
+  });
+
+  it("勾選幾條交付連結，一鍵停用（要確認）；全選勾起全部", async () => {
+    const { revoke } = mount([frozen(false, 0), frozen(false, 1), frozen(false, 2)]);
+    await openPanel();
+    expect(within(dialog()).queryByRole("button", { name: /停用所選/ })).toBeNull();
+
+    fireEvent.click(within(dialog()).getByRole("checkbox", { name: "選取 2026-10-20 14:30 交付" }));
+    fireEvent.click(within(dialog()).getByRole("checkbox", { name: "選取 2026-10-20 14:32 交付" }));
+    fireEvent.click(within(dialog()).getByRole("button", { name: "停用所選（2）" }));
+    expect(revoke).not.toHaveBeenCalled();
+    expect(within(dialog()).getByText("將停用 2 條交付連結，停用之後連結將會失效")).toBeTruthy();
+
+    await act(async () => void fireEvent.click(within(dialog()).getByRole("button", { name: "確定停用" })));
+    expect(revoke).toHaveBeenCalledWith(["sh_frozen0", "sh_frozen2"]);
+    expect(within(dialog()).getAllByRole("listitem")).toHaveLength(1);
+
+    const all = within(dialog()).getByRole("checkbox", { name: "全選" }) as HTMLInputElement;
+    expect(all.checked).toBe(false);
+    fireEvent.click(all);
+    expect(within(dialog()).getByRole("button", { name: "停用所選（1）" })).toBeTruthy();
+  });
+
+  it("備註：離開欄位才存；沒改就不存；讀回來的是存好的那一份", async () => {
+    const { setNote } = mount([live]);
+    await openPanel();
+    const note = within(dialog()).getByRole("textbox", { name: "即時連結的備註" }) as HTMLInputElement;
+
+    fireEvent.blur(note);
+    expect(setNote).not.toHaveBeenCalled();
+
+    fireEvent.change(note, { target: { value: "給優良劇本獎評審" } });
+    await act(async () => void fireEvent.blur(note));
+
+    expect(setNote).toHaveBeenCalledWith("sh_live", "給優良劇本獎評審");
+    expect((within(dialog()).getByRole("textbox", { name: "即時連結的備註" }) as HTMLInputElement).value).toBe(
+      "給優良劇本獎評審",
+    );
   });
 });

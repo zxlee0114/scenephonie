@@ -372,7 +372,8 @@ export const deliveries = pgTable(
  * - **撤銷寫 `revoked_at`、保留該列**：刪掉就查不出這條連結曾經存在。重新分享 ＝ 鑄新的一列。
  * - **沒有有效期**（§10.3）：過期是安全劇場，撤銷才是控制。
  * - **零配置**：沒有標題、沒有密碼、沒有視圖組合 —— 選這個 identity 是為了讓凍結有地方站，
- *   不是為了長出開關。
+ *   不是為了長出開關。唯一的例外是 `note`（使用者裁決，2026-10-23）：編劇寫給自己的「這條給了誰」，
+ *   **讀者永遠看不到**，它不改變連結的任何行為。
  */
 export const shareLinks = pgTable(
   "share_links",
@@ -386,6 +387,8 @@ export const shareLinks = pgTable(
     token: text("token").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** 編劇的備註（這條給了誰）。只在編劇自己的清單上出現；`null` ＝ 沒寫。 */
+    note: text("note"),
   },
   (table) => [
     // 訪客打開 `/s/<token>` 時問的就是這一句。

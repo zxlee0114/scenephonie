@@ -4,7 +4,8 @@ CREATE TABLE "share_links" (
 	"delivery_id" text,
 	"token" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"revoked_at" timestamp with time zone
+	"revoked_at" timestamp with time zone,
+	"note" text
 );
 --> statement-breakpoint
 ALTER TABLE "share_links" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint

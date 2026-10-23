@@ -11,7 +11,7 @@ import { createLocation, renameLocation } from "@/entities";
 import { createDelivery, createScreenplay, loadScreenplay, saveScreenplay, type PersistedDoc } from "@/persistence";
 import { PROJECT_ID_PREFIX, SINGLE_SCREENPLAY_PROJECT } from "@/projects/project-store";
 
-import { listShareLinks, revokeShareLink, shareDelivery, shareLive } from "./share-store";
+import { listShareLinks, revokeShareLinks, setShareLinkNote, shareDelivery, shareLive } from "./share-store";
 
 /**
  * 分享連結的生命週期（票券 20，§10、ADR-0008）—— 真的 Postgres：「撤銷保留那一列」「重按拿到同一條」
@@ -89,7 +89,7 @@ describe.skipIf(!hasDatabase)("share store（需要 Postgres）", () => {
     const screenplay = await freshScreenplay();
     const live = await shareLive(screenplay);
 
-    expect(await revokeShareLink(screenplay, live.shareId)).toBe(true);
+    expect(await revokeShareLinks(screenplay, [live.shareId])).toBe(1);
 
     expect(await listShareLinks(screenplay)).toEqual([]);
     const [kept] = await getDb().select().from(shareLinks).where(eq(shareLinks.id, live.shareId));
@@ -104,7 +104,7 @@ describe.skipIf(!hasDatabase)("share store（需要 Postgres）", () => {
     const other = await freshScreenplay();
     const theirs = await shareLive(other);
 
-    expect(await revokeShareLink(mine, theirs.shareId)).toBe(false);
+    expect(await revokeShareLinks(mine, [theirs.shareId])).toBe(0);
     expect(await listShareLinks(other)).toHaveLength(1);
   });
 
@@ -157,5 +157,36 @@ describe.skipIf(!hasDatabase)("share store（需要 Postgres）", () => {
 
     await renameLocation(project, delivered.id, "海豚公寓房間");
     expect((await listShareLinks(screenplay))[0]?.delivery?.changedSince).toBe(true);
+  });
+
+  it("一次停用勾選的幾條：別份劇本的、早就停用的混在裡面也只停到自己這份還有效的", async () => {
+    const screenplay = await freshScreenplay();
+    const other = await freshScreenplay();
+    const [a, b, c] = await Promise.all(
+      [1, 2, 3].map(async () => (await shareDelivery(screenplay, (await createDelivery(screenplay))!.deliveryId))!),
+    );
+    const theirs = await shareLive(other);
+    await revokeShareLinks(screenplay, [c!.shareId]);
+
+    expect(await revokeShareLinks(screenplay, [a!.shareId, b!.shareId, c!.shareId, theirs.shareId])).toBe(2);
+    expect(await listShareLinks(screenplay)).toEqual([]);
+    expect(await listShareLinks(other)).toHaveLength(1);
+    expect(await revokeShareLinks(screenplay, [])).toBe(0);
+  });
+
+  it("備註：編劇自己認得這條給了誰；去掉前後空白、空白 ＝ 沒有備註；別份劇本的改不到", async () => {
+    const screenplay = await freshScreenplay();
+    const other = await freshScreenplay();
+    const live = await shareLive(screenplay);
+    expect((await listShareLinks(screenplay))[0]?.note).toBeNull();
+
+    expect(await setShareLinkNote(screenplay, live.shareId, "  給優良劇本獎評審 ")).toBe(true);
+    expect((await listShareLinks(screenplay))[0]?.note).toBe("給優良劇本獎評審");
+
+    expect(await setShareLinkNote(screenplay, live.shareId, "   ")).toBe(true);
+    expect((await listShareLinks(screenplay))[0]?.note).toBeNull();
+
+    expect(await setShareLinkNote(other, live.shareId, "偷改")).toBe(false);
+    expect(await setShareLinkNote(screenplay, live.shareId, "長".repeat(101))).toBe(false);
   });
 });
