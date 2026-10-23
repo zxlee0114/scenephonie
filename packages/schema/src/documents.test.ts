@@ -3,7 +3,14 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { wordCount, documentFromJSON, documentLevel, documentSchema, isDocumentKind } from "./documents";
+import {
+  wordCount,
+  documentFromJSON,
+  documentLevel,
+  documentSchema,
+  isDocumentKind,
+  isFixedDocument,
+} from "./documents";
 
 /** 一份交件大綱，每個字串是一段。 */
 const outline = (...paragraphs: string[]) =>
@@ -41,6 +48,27 @@ describe("wordCount：字數照 Word 的「字數」算", () => {
     expect(wordCount(outline("end", "start"))).toBe(2);
   });
 
+  it("標題、清單、引用裡的字照樣算；格式本身不算字", () => {
+    const doc = documentFromJSON("自由文件", {
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "第一幕" }] },
+        {
+          type: "bulletList",
+          content: [
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "雨夜" }] }] },
+            { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "end" }] }] },
+          ],
+        },
+        { type: "horizontalRule" },
+        { type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "start" }] }] },
+        { type: "paragraph", content: [{ type: "text", text: "重點", marks: [{ type: "bold" }] }] },
+      ],
+    });
+    // 第一幕 3 ＋ 雨夜 2 ＋ end 1 ＋ start 1 ＋ 重點 2
+    expect(wordCount(doc)).toBe(9);
+  });
+
   it("空文件是零", () => {
     expect(wordCount(outline(""))).toBe(0);
   });
@@ -53,6 +81,16 @@ describe("不變式 F：kind 固定其合法層級", () => {
 
   it("分場大綱描述那一份劇本 → 掛劇本", () => {
     expect(documentLevel("分場大綱")).toBe("screenplay");
+  });
+
+  it("自由文件掛專案（hub 上不分層，資料上還是要有一個位置）", () => {
+    expect(documentLevel("自由文件")).toBe("project");
+  });
+
+  it("交件大綱與分場大綱是固定的那一份；自由文件可以有很多份", () => {
+    expect(isFixedDocument("交件大綱")).toBe(true);
+    expect(isFixedDocument("分場大綱")).toBe(true);
+    expect(isFixedDocument("自由文件")).toBe(false);
   });
 
   it("認不得的 kind 不是 kind（從資料庫讀到的字串要先過這一關）", () => {
@@ -81,16 +119,55 @@ describe("documentFromJSON：照該 kind 的 schema 驗證", () => {
     expect(() => documentFromJSON("交件大綱", { type: "doc", content: [] })).toThrow();
   });
 
-  it("粗體之類的呈現資訊進不來（約束 2）", () => {
+  const paragraphWith = (marks: { type: string }[]) => ({
+    type: "doc",
+    content: [{ type: "paragraph", content: [{ type: "text", text: "重點", marks }] }],
+  });
+
+  it("簡單的富文本讀得出來：標題、清單、引用、分隔線、粗體、斜體", () => {
+    const doc = documentFromJSON("交件大綱", {
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "第一幕" }] },
+        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "雨夜" }] },
+        {
+          type: "orderedList",
+          attrs: { start: 1, type: null },
+          content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "出門" }] }] }],
+        },
+        { type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "台詞" }] }] },
+        { type: "horizontalRule" },
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "粗斜", marks: [{ type: "bold" }, { type: "italic" }] }],
+        },
+      ],
+    });
+    expect(doc.childCount).toBe(6);
+  });
+
+  it("第一層標題留給文件名稱，內文裡沒有", () => {
     expect(() =>
-      documentFromJSON("交件大綱", {
+      documentFromJSON("自由文件", {
         type: "doc",
-        content: [{ type: "paragraph", content: [{ type: "text", text: "重點", marks: [{ type: "bold" }] }] }],
+        content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "大標" }] }],
       }),
+    ).toThrow();
+  });
+
+  it("底線、連結這類不在清單上的標記進不來", () => {
+    expect(() => documentFromJSON("交件大綱", paragraphWith([{ type: "underline" }]))).toThrow();
+    expect(() => documentFromJSON("交件大綱", paragraphWith([{ type: "link" }]))).toThrow();
+  });
+
+  it("圖片進不來（GHSA 明文禁止，票 20 也不留逃生口）", () => {
+    expect(() =>
+      documentFromJSON("分場大綱", { type: "doc", content: [{ type: "image", attrs: { src: "x.png" } }] }),
     ).toThrow();
   });
 
   it("每個 kind 有自己的 schema（改一個不會牽動另一個）", () => {
     expect(documentSchema("交件大綱")).not.toBe(documentSchema("分場大綱"));
+    expect(documentSchema("自由文件")).not.toBe(documentSchema("交件大綱"));
   });
 });

@@ -163,14 +163,86 @@
   color: var(--color-accent);
 }
 
-/* 交件大綱的名字是編劇給的，kind 才說它是什麼 —— 跟在名字後面、淡一階。 */
-.project-hub__kind {
-  margin-inline-start: var(--space-3);
-  color: var(--text-faint);
-  font-size: var(--text-sm);
+/* 自由文件那一列：名字是連結，「刪除」靠右、淡一階，滑過那一列才浮出來（鍵盤焦點也會）。 */
+.project-hub__row {
+  display: flex;
+  align-items: center;
+  border-block-end: 1px solid var(--rule);
 }
 
-/* 「＋ 新增交件大綱」—— 跟清單同一條基線的一列，不是一顆醒目的主按鈕。 */
+.project-hub__row a {
+  flex: 1;
+  min-inline-size: 0;
+  border-block-end: 0;
+}
+
+.project-hub__row-action {
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.project-hub__row:hover .project-hub__row-action,
+.project-hub__row-action:focus-visible {
+  opacity: 1;
+}
+
+.project-hub__row-action:hover {
+  color: var(--error-fg);
+}
+
+.project-hub__row-action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* 還沒做出來的那一份（人物介紹）：佔著它在清單裡的位置，不是連結。 */
+.project-hub__pending {
+  padding: var(--space-3) 0;
+  border-block-end: 1px solid var(--rule);
+  color: var(--text-faint);
+}
+
+/* 「已刪除「…」 復原」—— 浮在畫面底部正中，8 秒後自己收掉。 */
+.project-hub__toast {
+  position: fixed;
+  inset-block-end: var(--space-5);
+  inset-inline-start: 50%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-inline-size: calc(100vw - 2 * var(--space-4));
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--space-1);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-popover);
+  font-size: var(--text-sm);
+  transform: translateX(-50%);
+}
+
+.project-hub__toast-undo {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.project-hub__toast-undo:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* 「＋ 新增文件」—— 跟清單同一條基線的一列，不是一顆醒目的主按鈕。 */
 .project-hub__add {
   display: block;
   inline-size: 100%;

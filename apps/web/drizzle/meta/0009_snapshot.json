@@ -1,5 +1,5 @@
 {
-  "id": "0c34d313-955a-4e79-88c0-aba6ddde01c9",
+  "id": "390a09c4-e10a-455b-a2db-bbb03321fe20",
   "prevId": "51242cb9-9d6b-49a8-afd1-43e7ffe844dc",
   "version": "7",
   "dialect": "postgresql",
@@ -374,6 +374,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -388,6 +394,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "documents_submission_outline_uidx": {
+          "name": "documents_submission_outline_uidx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"documents\".\"kind\" = '交件大綱'",
           "concurrently": false,
           "method": "btree",
           "with": {}

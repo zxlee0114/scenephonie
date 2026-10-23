@@ -131,6 +131,7 @@ export type { SceneMetaField } from "./scene-meta";
 // 與字數計數器。寫入路徑（persistence 的 document store）照 `documentLevel` 拒絕掛錯層的文件。
 export {
   documentLevel,
+  isFixedDocument,
   isDocumentKind,
   documentFromJSON,
   emptyDocument,

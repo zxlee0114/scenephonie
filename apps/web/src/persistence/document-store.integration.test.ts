@@ -20,11 +20,15 @@ import {
   __installDocumentMigrationForTest,
 } from "./document-schema-version";
 import {
-  createDocument,
+  createFreeDocument,
+  deleteDocument,
   listDocuments,
   loadDocument,
   openSceneOutline,
+  openSubmissionOutline,
+  purgeDeletedDocuments,
   renameDocument,
+  restoreDocument,
   saveDocument,
   type DocumentSaveResult,
 } from "./document-store";
@@ -84,43 +88,127 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
   });
 
   it("交件大綱存了就載得回來", async () => {
-    const created = await createDocument(project, "交件大綱", { title: "劇情大綱" });
-    expect(created).toMatchObject({ kind: "交件大綱", title: "劇情大綱" });
+    const outline = await openSubmissionOutline(project);
+    expect(outline).toMatchObject({ kind: "交件大綱", title: null });
 
-    tokenAfterSave(await saveDocument({ unit: project, documentId: created.documentId, body: prose("一個雨夜"), token: created.token }));
+    tokenAfterSave(await saveDocument({ unit: project, documentId: outline.documentId, body: prose("一個雨夜"), token: outline.token }));
 
-    const reloaded = await loadDocument(project, created.documentId);
+    const reloaded = await loadDocument(project, outline.documentId);
     expect(reloaded?.body).toEqual(prose("一個雨夜"));
   });
 
-  it("交件大綱可以有好幾份，各自命名", async () => {
-    const a = await createDocument(project, "交件大綱", { title: "短綱" });
-    const b = await createDocument(project, "交件大綱", { title: "長綱" });
+  it("自由文件可以有好幾份，各自命名，早建立的在前", async () => {
+    const a = await createFreeDocument(project, { title: "世界觀" });
+    const b = await createFreeDocument(project, { title: "高雄拍 500 字版" });
 
     const listed = await listDocuments(project);
     expect(listed.filter((d) => d.documentId === a.documentId || d.documentId === b.documentId).map((d) => d.title)).toEqual([
-      "短綱",
-      "長綱",
+      "世界觀",
+      "高雄拍 500 字版",
     ]);
   });
 
-  it("改名只改名字，不動內文", async () => {
-    const created = await createDocument(project, "交件大綱", { title: "劇情大綱" });
-    expect(await renameDocument(project, created.documentId, "故事大綱")).toBe(true);
+  it("自由文件改名只改名字，不動內文", async () => {
+    const created = await createFreeDocument(project, { title: "筆記" });
+    expect(await renameDocument(project, created.documentId, "研究筆記")).toBe(true);
 
     const reloaded = await loadDocument(project, created.documentId);
-    expect(reloaded).toMatchObject({ title: "故事大綱", body: created.body });
+    expect(reloaded).toMatchObject({ title: "研究筆記", body: created.body });
   });
 
   it("名字清空 ＝ 沒命名（不存一個空字串）", async () => {
-    const created = await createDocument(project, "交件大綱", { title: "劇情大綱" });
+    const created = await createFreeDocument(project, { title: "筆記" });
     await renameDocument(project, created.documentId, "   ");
     expect((await loadDocument(project, created.documentId))?.title).toBeNull();
   });
 
+  it("固定文件不能改名：名字就是它是什麼", async () => {
+    const outline = await openSubmissionOutline(project);
+    expect(await renameDocument(project, outline.documentId, "劇情大綱")).toBe(false);
+    expect((await loadDocument(project, outline.documentId))?.title).toBeNull();
+  });
+
+  describe("交件大綱一個專案一份", () => {
+    it("打開兩次拿到同一份", async () => {
+      const first = await openSubmissionOutline(project);
+      const second = await openSubmissionOutline(project);
+      expect(second.documentId).toBe(first.documentId);
+    });
+
+    it("兩個分頁同時第一次打開：還是只有一份", async () => {
+      const fresh = await seed(mintId(USER_ID_PREFIX));
+      try {
+        const [a, b] = await Promise.all([openSubmissionOutline(fresh.project), openSubmissionOutline(fresh.project)]);
+        expect(a.documentId).toBe(b.documentId);
+      } finally {
+        await getDb().delete(users).where(eq(users.id, fresh.project.ownerId));
+      }
+    });
+  });
+
+  describe("刪除自由文件：當下就不見，復原得回來，排程才真的清掉", () => {
+    it("刪了之後清單沒有、讀不到、存不進去", async () => {
+      const doc = await createFreeDocument(project, { title: "要刪的" });
+      expect(await deleteDocument(project, doc.documentId)).toBe(true);
+
+      expect((await listDocuments(project)).map((d) => d.documentId)).not.toContain(doc.documentId);
+      expect(await loadDocument(project, doc.documentId)).toBeNull();
+      expect((await saveDocument({ unit: project, documentId: doc.documentId, body: prose("x"), token: doc.token })).status).toBe(
+        "conflict",
+      );
+    });
+
+    it("復原之後內容原封不動地回來", async () => {
+      const doc = await createFreeDocument(project, { title: "誤刪" });
+      const saved = tokenAfterSave(
+        await saveDocument({ unit: project, documentId: doc.documentId, body: prose("寫了一半"), token: doc.token }),
+      );
+      await deleteDocument(project, doc.documentId);
+
+      expect(await restoreDocument(project, doc.documentId)).toBe(true);
+      expect(await loadDocument(project, doc.documentId)).toMatchObject({ title: "誤刪", body: prose("寫了一半"), token: saved });
+    });
+
+    it("固定文件刪不掉", async () => {
+      const outline = await openSubmissionOutline(project);
+      const sceneOutline = await openSceneOutline(screenplay);
+      expect(await deleteDocument(project, outline.documentId)).toBe(false);
+      expect(await deleteDocument(project, sceneOutline.documentId)).toBe(false);
+      expect(await loadDocument(project, outline.documentId)).not.toBeNull();
+    });
+
+    it("別人的文件刪不掉、也復原不了", async () => {
+      const doc = await createFreeDocument(project, { title: "我的" });
+      expect(await deleteDocument(strangerProject, doc.documentId)).toBe(false);
+      await deleteDocument(project, doc.documentId);
+      expect(await restoreDocument(strangerProject, doc.documentId)).toBe(false);
+      expect(await restoreDocument(project, doc.documentId)).toBe(true);
+    });
+
+    it("排程只清掉刪除超過期限的那些", async () => {
+      const old = await createFreeDocument(project, { title: "早就刪了" });
+      const recent = await createFreeDocument(project, { title: "剛刪" });
+      const kept = await createFreeDocument(project, { title: "沒刪" });
+      await deleteDocument(project, old.documentId);
+      await deleteDocument(project, recent.documentId);
+      await getDb()
+        .update(documents)
+        .set({ deletedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) })
+        .where(eq(documents.id, old.documentId));
+
+      await purgeDeletedDocuments(new Date(Date.now() - 24 * 60 * 60 * 1000));
+
+      const remaining = await getDb()
+        .select({ id: documents.id })
+        .from(documents)
+        .where(sql`${documents.id} in (${old.documentId}, ${recent.documentId}, ${kept.documentId})`);
+      expect(remaining.map((row) => row.id).sort()).toEqual([recent.documentId, kept.documentId].sort());
+    });
+  });
+
   describe("不變式 F：kind 固定其合法層級", () => {
     it("交件大綱掛專案、分場大綱掛劇本 —— 寫進資料庫的就是這樣", async () => {
-      const outline = await createDocument(project, "交件大綱", {});
+      const outline = await openSubmissionOutline(project);
       const sceneOutline = await openSceneOutline(screenplay);
 
       const rows = await getDb()
@@ -137,11 +225,12 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
 
     it("把專案層的 kind 掛到劇本上：寫入路徑拒絕（型別擋住之外，執行期也擋）", async () => {
       const wrongScope = screenplay as unknown as AuthorizedProject;
-      await expect(createDocument(wrongScope, "交件大綱", {})).rejects.toThrow(/不變式 F/);
+      await expect(openSubmissionOutline(wrongScope)).rejects.toThrow(/不變式 F/);
+      await expect(createFreeDocument(wrongScope, {})).rejects.toThrow(/不變式 F/);
     });
 
     it("把劇本層的 kind 掛到專案上：寫入路徑拒絕", async () => {
-      await expect(createDocument(project, "分場大綱" as never, {})).rejects.toThrow(/不變式 F/);
+      await expect(openSceneOutline(project as unknown as AuthorizedScreenplay)).rejects.toThrow(/不變式 F/);
     });
 
     it("繞過 persistence 直接寫進資料庫：資料層也拒絕掛錯層的那一列（§11：資料層 ＋ command）", async () => {
@@ -161,14 +250,14 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
     });
 
     it("交件大綱從劇本層讀不到", async () => {
-      const outline = await createDocument(project, "交件大綱", {});
+      const outline = await openSubmissionOutline(project);
       expect(await loadDocument(screenplay, outline.documentId)).toBeNull();
     });
   });
 
   describe("授權範圍", () => {
     it("別人的文件讀不到、存不進去、改不了名", async () => {
-      const outline = await createDocument(project, "交件大綱", { title: "我的" });
+      const outline = await createFreeDocument(project, { title: "我的" });
 
       expect(await loadDocument(strangerProject, outline.documentId)).toBeNull();
       expect(
@@ -179,7 +268,7 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
     });
 
     it("清單只列這個專案的文件", async () => {
-      const mine = await createDocument(project, "交件大綱", {});
+      const mine = await createFreeDocument(project, {});
       const listed = await listDocuments(strangerProject);
       expect(listed.map((d) => d.documentId)).not.toContain(mine.documentId);
     });
@@ -205,7 +294,7 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
 
   describe("並行", () => {
     it("兩個分頁拿同一份存檔：第二個被拒，第一個寫的不被覆蓋", async () => {
-      const created = await createDocument(project, "交件大綱", {});
+      const created = await createFreeDocument(project, {});
       const tabA = await loadDocument(project, created.documentId);
       const tabB = await loadDocument(project, created.documentId);
 
@@ -218,7 +307,7 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
     });
 
     it("同一個分頁連續存：每次拿回的 token 都接得上", async () => {
-      const created = await createDocument(project, "交件大綱", {});
+      const created = await createFreeDocument(project, {});
       const t1 = tokenAfterSave(await saveDocument({ unit: project, documentId: created.documentId, body: prose("1"), token: created.token }));
       const t2 = tokenAfterSave(await saveDocument({ unit: project, documentId: created.documentId, body: prose("2"), token: t1 }));
       expect(t2).not.toBe(t1);
@@ -226,7 +315,7 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
   });
 
   it("存不進一份這個 kind 讀不出來的 doc（寫入邊界的 canonical 驗證）", async () => {
-    const created = await createDocument(project, "交件大綱", {});
+    const created = await createFreeDocument(project, {});
     const notProse = { type: "doc", content: [{ type: "scene", attrs: { sceneId: "sc_x" } }] };
     await expect(
       saveDocument({ unit: project, documentId: created.documentId, body: notProse, token: created.token }),
@@ -242,20 +331,20 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
         .where(eq(documents.id, documentId));
     };
 
-    it("交件大綱的遷移只作用在交件大綱上；載入時在記憶體遷移，資料庫不動", async () => {
-      const restore = __installDocumentMigrationForTest("交件大綱", CURRENT_DOCUMENT_SCHEMA_VERSIONS["交件大綱"] - 1, (doc) => ({
+    it("自由文件的遷移只作用在自由文件上；載入時在記憶體遷移，資料庫不動", async () => {
+      const restore = __installDocumentMigrationForTest("自由文件", CURRENT_DOCUMENT_SCHEMA_VERSIONS["自由文件"] - 1, (doc) => ({
         ...doc,
         content: [{ type: "paragraph", content: [{ type: "text", text: "遷移過" }] }],
       }));
       try {
-        const outline = await createDocument(project, "交件大綱", {});
-        await seedOld("交件大綱", outline.documentId);
+        const outline = await createFreeDocument(project, {});
+        await seedOld("自由文件", outline.documentId);
         expect((await loadDocument(project, outline.documentId))?.body).toEqual(prose("遷移過"));
 
         const [row] = await getDb().select({ body: documents.body }).from(documents).where(eq(documents.id, outline.documentId));
         expect(row?.body).toEqual(outline.body);
 
-        // 分場大綱停在舊版號時，交件大綱那一節不會被拿來用 —— 它的鏈缺一節，大聲失敗。
+        // 分場大綱停在舊版號時，自由文件那一節不會被拿來用 —— 它的鏈缺一節，大聲失敗。
         const sceneOutline = await openSceneOutline(screenplay);
         await seedOld("分場大綱", sceneOutline.documentId);
         await expect(loadDocument(screenplay, sceneOutline.documentId)).rejects.toThrow(/分場大綱/);
@@ -269,10 +358,10 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
     });
 
     it("存檔把那一列帶到該 kind 的現行版本", async () => {
-      const restore = __installDocumentMigrationForTest("交件大綱", CURRENT_DOCUMENT_SCHEMA_VERSIONS["交件大綱"] - 1, (doc) => doc);
+      const restore = __installDocumentMigrationForTest("自由文件", CURRENT_DOCUMENT_SCHEMA_VERSIONS["自由文件"] - 1, (doc) => doc);
       try {
-        const outline = await createDocument(project, "交件大綱", {});
-        await seedOld("交件大綱", outline.documentId);
+        const outline = await createFreeDocument(project, {});
+        await seedOld("自由文件", outline.documentId);
         const loaded = await loadDocument(project, outline.documentId);
         tokenAfterSave(await saveDocument({ unit: project, documentId: outline.documentId, body: prose("新"), token: loaded!.token }));
 
@@ -280,7 +369,7 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
           .select({ version: documents.docSchemaVersion })
           .from(documents)
           .where(eq(documents.id, outline.documentId));
-        expect(row?.version).toBe(CURRENT_DOCUMENT_SCHEMA_VERSIONS["交件大綱"]);
+        expect(row?.version).toBe(CURRENT_DOCUMENT_SCHEMA_VERSIONS["自由文件"]);
       } finally {
         restore();
       }

@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 
+import { isFixedDocument } from "@scenephonie/schema";
+
 import { authorizeProject } from "@/authorization";
 import { DocumentEditor } from "@/documents/document-editor";
 import { DocumentShell } from "@/documents/document-shell";
@@ -12,11 +14,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * 專案層的文件（票券 21）：`/projects/:id/documents/:id`。v1 只有交件大綱。
+ * 自由文件（票券 21）：`/projects/:id/documents/:id`。
  *
  * 網址就是掛載層級（ADR-0009）：專案層的文件掛在專案底下，劇本層的掛在劇本底下
  * （`/projects/:id/screenplays/:id/scene-outline`）。`loadDocument` 拿專案的 handle 查，
- * 劇本層的文件從這裡讀不到 —— 不存在、不是你的、掛在另一層，都是同一個 404。
+ * 劇本層的文件從這裡讀不到 —— 不存在、不是你的、掛在另一層、已刪除，都是同一個 404。
+ * 固定文件有自己沒有 id 的網址（交件大綱是 `/projects/:id/story-outline`）；拿它的 id 走到這裡，
+ * 照樣打得開，只是沒有名字欄。
  */
 export default async function ProjectDocumentPage({
   params,
@@ -30,15 +34,17 @@ export default async function ProjectDocumentPage({
   const document = await loadDocument(project, documentId);
   if (!document) notFound();
 
-  const address = { projectId: project.projectId };
+  const title = isFixedDocument(document.kind)
+    ? undefined
+    : { initial: document.title, rename: renameDocumentAction.bind(null, project.projectId, document.documentId) };
   return (
     <DocumentShell projectId={project.projectId}>
       <DocumentEditor
         kind={document.kind}
         initialBody={document.body}
         initialToken={document.token}
-        save={saveDocumentAction.bind(null, address, document.documentId)}
-        title={{ initial: document.title, rename: renameDocumentAction.bind(null, address, document.documentId) }}
+        save={saveDocumentAction.bind(null, { projectId: project.projectId }, document.documentId)}
+        title={title}
       />
     </DocumentShell>
   );

@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 /**
- * 票券 21 —— 劇本外文件的編輯器：散文、字數計數器、改名。
+ * 票券 21 —— 劇本外文件的編輯器：簡單的富文本、字數計數器、改名。
  *
  * jsdom 沒有版面引擎，打字走 Tiptap 的 command（`dom.editor` 是 Tiptap 掛在編輯區上的那一個實體）——
  * 測的是「doc 變了，畫面上的字數跟著變」，不是鍵盤事件怎麼變成字。
  */
 import type { Editor } from "@tiptap/core";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { emptyDocument } from "@scenephonie/schema";
+import { documentFromJSON, emptyDocument } from "@scenephonie/schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SaveToken } from "@/persistence";
@@ -37,7 +37,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("交件大綱的字數計數器", () => {
+describe("字數計數器", () => {
   it("打開時就數好既有的字", async () => {
     render(<DocumentEditor kind="交件大綱" initialBody={prose("一個雨夜，", "小明出門。")} initialToken={token} save={save} />);
     await waitFor(() => expect(screen.getByText(/10\s*字/)).toBeTruthy());
@@ -64,13 +64,53 @@ describe("交件大綱的字數計數器", () => {
   });
 });
 
-describe("分場大綱", () => {
-  it("是自由文字，沒有字數計數器（沒有任何人在管它的字數）", async () => {
+describe("三種文字文件都有計數器，畫面上用編劇熟的名字", () => {
+  it("交件大綱在畫面上叫「故事大綱」", async () => {
+    render(<DocumentEditor kind="交件大綱" initialBody={prose("雨")} initialToken={token} save={save} />);
+    expect(screen.getByRole("heading", { name: "故事大綱" })).toBeTruthy();
+  });
+
+  it("分場大綱也有計數器", async () => {
+    render(<DocumentEditor kind="分場大綱" initialBody={prose("場景一")} initialToken={token} save={save} />);
+    await waitFor(() => expect(screen.getByText(/3\s*字/)).toBeTruthy());
+  });
+});
+
+describe("簡單的富文本", () => {
+  it("標題、清單、引用、分隔線、粗斜體打出來的東西，寫入邊界讀得懂", async () => {
     const { container } = render(
-      <DocumentEditor kind="分場大綱" initialBody={prose("場景一")} initialToken={token} save={save} />,
+      <DocumentEditor kind="自由文件" initialBody={emptyDocument()} initialToken={token} save={save} />,
     );
-    await editorIn(container);
-    expect(screen.queryByText(/\d\s*字/)).toBeNull();
+    const editor = await editorIn(container);
+
+    // 貼上一段 HTML 走的是編輯器自己的 parse —— 每一種格式長成哪個節點、帶哪些屬性，都是 Tiptap 決定的。
+    act(() => {
+      editor.commands.setContent(
+        "<h2>第一幕</h2><h3>雨夜</h3><ul><li><p>出門</p></li></ul><ol><li><p>回家</p></li></ol>" +
+          "<blockquote><p>台詞</p></blockquote><hr><p><strong><em>重點</em></strong></p>",
+        { emitUpdate: true },
+      );
+    });
+
+    const json = editor.getJSON();
+    const types = (json.content ?? []).map((node) => node.type);
+    expect(types).toEqual(
+      expect.arrayContaining(["heading", "bulletList", "orderedList", "blockquote", "horizontalRule", "paragraph"]),
+    );
+    const marks = json.content?.at(-1)?.content?.[0]?.marks?.map((mark) => mark.type);
+    expect(marks).toEqual(expect.arrayContaining(["bold", "italic"]));
+    expect(() => documentFromJSON("自由文件", json)).not.toThrow();
+  });
+
+  it("沒有第一層標題（留給文件名稱）", async () => {
+    const { container } = render(
+      <DocumentEditor kind="自由文件" initialBody={prose("大標")} initialToken={token} save={save} />,
+    );
+    const editor = await editorIn(container);
+    act(() => {
+      editor.commands.setHeading({ level: 1 as 2 });
+    });
+    expect(editor.getJSON().content?.[0]?.type).toBe("paragraph");
   });
 });
 
@@ -78,11 +118,11 @@ describe("改名", () => {
   const renderNamed = (rename: (title: string) => Promise<boolean>) =>
     render(
       <DocumentEditor
-        kind="交件大綱"
+        kind="自由文件"
         initialBody={emptyDocument()}
         initialToken={token}
         save={save}
-        title={{ initial: "劇情大綱", rename }}
+        title={{ initial: "世界觀", rename }}
       />,
     );
 
@@ -90,11 +130,11 @@ describe("改名", () => {
     const rename = vi.fn(async () => true);
     renderNamed(rename);
     const input = screen.getByLabelText("文件名稱") as HTMLInputElement;
-    expect(input.value).toBe("劇情大綱");
+    expect(input.value).toBe("世界觀");
 
-    fireEvent.change(input, { target: { value: "故事大綱" } });
+    fireEvent.change(input, { target: { value: "研究筆記" } });
     fireEvent.blur(input);
-    await waitFor(() => expect(rename).toHaveBeenCalledWith("故事大綱"));
+    await waitFor(() => expect(rename).toHaveBeenCalledWith("研究筆記"));
   });
 
   it("按 Enter 也算定案", async () => {
@@ -102,9 +142,14 @@ describe("改名", () => {
     renderNamed(rename);
     const input = screen.getByLabelText("文件名稱");
 
-    fireEvent.change(input, { target: { value: "長綱" } });
+    fireEvent.change(input, { target: { value: "高雄拍 500 字版" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    await waitFor(() => expect(rename).toHaveBeenCalledWith("長綱"));
+    await waitFor(() => expect(rename).toHaveBeenCalledWith("高雄拍 500 字版"));
+  });
+
+  it("固定文件沒有名字欄：名字就是它是什麼", () => {
+    render(<DocumentEditor kind="分場大綱" initialBody={emptyDocument()} initialToken={token} save={save} />);
+    expect(screen.queryByLabelText("文件名稱")).toBeNull();
   });
 
   it("名字沒變就不送", async () => {
@@ -115,16 +160,16 @@ describe("改名", () => {
     expect(rename).not.toHaveBeenCalled();
   });
 
-  it("沒有名字時，欄位裡淡淡地寫著 kind", async () => {
+  it("沒有名字時，欄位裡淡淡地寫著「未命名文件」", async () => {
     render(
       <DocumentEditor
-        kind="交件大綱"
+        kind="自由文件"
         initialBody={emptyDocument()}
         initialToken={token}
         save={save}
         title={{ initial: null, rename: vi.fn(async () => true) }}
       />,
     );
-    expect((screen.getByLabelText("文件名稱") as HTMLInputElement).placeholder).toBe("交件大綱");
+    expect((screen.getByLabelText("文件名稱") as HTMLInputElement).placeholder).toBe("未命名文件");
   });
 });

@@ -1,5 +1,5 @@
 /*
- * 劇本外文件頁 —— 交件大綱、分場大綱（票券 21）。
+ * 劇本外文件頁 —— 故事大綱（交件大綱）、分場大綱、自由文件（票券 21）。
  *
  * 與劇本編輯器同一套閱讀呈現（§7.9 不變式 G）：沒有 A4 紙感、沒有邊框，只有一條由全形字數決定的
  * 閱讀行長。字數計數器只是一行淡字 —— 它計數、不評判，所以沒有顏色在說「太多了」。
@@ -118,6 +118,60 @@
 
 .document-page__body p {
   margin: 0 0 1em;
+}
+
+/*
+ * 簡單的富文本（2026-10-24 使用者裁決）。第一層標題是文件名稱，內文從第二層起。
+ * 標題的層級靠字級與留白，不靠顏色；第三層與內文同字級、只差字重。
+ */
+.document-page__body h2,
+.document-page__body h3 {
+  margin: 1.5em 0 0.5em;
+  font-weight: 700;
+  line-height: var(--leading-sm);
+}
+
+.document-page__body h2 {
+  font-size: 1.25em;
+}
+
+.document-page__body h3 {
+  font-size: 1em;
+}
+
+.document-page__body > :first-child {
+  margin-block-start: 0;
+}
+
+.document-page__body ul,
+.document-page__body ol {
+  margin: 0 0 1em;
+  padding-inline-start: 1.5em;
+}
+
+.document-page__body li > p {
+  margin-block-end: 0.25em;
+}
+
+.document-page__body blockquote {
+  margin: 0 0 1em;
+  padding-inline-start: var(--space-4);
+  border-inline-start: 3px solid var(--rule-strong);
+  color: var(--text-secondary);
+}
+
+.document-page__body hr {
+  margin: 1.5em 0;
+  border: 0;
+  border-block-start: 1px solid var(--rule-strong);
+}
+
+.document-page__body hr.ProseMirror-selectednode {
+  border-block-start-color: var(--focus-ring);
+}
+
+.document-page__body strong {
+  font-weight: 700;
 }
 
 .document-page ::selection {

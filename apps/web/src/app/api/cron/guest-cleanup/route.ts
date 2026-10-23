@@ -1,11 +1,15 @@
 import { cleanupExpiredGuests, GUEST_TTL_DAYS } from "@/guest/guest-ttl";
+import { purgeDeletedDocuments } from "@/persistence";
 
 // route handler 必須連得到 Postgres —— 不可 edge-only（規格 §13.1 硬邊界）。
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * 每日排程：清掉過期的訪客（票券 25 §6／§7、`vercel.json` 的 `crons`）。
+ * 每日排程：清掉過期的訪客（票券 25 §6／§7、`vercel.json` 的 `crons`），以及刪除超過一天的自由文件（票券 21）。
+ *
+ * 文件那一件併進來，是票 07 同一條理由：週期一樣（每天）、失敗後果一樣（只是晚一天清），不值得第二支排程。
+ * 名字還叫 `guest-cleanup`，改名留給票 72（專案刪除也會掛進來）。
  *
  * 它同時**就是**票券 25 §7 那支 keep-alive ping —— 一次真的資料庫查詢，Supabase Free 的
  * 「七天無活動即暫停」因此不會發生。兩件事共用一支排程不是省事：它們的週期、失敗後果與
@@ -20,6 +24,12 @@ export const dynamic = "force-dynamic";
  * 而不是「誰能操作哪個 project」。這個端點也因此不接受任何參數 —— 它不能被用來指定
  * 刪誰，只能執行那條寫死的政策。
  */
+/**
+ * 刪掉的自由文件留多久才真的清掉。畫面上救得回來的只有那 8 秒的「復原」，所以這裡不是使用者看得到的期限 ——
+ * 一天只是讓「剛刪就碰上排程」不會吃掉還在倒數的那一份。
+ */
+const DELETED_DOCUMENT_RETENTION_MS = 24 * 60 * 60 * 1000;
+
 export async function GET(request: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
 
@@ -39,7 +49,8 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const deleted = await cleanupExpiredGuests();
+  const purgedDocuments = await purgeDeletedDocuments(new Date(Date.now() - DELETED_DOCUMENT_RETENTION_MS));
 
   // 回傳筆數不回傳 id：這支端點的讀者是排程器的執行紀錄，不是稽核軌跡。
-  return Response.json({ ttlDays: GUEST_TTL_DAYS, deleted: deleted.length });
+  return Response.json({ ttlDays: GUEST_TTL_DAYS, deleted: deleted.length, purgedDocuments });
 }

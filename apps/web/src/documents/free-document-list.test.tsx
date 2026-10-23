@@ -1,0 +1,123 @@
+// @vitest-environment jsdom
+/**
+ * 票券 21 —— hub 上的自由文件：刪除不問、8 秒內可以復原、停在提示上時倒數暫停。
+ */
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { FreeDocumentList, UNDO_WINDOW_MS } from "./free-document-list";
+
+const refresh = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
+const documents = [
+  { documentId: "dc_a", title: "世界觀" },
+  { documentId: "dc_b", title: null },
+];
+
+/** 讓 server action 的 promise 走完。 */
+const settle = () => act(async () => {});
+
+function renderList(overrides: { deleteDocument?: () => Promise<boolean>; restoreDocument?: () => Promise<boolean> } = {}) {
+  const deleteDocument = vi.fn(overrides.deleteDocument ?? (async () => true));
+  const restoreDocument = vi.fn(overrides.restoreDocument ?? (async () => true));
+  render(
+    <ul>
+      <FreeDocumentList
+        projectId="pj_1"
+        documents={documents}
+        deleteDocument={deleteDocument}
+        restoreDocument={restoreDocument}
+      />
+    </ul>,
+  );
+  return { deleteDocument, restoreDocument };
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.clearAllMocks();
+});
+
+describe("刪除自由文件", () => {
+  it("沒命名的文件顯示「未命名文件」", () => {
+    renderList();
+    expect(screen.getByRole("link", { name: "未命名文件" })).toBeTruthy();
+  });
+
+  it("按下刪除就不見了，不先問確定嗎", async () => {
+    const { deleteDocument } = renderList();
+    fireEvent.click(screen.getByRole("button", { name: "刪除「世界觀」" }));
+    await settle();
+
+    expect(deleteDocument).toHaveBeenCalledWith("dc_a");
+    expect(screen.queryByRole("link", { name: "世界觀" })).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain("已刪除「世界觀」");
+  });
+
+  it("按「復原」就回來", async () => {
+    const { restoreDocument } = renderList();
+    fireEvent.click(screen.getByRole("button", { name: "刪除「世界觀」" }));
+    await settle();
+
+    fireEvent.click(screen.getByRole("button", { name: "復原" }));
+    await settle();
+
+    expect(restoreDocument).toHaveBeenCalledWith("dc_a");
+    expect(screen.getByRole("link", { name: "世界觀" })).toBeTruthy();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("8 秒後提示自己收掉", async () => {
+    renderList();
+    fireEvent.click(screen.getByRole("button", { name: "刪除「世界觀」" }));
+    await settle();
+
+    act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS - 1));
+    expect(screen.getByRole("status")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("滑鼠停在提示上時倒數暫停，離開後接著倒數剩下的", async () => {
+    renderList();
+    fireEvent.click(screen.getByRole("button", { name: "刪除「世界觀」" }));
+    await settle();
+
+    act(() => vi.advanceTimersByTime(3000));
+    fireEvent.mouseEnter(screen.getByRole("status"));
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(screen.getByRole("status")).toBeTruthy();
+
+    fireEvent.mouseLeave(screen.getByRole("status"));
+    act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS - 3000 - 100));
+    expect(screen.getByRole("status")).toBeTruthy();
+    act(() => vi.advanceTimersByTime(200));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("鍵盤焦點在「復原」上時也暫停", async () => {
+    renderList();
+    fireEvent.click(screen.getByRole("button", { name: "刪除「世界觀」" }));
+    await settle();
+
+    fireEvent.focus(screen.getByRole("button", { name: "復原" }));
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(screen.getByRole("status")).toBeTruthy();
+  });
+
+  it("沒刪成就放回來，也不出現「復原」", async () => {
+    renderList({ deleteDocument: async () => false });
+    fireEvent.click(screen.getByRole("button", { name: "刪除「世界觀」" }));
+    await settle();
+
+    expect(screen.getByRole("link", { name: "世界觀" })).toBeTruthy();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+});

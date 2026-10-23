@@ -9,6 +9,7 @@ CREATE TABLE "documents" (
 	"doc_seq" bigint DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"deleted_at" timestamp with time zone,
 	CONSTRAINT "documents_kind_level_check" CHECK (("documents"."kind" in ('分場大綱')) = ("documents"."screenplay_id" is not null))
 );
 --> statement-breakpoint
@@ -16,4 +17,5 @@ ALTER TABLE "documents" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "documents" ADD CONSTRAINT "documents_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "documents" ADD CONSTRAINT "documents_screenplay_id_screenplays_id_fk" FOREIGN KEY ("screenplay_id") REFERENCES "public"."screenplays"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "documents_project_id_idx" ON "documents" USING btree ("project_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "documents_submission_outline_uidx" ON "documents" USING btree ("project_id") WHERE "documents"."kind" = '交件大綱';--> statement-breakpoint
 CREATE UNIQUE INDEX "documents_scene_outline_uidx" ON "documents" USING btree ("screenplay_id") WHERE "documents"."kind" = '分場大綱';

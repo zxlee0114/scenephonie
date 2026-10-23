@@ -5,8 +5,10 @@ import { notFound, redirect } from "next/navigation";
 import { authorizeProject, authorizeScreenplay } from "@/authorization";
 import type { SaveOutcome } from "@/editor/save-capability";
 import {
-  createDocument,
+  createFreeDocument,
+  deleteDocument,
   renameDocument,
+  restoreDocument,
   saveDocument,
   type CreativeUnit,
   type PersistedDoc,
@@ -44,20 +46,34 @@ export async function saveDocumentAction(
   return saveDocument({ unit, documentId, body: doc, token });
 }
 
-/** 改名。名字不是內文 —— 不會跟另一個分頁的存檔衝突。 */
-export async function renameDocumentAction(address: DocumentAddress, documentId: string, title: string): Promise<boolean> {
-  const unit = await unitOf(address);
-  if (!unit) return false;
-  return renameDocument(unit, documentId, title);
+/** 自由文件改名。名字不是內文 —— 不會跟另一個分頁的存檔衝突。固定文件改不了名。 */
+export async function renameDocumentAction(projectId: string, documentId: string, title: string): Promise<boolean> {
+  const project = await authorizeProject(projectId);
+  if (!project) return false;
+  return renameDocument(project, documentId, title);
 }
 
 /**
- * hub 上的「＋ 新增交件大綱」：開一份新的、直接帶過去。名字先留空 —— 欄位裡淡淡寫著「交件大綱」，
- * 編劇照他要投的那個獎改（GHSA 叫劇情大綱、高雄拍叫故事大綱，我們不替他選）。
+ * hub 上的「＋ 新增文件」：開一份新的自由文件、直接帶過去。名字先留空 —— 欄位裡淡淡寫著「未命名文件」，
+ * 用途由編劇決定（世界觀、研究筆記、另一個字數的大綱版本……）。
  */
-export async function createSubmissionOutlineAction(projectId: string): Promise<void> {
+export async function createFreeDocumentAction(projectId: string): Promise<void> {
   const project = await authorizeProject(projectId);
   if (!project) notFound();
-  const created = await createDocument(project, "交件大綱", {});
+  const created = await createFreeDocument(project, {});
   redirect(`/projects/${project.projectId}/documents/${created.documentId}`);
+}
+
+/** 刪一份自由文件。畫面上接著出現 8 秒的「復原」。 */
+export async function deleteDocumentAction(projectId: string, documentId: string): Promise<boolean> {
+  const project = await authorizeProject(projectId);
+  if (!project) return false;
+  return deleteDocument(project, documentId);
+}
+
+/** 「復原」：把剛刪的自由文件拿回來。 */
+export async function restoreDocumentAction(projectId: string, documentId: string): Promise<boolean> {
+  const project = await authorizeProject(projectId);
+  if (!project) return false;
+  return restoreDocument(project, documentId);
 }

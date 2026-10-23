@@ -17,6 +17,7 @@ import type { PersistedDoc } from "./doc-schema-version";
 export const CURRENT_DOCUMENT_SCHEMA_VERSIONS: Record<DocumentKind, number> = {
   交件大綱: 1,
   分場大綱: 1,
+  自由文件: 1,
 };
 
 type DocumentMigration = (doc: PersistedDoc) => PersistedDoc;
@@ -25,6 +26,7 @@ type DocumentMigration = (doc: PersistedDoc) => PersistedDoc;
 const migrations: Record<DocumentKind, Map<number, DocumentMigration>> = {
   交件大綱: new Map(),
   分場大綱: new Map(),
+  自由文件: new Map(),
 };
 
 /** 文件的版本比這份程式碼還新（rolling deploy 期間的舊 instance 讀到新 doc）。 */
