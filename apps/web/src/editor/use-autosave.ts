@@ -53,8 +53,11 @@ export function useAutosave({
       save: async () => {
         const token = tokenRef.current;
         if (!token || stoppedRef.current) return;
-        setStatus("saving");
         try {
+          // `onLine === false` 只保證「一定斷線」，所以只拿來省掉一定失敗的請求；
+          // 照失敗處理，排程器才會維持待存、繼續退避（票券 65）。
+          if (!navigator.onLine) throw new Error("offline");
+          setStatus("saving");
           const result = await save({
             screenplayId,
             // toPlainJson 不是防禦性複製，是必要的 —— ProseMirror 的 attrs 是 null-prototype
@@ -95,13 +98,16 @@ export function useAutosave({
     document.addEventListener("visibilitychange", onVisibilityChange);
     // pagehide 補的是 visibilitychange 沒涵蓋的離開方式（bfcache、部分行動瀏覽器）。
     window.addEventListener("pagehide", flushPending);
+    // 網路回來就補存，不等退避排的下一次（最久要等一分鐘）。
+    window.addEventListener("online", flushPending);
 
     return () => {
       editor.off("update", onUpdate);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", flushPending);
+      window.removeEventListener("online", flushPending);
       // 這裡只丟計時器不 flush —— 卸載時 editor 可能已經被 Tiptap 拆掉，`getJSON()` 沒有東西可讀。
-      // 真正要保住稿的是上面兩個離開事件。
+      // 真正要保住稿的是上面 visibilitychange／pagehide 兩個離開事件。
       scheduler.cancel();
       schedulerRef.current = null;
     };
