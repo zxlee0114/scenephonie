@@ -9,7 +9,7 @@
 
 **Blocked by:** 無
 
-**Status:** in-review
+**Status:** verified
 
 ## 開工前要定的事
 
@@ -22,10 +22,10 @@
 
 ## 驗收
 
-- [ ] DevTools 切到 Offline 後，重試間隔逐次拉長，不會固定每 2.5 秒打一次
-- [ ] 切回 Online 後很快就補存成功，不用等退避時間到
-- [ ] 斷線期間繼續打字不會讓請求變密
-- [ ] 存檔狀態的文字和實際行為一致：說「會再試」就真的會再試
+- [x] DevTools 切到 Offline 後，重試間隔逐次拉長，不會固定每 2.5 秒打一次
+- [x] 切回 Online 後很快就補存成功，不用等退避時間到
+- [x] 斷線期間繼續打字不會讓請求變密
+- [x] 存檔狀態的文字和實際行為一致：說「會再試」就真的會再試
 - [x] 用 fake timers 的測試把退避序列與封頂值釘住
 
 ## Comments
@@ -46,3 +46,6 @@ code review 抓到三個時序問題，一併修掉並各補一個測試：失�
 - 離開前提醒：有沒落地的變更（等停頓、在路上、等重試）或已停手（conflict／forbidden）時，`beforeunload` 攔關分頁／重新整理。
   網路正常時打完字 2.5 秒內關分頁也會攔 —— 那時確實還沒存。
 未做：存不進去時把稿留在本機（localStorage／IndexedDB）重整後救回 —— 那是離線編輯，spec 範圍表排除（受約束 3、§12），要做另開票。
+
+**驗收通過（2026-10-23）**：第一條「DevTools 切到 Offline 後間隔逐次拉長」改用 Request conditions 擋請求驗（Offline 下不送請求，看不到間隔）。
+本機備份另開 [69](./69-unsaved-draft-local-backup.md)。
