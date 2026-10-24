@@ -35,7 +35,10 @@ PATH=".venv/bin:$PATH" .venv/bin/python build-noto-subset.py --no-fetch  # 沿�
   `optional`／`fallback` ＝ 同頁字型永久混排且不自我修復（研究 §4.2）。
 - **行高寫無單位** `line-height`（`--leading-base`）—— 字型換手時中文字寬不跳、行高會跳 3.4%；
   `ascent-override` 家族 Safari 不支援、`size-adjust` 會弄壞 `ic` 欄寬，兩個顯然的修法都是陷阱。
-- **只載 400**：約束 2 已把粗體從資料模型拿掉，字重不得表達內容語意。
+- **編輯器只載 400**：約束 2 已把粗體從劇本的資料模型拿掉，字重不得表達劇本的內容語意。
+- **700 只給散文文件**（`noto-sans-tc-700/`，票券 21）：故事大綱、分場大綱、自由文件允許作者寫粗體與標題
+  （約束 2 管的是劇本），由 `DocumentShell` 掛上，劇本頁不會載到。產法：`--no-fetch --weight 700`，
+  `--work` 目錄裡先放好 `NotoSansTC-wght.ttf`（2026-10-24 從 `google/fonts@main` 抓的，可能比 400 那份新一版）。
 - **fallback 鏈**：`"PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif`。楷體／明體不進螢幕編輯器。
 
 ## 已知量測缺口（研究 §7 / 實作期複核清單）

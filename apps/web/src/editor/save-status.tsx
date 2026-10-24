@@ -9,16 +9,16 @@ import type { Autosave, SaveStatus } from "./use-autosave";
  *
  * 自動存檔是承諾不是功能，所以它平時沉默；`loud` 是「這件事使用者非知道不可」。
  * 兩件事併在一起，是因為分成「文字表 ＋ 另一處的白名單」時，加一個狀態要記得改兩個地方，
- * 而其中一處漏改不會有人發現。
+ * 而其中一處漏改不會有人發現。`noun` 是存的那一份叫什麼（劇本、交件大綱…，票券 21）。
  */
-const STATUS: Record<SaveStatus, { text: string; loud: boolean }> = {
+const statusText = (noun: string): Record<SaveStatus, { text: string; loud: boolean }> => ({
   idle: { text: "", loud: false },
   saving: { text: "儲存中…", loud: false },
   saved: { text: "已儲存", loud: false },
   error: { text: "存檔失敗，會再試一次", loud: true },
-  conflict: { text: "這份劇本在別的地方被改過了，請重新整理再繼續", loud: true },
-  forbidden: { text: "沒有權限存這份劇本，請重新登入", loud: true },
-};
+  conflict: { text: `這份${noun}在別的地方被改過了，請重新整理再繼續`, loud: true },
+  forbidden: { text: `沒有權限存這份${noun}，請重新登入`, loud: true },
+});
 
 /**
  * 存檔狀態，以及「現在就存」的兩個入口（票券 65）。
@@ -30,7 +30,8 @@ const STATUS: Record<SaveStatus, { text: string; loud: boolean }> = {
  * ⌘S 任何時候都是「現在就存」：編劇的手指本來就會按它，而瀏覽器預設的「另存網頁」在這裡
  * 沒有意義。沒有待存的變更時它什麼都不做，跟自動存檔一樣沉默。
  */
-export function SaveStatusLine({ status, flush, nextRetryAt }: Autosave) {
+export function SaveStatusLine({ status, flush, nextRetryAt, noun = "劇本" }: Autosave & { noun?: string }) {
+  const texts = statusText(noun);
   const failed = status === "error";
   const retryIn = useRetryCountdown(failed, nextRetryAt);
   const counting = failed && retryIn !== undefined && retryIn > 0;
@@ -46,9 +47,9 @@ export function SaveStatusLine({ status, flush, nextRetryAt }: Autosave) {
   }, [flush]);
 
   return (
-    <div className={`save-status${STATUS[status].loud ? " save-status--loud" : ""}`}>
+    <div className={`save-status${texts[status].loud ? " save-status--loud" : ""}`}>
       <p className={counting ? "sr-only" : "save-status__text"} role="status" aria-live="polite">
-        {STATUS[status].text}
+        {texts[status].text}
       </p>
       {counting && (
         <span aria-hidden="true">

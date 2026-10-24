@@ -127,6 +127,21 @@ export type { ExportPreflight, SkippedDraft, SkippedCount } from "./export-prefl
 export type { DraftReason } from "./project-scenes";
 export type { SceneMetaField } from "./scene-meta";
 
+// 劇本外文件（票券 21，§6.2、ADR-0009）：kind → 層級（不變式 F 的唯一權威）、各 kind 的 node schema
+// 與字數計數器。寫入路徑（persistence 的 document store）照 `documentLevel` 拒絕掛錯層的文件。
+export {
+  documentLevel,
+  isFixedDocument,
+  isDocumentKind,
+  documentFromJSON,
+  emptyDocument,
+  wordCount,
+} from "./documents";
+export type { DocumentKind } from "./documents";
+
+// 存下來的 doc 開頭幾個字（hub 卡片的預覽）。吃 JSON、不 hydrate：劇本與劇本外文件共用。
+export { plainTextExcerpt } from "./excerpt";
+
 export {
   mintId,
   mintSceneId,

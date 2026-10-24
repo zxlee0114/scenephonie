@@ -145,22 +145,219 @@
   color: var(--text-secondary);
 }
 
-.project-hub__list {
+.project-hub__section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-block-end: var(--space-3);
+}
+
+.project-hub__section-head .project-hub__heading {
+  margin: 0;
+}
+
+/*
+ * hub 的卡片（`DocumentCard`）。手機寬度是一列一項的清單（名字、下一行淡字、底線分隔）；
+ * 寬螢幕排成卡片網格。同一份標記，只有版面不同。
+ */
+.hub-cards {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.project-hub__list a {
-  display: block;
+.hub-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   padding: var(--space-3) 0;
   border-block-end: 1px solid var(--rule);
-  color: var(--text-primary);
-  text-decoration: none;
 }
 
-.project-hub__list a:hover {
+/* 內文預覽：手機的清單版面不顯示，寬螢幕的卡片才佔上半。 */
+.hub-card__preview {
+  display: none;
+}
+
+.hub-card__name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 整張卡都點得到：連結的 ::after 撐滿整張卡。 */
+a.hub-card__name::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+a.hub-card__name:hover {
   color: var(--color-accent);
+}
+
+a.hub-card__name:focus-visible {
+  outline: none;
+}
+
+.hub-card:has(a.hub-card__name:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.hub-card__meta {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.hub-card--pending .hub-card__name,
+.hub-card--pending .hub-card__meta {
+  color: var(--text-faint);
+}
+
+/* 卡上的動作（刪除）疊在撐滿的連結之上；滑過卡片或鍵盤焦點到它時才浮出來。 */
+.hub-card__action {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 0;
+  z-index: 1;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--space-1);
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-50%);
+}
+
+.hub-card:hover .hub-card__action,
+.hub-card__action:focus-visible {
+  opacity: 1;
+}
+
+.hub-card__action:hover {
+  color: var(--error-fg);
+}
+
+.hub-card__action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (min-width: 640px) {
+  .hub-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: var(--space-4);
+  }
+
+  .hub-card {
+    min-block-size: 9rem;
+    padding: var(--space-4);
+    border: 1px solid var(--rule);
+    border-radius: var(--space-3);
+    background: var(--surface-raised);
+  }
+
+  .hub-card:hover {
+    border-color: var(--rule-strong);
+  }
+
+  .hub-card--pending {
+    border-style: dashed;
+    background: none;
+  }
+
+  /* 上半是預覽（最多三行，淡字），名字與日期壓在下緣。 */
+  .hub-card__preview {
+    display: -webkit-box;
+    overflow: hidden;
+    /* 不撐高、也不加 padding（兩者都會讓 line-clamp 之外的第四行露出半截），改用 auto 外距把名字推到下緣。 */
+    margin-block-end: auto;
+    color: var(--text-faint);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .hub-card__icon {
+    display: block;
+  }
+
+  .hub-card__preview + .hub-card__name {
+    margin-block-start: var(--space-3);
+  }
+
+  .hub-card__action {
+    inset-block-start: var(--space-2);
+    inset-inline-end: var(--space-2);
+    transform: none;
+  }
+}
+
+/* 「已刪除「…」 復原」—— 浮在畫面底部正中，8 秒後自己收掉。 */
+.project-hub__toast {
+  position: fixed;
+  inset-block-end: var(--space-5);
+  inset-inline-start: 50%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-inline-size: calc(100vw - 2 * var(--space-4));
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--space-1);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-popover);
+  font-size: var(--text-sm);
+  transform: translateX(-50%);
+}
+
+.project-hub__toast-undo {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.project-hub__toast-undo:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* 「＋ 新增文件」—— 區段標題的右端，一個安靜的文字按鈕，不是醒目的主按鈕。 */
+.project-hub__add {
+  padding: var(--space-1) 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.project-hub__add:hover {
+  color: var(--color-accent);
+}
+
+.project-hub__add:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .project-hub__empty {

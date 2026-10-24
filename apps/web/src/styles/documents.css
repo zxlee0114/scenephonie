@@ -1,0 +1,264 @@
+/*
+ * 劇本外文件頁 —— 故事大綱（交件大綱）、分場大綱、自由文件（票券 21）。
+ *
+ * 與劇本編輯器同一套閱讀呈現（§7.9 不變式 G）：沒有 A4 紙感、沒有邊框，只有一條由全形字數決定的
+ * 閱讀行長。字數計數器只是一行淡字 —— 它計數、不評判，所以沒有顏色在說「太多了」。
+ *
+ * 只用 var(--*)（tokens.css）。這個檔案不得出現任何 hex。
+ */
+
+.document-shell {
+  min-block-size: 100dvh;
+  background: var(--surface-page);
+}
+
+.document-shell__bar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  block-size: var(--bar-height);
+  padding-inline: var(--space-5);
+  border-block-end: 1px solid var(--rule);
+  background: var(--surface-page);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.document-shell__home {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.document-page {
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) 40vh;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  /* 先 em、再 ic —— 靠級聯自然降級（§7.10）。 */
+  max-inline-size: 36em;
+  max-inline-size: calc(var(--measure-body-ic) * 1ic);
+}
+
+/*
+ * 標題列：文件名稱在左、存檔狀態靠右，同一列。下面一條細線把它跟可以寫的地方分開 —— 整頁只有這一條
+ * （票券 21 驗收：原本整頁一片白看不出編輯區在哪；後來名字欄聚焦的底線加上中間空一列，又變成線太多）。
+ */
+.document-page__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin-block-end: var(--space-4);
+  padding-block-end: var(--space-3);
+  border-block-end: 1px solid var(--rule);
+}
+
+/* 文件名稱就是第一層標題：內文的標題從第二層起，所以它要明顯比「標題」大一級。 */
+.document-page__title {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.75em;
+  font-weight: 700;
+  line-height: var(--leading-sm);
+}
+
+/* 名字欄看起來就是標題：聚焦時只有游標，沒有框也沒有底線 —— 它跟文件是同一張紙。 */
+.document-page__title-input {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+}
+
+.document-page__title-input::placeholder {
+  color: var(--text-faint);
+}
+
+.document-page__title-input:focus {
+  outline: none;
+}
+
+/*
+ * 字數在文件欄的右下角：短文件就跟在內文最後面靠右，長文件捲動時黏在視窗底、仍在文件欄的右緣。
+ * 不跟標題並排 —— 並排會讓人以為它在數標題。
+ */
+.document-page__count {
+  position: sticky;
+  inset-block-end: var(--space-4);
+  z-index: 10;
+  inline-size: fit-content;
+  margin: var(--space-3) 0 0 auto;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--space-1);
+  background: var(--surface-page);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 存檔狀態：劇本編輯器把它釘在 header 右端（那裡還有匯出、分享鈕）；這裡沒有那些，跟著標題列走。 */
+.document-page .save-status {
+  position: static;
+  flex: none;
+  block-size: auto;
+  color: var(--text-faint);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.document-page .save-status--loud {
+  color: var(--error-fg);
+}
+
+.document-page .save-status p {
+  margin: 0;
+}
+
+.document-page__body {
+  min-block-size: 50vh;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.document-page__body:focus {
+  outline: none;
+}
+
+.document-page__body p {
+  margin: 0 0 1em;
+}
+
+/* 空白文件的那一行提示（Placeholder extension 把字放在 data-placeholder 上）。 */
+.document-page__body p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: inline-start;
+  block-size: 0;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+/*
+ * 簡單的富文本（2026-10-24 使用者裁決）。第一層標題是文件名稱，內文從第二層起。
+ * 標題的層級靠字級與留白，不靠顏色；第三層與內文同字級、只差字重。
+ */
+.document-page__body h2,
+.document-page__body h3 {
+  margin: 1.5em 0 0.5em;
+  font-weight: 700;
+  line-height: var(--leading-sm);
+}
+
+.document-page__body h2 {
+  font-size: 1.35em;
+}
+
+.document-page__body h3 {
+  font-size: 1.1em;
+}
+
+.document-page__body > :first-child {
+  margin-block-start: 0;
+}
+
+.document-page__body ul,
+.document-page__body ol {
+  margin: 0 0 1em;
+  padding-inline-start: 1.5em;
+}
+
+.document-page__body li > p {
+  margin-block-end: 0.25em;
+}
+
+.document-page__body blockquote {
+  margin: 0 0 1em;
+  padding-inline-start: var(--space-4);
+  border-inline-start: 3px solid var(--rule-strong);
+  color: var(--text-secondary);
+}
+
+.document-page__body hr {
+  margin: 1.5em 0;
+  border: 0;
+  border-block-start: 1px solid var(--rule-strong);
+}
+
+.document-page__body hr.ProseMirror-selectednode {
+  border-block-start-color: var(--focus-ring);
+}
+
+.document-page__body strong {
+  font-weight: 700;
+}
+
+.document-page ::selection {
+  background: var(--selection-bg);
+}
+
+/*
+ * 反白後浮出的格式選單。三組之間一條直線；按下（目前套用中）的那一顆用 accent 的淡底標出來。
+ */
+.format-menu {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--rule);
+  border-radius: var(--space-1);
+  background: var(--surface-page);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.format-menu__group {
+  display: flex;
+  gap: 2px;
+}
+
+.format-menu__group + .format-menu__group {
+  padding-inline-start: var(--space-1);
+  border-inline-start: 1px solid var(--rule);
+}
+
+.format-menu__button {
+  min-inline-size: 2em;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--space-1);
+  background: none;
+  color: var(--control-fg);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.format-menu__button:hover {
+  background: var(--surface-sunken);
+}
+
+.format-menu__button[aria-pressed="true"] {
+  background: var(--color-accent-weak);
+  color: var(--color-accent);
+}
+
+.format-menu__button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.format-menu__button--bold {
+  font-weight: 700;
+}
+
+.format-menu__button--italic {
+  font-style: italic;
+}

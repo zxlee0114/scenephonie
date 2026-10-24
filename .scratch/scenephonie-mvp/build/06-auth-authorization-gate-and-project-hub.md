@@ -109,3 +109,8 @@ Postgres → 184 passed。
 
 **仍然開著的一項**（不屬本票，重申）：`screenplay_backups` 的 append-only 還是程式碼層規則，
 要成為保證得撤掉執行期角色的 `UPDATE`／`DELETE` 權限 —— DB 角色的事，部署時處理。
+
+**2026-10-23 — 開工決定第 3 條由票 71 取代。** 「`/projects` 是轉接口、第一次登入自動開專案」是實作時的判斷，
+不是使用者裁決過的；使用者要的流程是登入後先看到專案儀表板、明確按下才建立專案。見
+[71](./71-project-dashboard-and-create-flow.md)（以及 [72](./72-project-archive-and-delete.md) 封存與刪除、
+[73](./73-onboarding-tour.md) 引導）。本票狀態不變。

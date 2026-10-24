@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -324,6 +325,70 @@ export const screenplayBackups = pgTable(
   ],
 ).enableRLS();
 
+
+/**
+ * 劇本外文件 —— 劇本之外、編劇另外寫的文件（票券 21，§6.2、ADR-0009）：交件大綱、分場大綱、自由文件。
+ *
+ * 跟 `screenplays` 同型：一份 ProseMirror doc ＋ `doc_schema_version` ＋ `doc_seq`。差別只在掛哪一層 ——
+ * 所以是一張表、`screenplay_id` 可為 null，而不是兩張表（ADR-0009 否決了拆表：同型的東西分家，
+ * 換來的只是把一條不變式編碼進 schema）。
+ *
+ * **不變式 F：`kind` 固定其合法層級。** `screenplay_id` 該不該有值是 kind 定義的一部分，
+ * 不由使用者決定。規格 §11 要它守在**資料層 ＋ command** 兩處：command 那一半是寫入路徑
+ * （`persistence/document-store.ts`）照 `@scenephonie/schema` 的 `documentLevel` 拒絕；資料層這一半
+ * 是下面那條 CHECK —— 繞過 persistence 直接寫進來的那一列也掛不錯層。
+ *
+ * ⚠️ CHECK 是 `documentLevel` 那張表的抄本（劇本層的 kind 列在 SQL 裡），**新增一種劇本層的 kind 時
+ * 兩邊一起改**；新增專案層的 kind 不必動它。抄本的代價換的是 §11 那條保證，而且抄錯會大聲失敗
+ * （寫入被拒），不會靜默放行。
+ *
+ * `doc_schema_version` 是**該 kind 的版本**，不是全域數字：每個 kind 有自己的 node schema 與自己的
+ * 遷移鏈，交件大綱升版時分場大綱不動。
+ *
+ * `title` 是編劇給自由文件的名字（自由文件可多份、各自命名）。它**不是 kind**：可變的顯示值不承載身分
+ * （ADR-0009）。`null` ＝ 沒命名。固定文件（交件大綱、分場大綱）的名字就是它是什麼，這一欄永遠是 `null`。
+ * 名字不在 doc 裡（它不是內文）。
+ *
+ * 沒有備份表 —— §6.7 的自動備份只承諾劇本。
+ */
+export const documents = pgTable(
+  "documents",
+  {
+    /** `dc_` ＋ nanoid。 */
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    screenplayId: text("screenplay_id").references(() => screenplays.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    title: text("title"),
+    body: jsonb("body").notNull(),
+    docSchemaVersion: integer("doc_schema_version").notNull(),
+    docSeq: bigint("doc_seq", { mode: "number" }).notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    /**
+     * 自由文件刪除的時刻。刪除當下就寫進來、畫面上就不見了，「復原」是把它清回 null；真正的 `DELETE`
+     * 交給每日排程（過了期限才清）。不在這裡等 8 秒才送出刪除 —— 那樣 8 秒內關掉分頁，文件就不會被刪，
+     * 結果跟使用者做的事不一致。固定文件永遠是 null（刪不掉）。
+     */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    // 專案 hub 問的是「這個專案有哪些文件」（兩層都列）。
+    index("documents_project_id_idx").on(table.projectId),
+    // 固定文件每個創作單位一份：交件大綱一個專案一份、分場大綱一份劇本一份。打開它們是 get-or-create，
+    // 兩個分頁同時第一次打開時由這兩條排成序，晚到的那一次拿到先到的那一份，不會多出第二份。
+    uniqueIndex("documents_submission_outline_uidx")
+      .on(table.projectId)
+      .where(sql`${table.kind} = '交件大綱'`),
+    uniqueIndex("documents_scene_outline_uidx")
+      .on(table.screenplayId)
+      .where(sql`${table.kind} = '分場大綱'`),
+    // 不變式 F 的資料層：劇本層的 kind 一定有劇本，其餘一定沒有。
+    check("documents_kind_level_check", sql`(${table.kind} in ('分場大綱')) = (${table.screenplayId} is not null)`),
+  ],
+).enableRLS();
 
 /**
  * 交付 —— 一則承諾：「這份內容，在你之後改稿時仍保持不變。」（票券 17，§4.9、§6.2、ADR-0008）

@@ -1,9 +1,15 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { isFixedDocument, type DocumentKind } from "@scenephonie/schema";
+
 import { authorizeProject } from "@/authorization";
+import { cardMeta, DocumentCard } from "@/documents/document-card";
+import { FreeDocumentList } from "@/documents/free-document-list";
+import { documentLabel } from "@/documents/labels";
+import { listDocuments } from "@/persistence";
 import { projectContents } from "@/projects/project-store";
 
+import { createFreeDocumentAction, deleteDocumentAction, restoreDocumentAction } from "./documents/actions";
 import { SignOut } from "./sign-out";
 
 // route handler／server component 必須連得到 Postgres —— 不可 edge-only（§13.1）。
@@ -17,8 +23,14 @@ export const dynamic = "force-dynamic";
  * 沒有橫向的兄弟序列）。系列劇本專案一來兩個前提同時失效，那時 sidebar 才第一次有正當理由；
  * route tree `/projects/:id/screenplays/:id` 已經把層級編碼進去，sidebar 是漸進增強。
  *
- * 分成「專案層」與「劇本層」兩區，是因為**導覽形狀本身在教 [ADR-0009] 的掛載規則**：
- * 文件掛在它描述的創作單位上。所以即使 v1 的專案層還沒有任何文件，這一區也照樣站在這裡。
+ * 文件是**一份平的清單**，不分「專案層／劇本層」（2026-10-24 使用者裁決，取代 §7.10 原本的兩區）：
+ * 單一劇本專案的專案與劇本是 1:1，掛在哪個創作單位上在畫面上沒有可觀測的差別，編劇也不需要知道 ADR-0009
+ * 那條掛載規則 —— 它是給系統用的。資料層照舊守著不變式 F；系列劇本專案那天，「哪一集的文件」才第一次有意義。
+ *
+ * 順序固定：故事大綱、分場大綱、人物介紹，再來是編劇自己新增的自由文件（早建立的在前）。
+ * 固定文件第一次點進去才建立，所以卡片一直都在（還沒打開過的寫「尚未開始」）。
+ *
+ * 寬螢幕排成卡片、手機寬度變回清單（票券 21 驗收）；兩者是同一份標記，見 `DocumentCard`。
  *
  * ⚠️ **gate 在這裡，不在 UI**：`authorizeProject` 過不了就是 404 —— 與「這個專案不存在」
  * 同一個答案，否則這一頁會變成一支專案 id 的存在性探針。
@@ -32,7 +44,20 @@ export default async function ProjectHubPage({
   const project = await authorizeProject(projectId);
   if (!project) notFound();
 
-  const { title, screenplayId } = await projectContents(project);
+  const [{ title, screenplayId, screenplayUpdatedAt, screenplayExcerpt }, documents] = await Promise.all([
+    projectContents(project),
+    listDocuments(project),
+  ]);
+  const fixed = (kind: DocumentKind) => documents.find((document) => document.kind === kind);
+  const freeDocuments = documents
+    .filter((document) => !isFixedDocument(document.kind))
+    .map((document) => ({
+      documentId: document.documentId,
+      title: document.title,
+      meta: cardMeta(document),
+      excerpt: document.excerpt,
+    }));
+  const projectPath = `/projects/${project.projectId}`;
 
   return (
     <main className="project-hub">
@@ -46,29 +71,52 @@ export default async function ProjectHubPage({
       <section className="project-hub__section">
         <h2 className="project-hub__heading">劇本</h2>
         {screenplayId ? (
-          <ul className="project-hub__list">
-            <li>
-              {/* 單一劇本專案之下只有一份，名字就是專案名 —— 劇本沒有自己的標題欄位。 */}
-              <Link href={`/projects/${project.projectId}/screenplays/${screenplayId}`}>{title}</Link>
-            </li>
+          <ul className="hub-cards">
+            {/* 單一劇本專案之下只有一份，名字就是專案名 —— 劇本沒有自己的標題欄位。 */}
+            <DocumentCard
+              href={`${projectPath}/screenplays/${screenplayId}`}
+              name={title}
+              meta={cardMeta(screenplayUpdatedAt ? { updatedAt: screenplayUpdatedAt } : undefined)}
+              excerpt={screenplayExcerpt}
+            />
           </ul>
         ) : (
           <p className="project-hub__empty">這個專案還沒有劇本。</p>
         )}
       </section>
 
-      {/* 兩區並排就是那條掛載規則本身：**文件掛在它描述的創作單位上**（ADR-0009）。
-          交件大綱與角色設定表描述的是整個專案，分場大綱描述的是那一份劇本。
-          v1 兩區都還沒有內容（票券 21），但位置是對的 —— 空著比掛錯地方好，而且形狀
-          先站在這裡，日後加文件時不會有人需要重新決定它該掛哪。 */}
       <section className="project-hub__section">
-        <h2 className="project-hub__heading">專案層文件</h2>
-        <p className="project-hub__empty">交件大綱與角色設定表尚未開放。</p>
-      </section>
-
-      <section className="project-hub__section">
-        <h2 className="project-hub__heading">劇本層文件</h2>
-        <p className="project-hub__empty">分場大綱尚未開放。</p>
+        <div className="project-hub__section-head">
+          <h2 className="project-hub__heading">文件</h2>
+          <form action={createFreeDocumentAction.bind(null, project.projectId)}>
+            <button type="submit" className="project-hub__add">
+              ＋ 新增文件
+            </button>
+          </form>
+        </div>
+        <ul className="hub-cards">
+          <DocumentCard
+            href={`${projectPath}/story-outline`}
+            name={documentLabel("交件大綱")}
+            meta={cardMeta(fixed("交件大綱"))}
+            excerpt={fixed("交件大綱")?.excerpt}
+          />
+          {screenplayId && (
+            <DocumentCard
+              href={`${projectPath}/screenplays/${screenplayId}/scene-outline`}
+              name={documentLabel("分場大綱")}
+              meta={cardMeta(fixed("分場大綱"))}
+              excerpt={fixed("分場大綱")?.excerpt}
+            />
+          )}
+          <DocumentCard name="人物介紹" meta="尚未開放" />
+          <FreeDocumentList
+            projectId={project.projectId}
+            documents={freeDocuments}
+            deleteDocument={deleteDocumentAction.bind(null, project.projectId)}
+            restoreDocument={restoreDocumentAction.bind(null, project.projectId)}
+          />
+        </ul>
       </section>
     </main>
   );
