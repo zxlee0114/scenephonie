@@ -5,6 +5,9 @@ import type { ReactNode } from "react";
  * hub 上的一張卡（票券 21 驗收，2026-10-24）：寬螢幕排成卡片網格，手機寬度變回一列一項的清單 ——
  * 同一份標記，版面交給 CSS（`app.css` 的 `.hub-card`）。
  *
+ * 卡片上半是內文開頭幾個字的預覽 —— 「未命名文件」有好幾份時，那是唯一認得出哪一份的線索；
+ * 還沒有字的（空白、還沒打開過）放一個淡淡的檔案圖示佔位。手機的清單版面不顯示預覽。
+ *
  * 整張卡都點得到：連結的 `::after` 撐滿整張卡。卡上的動作（刪除）疊在連結之上，不包在連結裡 ——
  * 按鈕不能放進 `<a>`。沒有 `href` 的卡是還沒開放的那一份（人物介紹），只佔著位置。
  */
@@ -12,16 +15,22 @@ export function DocumentCard({
   href,
   name,
   meta,
+  excerpt = "",
   action,
 }: {
   href?: string;
   name: string;
+  /** 內文開頭幾個字；空字串就放圖示。 */
+  excerpt?: string;
   /** 名字下面那一行淡字：最後編輯時間、字數，或「尚未開始」。 */
   meta: string;
   action?: ReactNode;
 }) {
   return (
     <li className={href ? "hub-card" : "hub-card hub-card--pending"}>
+      <span className="hub-card__preview" aria-hidden="true">
+        {excerpt || <FileIcon />}
+      </span>
       {href ? (
         <Link href={href} className="hub-card__name">
           {name}
@@ -32,6 +41,16 @@ export function DocumentCard({
       <span className="hub-card__meta">{meta}</span>
       {action}
     </li>
+  );
+}
+
+/** 還沒有字可以預覽時的佔位：一張摺角的紙。顏色跟著文字（currentColor）。 */
+function FileIcon() {
+  return (
+    <svg className="hub-card__icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" strokeLinejoin="round" />
+      <path d="M14 3v5h5" strokeLinejoin="round" />
+    </svg>
   );
 }
 

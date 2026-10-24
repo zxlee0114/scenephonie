@@ -176,6 +176,11 @@
   border-block-end: 1px solid var(--rule);
 }
 
+/* 內文預覽：手機的清單版面不顯示，寬螢幕的卡片才佔上半。 */
+.hub-card__preview {
+  display: none;
+}
+
 .hub-card__name {
   overflow: hidden;
   color: var(--text-primary);
@@ -256,8 +261,7 @@ a.hub-card__name:focus-visible {
   }
 
   .hub-card {
-    justify-content: flex-end;
-    min-block-size: 7rem;
+    min-block-size: 9rem;
     padding: var(--space-4);
     border: 1px solid var(--rule);
     border-radius: var(--space-3);
@@ -271,6 +275,28 @@ a.hub-card__name:focus-visible {
   .hub-card--pending {
     border-style: dashed;
     background: none;
+  }
+
+  /* 上半是預覽（最多三行，淡字），名字與日期壓在下緣。 */
+  .hub-card__preview {
+    display: -webkit-box;
+    overflow: hidden;
+    /* 不撐高、也不加 padding（兩者都會讓 line-clamp 之外的第四行露出半截），改用 auto 外距把名字推到下緣。 */
+    margin-block-end: auto;
+    color: var(--text-faint);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .hub-card__icon {
+    display: block;
+  }
+
+  .hub-card__preview + .hub-card__name {
+    margin-block-start: var(--space-3);
   }
 
   .hub-card__action {

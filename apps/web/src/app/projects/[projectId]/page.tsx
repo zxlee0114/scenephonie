@@ -44,14 +44,19 @@ export default async function ProjectHubPage({
   const project = await authorizeProject(projectId);
   if (!project) notFound();
 
-  const [{ title, screenplayId, screenplayUpdatedAt }, documents] = await Promise.all([
+  const [{ title, screenplayId, screenplayUpdatedAt, screenplayExcerpt }, documents] = await Promise.all([
     projectContents(project),
     listDocuments(project),
   ]);
   const fixed = (kind: DocumentKind) => documents.find((document) => document.kind === kind);
   const freeDocuments = documents
     .filter((document) => !isFixedDocument(document.kind))
-    .map((document) => ({ documentId: document.documentId, title: document.title, meta: cardMeta(document) }));
+    .map((document) => ({
+      documentId: document.documentId,
+      title: document.title,
+      meta: cardMeta(document),
+      excerpt: document.excerpt,
+    }));
   const projectPath = `/projects/${project.projectId}`;
 
   return (
@@ -72,6 +77,7 @@ export default async function ProjectHubPage({
               href={`${projectPath}/screenplays/${screenplayId}`}
               name={title}
               meta={cardMeta(screenplayUpdatedAt ? { updatedAt: screenplayUpdatedAt } : undefined)}
+              excerpt={screenplayExcerpt}
             />
           </ul>
         ) : (
@@ -93,12 +99,14 @@ export default async function ProjectHubPage({
             href={`${projectPath}/story-outline`}
             name={documentLabel("交件大綱")}
             meta={cardMeta(fixed("交件大綱"))}
+            excerpt={fixed("交件大綱")?.excerpt}
           />
           {screenplayId && (
             <DocumentCard
               href={`${projectPath}/screenplays/${screenplayId}/scene-outline`}
               name={documentLabel("分場大綱")}
               meta={cardMeta(fixed("分場大綱"))}
+              excerpt={fixed("分場大綱")?.excerpt}
             />
           )}
           <DocumentCard name="人物介紹" meta="尚未開放" />

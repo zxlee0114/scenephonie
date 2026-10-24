@@ -139,6 +139,9 @@ export {
 } from "./documents";
 export type { DocumentKind } from "./documents";
 
+// 存下來的 doc 開頭幾個字（hub 卡片的預覽）。吃 JSON、不 hydrate：劇本與劇本外文件共用。
+export { plainTextExcerpt } from "./excerpt";
+
 export {
   mintId,
   mintSceneId,

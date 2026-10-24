@@ -11,8 +11,8 @@ const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 const documents = [
-  { documentId: "dc_a", title: "世界觀", meta: "2026年10月24日 · 12 字" },
-  { documentId: "dc_b", title: null, meta: "2026年10月23日 · 0 字" },
+  { documentId: "dc_a", title: "世界觀", meta: "2026年10月24日 · 12 字", excerpt: "海島上的三個村落" },
+  { documentId: "dc_b", title: null, meta: "2026年10月23日 · 0 字", excerpt: "" },
 ];
 
 /** 滑鼠點擊：`detail` 是點擊次數；鍵盤觸發的 click 是 0。 */

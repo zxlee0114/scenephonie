@@ -115,6 +115,7 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
 
     const after = (await listDocuments(project)).find((d) => d.documentId === doc.documentId);
     expect(after?.words).toBe(5);
+    expect(after?.excerpt).toBe("一個雨夜 hello");
     expect(after!.updatedAt.getTime()).toBeGreaterThanOrEqual(before!.updatedAt.getTime());
   });
 

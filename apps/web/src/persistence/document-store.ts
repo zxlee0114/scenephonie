@@ -6,6 +6,7 @@ import {
   emptyDocument,
   isDocumentKind,
   mintId,
+  plainTextExcerpt,
   wordCount,
   type DocumentKind,
 } from "@scenephonie/schema";
@@ -55,7 +56,12 @@ export type DocumentSummary = {
   updatedAt: Date;
   /** 字數（同編輯器裡的計數器）。 */
   words: number;
+  /** 內文開頭幾個字（hub 卡片的預覽）；空文件是空字串。 */
+  excerpt: string;
 };
+
+/** 卡片預覽取多少字：三行左右。 */
+const EXCERPT_CHARS = 80;
 
 /** 一份載進記憶體的文件。`token` 是不透明的 —— 存檔時原封帶回。 */
 export type LoadedDocument = {
@@ -170,7 +176,14 @@ export async function listDocuments(project: AuthorizedProject): Promise<Documen
   return rows.flatMap(({ body, docSchemaVersion, ...row }) => {
     if (!isDocumentKind(row.kind)) return [];
     const current = migrateDocumentToCurrent(row.kind, body as PersistedDoc, docSchemaVersion);
-    return [{ ...row, kind: row.kind, words: wordCount(documentFromJSON(row.kind, current)) }];
+    return [
+      {
+        ...row,
+        kind: row.kind,
+        words: wordCount(documentFromJSON(row.kind, current)),
+        excerpt: plainTextExcerpt(current, EXCERPT_CHARS),
+      },
+    ];
   });
 }
 

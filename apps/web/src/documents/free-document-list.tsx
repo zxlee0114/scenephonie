@@ -30,6 +30,8 @@ export type FreeDocumentEntry = {
   title: string | null;
   /** 卡片上那一行淡字（伺服器那邊照台北時間排好）。 */
   meta: string;
+  /** 內文開頭幾個字。 */
+  excerpt: string;
 };
 
 /** 清單、按鈕、提示上顯示的名字：沒命名就是「未命名文件」。 */
@@ -85,6 +87,7 @@ export function FreeDocumentList({
           href={`/projects/${projectId}/documents/${entry.documentId}`}
           name={displayTitle(entry)}
           meta={entry.meta}
+          excerpt={entry.excerpt}
           action={
             <button
               type="button"

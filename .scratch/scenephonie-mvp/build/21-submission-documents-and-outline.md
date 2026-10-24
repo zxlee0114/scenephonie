@@ -67,3 +67,9 @@
 
 依賴：加了 `@tiptap/extensions`（Placeholder）與 `@tiptap/extension-heading`；`pnpm-workspace.yaml` 用 overrides 把
 `@tiptap/extension-bubble-menu`／`floating-menu` 釘回 3.30（原本被 `@tiptap/react` 的 ^ 範圍解析到 3.31、peer 不合）。
+
+**2026-10-24 驗收回饋（第二輪）**：
+- 標題列：名稱在左、存檔狀態靠右同一列；名字欄聚焦時只有游標（拿掉聚焦底線），整頁只剩標題列下方一條線。
+- 字數在**文件欄**的右下角（`position: sticky`）：短文件跟在內文後面靠右，長文件黏在視窗底、仍在文件欄右緣。
+- 卡片上半放內文開頭的預覽（`plainTextExcerpt`，最多三行；劇本卡是第一場的動作與對白），還沒有字的放檔案圖示。
+  使用者原本想放檔案圖示佔位，裁決改成「有字放預覽、沒字放圖示」：同樣的圖示分不出哪一份。
