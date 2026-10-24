@@ -145,67 +145,139 @@
   color: var(--text-secondary);
 }
 
-.project-hub__list {
+.project-hub__section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-block-end: var(--space-3);
+}
+
+.project-hub__section-head .project-hub__heading {
+  margin: 0;
+}
+
+/*
+ * hub 的卡片（`DocumentCard`）。手機寬度是一列一項的清單（名字、下一行淡字、底線分隔）；
+ * 寬螢幕排成卡片網格。同一份標記，只有版面不同。
+ */
+.hub-cards {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.project-hub__list a {
-  display: block;
+.hub-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   padding: var(--space-3) 0;
   border-block-end: 1px solid var(--rule);
-  color: var(--text-primary);
-  text-decoration: none;
 }
 
-.project-hub__list a:hover {
+.hub-card__name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 整張卡都點得到：連結的 ::after 撐滿整張卡。 */
+a.hub-card__name::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+a.hub-card__name:hover {
   color: var(--color-accent);
 }
 
-/* 自由文件那一列：名字是連結，「刪除」靠右、淡一階，滑過那一列才浮出來（鍵盤焦點也會）。 */
-.project-hub__row {
-  display: flex;
-  align-items: center;
-  border-block-end: 1px solid var(--rule);
+a.hub-card__name:focus-visible {
+  outline: none;
 }
 
-.project-hub__row a {
-  flex: 1;
-  min-inline-size: 0;
-  border-block-end: 0;
+.hub-card:has(a.hub-card__name:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
-.project-hub__row-action {
-  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+.hub-card__meta {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.hub-card--pending .hub-card__name,
+.hub-card--pending .hub-card__meta {
+  color: var(--text-faint);
+}
+
+/* 卡上的動作（刪除）疊在撐滿的連結之上；滑過卡片或鍵盤焦點到它時才浮出來。 */
+.hub-card__action {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 0;
+  z-index: 1;
+  padding: var(--space-1) var(--space-2);
   border: 0;
+  border-radius: var(--space-1);
   background: none;
   color: var(--text-faint);
   font: inherit;
   font-size: var(--text-sm);
   cursor: pointer;
   opacity: 0;
+  transform: translateY(-50%);
 }
 
-.project-hub__row:hover .project-hub__row-action,
-.project-hub__row-action:focus-visible {
+.hub-card:hover .hub-card__action,
+.hub-card__action:focus-visible {
   opacity: 1;
 }
 
-.project-hub__row-action:hover {
+.hub-card__action:hover {
   color: var(--error-fg);
 }
 
-.project-hub__row-action:focus-visible {
+.hub-card__action:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
-/* 還沒做出來的那一份（人物介紹）：佔著它在清單裡的位置，不是連結。 */
-.project-hub__pending {
-  padding: var(--space-3) 0;
-  border-block-end: 1px solid var(--rule);
-  color: var(--text-faint);
+@media (min-width: 640px) {
+  .hub-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: var(--space-4);
+  }
+
+  .hub-card {
+    justify-content: flex-end;
+    min-block-size: 7rem;
+    padding: var(--space-4);
+    border: 1px solid var(--rule);
+    border-radius: var(--space-3);
+    background: var(--surface-raised);
+  }
+
+  .hub-card:hover {
+    border-color: var(--rule-strong);
+  }
+
+  .hub-card--pending {
+    border-style: dashed;
+    background: none;
+  }
+
+  .hub-card__action {
+    inset-block-start: var(--space-2);
+    inset-inline-end: var(--space-2);
+    transform: none;
+  }
 }
 
 /* 「已刪除「…」 復原」—— 浮在畫面底部正中，8 秒後自己收掉。 */
@@ -242,17 +314,14 @@
   outline-offset: 2px;
 }
 
-/* 「＋ 新增文件」—— 跟清單同一條基線的一列，不是一顆醒目的主按鈕。 */
+/* 「＋ 新增文件」—— 區段標題的右端，一個安靜的文字按鈕，不是醒目的主按鈕。 */
 .project-hub__add {
-  display: block;
-  inline-size: 100%;
-  padding: var(--space-3) 0;
+  padding: var(--space-1) 0;
   border: 0;
-  border-block-end: 1px solid var(--rule);
   background: none;
   color: var(--text-secondary);
   font: inherit;
-  text-align: start;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 
@@ -263,10 +332,6 @@
 .project-hub__add:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
-}
-
-.project-hub__add + .project-hub__empty {
-  margin-block-start: var(--space-3);
 }
 
 .project-hub__empty {

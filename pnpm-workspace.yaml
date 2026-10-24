@@ -4,3 +4,9 @@ packages:
 
 allowBuilds:
   esbuild: true
+
+# @tiptap/react 的選單（BubbleMenu／FloatingMenu）是 optional peer，^ 範圍會解析到比 core 新一版的 3.31，
+# 而它要求 core／pm 也是 3.31 —— 釘回跟其他 tiptap 套件同一版（票券 21 加格式選單時發現）。
+overrides:
+  "@tiptap/extension-bubble-menu": "~3.30.6"
+  "@tiptap/extension-floating-menu": "~3.30.6"

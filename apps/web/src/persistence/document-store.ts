@@ -6,6 +6,7 @@ import {
   emptyDocument,
   isDocumentKind,
   mintId,
+  wordCount,
   type DocumentKind,
 } from "@scenephonie/schema";
 
@@ -50,6 +51,10 @@ export type DocumentSummary = {
   kind: DocumentKind;
   /** 編劇給自由文件的名字；`null` ＝ 沒命名（固定文件永遠是 `null`）。 */
   title: string | null;
+  /** 最後一次存檔或改名的時刻。 */
+  updatedAt: Date;
+  /** 字數（同編輯器裡的計數器）。 */
+  words: number;
 };
 
 /** 一份載進記憶體的文件。`token` 是不透明的 —— 存檔時原封帶回。 */
@@ -149,12 +154,24 @@ async function openFixed(unit: CreativeUnit, kind: DocumentKind): Promise<Loaded
 /** 這個專案的所有文件（兩層都列、已刪除的不列），早建立的在前。 */
 export async function listDocuments(project: AuthorizedProject): Promise<DocumentSummary[]> {
   const rows = await getDb()
-    .select({ documentId: documents.id, kind: documents.kind, title: documents.title })
+    .select({
+      documentId: documents.id,
+      kind: documents.kind,
+      title: documents.title,
+      updatedAt: documents.updatedAt,
+      body: documents.body,
+      docSchemaVersion: documents.docSchemaVersion,
+    })
     .from(documents)
     .where(and(eq(documents.projectId, project.projectId), isNull(documents.deletedAt)))
     .orderBy(asc(documents.createdAt), asc(documents.id));
   // 認不得的 kind（rolling deploy 時新版程式碼寫進來的）不列 —— 這份程式碼不知道它掛哪一層。
-  return rows.flatMap((row) => (isDocumentKind(row.kind) ? [{ ...row, kind: row.kind }] : []));
+  // 字數照讀取路徑的規矩算：先在記憶體遷移到現行版本，再照那個 kind 的 schema 讀。
+  return rows.flatMap(({ body, docSchemaVersion, ...row }) => {
+    if (!isDocumentKind(row.kind)) return [];
+    const current = migrateDocumentToCurrent(row.kind, body as PersistedDoc, docSchemaVersion);
+    return [{ ...row, kind: row.kind, words: wordCount(documentFromJSON(row.kind, current)) }];
+  });
 }
 
 /**

@@ -114,6 +114,69 @@ describe("簡單的富文本", () => {
   });
 });
 
+describe("Markdown 捷徑", () => {
+  /** 模擬打字：讓 input rule 有機會看到每一個字（`insertContent` 不走 input rule）。 */
+  const type = (editor: Editor, text: string) => {
+    for (const char of text) {
+      const { from, to } = editor.state.selection;
+      const handled = editor.view.someProp("handleTextInput", (f) => f(editor.view, from, to, char, () => editor.state.tr.insertText(char, from, to)));
+      if (!handled) editor.view.dispatch(editor.state.tr.insertText(char, from, to));
+    }
+  };
+
+  it("一般段落裡打「## 」變成標題", async () => {
+    const { container } = render(<DocumentEditor kind="自由文件" initialBody={emptyDocument()} initialToken={token} save={save} />);
+    const editor = await editorIn(container);
+    act(() => {
+      editor.commands.focus("start");
+      type(editor, "## ");
+    });
+    expect(editor.getJSON().content?.[0]).toMatchObject({ type: "heading", attrs: { level: 2 } });
+  });
+
+  it("標題裡打「## 」就是那幾個字，不會被吃掉", async () => {
+    const heading = { type: "doc", content: [{ type: "heading", attrs: { level: 2 } }] };
+    const { container } = render(<DocumentEditor kind="自由文件" initialBody={heading} initialToken={token} save={save} />);
+    const editor = await editorIn(container);
+    act(() => {
+      editor.commands.focus("start");
+      type(editor, "## 開頭");
+    });
+    expect(editor.state.doc.textContent).toBe("## 開頭");
+  });
+});
+
+describe("格式選單", () => {
+  it("選了字之後的選單按得出粗體", async () => {
+    const { container } = render(<DocumentEditor kind="自由文件" initialBody={prose("重點")} initialToken={token} save={save} />);
+    const editor = await editorIn(container);
+    act(() => {
+      editor.chain().focus().setTextSelection({ from: 1, to: 3 }).run();
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "粗體（⌘B）", hidden: true }));
+    expect(editor.getJSON().content?.[0]?.content?.[0]?.marks?.map((mark) => mark.type)).toEqual(["bold"]);
+  });
+
+  it("選單上就是這份文件能做的全部（底線、連結不在裡面）", async () => {
+    const { container } = render(<DocumentEditor kind="自由文件" initialBody={prose("重點")} initialToken={token} save={save} />);
+    const editor = await editorIn(container);
+    act(() => {
+      editor.chain().focus().setTextSelection({ from: 1, to: 3 }).run();
+    });
+    const menu = await screen.findByRole("toolbar", { name: "格式", hidden: true });
+    expect(Array.from(menu.querySelectorAll("button"), (button) => button.textContent)).toEqual([
+      "內文",
+      "標題",
+      "小標題",
+      "B",
+      "I",
+      "• 項目",
+      "1. 編號",
+      "引用",
+    ]);
+  });
+});
+
 describe("改名", () => {
   const renderNamed = (rename: (title: string) => Promise<boolean>) =>
     render(
@@ -145,6 +208,19 @@ describe("改名", () => {
     fireEvent.change(input, { target: { value: "高雄拍 500 字版" } });
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(rename).toHaveBeenCalledWith("高雄拍 500 字版"));
+  });
+
+  it("剛新增的那一份，一進來焦點就在名字欄", () => {
+    render(
+      <DocumentEditor
+        kind="自由文件"
+        initialBody={emptyDocument()}
+        initialToken={token}
+        save={save}
+        title={{ initial: null, rename: vi.fn(async () => true), focus: true }}
+      />,
+    );
+    expect(document.activeElement).toBe(screen.getByLabelText("文件名稱"));
   });
 
   it("固定文件沒有名字欄：名字就是它是什麼", () => {

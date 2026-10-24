@@ -24,10 +24,12 @@ export const dynamic = "force-dynamic";
  */
 export default async function ProjectDocumentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectId: string; documentId: string }>;
+  searchParams: Promise<{ new?: string }>;
 }) {
-  const { projectId, documentId } = await params;
+  const [{ projectId, documentId }, { new: justCreated }] = await Promise.all([params, searchParams]);
   const project = await authorizeProject(projectId);
   if (!project) notFound();
 
@@ -36,7 +38,12 @@ export default async function ProjectDocumentPage({
 
   const title = isFixedDocument(document.kind)
     ? undefined
-    : { initial: document.title, rename: renameDocumentAction.bind(null, project.projectId, document.documentId) };
+    : {
+        initial: document.title,
+        rename: renameDocumentAction.bind(null, project.projectId, document.documentId),
+        // 「＋ 新增文件」帶著 `?new` 過來：一進來先取名字。
+        focus: justCreated !== undefined,
+      };
   return (
     <DocumentShell projectId={project.projectId}>
       <DocumentEditor

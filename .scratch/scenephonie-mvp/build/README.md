@@ -114,3 +114,4 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [71](./71-project-dashboard-and-create-flow.md) | 登入後先到專案儀表板，按「建立專案」才建立；建立流程「片名 → 交件大綱 → 劇本」，每步可略過、可直接開始寫。補上票 06 當成轉接口的 `/projects`。無 blocker。 | `needs-triage` |
 | [72](./72-project-archive-and-delete.md) | 專案封存（資料不動、可還原）與刪除（保留 30 天後永久清除，搭票 07 的 cron）；封存期間分享連結照常、刪除即失效。blocked by 71。 | `needs-triage` |
 | [73](./73-onboarding-tour.md) | 引導：首次註冊者與訪客跟著一份範例專案走完整個流程，只看不填；跳過或走完才算用掉，可隨時重看。blocked by 71、21。 | `needs-triage` |
+| [74](./74-autosave-status-display.md) | 存檔狀態列的節奏：打字時「儲存中」、存完停留一段、閒置時不顯示或「上次儲存於…」，不再跳動。劇本與文件共用。**從票券 21 驗收撈到**，無 blocker。 | `needs-triage` |

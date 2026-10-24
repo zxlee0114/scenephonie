@@ -77,6 +77,8 @@ export type ProjectContents = {
   title: string;
   /** 單一劇本專案之下**只有一份**（1:1 是這個 type 的定義，不是巧合）。 */
   screenplayId: string | null;
+  /** 那份劇本最後一次存檔的時刻（hub 卡片上的「最後編輯」）。 */
+  screenplayUpdatedAt: Date | null;
 };
 
 /** 專案 hub 要顯示的東西。只吃 handle —— 到得了這裡就代表已經授權過。 */
@@ -85,14 +87,18 @@ export async function projectContents(project: AuthorizedProject): Promise<Proje
   const [[row], [script]] = await Promise.all([
     db.select({ title: projects.title }).from(projects).where(eq(projects.id, project.projectId)),
     db
-      .select({ id: screenplays.id })
+      .select({ id: screenplays.id, updatedAt: screenplays.updatedAt })
       .from(screenplays)
       .where(eq(screenplays.projectId, project.projectId))
       .orderBy(screenplays.createdAt)
       .limit(1),
   ]);
 
-  return { title: row?.title ?? DEFAULT_PROJECT_TITLE, screenplayId: script?.id ?? null };
+  return {
+    title: row?.title ?? DEFAULT_PROJECT_TITLE,
+    screenplayId: script?.id ?? null,
+    screenplayUpdatedAt: script?.updatedAt ?? null,
+  };
 }
 
 /** 專案名稱 —— v1 專案與劇本 1:1，它也是劇本的名稱（PDF 檔名用）。 */

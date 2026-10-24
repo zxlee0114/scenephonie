@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { isFixedDocument } from "@scenephonie/schema";
+import { isFixedDocument, type DocumentKind } from "@scenephonie/schema";
 
 import { authorizeProject } from "@/authorization";
+import { cardMeta, DocumentCard } from "@/documents/document-card";
 import { FreeDocumentList } from "@/documents/free-document-list";
 import { documentLabel } from "@/documents/labels";
 import { listDocuments } from "@/persistence";
@@ -28,7 +28,9 @@ export const dynamic = "force-dynamic";
  * 那條掛載規則 —— 它是給系統用的。資料層照舊守著不變式 F；系列劇本專案那天，「哪一集的文件」才第一次有意義。
  *
  * 順序固定：故事大綱、分場大綱、人物介紹，再來是編劇自己新增的自由文件（早建立的在前）。
- * 固定文件第一次點進去才建立，所以連結一直都在。
+ * 固定文件第一次點進去才建立，所以卡片一直都在（還沒打開過的寫「尚未開始」）。
+ *
+ * 寬螢幕排成卡片、手機寬度變回清單（票券 21 驗收）；兩者是同一份標記，見 `DocumentCard`。
  *
  * ⚠️ **gate 在這裡，不在 UI**：`authorizeProject` 過不了就是 404 —— 與「這個專案不存在」
  * 同一個答案，否則這一頁會變成一支專案 id 的存在性探針。
@@ -42,10 +44,14 @@ export default async function ProjectHubPage({
   const project = await authorizeProject(projectId);
   if (!project) notFound();
 
-  const [{ title, screenplayId }, documents] = await Promise.all([projectContents(project), listDocuments(project)]);
+  const [{ title, screenplayId, screenplayUpdatedAt }, documents] = await Promise.all([
+    projectContents(project),
+    listDocuments(project),
+  ]);
+  const fixed = (kind: DocumentKind) => documents.find((document) => document.kind === kind);
   const freeDocuments = documents
     .filter((document) => !isFixedDocument(document.kind))
-    .map(({ documentId, title }) => ({ documentId, title }));
+    .map((document) => ({ documentId: document.documentId, title: document.title, meta: cardMeta(document) }));
   const projectPath = `/projects/${project.projectId}`;
 
   return (
@@ -60,11 +66,13 @@ export default async function ProjectHubPage({
       <section className="project-hub__section">
         <h2 className="project-hub__heading">劇本</h2>
         {screenplayId ? (
-          <ul className="project-hub__list">
-            <li>
-              {/* 單一劇本專案之下只有一份，名字就是專案名 —— 劇本沒有自己的標題欄位。 */}
-              <Link href={`/projects/${project.projectId}/screenplays/${screenplayId}`}>{title}</Link>
-            </li>
+          <ul className="hub-cards">
+            {/* 單一劇本專案之下只有一份，名字就是專案名 —— 劇本沒有自己的標題欄位。 */}
+            <DocumentCard
+              href={`${projectPath}/screenplays/${screenplayId}`}
+              name={title}
+              meta={cardMeta(screenplayUpdatedAt ? { updatedAt: screenplayUpdatedAt } : undefined)}
+            />
           </ul>
         ) : (
           <p className="project-hub__empty">這個專案還沒有劇本。</p>
@@ -72,17 +80,28 @@ export default async function ProjectHubPage({
       </section>
 
       <section className="project-hub__section">
-        <h2 className="project-hub__heading">文件</h2>
-        <ul className="project-hub__list">
-          <li>
-            <Link href={`${projectPath}/story-outline`}>{documentLabel("交件大綱")}</Link>
-          </li>
+        <div className="project-hub__section-head">
+          <h2 className="project-hub__heading">文件</h2>
+          <form action={createFreeDocumentAction.bind(null, project.projectId)}>
+            <button type="submit" className="project-hub__add">
+              ＋ 新增文件
+            </button>
+          </form>
+        </div>
+        <ul className="hub-cards">
+          <DocumentCard
+            href={`${projectPath}/story-outline`}
+            name={documentLabel("交件大綱")}
+            meta={cardMeta(fixed("交件大綱"))}
+          />
           {screenplayId && (
-            <li>
-              <Link href={`${projectPath}/screenplays/${screenplayId}/scene-outline`}>{documentLabel("分場大綱")}</Link>
-            </li>
+            <DocumentCard
+              href={`${projectPath}/screenplays/${screenplayId}/scene-outline`}
+              name={documentLabel("分場大綱")}
+              meta={cardMeta(fixed("分場大綱"))}
+            />
           )}
-          <li className="project-hub__pending">人物介紹（尚未開放）</li>
+          <DocumentCard name="人物介紹" meta="尚未開放" />
           <FreeDocumentList
             projectId={project.projectId}
             documents={freeDocuments}
@@ -90,11 +109,6 @@ export default async function ProjectHubPage({
             restoreDocument={restoreDocumentAction.bind(null, project.projectId)}
           />
         </ul>
-        <form action={createFreeDocumentAction.bind(null, project.projectId)}>
-          <button type="submit" className="project-hub__add">
-            ＋ 新增文件
-          </button>
-        </form>
       </section>
     </main>
   );

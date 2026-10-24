@@ -15,17 +15,22 @@
  */
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { DocumentCard } from "@/documents/document-card";
 import { documentLabel } from "@/documents/labels";
 
 /** 「復原」留在畫面上多久。 */
 export const UNDO_WINDOW_MS = 8000;
 
-export type FreeDocumentEntry = { documentId: string; title: string | null };
+export type FreeDocumentEntry = {
+  documentId: string;
+  title: string | null;
+  /** 卡片上那一行淡字（伺服器那邊照台北時間排好）。 */
+  meta: string;
+};
 
 /** 清單、按鈕、提示上顯示的名字：沒命名就是「未命名文件」。 */
 const displayTitle = (entry: FreeDocumentEntry) => entry.title ?? documentLabel("自由文件");
@@ -75,18 +80,23 @@ export function FreeDocumentList({
   return (
     <>
       {visible.map((entry) => (
-        <li key={entry.documentId} className="project-hub__row">
-          <Link href={`/projects/${projectId}/documents/${entry.documentId}`}>{displayTitle(entry)}</Link>
-          <button
-            type="button"
-            className="project-hub__row-action"
-            aria-label={`刪除「${displayTitle(entry)}」`}
-            // 鍵盤（Enter／空白鍵）觸發的 click 沒有點擊次數：`detail` 是 0。
-            onClick={(event) => void remove(entry, event.detail === 0)}
-          >
-            刪除
-          </button>
-        </li>
+        <DocumentCard
+          key={entry.documentId}
+          href={`/projects/${projectId}/documents/${entry.documentId}`}
+          name={displayTitle(entry)}
+          meta={entry.meta}
+          action={
+            <button
+              type="button"
+              className="hub-card__action"
+              aria-label={`刪除「${displayTitle(entry)}」`}
+              // 鍵盤（Enter／空白鍵）觸發的 click 沒有點擊次數：`detail` 是 0。
+              onClick={(event) => void remove(entry, event.detail === 0)}
+            >
+              刪除
+            </button>
+          }
+        />
       ))}
       {undoable &&
         createPortal(

@@ -108,6 +108,16 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
     ]);
   });
 
+  it("清單帶著字數與最後編輯時間（hub 的卡片）", async () => {
+    const doc = await createFreeDocument(project, { title: "數字數" });
+    const before = (await listDocuments(project)).find((d) => d.documentId === doc.documentId);
+    tokenAfterSave(await saveDocument({ unit: project, documentId: doc.documentId, body: prose("一個雨夜 hello"), token: doc.token }));
+
+    const after = (await listDocuments(project)).find((d) => d.documentId === doc.documentId);
+    expect(after?.words).toBe(5);
+    expect(after!.updatedAt.getTime()).toBeGreaterThanOrEqual(before!.updatedAt.getTime());
+  });
+
   it("自由文件改名只改名字，不動內文", async () => {
     const created = await createFreeDocument(project, { title: "筆記" });
     expect(await renameDocument(project, created.documentId, "研究筆記")).toBe(true);

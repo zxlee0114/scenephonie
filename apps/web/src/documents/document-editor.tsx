@@ -12,13 +12,16 @@
  */
 "use client";
 
-import type { Editor } from "@tiptap/core";
+import { textblockTypeInputRule, type Editor } from "@tiptap/core";
+import { Heading } from "@tiptap/extension-heading";
+import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
 import { useEffect, useState } from "react";
 
 import { wordCount, type DocumentKind } from "@scenephonie/schema";
 
+import { FormatMenu } from "@/documents/format-menu";
 import { documentLabel } from "@/documents/labels";
 import { SaveStatusLine } from "@/editor/save-status";
 import type { SaveDoc } from "@/editor/save-capability";
@@ -32,10 +35,10 @@ import "../styles/documents.css";
  * 每一樣都有 Markdown 捷徑（`## `、`- `、`1. `、`> `、`---`、`**粗**`、`*斜*`），那是 StarterKit 內建的 input rule。
  *
  * 第一層標題留給文件名稱。其餘全關：底線、刪除線、連結、程式碼不在清單上；`hardBreak` 也關 ——
- * 一段就是一段，換段按 Enter。
+ * 一段就是一段，換段按 Enter。標題換成下面那個 `ProseHeading`。
  */
 const PROSE_KIT = StarterKit.configure({
-  heading: { levels: [2, 3] },
+  heading: false,
   hardBreak: false,
   codeBlock: false,
   strike: false,
@@ -45,6 +48,30 @@ const PROSE_KIT = StarterKit.configure({
   dropcursor: false,
   trailingNode: false,
 });
+
+/**
+ * 第二、三層標題，捷徑**只在一般段落裡**生效。原生的 Heading 在標題裡也吃 `## `：標題打字打到
+ * 「## 」開頭，那幾個字就被吃掉、只是又變成一次標題（票券 21 驗收）。捷徑剛轉換完時按一次 Backspace
+ * 會退回原本打的字（Tiptap 內建），但那要先知道。
+ */
+const ProseHeading = Heading.extend({
+  addInputRules() {
+    return this.options.levels.map((level) => {
+      const rule = textblockTypeInputRule({
+        find: new RegExp(`^(#{${Math.min(...this.options.levels)},${level}})\\s$`),
+        type: this.type,
+        getAttributes: { level },
+      });
+      const convert = rule.handler;
+      rule.handler = (props) =>
+        props.state.doc.resolve(props.range.from).parent.type.name === "paragraph" ? convert(props) : null;
+      return rule;
+    });
+  },
+}).configure({ levels: [2, 3] });
+
+/** 空白文件裡淡淡的一行：告訴人「從這裡開始寫」，編輯區在哪裡也就一目了然。 */
+const EMPTY_HINT = Placeholder.configure({ placeholder: "從這裡開始寫…" });
 
 export function DocumentEditor({
   kind,
@@ -57,30 +84,38 @@ export function DocumentEditor({
   initialBody: object;
   initialToken: SaveToken;
   save: SaveDoc;
-  /** 可命名的文件（自由文件）才有。 */
-  title?: { initial: string | null; rename: (title: string) => Promise<boolean> };
+  /** 可命名的文件（自由文件）才有。`focus`：剛新增的那一份，一進來就先取名字。 */
+  title?: { initial: string | null; rename: (title: string) => Promise<boolean>; focus?: boolean };
 }) {
   const label = documentLabel(kind);
   const editor = useEditor({
     // Next SSR：先不 render，等 client 掛載，避開 hydration mismatch。
     immediatelyRender: false,
-    extensions: [PROSE_KIT],
+    extensions: [PROSE_KIT, ProseHeading, EMPTY_HINT],
     content: initialBody,
     editorProps: { attributes: { class: "document-page__body", "aria-label": label } },
   });
   const autosave = useAutosave({ editor, initialToken, save });
   const count = useWordCount(editor);
 
+  // 字數釘在畫面右下角，跟著文件走、不跟標題並排 —— 並排會讓人以為它在數標題（票券 21 驗收）。
   return (
     <div className="document-page">
       <div className="document-page__head">
-        {title ? <TitleField placeholder={label} {...title} /> : <h1 className="document-page__title">{label}</h1>}
-        {count !== null && (
-          <p className="document-page__count">{count.toLocaleString("en-US")} 字</p>
+        {title ? (
+          <TitleField placeholder={label} {...title} onEnter={() => editor?.commands.focus("start")} />
+        ) : (
+          <h1 className="document-page__title">{label}</h1>
         )}
+        <SaveStatusLine {...autosave} noun={title ? "文件" : label} />
       </div>
-      <SaveStatusLine {...autosave} noun={title ? "文件" : label} />
+      {editor && <FormatMenu editor={editor} />}
       <EditorContent editor={editor} />
+      {count !== null && (
+        <p className="document-page__count" aria-live="off">
+          {count.toLocaleString("en-US")} 字
+        </p>
+      )}
     </div>
   );
 }
@@ -105,10 +140,15 @@ function TitleField({
   placeholder,
   initial,
   rename,
+  focus = false,
+  onEnter,
 }: {
   placeholder: string;
   initial: string | null;
   rename: (title: string) => Promise<boolean>;
+  focus?: boolean;
+  /** 按 Enter 定案之後：接著寫內文。 */
+  onEnter: () => void;
 }) {
   const [value, setValue] = useState(initial ?? "");
   const [committed, setCommitted] = useState(initial ?? "");
@@ -132,6 +172,8 @@ function TitleField({
       className="document-page__title document-page__title-input"
       aria-label="文件名稱"
       placeholder={placeholder}
+      // 剛按「＋ 新增文件」進來：先取名字，Enter 之後再寫內文。
+      autoFocus={focus}
       value={value}
       onChange={(event) => setValue(event.target.value)}
       onBlur={commit}
@@ -139,6 +181,7 @@ function TitleField({
         if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
         event.preventDefault();
         commit();
+        onEnter();
       }}
     />
   );

@@ -66,7 +66,7 @@ export async function createFreeDocumentAction(projectId: string): Promise<void>
   const project = await authorizeProject(projectId);
   if (!project) notFound();
   const created = await createFreeDocument(project, {});
-  redirect(`/projects/${project.projectId}/documents/${created.documentId}`);
+  redirect(`/projects/${project.projectId}/documents/${created.documentId}?new`);
 }
 
 /** 刪一份自由文件。畫面上接著出現 8 秒的「復原」。 */
