@@ -143,7 +143,8 @@ export async function screenplayTitle(screenplay: AuthorizedScreenplay): Promise
     .select({ title: screenplays.title })
     .from(screenplays)
     .where(eq(screenplays.id, screenplay.screenplayId));
-  return row?.title ?? DEFAULT_PROJECT_TITLE;
+  if (!row) throw new Error("拿得到 handle 的劇本卻讀不到 —— 這代表它在授權之後被刪了");
+  return row.title;
 }
 
 /**
@@ -245,7 +246,7 @@ export type CreatedProject = { projectId: string; screenplayId: string };
  */
 export async function createProject(ownerId: string, draft: ProjectDraft): Promise<CreatedProject> {
   const projectTitle = requiredName(draft.projectTitle, "專案名稱");
-  const title = requiredName(draft.screenplayTitle, "劇本名稱");
+  const screenplayTitle = requiredName(draft.screenplayTitle, "劇本名稱");
 
   return getDb().transaction(async (tx) => {
     const [inserted] = await tx
@@ -257,14 +258,18 @@ export async function createProject(ownerId: string, draft: ProjectDraft): Promi
         ownerId,
         creationId: draft.creationId,
       })
-      .onConflictDoNothing()
+      // 只吞建立鍵那一條唯一索引的衝突；別的衝突（不該發生）照樣大聲失敗。
+      .onConflictDoNothing({
+        target: [projects.ownerId, projects.creationId],
+        where: sql`${projects.creationId} is not null`,
+      })
       .returning({ id: projects.id });
     if (!inserted) return existingCreation(tx, ownerId, draft.creationId);
 
     const project = await authorizeProjectForUser(ownerId, inserted.id, tx);
     if (!project) throw new Error("剛建立的專案卻過不了 gate —— 這代表寫入沒有落地");
 
-    const { screenplayId } = await createScreenplay(project, emptyScreenplay(), { title, db: tx });
+    const { screenplayId } = await createScreenplay(project, emptyScreenplay(), { title: screenplayTitle, db: tx });
     const screenplay = await authorizeScreenplayForUser(ownerId, screenplayId, tx);
     if (!screenplay) throw new Error("剛建立的劇本卻過不了 gate —— 這代表寫入沒有落地");
 

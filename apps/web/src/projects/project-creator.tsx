@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 
 import { documentFromJSON, wordCount } from "@scenephonie/schema";
 
+import { writtenSoFar } from "@/documents/document-card";
 import { DocumentEditor } from "@/documents/document-editor";
 import { documentLabel } from "@/documents/labels";
 import type { PersistedDoc } from "@/persistence";
@@ -434,13 +435,13 @@ function NameField({
   );
 }
 
-/** 摘要裡的一份大綱：幾個字，0 字就是「尚未開始」（同 hub 卡片）。 */
+/** 摘要裡的一份大綱寫了多少（同 hub 卡片）。 */
 function SummaryCount({ kind, body }: { kind: OutlineTab; body: PersistedDoc }) {
   const words = wordCount(documentFromJSON(kind, body));
   return (
     <>
       <dt>{documentLabel(kind)}</dt>
-      <dd>{words === 0 ? "尚未開始" : `${words.toLocaleString("en-US")} 字`}</dd>
+      <dd>{writtenSoFar(words)}</dd>
     </>
   );
 }

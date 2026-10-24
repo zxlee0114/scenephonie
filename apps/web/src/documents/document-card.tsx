@@ -62,7 +62,15 @@ const EDITED_DATE = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", 
  * 一建立就在，舊專案的要第一次打開才建，兩者都還沒寫的時候卡片要長得一樣。寫了又全刪掉的也回到這裡。
  */
 export function cardMeta(edited: { updatedAt: Date; words?: number } | undefined): string {
-  if (!edited || edited.words === 0) return "尚未開始";
+  if (!edited) return NOT_STARTED;
   const date = EDITED_DATE.format(edited.updatedAt);
-  return edited.words === undefined ? date : `${date} · ${edited.words.toLocaleString("en-US")} 字`;
+  if (edited.words === undefined) return date;
+  return edited.words === 0 ? NOT_STARTED : `${date} · ${writtenSoFar(edited.words)}`;
+}
+
+const NOT_STARTED = "尚未開始";
+
+/** 一份文件寫了多少：「1,234 字」；一個字都還沒有就是「尚未開始」。hub 卡片與建立精靈的摘要共用（票券 71）。 */
+export function writtenSoFar(words: number): string {
+  return words === 0 ? NOT_STARTED : `${words.toLocaleString("en-US")} 字`;
 }
