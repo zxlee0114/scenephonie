@@ -67,8 +67,15 @@ export function FormatMenu({ editor }: { editor: Editor }) {
     }),
   });
 
+  // `fixed`：放在會捲動的框裡（建立精靈的頁籤，票券 71）時，absolute 的選單會被框的 overflow 切掉一截。
   return (
-    <BubbleMenu editor={editor} className="format-menu" role="toolbar" aria-label="格式">
+    <BubbleMenu
+      editor={editor}
+      className="format-menu"
+      role="toolbar"
+      aria-label="格式"
+      options={{ strategy: "fixed" }}
+    >
       {GROUPS.map((group, index) => (
         <div key={index} className="format-menu__group">
           {group.map((button) => (

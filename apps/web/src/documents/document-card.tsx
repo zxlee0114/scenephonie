@@ -58,10 +58,11 @@ const EDITED_DATE = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", 
 
 /**
  * 卡片上那一行：「2026年10月24日 · 1,234 字」。日期照台北時間（讀者在台灣、伺服器跑在 UTC，同 PDF 頁尾）。
- * 還沒打開過的固定文件沒有資料，就說「尚未開始」。
+ * 一個字都還沒有就說「尚未開始」—— 判準是**有沒有字**，不是文件存不存在（票券 71）：新專案的兩份大綱
+ * 一建立就在，舊專案的要第一次打開才建，兩者都還沒寫的時候卡片要長得一樣。寫了又全刪掉的也回到這裡。
  */
 export function cardMeta(edited: { updatedAt: Date; words?: number } | undefined): string {
-  if (!edited) return "尚未開始";
+  if (!edited || edited.words === 0) return "尚未開始";
   const date = EDITED_DATE.format(edited.updatedAt);
   return edited.words === undefined ? date : `${date} · ${edited.words.toLocaleString("en-US")} 字`;
 }

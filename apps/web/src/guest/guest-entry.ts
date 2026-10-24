@@ -39,8 +39,9 @@ async function seedDemoEntities(project: AuthorizedProject): Promise<DemoEntityI
  * 訪客入口     → User → Project.ownerId → Authorization → Command → Document
  * ```
  *
- * 上面兩行從第二個箭頭之後**是同一段程式碼**（`landingProject()`）。這個檔案唯一多做的事
- * 是把人帶到第一個箭頭，並決定他的專案開場放什麼 —— 「開場放什麼」是入口點的問題，
+ * 上面兩行從第二個箭頭之後走的是同一個 gate、同一份 `owner_id`。這個檔案唯一多做的事
+ * 是把人帶到第一個箭頭，並替他開一個放好範例稿的專案（`landingProject()`；Google 那邊的專案由
+ * 儀表板上的建立精靈明確建立，票券 71）—— 開場放什麼 —— 「開場放什麼」是入口點的問題，
  * 不是授權的問題，所以 domain、command、gate 全都不知道訪客存在。
  *
  * ⚠️ **不放公開帳密**（票券 24 §6）：公開的測試帳密會把剛否決的密碼從後門放回來，而且
@@ -64,7 +65,7 @@ async function seedDemoEntities(project: AuthorizedProject): Promise<DemoEntityI
 export async function enterAsGuest(requestHeaders: Headers): Promise<string> {
   const { user } = await getAuth().api.signInAnonymous({ headers: requestHeaders });
 
-  // 與 Google 那條路呼叫的是同一支函式、同一個 gate、同一份冪等保證。
+  // 同一個 gate、同一份冪等保證；只是訪客不經過建立精靈，一進來就有一份範例專案。
   const project = await landingProject(user.id, {
     title: DEMO_PROJECT_TITLE,
     screenplay: async (created) => demoScreenplay(await seedDemoEntities(created)),

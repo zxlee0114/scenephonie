@@ -42,7 +42,7 @@ describe.skipIf(!hasDatabase)("授權 gate（需要 Postgres）", () => {
   const newScreenplay = async (ownerId: string, projectId: string): Promise<string> => {
     const project = await authorizeProjectForUser(ownerId, projectId);
     if (!project) throw new Error("剛建立的專案卻過不了 gate");
-    const { screenplayId } = await createScreenplay(project, { type: "doc" });
+    const { screenplayId } = await createScreenplay(project, { type: "doc" }, { title: "測試劇本" });
     return screenplayId;
   };
 

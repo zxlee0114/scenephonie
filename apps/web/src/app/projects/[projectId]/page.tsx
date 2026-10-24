@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
  * 那條掛載規則 —— 它是給系統用的。資料層照舊守著不變式 F；系列劇本專案那天，「哪一集的文件」才第一次有意義。
  *
  * 順序固定：故事大綱、分場大綱、人物介紹，再來是編劇自己新增的自由文件（早建立的在前）。
- * 固定文件第一次點進去才建立，所以卡片一直都在（還沒打開過的寫「尚未開始」）。
+ * 卡片一直都在：票券 71 之後建立的專案兩份大綱一開始就有，之前的第一次點進去才建立。還沒有字的寫「尚未開始」。
  *
  * 寬螢幕排成卡片、手機寬度變回清單（票券 21 驗收）；兩者是同一份標記，見 `DocumentCard`。
  *
@@ -44,7 +44,7 @@ export default async function ProjectHubPage({
   const project = await authorizeProject(projectId);
   if (!project) notFound();
 
-  const [{ title, screenplayId, screenplayUpdatedAt, screenplayExcerpt }, documents] = await Promise.all([
+  const [{ title, screenplayTitle, screenplayId, screenplayUpdatedAt, screenplayExcerpt }, documents] = await Promise.all([
     projectContents(project),
     listDocuments(project),
   ]);
@@ -72,10 +72,10 @@ export default async function ProjectHubPage({
         <h2 className="project-hub__heading">劇本</h2>
         {screenplayId ? (
           <ul className="hub-cards">
-            {/* 單一劇本專案之下只有一份，名字就是專案名 —— 劇本沒有自己的標題欄位。 */}
+            {/* 單一劇本專案之下只有一份。卡片印**劇本名稱** —— 跟頁首的專案名稱是兩個值（票券 71）。 */}
             <DocumentCard
               href={`${projectPath}/screenplays/${screenplayId}`}
-              name={title}
+              name={screenplayTitle ?? title}
               meta={cardMeta(screenplayUpdatedAt ? { updatedAt: screenplayUpdatedAt } : undefined)}
               excerpt={screenplayExcerpt}
             />

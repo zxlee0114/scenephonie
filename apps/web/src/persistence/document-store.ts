@@ -12,7 +12,7 @@ import {
 } from "@scenephonie/schema";
 
 import type { AuthorizedProject, AuthorizedScreenplay } from "@/authorization";
-import { getDb } from "@/db/client";
+import { getDb, type Db } from "@/db/client";
 import { documents } from "@/db/schema";
 
 import type { PersistedDoc } from "./doc-schema-version";
@@ -103,8 +103,8 @@ function assertLevel(unit: CreativeUnit, kind: DocumentKind): void {
   }
 }
 
-/** 一份新文件的那一列：內文從一個空段落開始、版本是該 kind 的現行版本。先過不變式 F。 */
-function newRow(unit: CreativeUnit, kind: DocumentKind, title: string | null) {
+/** 一份新文件的那一列：內文預設從一個空段落開始、版本是該 kind 的現行版本。先過不變式 F。 */
+function newRow(unit: CreativeUnit, kind: DocumentKind, title: string | null, body: PersistedDoc = emptyDocument()) {
   assertLevel(unit, kind);
   return {
     id: mintId(DOCUMENT_ID_PREFIX),
@@ -112,7 +112,7 @@ function newRow(unit: CreativeUnit, kind: DocumentKind, title: string | null) {
     screenplayId: isScreenplayUnit(unit) ? unit.screenplayId : null,
     kind,
     title,
-    body: emptyDocument(),
+    body,
     docSchemaVersion: CURRENT_DOCUMENT_SCHEMA_VERSIONS[kind],
     docSeq: 0,
   };
@@ -128,7 +128,23 @@ export async function createFreeDocument(
   return { documentId: row.id, kind: FREE_DOCUMENT, title: row.title, body: row.body, token: encodeSaveToken(row.docSeq) };
 }
 
-/** 這個專案的交件大綱 —— 一個專案一份，第一次打開時建立。 */
+/**
+ * 建立專案時就把固定文件連同內文一起建好（票券 71 的建立精靈）—— 不等第一次打開。
+ *
+ * 內文照寫入邊界的規矩驗證：那個 kind 的 schema hydrate 不起來就丟例外，呼叫端的交易因此整組回滾。
+ * 已經有一份就撞 partial unique index 丟例外 —— 這支只給「剛建好、一定還沒有」的創作單位用。
+ */
+export async function createFixedDocument(
+  unit: CreativeUnit,
+  kind: Exclude<DocumentKind, typeof FREE_DOCUMENT>,
+  body: PersistedDoc,
+  db: Db = getDb(),
+): Promise<void> {
+  documentFromJSON(kind, body);
+  await db.insert(documents).values(newRow(unit, kind, null, body));
+}
+
+/** 這個專案的交件大綱 —— 一個專案一份，第一次打開時建立（票券 71 之前建的專案走這條）。 */
 export function openSubmissionOutline(project: AuthorizedProject): Promise<LoadedDocument> {
   return openFixed(project, "交件大綱");
 }

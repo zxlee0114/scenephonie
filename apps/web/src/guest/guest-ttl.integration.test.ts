@@ -73,7 +73,7 @@ describe.skipIf(!hasDatabase)("訪客資料的 TTL 清理（需要 Postgres）",
     if (!project) throw new Error("剛種下的專案卻過不了 gate");
     // 這個檔案問的是 TTL，不是引用完整性 —— 範例稿的實體不必真的建出來，空目錄組出來的稿
     // 就是一份帶懸空引用的稿，而讀取本來就容忍它（§6.6）。
-    await createScreenplay(project, demoScreenplay({ locations: {}, characters: {} }));
+    await createScreenplay(project, demoScreenplay({ locations: {}, characters: {} }), { title: "測試劇本" });
 
     // 「最後一次存檔」是這支清理任務唯一的判準，所以測試要能指定它。
     await db

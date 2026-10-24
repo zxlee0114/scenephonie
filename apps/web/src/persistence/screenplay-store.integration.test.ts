@@ -103,7 +103,7 @@ describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
   });
 
   it("存了就載得回來 —— 重整頁面內容還在", async () => {
-    const fresh = track(await createScreenplay(project, docWith("first")));
+    const fresh = track(await createScreenplay(project, docWith("first"), { title: "測試劇本" }));
 
     const saved = await saveScreenplay({
       screenplay: await authorized(fresh.screenplayId),
@@ -121,13 +121,13 @@ describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
   // （handle 到手與查詢之間那一瞬被刪掉），但那條路測不出來，也不值得為它偽造一個 handle。
 
   it("回報這一份是剛開的還是撈回來的", async () => {
-    const fresh = track(await createScreenplay(project, docWith("origin")));
+    const fresh = track(await createScreenplay(project, docWith("origin"), { title: "測試劇本" }));
     expect(fresh.origin).toBe("created");
     expect((await loadScreenplay(await authorized(fresh.screenplayId)))?.origin).toBe("loaded");
   });
 
   it("兩個分頁拿同一份存檔：第二個被拒，第一個寫的內容不被覆蓋", async () => {
-    const fresh = track(await createScreenplay(project, docWith("base")));
+    const fresh = track(await createScreenplay(project, docWith("base"), { title: "測試劇本" }));
 
     const tabA = await loadScreenplay(await authorized(fresh.screenplayId));
     const tabB = await loadScreenplay(await authorized(fresh.screenplayId));
@@ -149,7 +149,7 @@ describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
   });
 
   it("兩次存檔同時飛出去：恰好一次成功", async () => {
-    const fresh = track(await createScreenplay(project, docWith("base")));
+    const fresh = track(await createScreenplay(project, docWith("base"), { title: "測試劇本" }));
 
     // handle 先拿好 —— 兩次存檔要真的同時飛出去，中間不能夾一次 gate 查詢。
     const handle = await authorized(fresh.screenplayId);
@@ -163,7 +163,7 @@ describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
   });
 
   it("竄改過的 token 存不進去", async () => {
-    const fresh = track(await createScreenplay(project, docWith("base")));
+    const fresh = track(await createScreenplay(project, docWith("base"), { title: "測試劇本" }));
 
     const result = await saveScreenplay({
       screenplay: await authorized(fresh.screenplayId),
@@ -180,7 +180,7 @@ describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
     let restoreMigration: (() => void) | undefined;
 
     const seedOldVersionRow = async (): Promise<string> => {
-      const fresh = track(await createScreenplay(project, docWith("old")));
+      const fresh = track(await createScreenplay(project, docWith("old"), { title: "測試劇本" }));
       await getDb()
         .update(screenplays)
         .set({ docSchemaVersion: OLD_VERSION })
@@ -260,7 +260,7 @@ describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
     };
 
     it("第一次存檔就留下 before-image；兩小時內的後續存檔不再寫", async () => {
-      const fresh = track(await createScreenplay(project, docWith("base")));
+      const fresh = track(await createScreenplay(project, docWith("base"), { title: "測試劇本" }));
 
       const first = await saveScreenplay({
         screenplay: await authorized(fresh.screenplayId),
@@ -284,7 +284,7 @@ describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
     });
 
     it("距上一筆備份滿兩小時的那次存檔，先寫一筆", async () => {
-      const fresh = track(await createScreenplay(project, docWith("base")));
+      const fresh = track(await createScreenplay(project, docWith("base"), { title: "測試劇本" }));
 
       const first = await saveScreenplay({
         screenplay: await authorized(fresh.screenplayId),
@@ -306,7 +306,7 @@ describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
     });
 
     it("被拒的存檔不留下備份 —— 備份與 canonical update 是同一個 atomic transition", async () => {
-      const fresh = track(await createScreenplay(project, docWith("base")));
+      const fresh = track(await createScreenplay(project, docWith("base"), { title: "測試劇本" }));
 
       const rejected = await saveScreenplay({
         screenplay: await authorized(fresh.screenplayId),

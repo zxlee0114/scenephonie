@@ -1,4 +1,5 @@
-import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import type { PgDatabase } from "drizzle-orm/pg-core";
+import { drizzle, type PostgresJsDatabase, type PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import * as schema from "./schema";
@@ -25,3 +26,11 @@ export function getDb(): PostgresJsDatabase<typeof schema> {
   cached = drizzle(client, { schema });
   return cached;
 }
+
+/**
+ * 「拿來下查詢的那個東西」：`getDb()` 本身，或它開出來的一個交易。
+ *
+ * 只給**要被包進呼叫端交易**的那幾支用（建立專案時，專案、劇本、文件與 gate 的查詢必須在同一個交易裡，
+ * 票券 71）。預設值一律是 `getDb()` —— 沒有交易要參與的呼叫端什麼都不必傳。
+ */
+export type Db = PgDatabase<PostgresJsQueryResultHKT, typeof schema>;

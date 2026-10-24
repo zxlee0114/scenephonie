@@ -13,9 +13,9 @@ const authorizeScreenplay = vi.hoisted(() => vi.fn());
 const loadDelivery = vi.hoisted(() => vi.fn());
 const createDelivery = vi.hoisted(() => vi.fn());
 const printPdf = vi.hoisted(() => vi.fn());
-const projectTitle = vi.hoisted(() => vi.fn());
+const screenplayTitle = vi.hoisted(() => vi.fn());
 vi.mock("@/authorization", () => ({ authorizeScreenplay }));
-vi.mock("@/projects/project-store", () => ({ projectTitle }));
+vi.mock("@/projects/project-store", () => ({ screenplayTitle }));
 vi.mock("@/persistence", () => ({ loadDelivery, createDelivery }));
 vi.mock("@/pdf/print-pdf", () => ({ printPdf }));
 
@@ -55,7 +55,7 @@ beforeEach(() => {
   authorizeScreenplay.mockResolvedValue(granted);
   loadDelivery.mockResolvedValue(delivery);
   printPdf.mockResolvedValue(new TextEncoder().encode("%PDF-1.7"));
-  projectTitle.mockResolvedValue("阿強的夏天");
+  screenplayTitle.mockResolvedValue("阿強的夏天");
 });
 
 /** `content-disposition` 的 `filename*`（RFC 5987，UTF-8）解碼後的檔名。 */
@@ -101,11 +101,11 @@ describe("交付 PDF 端點：印", () => {
 
   it("檔名是「劇本名稱_交付時間」（台北時間）—— 同一筆交付重印，檔名也一樣", async () => {
     expect(downloadName(await get())).toBe("阿強的夏天_20261022-1430.pdf");
-    expect(projectTitle).toHaveBeenCalledWith(granted);
+    expect(screenplayTitle).toHaveBeenCalledWith(granted);
   });
 
   it("劇本名稱裡不能放進檔名的字換成「_」", async () => {
-    projectTitle.mockResolvedValue('第一稿/修訂:"終"');
+    screenplayTitle.mockResolvedValue('第一稿/修訂:"終"');
     expect(downloadName(await get())).toBe("第一稿_修訂__終__20261022-1430.pdf");
   });
 

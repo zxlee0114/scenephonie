@@ -53,7 +53,7 @@ describe.skipIf(!hasDatabase)("delivery store（需要 Postgres）", () => {
     const balcony = await createLocation(project, { name: "陽台" });
     const first = formalScene(mintSceneId(), "走進房間", { locationId: room.id, displayName: "未知大樓房間" });
     const second = formalScene(mintSceneId(), "點菸", { locationId: balcony.id, displayName: "陽台" });
-    const fresh = await createScreenplay(project, docOf(first, second));
+    const fresh = await createScreenplay(project, docOf(first, second), { title: "測試劇本" });
     created.push(fresh.screenplayId);
     return { screenplay: await authorized(fresh.screenplayId), first, second, room };
   };

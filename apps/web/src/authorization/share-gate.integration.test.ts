@@ -38,7 +38,7 @@ describe.skipIf(!hasDatabase)("authorizeShareToken（需要 Postgres）", () => 
       type: "doc",
       content: [{ type: "scene", attrs: { sceneId: mintSceneId(), time: "日", intExt: "內景", location: null } }],
     };
-    const fresh = await createScreenplay(project!, doc);
+    const fresh = await createScreenplay(project!, doc, { title: "測試劇本" });
     return (await authorizeScreenplayForUser(ownerId, fresh.screenplayId))!;
   };
 
