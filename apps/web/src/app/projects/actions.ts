@@ -1,8 +1,17 @@
 "use server";
 
-import { currentUserId } from "@/authorization";
+import { notFound, redirect } from "next/navigation";
+
+import { authorizeDeletedProject, authorizeProject, currentUserId } from "@/authorization";
 import type { CreateProjectOutcome } from "@/projects/create-capability";
-import { createProject, type ProjectDraft } from "@/projects/project-store";
+import {
+  archiveProject,
+  createProject,
+  deleteProject,
+  restoreProject,
+  unarchiveProject,
+  type ProjectDraft,
+} from "@/projects/project-store";
 
 /**
  * 建立精靈最後那一下（票券 71）：專案、劇本、兩份大綱一次建好。
@@ -22,4 +31,47 @@ export async function createProjectAction(draft: ProjectDraft): Promise<CreatePr
     console.error("建立專案失敗", error);
     return { status: "failed" };
   }
+}
+
+/*
+ * 封存、取消封存、刪除、還原（票券 72）。每一支都**重新過 gate** —— Server Action 是公開端點，專案 id 是瀏覽器
+ * 給的。回 `false` 不分原因（沒登入、不是你的、已經刪了）：畫面只需要知道「沒做成」。
+ *
+ * 前三支走一般的 gate，所以已刪除的專案封存不了、也刪不了第二次；還原走它自己的窄入口。
+ */
+
+export async function archiveProjectAction(projectId: string): Promise<boolean> {
+  const project = await authorizeProject(projectId);
+  if (!project) return false;
+  await archiveProject(project);
+  return true;
+}
+
+export async function unarchiveProjectAction(projectId: string): Promise<boolean> {
+  const project = await authorizeProject(projectId);
+  if (!project) return false;
+  await unarchiveProject(project);
+  return true;
+}
+
+export async function deleteProjectAction(projectId: string): Promise<boolean> {
+  const project = await authorizeProject(projectId);
+  if (!project) return false;
+  await deleteProject(project);
+  return true;
+}
+
+export async function restoreProjectAction(projectId: string): Promise<boolean> {
+  const project = await authorizeDeletedProject(projectId);
+  if (!project) return false;
+  await restoreProject(project);
+  return true;
+}
+
+/** 專案首頁那條「這個專案已封存・取消封存」的按鈕：取消封存之後回到同一頁（橫幅跟著消失）。 */
+export async function unarchiveFromHubAction(projectId: string): Promise<void> {
+  const project = await authorizeProject(projectId);
+  if (!project) notFound();
+  await unarchiveProject(project);
+  redirect(`/projects/${project.projectId}`);
 }

@@ -10,6 +10,7 @@ import { documentLabel } from "@/documents/labels";
 import { listDocuments } from "@/persistence";
 import { projectContents } from "@/projects/project-store";
 
+import { unarchiveFromHubAction } from "../actions";
 import { createFreeDocumentAction, deleteDocumentAction, restoreDocumentAction } from "./documents/actions";
 import { SignOut } from "./sign-out";
 
@@ -45,7 +46,7 @@ export default async function ProjectHubPage({
   const project = await authorizeProject(projectId);
   if (!project) notFound();
 
-  const [{ title, screenplayTitle, screenplayId, screenplayUpdatedAt, screenplayExcerpt }, documents] = await Promise.all([
+  const [{ title, archived, screenplayTitle, screenplayId, screenplayUpdatedAt, screenplayExcerpt }, documents] = await Promise.all([
     projectContents(project),
     listDocuments(project),
   ]);
@@ -69,6 +70,16 @@ export default async function ProjectHubPage({
         </Link>
         <SignOut />
       </header>
+
+      {/* 封存只是整理儀表板，專案照常可以寫 —— 這一條只是讓人看得出它在哪一區（票券 72）。 */}
+      {archived && (
+        <form className="project-hub__notice" action={unarchiveFromHubAction.bind(null, project.projectId)}>
+          <span>這個專案已封存</span>
+          <button type="submit" className="project-hub__add">
+            取消封存
+          </button>
+        </form>
+      )}
 
       <h1 className="project-hub__title">{title}</h1>
 

@@ -2,8 +2,8 @@ import { headers } from "next/headers";
 
 import { getAuth } from "@/auth/auth";
 
-import { authorizeProjectForUser, authorizeScreenplayForUser } from "./gate";
-import type { AuthorizedProject, AuthorizedScreenplay } from "./handles";
+import { authorizeDeletedProjectForUser, authorizeProjectForUser, authorizeScreenplayForUser } from "./gate";
+import type { AuthorizedProject, AuthorizedScreenplay, DeletedProject } from "./handles";
 
 /**
  * 把「這次請求是誰發的」變成一個 `UserId`，然後交給 gate。
@@ -35,6 +35,12 @@ export async function currentUserId(): Promise<string | null> {
 export async function authorizeProject(projectId: string): Promise<AuthorizedProject | null> {
   const userId = await currentUserId();
   return userId ? authorizeProjectForUser(userId, projectId) : null;
+}
+
+/** 這次請求能不能還原這個已刪除的專案（票券 72）。 */
+export async function authorizeDeletedProject(projectId: string): Promise<DeletedProject | null> {
+  const userId = await currentUserId();
+  return userId ? authorizeDeletedProjectForUser(userId, projectId) : null;
 }
 
 /** 這次請求能不能操作這份劇本。 */

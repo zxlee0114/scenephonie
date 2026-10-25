@@ -1,5 +1,7 @@
 import { cleanupExpiredGuests, GUEST_TTL_DAYS } from "@/guest/guest-ttl";
 import { purgeDeletedDocuments } from "@/persistence";
+import { purgeDeletedProjects } from "@/projects/project-store";
+import { projectPurgeCutoff } from "@/projects/retention";
 
 // route handler 必須連得到 Postgres —— 不可 edge-only（規格 §13.1 硬邊界）。
 export const runtime = "nodejs";
@@ -12,10 +14,11 @@ export const dynamic = "force-dynamic";
 const DELETED_DOCUMENT_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 /**
- * 每日排程：清掉過期的訪客（票券 25 §6／§7、`vercel.json` 的 `crons`），以及刪除超過一天的自由文件（票券 21）。
+ * 每日排程：清掉過期的訪客（票券 25 §6／§7、`vercel.json` 的 `crons`）、刪除超過一天的自由文件（票券 21），
+ * 以及永久刪除刪除超過 30 天的專案（票券 72）。
  *
- * 文件那一件併進來，是票 07 同一條理由：週期一樣（每天）、失敗後果一樣（只是晚一天清），不值得第二支排程。
- * 名字還叫 `guest-cleanup`，改名留給票 72（專案刪除也會掛進來）。
+ * 後兩件併進來，是票 07 同一條理由：週期一樣（每天）、失敗後果一樣（只是晚一天清），不值得第二支排程。
+ * 名字裡的 `daily` 就是入場條件：週期不是每天的，不該掛在這裡。
  *
  * 它同時**就是**票券 25 §7 那支 keep-alive ping —— 一次真的資料庫查詢，Supabase Free 的
  * 「七天無活動即暫停」因此不會發生。兩件事共用一支排程不是省事：它們的週期、失敗後果與
@@ -37,7 +40,7 @@ export async function GET(request: Request): Promise<Response> {
     // 大聲一點：沒設 secret 的後果不只是「清理沒跑」，連 keep-alive ping 也一起沒跑，
     // 而那個失敗會在七天後變成「資料庫被暫停、要人工從 dashboard 復原」。排程每天打一次，
     // 所以這一行每天會在部署紀錄裡出現一次 —— 沉默才是這裡真正的風險。
-    console.warn("CRON_SECRET 未設定 —— 訪客 TTL 清理與 keep-alive ping 都不會執行");
+    console.warn("CRON_SECRET 未設定 —— 每日清理（訪客、自由文件、專案）與 keep-alive ping 都不會執行");
     return new Response(null, { status: 404 });
   }
 
@@ -50,7 +53,8 @@ export async function GET(request: Request): Promise<Response> {
 
   const deleted = await cleanupExpiredGuests();
   const purgedDocuments = await purgeDeletedDocuments(new Date(Date.now() - DELETED_DOCUMENT_RETENTION_MS));
+  const purgedProjects = await purgeDeletedProjects(projectPurgeCutoff(new Date()));
 
   // 回傳筆數不回傳 id：這支端點的讀者是排程器的執行紀錄，不是稽核軌跡。
-  return Response.json({ ttlDays: GUEST_TTL_DAYS, deleted: deleted.length, purgedDocuments });
+  return Response.json({ ttlDays: GUEST_TTL_DAYS, deleted: deleted.length, purgedDocuments, purgedProjects });
 }

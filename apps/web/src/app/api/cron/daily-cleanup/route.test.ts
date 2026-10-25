@@ -9,11 +9,11 @@ import { GET } from "./route";
  * `getDb()` 都不會叫。
  */
 const request = (authorization?: string): Request =>
-  new Request("http://localhost/api/cron/guest-cleanup", {
+  new Request("http://localhost/api/cron/daily-cleanup", {
     headers: authorization ? { authorization } : {},
   });
 
-describe("訪客清理排程的門", () => {
+describe("每日清理排程的門", () => {
   const original = process.env.CRON_SECRET;
 
   afterEach(() => {

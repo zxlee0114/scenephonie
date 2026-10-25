@@ -161,6 +161,10 @@ export const verifications = pgTable(
  * `creation_id` 是建立精靈在 client 鑄的冪等鍵（票券 71）：同一次建立送兩次只建一個專案。
  * 只有精靈建的專案有；訪客範例專案與票券 71 之前的專案是 `null`（partial unique index 不管它們）。
  *
+ * `archived_at`／`deleted_at` 是封存與刪除（票券 72）—— **兩件互相獨立的事**，兩欄可以同時有值：
+ * 已封存的專案被刪掉、再還原，回到的仍是已封存。封存只決定它在儀表板的哪一區，gate 不看它；
+ * `deleted_at` 不為 null 的專案過不了 gate，30 天後由每日排程整列刪除（其餘靠 FK cascade）。
+ *
  * §4.2 的**專案 meta 欄位**（交件 PDF 前置頁的那幾欄）此刻還沒有長出來。
  * 其餘欄位的唯一消費者是交件 PDF 的前置頁（票券 21），**現在長出來會是一組沒有寫入者、
  * 也沒有讀取者的欄位** —— 與票券 05 當初不預先長 `project_id` 是同一條理由。
@@ -175,6 +179,8 @@ export const projects = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     creationId: text("creation_id"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

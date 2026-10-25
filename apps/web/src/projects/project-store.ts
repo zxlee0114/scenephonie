@@ -1,4 +1,4 @@
-import { and, desc, eq, max, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, isNull, lte, max, sql } from "drizzle-orm";
 
 import { mintId, plainTextExcerpt } from "@scenephonie/schema";
 
@@ -7,9 +7,10 @@ import {
   authorizeScreenplayForUser,
   type AuthorizedProject,
   type AuthorizedScreenplay,
+  type DeletedProject,
 } from "@/authorization";
 import { getDb, type Db } from "@/db/client";
-import { projects, screenplays, users } from "@/db/schema";
+import { projects, screenplays, shareLinks, users } from "@/db/schema";
 import { emptyScreenplay } from "@/editor/empty-screenplay";
 import { createFixedDocument, createScreenplay, lastDocumentEditedAt, type PersistedDoc } from "@/persistence";
 
@@ -64,6 +65,12 @@ export type ProjectSummary = {
   screenplayTitle: string;
   /** 這個專案底下劇本與（沒刪的）文件最後一次存檔的時刻。 */
   lastEditedAt: Date;
+  /** 封存的時刻；沒封存是 `null`（票券 72）。 */
+  archivedAt: Date | null;
+  /** 刪除的時刻；沒刪是 `null`。跟封存互相獨立 —— 兩個可以同時有值。 */
+  deletedAt: Date | null;
+  /** 還沒撤銷的分享連結（活的與凍結的）有幾條 —— 刪除前要不要先確認，看的就是它。 */
+  liveShareLinks: number;
 };
 
 /**
@@ -85,6 +92,12 @@ export async function ownedProjects(ownerId: string): Promise<ProjectSummary[]> 
     projects.createdAt,
   );
 
+  const liveShareLinks = getDb()
+    .select({ links: count() })
+    .from(shareLinks)
+    .innerJoin(screenplays, eq(shareLinks.screenplayId, screenplays.id))
+    .where(and(eq(screenplays.projectId, projects.id), isNull(shareLinks.revokedAt)));
+
   return getDb()
     .select({
       projectId: projects.id,
@@ -92,6 +105,9 @@ export async function ownedProjects(ownerId: string): Promise<ProjectSummary[]> 
       // 沒有劇本的專案（`landingProject` 兩段之間斷線留下的）也要列 —— 藏起來就再也找不到它。
       screenplayTitle: sql<string>`coalesce(${screenplays.title}, ${projects.title})`,
       lastEditedAt,
+      archivedAt: projects.archivedAt,
+      deletedAt: projects.deletedAt,
+      liveShareLinks: sql<number>`(${liveShareLinks})`.mapWith(Number),
     })
     .from(projects)
     .leftJoin(screenplays, eq(screenplays.projectId, projects.id))
@@ -99,9 +115,63 @@ export async function ownedProjects(ownerId: string): Promise<ProjectSummary[]> 
     .orderBy(desc(lastEditedAt), desc(projects.createdAt));
 }
 
+/**
+ * 封存：從儀表板主區收進「已封存」（票券 72）。**專案本身什麼都沒變** —— gate 不看這一欄，
+ * 照常打開、照常編輯，分享連結照常有效。重複封存不會把時刻往後推。
+ */
+export async function archiveProject(project: AuthorizedProject): Promise<void> {
+  await getDb()
+    .update(projects)
+    .set({ archivedAt: sql`coalesce(${projects.archivedAt}, now())` })
+    .where(eq(projects.id, project.projectId));
+}
+
+/** 取消封存：回到儀表板主區。 */
+export async function unarchiveProject(project: AuthorizedProject): Promise<void> {
+  await getDb().update(projects).set({ archivedAt: null }).where(eq(projects.id, project.projectId));
+}
+
+/**
+ * 刪除：收回這部作品（票券 72）。專案進「已刪除」—— 從這一刻起過不了 gate，分享連結全部停用
+ * （gate 讀的時候判斷，連結那一列不動）。30 天後由每日排程永久刪除（`purgeDeletedProjects`）。
+ *
+ * **不碰 `archived_at`**：封存與刪除互相獨立，還原時才回得到原本那一區。
+ */
+export async function deleteProject(project: AuthorizedProject): Promise<void> {
+  await getDb().update(projects).set({ deletedAt: new Date() }).where(eq(projects.id, project.projectId));
+}
+
+/**
+ * 還原：撤銷刪除，回到刪除前所在的那一區 —— 只清 `deleted_at`。
+ *
+ * 吃的是 `DeletedProject`，不是 `AuthorizedProject`：已刪除的專案過不了一般的 gate，只有這一個動作
+ * 有自己的窄入口（`authorizeDeletedProjectForUser`）。
+ */
+export async function restoreProject(project: DeletedProject): Promise<void> {
+  await getDb().update(projects).set({ deletedAt: null }).where(eq(projects.id, project.projectId));
+}
+
+/**
+ * 每日排程：永久刪除 `before`（含）以前刪除的專案（票券 72，期限見 `./retention`）。回傳刪了幾個。
+ *
+ * **只有一條 DELETE**，其餘靠 FK cascade —— 劇本、備份、文件、人物地點、交付、分享連結跟著走（與訪客
+ * TTL 同一招）。交付因此第一次會消失：那是擁有者收回作品，不是系統回收（ADR-0008〈收回〉）。
+ *
+ * 不走 gate：它不是某個人在操作某個專案，是一條寫死的政策（不變式 I）。
+ */
+export async function purgeDeletedProjects(before: Date): Promise<number> {
+  const purged = await getDb()
+    .delete(projects)
+    .where(and(isNotNull(projects.deletedAt), lte(projects.deletedAt, before)))
+    .returning({ id: projects.id });
+  return purged.length;
+}
+
 export type ProjectContents = {
   /** 專案名稱。 */
   title: string;
+  /** 已封存（票券 72）—— 專案首頁頂端因此多一條「這個專案已封存・取消封存」。 */
+  archived: boolean;
   /** 劇本名稱（票券 71）—— 與專案名稱是兩個值。沒有劇本時是 `null`。 */
   screenplayTitle: string | null;
   /** 單一劇本專案之下**只有一份**（1:1 是這個 type 的定義，不是巧合）。 */
@@ -116,7 +186,7 @@ export type ProjectContents = {
 export async function projectContents(project: AuthorizedProject): Promise<ProjectContents> {
   const db = getDb();
   const [[row], [script]] = await Promise.all([
-    db.select({ title: projects.title }).from(projects).where(eq(projects.id, project.projectId)),
+    db.select({ title: projects.title, archivedAt: projects.archivedAt }).from(projects).where(eq(projects.id, project.projectId)),
     db
       .select({ id: screenplays.id, title: screenplays.title, updatedAt: screenplays.updatedAt, doc: screenplays.doc })
       .from(screenplays)
@@ -127,6 +197,7 @@ export async function projectContents(project: AuthorizedProject): Promise<Proje
 
   return {
     title: row?.title ?? DEFAULT_PROJECT_TITLE,
+    archived: Boolean(row?.archivedAt),
     screenplayTitle: script?.title ?? null,
     screenplayId: script?.id ?? null,
     screenplayUpdatedAt: script?.updatedAt ?? null,
@@ -151,8 +222,8 @@ export async function screenplayTitle(screenplay: AuthorizedScreenplay): Promise
  * （`createProject`）。訪客「一進來就有範例稿可以看」是產品決定，不是資料模型的讓步 ——
  * 專案與劇本都是正常建立的，沒有任何欄位為它特別開洞；劇本名稱就是專案名稱。
  *
- * ⚠️ **它必須冪等。** 第一次進來時的重試或兩個分頁
- * 會同時走到這裡，而 v1 沒有刪專案這件事 —— 清不掉的東西不能靠「應該不會同時發生」來防。
+ * ⚠️ **它必須冪等。** 第一次進來時的重試或兩個分頁會同時走到這裡，而多開的那一個不會有人去刪 ——
+ * 使用者看到的是儀表板上莫名多一份範例專案。不能靠「應該不會同時發生」來防。
  * 序列化點取 `users` 的那一列：它是「這個人有沒有專案」的自然歸屬，而且第一次登入時
  * `projects` 還沒有任何一列可以鎖。
  *
@@ -169,10 +240,11 @@ export async function landingProject(
   const projectId = await getDb().transaction(async (tx) => {
     await tx.select({ id: users.id }).from(users).where(eq(users.id, ownerId)).for("update");
 
+    // 已刪除的不算 —— 拿回它只會在下面過不了 gate（票券 72）。
     const [existing] = await tx
       .select({ id: projects.id })
       .from(projects)
-      .where(eq(projects.ownerId, ownerId))
+      .where(and(eq(projects.ownerId, ownerId), isNull(projects.deletedAt)))
       .orderBy(desc(projects.createdAt))
       .limit(1);
     if (existing) return existing.id;

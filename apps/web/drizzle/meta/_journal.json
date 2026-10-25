@@ -78,6 +78,13 @@
       "when": 1792836309150,
       "tag": "0010_screenplay_title_and_creation_id",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792918755851,
+      "tag": "0011_project_archive_and_delete",
+      "breakpoints": true
     }
   ]
 }

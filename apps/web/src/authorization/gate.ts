@@ -1,14 +1,16 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { getDb, type Db } from "@/db/client";
 import { projects, screenplays, shareLinks } from "@/db/schema";
 
 import {
+  grantDeletedProject,
   grantProject,
   grantScreenplay,
   grantShareViewer,
   type AuthorizedProject,
   type AuthorizedScreenplay,
+  type DeletedProject,
   type ShareViewer,
 } from "./handles";
 
@@ -36,6 +38,9 @@ import {
  * 與 session 無關的那一半 —— **application logic 而不是 request handling**，
  * 所以它在測試裡不必偽造 cookie，也讓 `./session` 換掉時這條規則不動。
  *
+ * **已刪除的專案過不了這裡**（票券 72）：跟不存在、不是你的回同一個答案，所以它的每個頁面 404、每次存檔
+ * 被拒。已封存的照常過 —— 封存只決定它在儀表板的哪一區。還原走 `authorizeDeletedProjectForUser`。
+ *
  * `db` 給在交易裡剛建好專案、要在**同一個交易**裡拿 handle 的呼叫端（票券 71）—— 判準照舊是資料庫裡的
  * `owner_id`，只是讀的是那個交易看得到的那一列。
  */
@@ -47,11 +52,32 @@ export async function authorizeProjectForUser(
   const [row] = await db
     .select({ id: projects.id, ownerId: projects.ownerId })
     .from(projects)
-    .where(eq(projects.id, projectId))
+    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
     .limit(1);
 
   if (!row || row.ownerId !== userId) return null;
   return grantProject({ projectId: row.id, ownerId: row.ownerId });
+}
+
+/**
+ * 這個人能還原這個已刪除的專案嗎（票券 72）。
+ *
+ * 跟 `authorizeProjectForUser` 是同一個判準（資料庫裡的 `owner_id`），只是條件反過來：**只對已刪除的**
+ * 給 handle，而那個 handle 只有還原收。沒刪的、別人的、不存在的都是 `null`。
+ */
+export async function authorizeDeletedProjectForUser(
+  userId: string,
+  projectId: string,
+  db: Db = getDb(),
+): Promise<DeletedProject | null> {
+  const [row] = await db
+    .select({ id: projects.id, ownerId: projects.ownerId })
+    .from(projects)
+    .where(and(eq(projects.id, projectId), isNotNull(projects.deletedAt)))
+    .limit(1);
+
+  if (!row || row.ownerId !== userId) return null;
+  return grantDeletedProject({ projectId: row.id, ownerId: row.ownerId });
 }
 
 /**
@@ -73,7 +99,7 @@ export async function authorizeScreenplayForUser(
     })
     .from(screenplays)
     .innerJoin(projects, eq(screenplays.projectId, projects.id))
-    .where(eq(screenplays.id, screenplayId))
+    .where(and(eq(screenplays.id, screenplayId), isNull(projects.deletedAt)))
     .limit(1);
 
   if (!row || row.ownerId !== userId) return null;
@@ -85,6 +111,9 @@ export async function authorizeScreenplayForUser(
  *
  * 沒有帳號的那一種 authorization subject —— **同一個 gate、不是第二套機制**：判斷的依據仍是資料庫
  * 裡的一列（`share_links`），換到的仍是一個只能從這裡鑄出的 handle，只是它唯讀。
+ *
+ * 專案已刪除的連結也是 `null`（票券 72）—— 在**讀的時候**判斷、連結那一列不動，所以還原之後它自然恢復，
+ * 而刪除期間另外撤銷的那條仍是撤銷。
  *
  * 撤銷過的與不存在的回同一個答案（`null`）：分享頁對兩者顯示同一個中性頁面，不透露劇本是否存在、
  * 也不透露這條連結曾經有效過（§10.3）。
@@ -99,7 +128,8 @@ export async function authorizeShareToken(token: string): Promise<ShareViewer | 
     })
     .from(shareLinks)
     .innerJoin(screenplays, eq(shareLinks.screenplayId, screenplays.id))
-    .where(and(eq(shareLinks.token, token), isNull(shareLinks.revokedAt)))
+    .innerJoin(projects, eq(screenplays.projectId, projects.id))
+    .where(and(eq(shareLinks.token, token), isNull(shareLinks.revokedAt), isNull(projects.deletedAt)))
     .limit(1);
 
   return row ? grantShareViewer(row) : null;
