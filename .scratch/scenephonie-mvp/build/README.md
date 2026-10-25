@@ -117,4 +117,4 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [74](./74-autosave-status-display.md) | 存檔狀態列的節奏：打字時「儲存中」、存完停留一段、閒置時不顯示或「上次儲存於…」，不再跳動。劇本與文件共用。**從票券 21 驗收撈到**，無 blocker。 | `needs-triage` |
 | [75](./75-rename-project-and-screenplay.md) | 改專案名稱與劇本名稱（建立後目前改不了）。**從票券 71 grilling 拆出來**，blocked by 71。 | `needs-triage` |
 | [76](./76-nodejs-security-update-2026-10.md) | Node.js 釘到 2026-10-21 安全修補版 22.23.4（`.nvmrc`、`engines.node`、CI、Vercel 一致）。**Brotli decoder RCE（CVE-2026-111497）與數個 TLS／DNS 驗證問題。**無 blocker。 | ✅ verified |
-| [77](./77-nodejs-version-auto-tracking.md) | 自動追蹤 Node.js 安全更新（Renovate 傾向；只追 22.x minor／patch，`.nvmrc` 與 `engines.node` 要同步）。blocked by 76。 | `ready-for-agent` |
+| [77](./77-nodejs-version-auto-tracking.md) | 自動追蹤 Node.js 安全更新（Renovate 傾向；只追 22.x minor／patch，`.nvmrc` 與 `engines.node` 要同步）。blocked by 76。 | ✅ verified |
