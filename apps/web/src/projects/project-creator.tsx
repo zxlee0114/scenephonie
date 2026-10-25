@@ -29,6 +29,8 @@ import type { CreateProject } from "./create-capability";
 import {
   blankCreationDraft,
   creationDraftStore,
+  OUTLINE_FIELD,
+  OUTLINE_TABS,
   type CreationDraft,
   type OutlineTab,
   type SavedCreationDraft,
@@ -38,9 +40,6 @@ import "../styles/documents.css";
 
 type View = { name: "closed" } | { name: "restore"; saved: SavedCreationDraft } | { name: "wizard" };
 
-/** 頁籤對到草稿上的哪一份。 */
-const OUTLINE_FIELD = { 交件大綱: "submissionOutline", 分場大綱: "sceneOutline" } as const;
-const TABS: OutlineTab[] = ["交件大綱", "分場大綱"];
 
 export function ProjectCreator({ userId, create }: { userId: string; create: CreateProject }) {
   const router = useRouter();
@@ -321,7 +320,7 @@ function Wizard({
       {draft.step === 2 && (
         <>
           <div className="creator__tabs" role="tablist" aria-label="文件">
-            {TABS.map((tab) => (
+            {OUTLINE_TABS.map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -365,7 +364,7 @@ function Wizard({
             <dd>{draft.projectTitle.trim()}</dd>
             <dt>劇本名稱</dt>
             <dd>{screenplayTitle.trim()}</dd>
-            {TABS.map((tab) => (
+            {OUTLINE_TABS.map((tab) => (
               <SummaryCount key={tab} kind={tab} body={draft[OUTLINE_FIELD[tab]]} />
             ))}
           </dl>

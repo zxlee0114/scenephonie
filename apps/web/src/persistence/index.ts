@@ -23,6 +23,7 @@ export {
   createFixedDocument,
   createFreeDocument,
   deleteDocument,
+  lastDocumentEditedAt,
   listDocuments,
   loadDocument,
   openSceneOutline,

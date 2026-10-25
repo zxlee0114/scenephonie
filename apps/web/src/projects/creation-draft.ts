@@ -11,12 +11,23 @@
  * 讀寫都可能丟例外（網站資料被封鎖、配額滿）。讀不到就當沒有草稿；**寫不進去要回報**，
  * 精靈因此知道「現在關掉就真的會丟」，那時才需要問一句（票券 71 第 9 條）。
  */
-import { emptyDocument, mintId } from "@scenephonie/schema";
+import { emptyDocument, mintId, type DocumentKind } from "@scenephonie/schema";
 
 import type { PersistedDoc } from "@/persistence";
 
-/** 第二步的兩個頁籤。 */
-export type OutlineTab = "交件大綱" | "分場大綱";
+/**
+ * 第二步的頁籤：哪一種文件、內文放在草稿的哪一欄。頁籤的順序、型別、讀回草稿時的檢查都從這一張表來 ——
+ * 之後多一個頁籤（例如人物設定）只改這裡。
+ */
+export const OUTLINE_FIELD = {
+  交件大綱: "submissionOutline",
+  分場大綱: "sceneOutline",
+} as const satisfies Partial<Record<DocumentKind, keyof CreationDraft>>;
+
+export type OutlineTab = keyof typeof OUTLINE_FIELD;
+
+/** 頁籤由左到右。 */
+export const OUTLINE_TABS = Object.keys(OUTLINE_FIELD) as OutlineTab[];
 
 export type CreationDraft = {
   /** 建立鍵（冪等）：這份草稿最後送出時帶上，連點或另一個分頁再按一次都只建一個。 */
@@ -46,7 +57,7 @@ export function blankCreationDraft(): CreationDraft {
     submissionOutline: emptyDocument(),
     sceneOutline: emptyDocument(),
     step: 1,
-    tab: "交件大綱",
+    tab: OUTLINE_TABS[0]!,
   };
 }
 
@@ -138,7 +149,7 @@ function isSavedDraft(value: unknown): value is SavedCreationDraft {
     typeof draft.sceneOutline === "object" &&
     draft.sceneOutline !== null &&
     (draft.step === 1 || draft.step === 2 || draft.step === 3) &&
-    (draft.tab === "交件大綱" || draft.tab === "分場大綱") &&
+    OUTLINE_TABS.includes(draft.tab as OutlineTab) &&
     typeof draft.savedAt === "number"
   );
 }

@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull, lt, type SQL } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, lt, max, type SQL, type SQLWrapper } from "drizzle-orm";
 
 import {
   documentFromJSON,
@@ -201,6 +201,20 @@ export async function listDocuments(project: AuthorizedProject): Promise<Documen
       },
     ];
   });
+}
+
+/**
+ * 某個專案底下**沒刪的**文件最後一次存檔的時刻 —— 一段子查詢，給專案儀表板（票券 71）嵌進它那一列一列的
+ * 專案查詢裡。刪掉的不算：它已經不在了，它的時間不該把專案頂到前面。沒有文件就是 `null`。
+ *
+ * 不吃 handle：儀表板是以 `ownerId` 為條件列出自己的專案（`ownedProjects`），沒有一個個專案的 handle 可給；
+ * 傳進來的是外層查詢的專案 id 欄位，誰的專案由外層那個條件決定。
+ */
+export function lastDocumentEditedAt(projectId: SQLWrapper) {
+  return getDb()
+    .select({ edited: max(documents.updatedAt) })
+    .from(documents)
+    .where(and(eq(documents.projectId, projectId), isNull(documents.deletedAt)));
 }
 
 /**

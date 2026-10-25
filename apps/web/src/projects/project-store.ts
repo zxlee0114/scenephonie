@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, max, sql } from "drizzle-orm";
+import { and, desc, eq, max, sql } from "drizzle-orm";
 
 import { mintId, plainTextExcerpt } from "@scenephonie/schema";
 
@@ -9,9 +9,9 @@ import {
   type AuthorizedScreenplay,
 } from "@/authorization";
 import { getDb, type Db } from "@/db/client";
-import { documents, projects, screenplays, users } from "@/db/schema";
+import { projects, screenplays, users } from "@/db/schema";
 import { emptyScreenplay } from "@/editor/empty-screenplay";
-import { createFixedDocument, createScreenplay, type PersistedDoc } from "@/persistence";
+import { createFixedDocument, createScreenplay, lastDocumentEditedAt, type PersistedDoc } from "@/persistence";
 
 /**
  * 專案這一層的存取（§4.2）。
@@ -80,10 +80,7 @@ export async function ownedProjects(ownerId: string): Promise<ProjectSummary[]> 
     .select({ edited: max(screenplays.updatedAt) })
     .from(screenplays)
     .where(eq(screenplays.projectId, projects.id));
-  const documentEdited = getDb()
-    .select({ edited: max(documents.updatedAt) })
-    .from(documents)
-    .where(and(eq(documents.projectId, projects.id), isNull(documents.deletedAt)));
+  const documentEdited = lastDocumentEditedAt(projects.id);
   const lastEditedAt = sql<Date>`greatest((${scriptEdited}), (${documentEdited}), ${projects.createdAt})`.mapWith(
     projects.createdAt,
   );
