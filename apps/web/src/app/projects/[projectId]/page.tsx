@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { isFixedDocument, type DocumentKind } from "@scenephonie/schema";
@@ -62,7 +63,10 @@ export default async function ProjectHubPage({
   return (
     <main className="project-hub">
       <header className="project-hub__bar">
-        <span className="project-hub__wordmark">Scenephonie</span>
+        {/* 回儀表板的路：訪客落在這裡、從劇本編輯器回來也是這一頁（票券 71 驗收）。 */}
+        <Link href="/projects" className="project-hub__home">
+          ← 我的專案
+        </Link>
         <SignOut />
       </header>
 

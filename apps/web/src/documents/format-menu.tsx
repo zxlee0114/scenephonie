@@ -14,6 +14,7 @@
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
+import { useMemo, useRef } from "react";
 
 type FormatState = {
   paragraph: boolean;
@@ -67,14 +68,28 @@ export function FormatMenu({ editor }: { editor: Editor }) {
     }),
   });
 
+  const menu = useRef<HTMLDivElement>(null);
   // `fixed`：放在會捲動的框裡（建立精靈的頁籤，票券 71）時，absolute 的選單會被框的 overflow 切掉一截。
+  // 選單一開始是 Tiptap 掛上的 `position: absolute`，第一次算位置時 Floating UI 拿它的 offsetParent
+  // （彈窗）當基準，算出來的座標卻當成視窗座標用 —— 第一次反白，選單跑到視窗左上角。出現的那一刻就先改成 fixed。
+  // 物件要穩定：每次 render 一個新的 options，Tiptap 就重送一次 updateOptions。
+  const options = useMemo(
+    () => ({
+      strategy: "fixed" as const,
+      onShow: () => {
+        if (menu.current) menu.current.style.position = "fixed";
+      },
+    }),
+    [],
+  );
   return (
     <BubbleMenu
+      ref={menu}
       editor={editor}
       className="format-menu"
       role="toolbar"
       aria-label="格式"
-      options={{ strategy: "fixed" }}
+      options={options}
     >
       {GROUPS.map((group, index) => (
         <div key={index} className="format-menu__group">

@@ -46,16 +46,21 @@ afterEach(() => {
 });
 
 describe("第一步：名稱", () => {
-  it("兩個名稱都必填：沒填（或只有空白）按下一步，欄位下方說要填，停在這一步", () => {
+  it("兩個名稱都必填：沒填（或只有空白）下一步是停用的；照按，欄位裡提示要填（空白清掉），停在這一步", () => {
     renderCreator();
     open();
     type("專案名稱", "   ");
+    expect(screen.getByRole("button", { name: "下一步" }).getAttribute("aria-disabled")).toBe("true");
 
     next();
 
-    expect(screen.getByText("請填專案名稱")).toBeTruthy();
-    expect(screen.getByText("請填劇本名稱")).toBeTruthy();
+    expect((screen.getByPlaceholderText("請填專案名稱") as HTMLInputElement).value).toBe("");
+    expect(screen.getByPlaceholderText("請填劇本名稱")).toBeTruthy();
     expect(screen.getByLabelText("專案名稱")).toBeTruthy();
+
+    type("專案名稱", "海豚計畫");
+    type("劇本名稱", "海豚公寓");
+    expect(screen.getByRole("button", { name: "下一步" }).getAttribute("aria-disabled")).toBe("false");
   });
 
   it("「與專案名稱相同」預設不勾；勾起來劇本名稱跟著專案名稱走，取消勾選留著當下的字", () => {
@@ -228,15 +233,15 @@ describe("離開與接回", () => {
     expect(screen.getByLabelText("專案名稱")).toBeTruthy();
   });
 
-  it("草稿存不進去：說一聲；關閉先問、離開頁面請瀏覽器攔；捨棄才關", () => {
+  it("草稿存不進去：一打開就說；關閉先問、離開頁面請瀏覽器攔；捨棄才關", () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("full", "QuotaExceededError");
     });
     renderCreator();
     open();
-    type("專案名稱", "海豚計畫");
+    expect(screen.getByText(/我們目前無法透過您所使用的瀏覽器暫存變更/)).toBeTruthy();
 
-    expect(screen.getByText("這台瀏覽器存不了草稿，關閉之後填的內容就會不見。")).toBeTruthy();
+    type("專案名稱", "海豚計畫");
     const leaving = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(leaving);
     expect(leaving.defaultPrevented).toBe(true);

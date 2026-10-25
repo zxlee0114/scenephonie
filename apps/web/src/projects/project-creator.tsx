@@ -51,6 +51,8 @@ export function ProjectCreator({ userId, create }: { userId: string; create: Cre
   const latest = useRef(draft);
   /** 草稿現在是不是不會丟（存進去了，或根本沒東西）。 */
   const [kept, setKept] = useState(true);
+  /** 這台瀏覽器寫不寫得進草稿。跟 `kept` 分開：還沒填東西時沒有東西會丟，但提示一打開就該在。 */
+  const [writable, setWritable] = useState(true);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
   const change = useCallback(
@@ -59,6 +61,8 @@ export function ProjectCreator({ userId, create }: { userId: string; create: Cre
       latest.current = next;
       setDraft(next);
       setKept(store.save(next));
+      // 每次都再試一次：寫入恢復了，提示就撤掉。
+      setWritable(store.writable());
     },
     [store],
   );
@@ -67,6 +71,7 @@ export function ProjectCreator({ userId, create }: { userId: string; create: Cre
     latest.current = from;
     setDraft(from);
     setKept(true);
+    setWritable(store.writable());
     setConfirmingDiscard(false);
     setView({ name: "wizard" });
   };
@@ -132,6 +137,7 @@ export function ProjectCreator({ userId, create }: { userId: string; create: Cre
                 draft={draft}
                 change={change}
                 kept={kept}
+                writable={writable}
                 requestClose={requestClose}
                 create={async (destination) => {
                   const { creationId, projectTitle, screenplayTitle, sameName, submissionOutline, sceneOutline } =
@@ -210,12 +216,14 @@ function Wizard({
   draft,
   change,
   kept,
+  writable,
   requestClose,
   create,
 }: {
   draft: CreationDraft;
   change: (patch: Partial<CreationDraft>) => void;
   kept: boolean;
+  writable: boolean;
   requestClose: () => void;
   /** @returns 這一下有沒有結果（建好了、或要去重新登入）；`false` ＝ 沒建成，留在這一步。 */
   create: (destination: "hub" | "editor") => Promise<boolean>;
@@ -227,6 +235,7 @@ function Wizard({
   const screenplayTitle = draft.sameName ? draft.projectTitle : draft.screenplayTitle;
   const missingProject = !draft.projectTitle.trim();
   const missingScreenplay = !screenplayTitle.trim();
+  const namesComplete = !missingProject && !missingScreenplay;
 
   const submit = async (destination: "hub" | "editor") => {
     setSubmitting(destination);
@@ -241,7 +250,11 @@ function Wizard({
 
   const footer = (children: ReactNode) => (
     <>
-      {!kept && <p className="creator__unsaved">這台瀏覽器存不了草稿，關閉之後填的內容就會不見。</p>}
+      {!(kept && writable) && (
+        <p className="creator__unsaved">
+          我們目前無法透過您所使用的瀏覽器暫存變更，若沒有成功建立專案就關閉此對話窗，可能會遺失您填寫的進度。
+        </p>
+      )}
       <div className="creator__actions">{children}</div>
     </>
   );
@@ -256,8 +269,14 @@ function Wizard({
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            if (missingProject || missingScreenplay) setShowNameErrors(true);
-            else change({ step: 2 });
+            if (namesComplete) {
+              change({ step: 2 });
+              return;
+            }
+            setShowNameErrors(true);
+            // 只有空白的欄位也要看得到提示：提示是 placeholder，欄位裡有字（哪怕是空白）就不顯示。
+            if (missingProject && draft.projectTitle) change({ projectTitle: "" });
+            if (missingScreenplay && !draft.sameName && draft.screenplayTitle) change({ screenplayTitle: "" });
           }}
         >
           <NameField
@@ -291,7 +310,8 @@ function Wizard({
             與專案名稱相同
           </label>
           {footer(
-            <button type="submit" className="creator__primary">
+            // aria-disabled 而不是 disabled：disabled 的按鈕收不到點擊，就沒機會在欄位裡提示缺了什麼。
+            <button type="submit" className="creator__primary" aria-disabled={!namesComplete}>
               下一步
             </button>,
           )}
@@ -413,24 +433,22 @@ function NameField({
   readOnly?: boolean;
   autoFocus?: boolean;
 }) {
-  const errorId = `${id}-error`;
   return (
     <div className="creator__field">
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id} data-required>
+        {label}
+      </label>
       <input
         id={id}
         value={value}
         readOnly={readOnly}
         autoFocus={autoFocus}
+        aria-required="true"
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        // 沒填的提示寫在欄位裡，不另起一行把版面往下推（票券 71 驗收）。
+        placeholder={error}
         onChange={(event) => onChange(event.target.value)}
       />
-      {error && (
-        <p id={errorId} className="creator__field-error">
-          {error}
-        </p>
-      )}
     </div>
   );
 }

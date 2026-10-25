@@ -55,6 +55,8 @@ export type CreationDraftStore = {
   /** @returns 這份草稿現在是不是**不會丟**：存進去了，或根本沒有東西可丟。 */
   save: (draft: CreationDraft) => boolean;
   clear: () => void;
+  /** 這台瀏覽器現在寫不寫得進去 —— 精靈一打開就要知道，不等使用者填了東西才發現（票券 71 驗收）。 */
+  writable: () => boolean;
 };
 
 export function creationDraftStore(userId: string): CreationDraftStore {
@@ -92,6 +94,16 @@ export function creationDraftStore(userId: string): CreationDraftStore {
       }
     },
     clear,
+    writable() {
+      const probe = `${key}:probe`;
+      try {
+        localStorage.setItem(probe, "1");
+        localStorage.removeItem(probe);
+        return true;
+      } catch {
+        return false;
+      }
+    },
   };
 }
 

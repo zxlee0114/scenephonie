@@ -111,8 +111,14 @@
   font-size: var(--text-sm);
 }
 
-.project-hub__wordmark {
+.project-hub__wordmark,
+.project-hub__home {
   font-weight: 600;
+}
+
+.project-hub__home {
+  color: var(--text-primary);
+  text-decoration: none;
 }
 
 .project-hub__sign-out {
@@ -513,14 +519,20 @@ a.hub-card__name:focus-visible {
   color: var(--text-secondary);
 }
 
+/* 必填的星號是裝飾：欄位本身帶 aria-required，替代文字留空免得被念成「星號」。 */
+.creator__field label[data-required]::after {
+  content: " *" / "";
+  color: var(--error-fg);
+}
+
 .creator__field input[aria-invalid="true"] {
   border-color: var(--error-fg);
 }
 
-.creator__field-error {
-  margin: 0;
+/* 沒填的提示寫在欄位裡（placeholder），不在欄位下方另起一行 —— 版面不跳。 */
+.creator__field input[aria-invalid="true"]::placeholder {
   color: var(--error-fg);
-  font-size: var(--text-sm);
+  opacity: 1;
 }
 
 /* 緊貼在劇本名稱底下：它說的是那一欄。 */
@@ -624,7 +636,7 @@ a.hub-card__name:focus-visible {
   cursor: pointer;
 }
 
-.creator__actions button:hover:not(:disabled) {
+.creator__actions button:hover:not(:disabled, [aria-disabled="true"]) {
   border-color: var(--rule-strong);
   color: var(--text-primary);
 }
@@ -636,7 +648,7 @@ a.hub-card__name:focus-visible {
   font-weight: 600;
 }
 
-.creator__actions .creator__primary:hover:not(:disabled) {
+.creator__actions .creator__primary:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--color-accent-hover);
   color: var(--text-on-accent);
 }
@@ -646,7 +658,9 @@ a.hub-card__name:focus-visible {
   color: var(--error-fg);
 }
 
-.creator__actions button:disabled {
+/* 名稱沒填齊的「下一步」是 aria-disabled，不是 disabled：要按得到，才知道該在欄位裡提示（見 project-creator）。 */
+.creator__actions button:disabled,
+.creator__actions button[aria-disabled="true"] {
   cursor: default;
   opacity: 0.6;
 }
