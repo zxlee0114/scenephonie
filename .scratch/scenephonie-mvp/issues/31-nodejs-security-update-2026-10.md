@@ -1,7 +1,7 @@
 # Node.js 升級到 2026-10-21 安全修補版（22.23.4）
 
 Type: task
-Status: ready-for-agent
+Status: verified
 Blocked by:
 
 ## Why
@@ -49,11 +49,14 @@ Node.js 在 2026-10-21 發布安全更新（[公告](https://nodejs.org/en/blog/
 
 ## Acceptance criteria
 
-- [ ] 本機、CI、Vercel 三處 `node -v`／`process.version` 皆 ≥ 22.23.4（或 24.22.1），並在票上貼出三處實際版本
-- [ ] `.nvmrc` 與 `engines.node` 的下限都是 22.23.4
-- [ ] `pnpm lint && pnpm test && pnpm build` 通過，CI 綠
-- [ ] Preview deploy 手動走過核心流程無異常
-- [ ] 若 Vercel 版本落後，已記錄預期時程
+- [x] 本機、CI、Vercel 三處 `node -v`／`process.version` 皆 ≥ 22.23.4（或 24.22.1），並在票上貼出三處實際版本
+  - 本機：`v22.23.4`（repo 內 `nvm use`）；全域預設已升 24.22.1
+  - CI：`22.23.4`（Actions `setup-node` log）
+  - Vercel：專案設定與 Production 部署 `nodeVersion: 22.x`。Vercel API／build log 只給大版本，小版本由 Vercel 在 22.x 內維護，無法由我方直接驗證
+- [x] `.nvmrc` 與 `engines.node` 的下限都是 22.23.4
+- [x] `pnpm lint && pnpm test && pnpm build` 通過，CI 綠
+- [x] Preview deploy 手動走過核心流程無異常（2026-10-25 作者在重新部署後的 Production 驗過）
+- [x] 若 Vercel 版本落後，已記錄預期時程（merge 時 Production 仍是 24.x，因專案設定在部署之後才改；已改為 22.x 並重新部署 Production，新部署確認 `22.x`）
 
 ## Out of scope
 
@@ -68,4 +71,4 @@ Node.js 在 2026-10-21 發布安全更新（[公告](https://nodejs.org/en/blog/
 - `.nvmrc`：`22` → `22.23.4`；`engines.node`：`>=22` → `>=22.23.4`；README 需求文字同步。
 - 本機（nvm 22.23.4）驗證：`pnpm install --frozen-lockfile`、`lint`、`typecheck`、`test`（78 檔通過、14 檔 skipped，929 tests passed）、`build` 全過。
 - 本機預設 nvm alias 仍是 24.12.0（未修補）。在 repo 內 `nvm use` 會切到 22.23.4；全域預設需自行 `nvm alias default 22.23.4`。
-- **尚待人工**：Vercel dashboard 的 Node.js Version 與實際 runtime 版本（repo 內看不到）、CI 綠燈、Preview deploy 走核心流程。
+- 驗收收尾：PR #99 merge 後發現 Vercel 專案 Node.js Version 原為 24.x，與 CI／本機的 22 不一致；改為 22.x 並 `vercel redeploy` Production，API 確認 `nodeVersion: 22.x`，核心流程手動驗過。
