@@ -12,7 +12,7 @@
 | 資料庫 | PostgreSQL ＋ Drizzle ORM | 初步 | `apps/web/src/db/`、`apps/web/drizzle.config.ts` |
 | 測試 runner | Vitest | — | 各套件 `vitest.config.ts` |
 | isomorphic schema | 獨立套件，零瀏覽器相依，Node 可單獨跑測試 | 已鎖定（§5.5 / §13.2 階段 0） | `packages/schema/`（`tsconfig` 無 `lib.dom` ＋ ESLint 邊界規則） |
-| 部署 | **Vercel Hobby，region `hnd1`（東京）** | 已鎖定（可反轉） | `vercel.json` (`regions: ["hnd1"]`) |
+| 部署 | **Vercel Hobby，region `hnd1`（東京）** | 已鎖定（可反轉） | `apps/web/vercel.json` (`regions: ["hnd1"]`) |
 | 資料庫託管 | **Supabase Free，東京（`ap-northeast-1`）**，僅作 PostgreSQL 託管 | 已鎖定 | `apps/web/.env.example`、`docs/adr/0012-*` |
 | 連線模型 | **`DATABASE_URL` 走 Supavisor transaction mode `:6543` ＋ `prepare: false`**；migration 走 **`DIRECT_URL`** session mode | 已鎖定 | `apps/web/src/db/client.ts`、`apps/web/drizzle.config.ts` |
 | 認證 | **Better Auth `~1.7.x`**（只收 patch）＋ Google OAuth；**DB session ＋ cookie cache**（`compact`、5 分鐘）；middleware 只做 optimistic redirect | 已鎖定（可替換的 infrastructure decision） | `apps/web/src/auth/`、`apps/web/src/proxy.ts` |
@@ -70,7 +70,7 @@ Web application，Authorized redirect URI 填 `<BETTER_AUTH_URL>/api/auth/callba
 其餘來源一律查清單）。訪客不進 allowlist，但也**不因此取得任何超出正常 User authorization
 model 的東西**。
 
-**TTL 清理**：`vercel.json` 的 cron 每天 19:17 UTC（台北 03:17）打一次
+**TTL 清理**：`apps/web/vercel.json` 的 cron 每天 19:17 UTC（台北 03:17）打一次
 `/api/cron/daily-cleanup`，把「`is_demo` 且七天沒動過稿」的 `users` 列刪掉，其餘靠 FK cascade。
 同一支也清刪除超過一天的自由文件（票券 21）與刪除超過 30 天的專案（票券 72）—— 同週期、同失敗後果，不另開排程。
 它同時就是票券 25 §7 那支 keep-alive ping（Supabase Free 七天無活動即暫停）。
@@ -123,7 +123,9 @@ model 的東西**。
 
 1. Import GitHub repo。
 2. **Root Directory** 設 `apps/web`。
-3. Framework Preset：Next.js（`vercel.json` 已鎖 `framework` 與 `regions`）。
+3. Framework Preset：Next.js（`apps/web/vercel.json` 已鎖 `framework`、`regions` 與 `crons`）。
+   ⚠️ Vercel 只讀 **Root Directory 底下**的 `vercel.json`：放在 repo 根目錄會被整份忽略，不報錯 ——
+   排程不登記、region 回到預設 `iad1`。曾經因此讓排程（連同 keep-alive）從票 07 起一次都沒跑過。
 4. Environment Variables：`DATABASE_URL`（Supavisor transaction，`:6543`）、`DIRECT_URL`（session，`:5432`）、
    `BETTER_AUTH_URL`、`BETTER_AUTH_SECRET`、`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`AUTH_ALLOWED_EMAILS`、
    `CRON_SECRET`（訪客 TTL 清理排程，票券 07；不設就等於關掉那支排程）。
