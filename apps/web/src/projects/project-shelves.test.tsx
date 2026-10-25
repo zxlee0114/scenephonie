@@ -22,7 +22,7 @@ const card = (title: string, overrides: Partial<ProjectSummary> = {}): ProjectSu
   lastEditedAt: now,
   archivedAt: null,
   deletedAt: null,
-  liveShareLinks: 0,
+  activeShareLinks: 0,
   ...overrides,
 });
 
@@ -35,7 +35,7 @@ function renderShelves(shelves: Partial<DashboardShelves>) {
   const actions: ShelfActions = {
     archive: vi.fn(async () => true),
     unarchive: vi.fn(async () => true),
-    remove: vi.fn(async () => true),
+    delete: vi.fn(async () => true),
     restore: vi.fn(async () => true),
   };
   render(<ProjectShelves shelves={{ ...empty, ...shelves }} now={now} actions={actions} />);
@@ -59,6 +59,19 @@ describe("儀表板的三區", () => {
 
     expect(screen.queryByText(/已封存/)).toBeNull();
     expect(screen.queryByText(/已刪除/)).toBeNull();
+  });
+
+  it("主區空了、但下面還有封存或刪除的：不說「還沒有專案」，指向下面", () => {
+    renderShelves({ archived: [card("乙", { archivedAt: now })] });
+
+    expect(screen.queryByText(/還沒有專案/)).toBeNull();
+    expect(screen.getByText("其他專案在下面的「已封存」或「已刪除」裡。")).toBeTruthy();
+  });
+
+  it("一個專案都沒有：還沒有專案", () => {
+    renderShelves({});
+
+    expect(screen.getByText("還沒有專案。按「建立專案」開始第一部。")).toBeTruthy();
   });
 
   it("有的時候是預設收起的區塊，標題帶數量", () => {
@@ -130,7 +143,7 @@ describe("刪除與還原", () => {
     await settle();
 
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(actions.remove).toHaveBeenCalledWith("pj_甲");
+    expect(actions.delete).toHaveBeenCalledWith("pj_甲");
     expect(screen.queryByRole("link", { name: "甲" })).toBeNull();
     expect(screen.getByRole("status").textContent).toContain("已刪除「甲」");
 
@@ -142,7 +155,7 @@ describe("刪除與還原", () => {
   });
 
   it("有生效的分享連結：先在頁內確認，寫出幾條會停用；取消就什麼都不做", async () => {
-    const actions = renderShelves({ active: [card("甲", { liveShareLinks: 2 })] });
+    const actions = renderShelves({ active: [card("甲", { activeShareLinks: 2 })] });
 
     pick("甲", "刪除");
 
@@ -153,18 +166,18 @@ describe("刪除與還原", () => {
     await settle();
 
     expect(screen.queryByRole("alertdialog")).toBeNull();
-    expect(actions.remove).not.toHaveBeenCalled();
+    expect(actions.delete).not.toHaveBeenCalled();
     expect(screen.getByRole("link", { name: "甲" })).toBeTruthy();
   });
 
   it("有生效的分享連結：確認之後才刪，一樣有復原", async () => {
-    const actions = renderShelves({ active: [card("甲", { liveShareLinks: 1 })] });
+    const actions = renderShelves({ active: [card("甲", { activeShareLinks: 1 })] });
 
     pick("甲", "刪除");
     fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "刪除" }));
     await settle();
 
-    expect(actions.remove).toHaveBeenCalledWith("pj_甲");
+    expect(actions.delete).toHaveBeenCalledWith("pj_甲");
     expect(screen.getByRole("status").textContent).toContain("已刪除「甲」");
   });
 
@@ -173,7 +186,7 @@ describe("刪除與還原", () => {
 
     pick("乙", "刪除");
     await settle();
-    expect(actions.remove).toHaveBeenCalledWith("pj_乙");
+    expect(actions.delete).toHaveBeenCalledWith("pj_乙");
     expect(screen.queryByRole("link", { name: "乙" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "復原" }));
@@ -198,5 +211,30 @@ describe("刪除與還原", () => {
     expect(actions.restore).toHaveBeenCalledWith("pj_丙");
     expect(within(deleted).queryByText("丙")).toBeNull();
     expect(refresh).toHaveBeenCalled();
+  });
+});
+
+describe("refresh 之後，伺服器那份三區說了算", () => {
+  it("封存 → 取消封存 → 又回到主區：卡片看得到（不被先前藏起來的鍵擋住）", async () => {
+    const actions: ShelfActions = {
+      archive: vi.fn(async () => true),
+      unarchive: vi.fn(async () => true),
+      delete: vi.fn(async () => true),
+      restore: vi.fn(async () => true),
+    };
+    const a = card("甲");
+    const { rerender } = render(<ProjectShelves shelves={{ ...empty, active: [a] }} now={now} actions={actions} />);
+
+    pick("甲", "封存");
+    await settle();
+    // refresh：伺服器說它在已封存。
+    rerender(<ProjectShelves shelves={{ ...empty, archived: [{ ...a, archivedAt: now }] }} now={now} actions={actions} />);
+
+    pick("甲", "取消封存");
+    await settle();
+    // refresh：伺服器說它回到主區了。
+    rerender(<ProjectShelves shelves={{ ...empty, active: [a] }} now={now} actions={actions} />);
+
+    expect(screen.getByRole("link", { name: "甲" })).toBeTruthy();
   });
 });

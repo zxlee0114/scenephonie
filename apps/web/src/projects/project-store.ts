@@ -70,7 +70,7 @@ export type ProjectSummary = {
   /** 刪除的時刻；沒刪是 `null`。跟封存互相獨立 —— 兩個可以同時有值。 */
   deletedAt: Date | null;
   /** 還沒撤銷的分享連結（活的與凍結的）有幾條 —— 刪除前要不要先確認，看的就是它。 */
-  liveShareLinks: number;
+  activeShareLinks: number;
 };
 
 /**
@@ -92,7 +92,7 @@ export async function ownedProjects(ownerId: string): Promise<ProjectSummary[]> 
     projects.createdAt,
   );
 
-  const liveShareLinks = getDb()
+  const activeShareLinks = getDb()
     .select({ links: count() })
     .from(shareLinks)
     .innerJoin(screenplays, eq(shareLinks.screenplayId, screenplays.id))
@@ -107,7 +107,7 @@ export async function ownedProjects(ownerId: string): Promise<ProjectSummary[]> 
       lastEditedAt,
       archivedAt: projects.archivedAt,
       deletedAt: projects.deletedAt,
-      liveShareLinks: sql<number>`(${liveShareLinks})`.mapWith(Number),
+      activeShareLinks: sql<number>`(${activeShareLinks})`.mapWith(Number),
     })
     .from(projects)
     .leftJoin(screenplays, eq(screenplays.projectId, projects.id))
@@ -157,7 +157,8 @@ export async function restoreProject(project: DeletedProject): Promise<void> {
  * **只有一條 DELETE**，其餘靠 FK cascade —— 劇本、備份、文件、人物地點、交付、分享連結跟著走（與訪客
  * TTL 同一招）。交付因此第一次會消失：那是擁有者收回作品，不是系統回收（ADR-0008〈收回〉）。
  *
- * 不走 gate：它不是某個人在操作某個專案，是一條寫死的政策（不變式 I）。
+ * 不走 gate：它不是某個人在操作某個專案，是一條寫死的政策。它也**不是授權**（不變式 I，同訪客 TTL）——
+ * 決定的是「哪一列該消失」，從不決定「誰能看什麼」；那一半在刪除的當下就由 gate 處理掉了。
  */
 export async function purgeDeletedProjects(before: Date): Promise<number> {
   const purged = await getDb()
@@ -224,6 +225,10 @@ export async function screenplayTitle(screenplay: AuthorizedScreenplay): Promise
  *
  * ⚠️ **它必須冪等。** 第一次進來時的重試或兩個分頁會同時走到這裡，而多開的那一個不會有人去刪 ——
  * 使用者看到的是儀表板上莫名多一份範例專案。不能靠「應該不會同時發生」來防。
+ *
+ * 專案可以刪除（票券 72）不動搖這一點：走到這裡的只有訪客入口，而訪客每次都是全新的使用者 ——
+ * 第一次進來的時候還沒有任何專案可以刪。查既有專案時仍排除已刪除的，那是防禦：拿回一個已刪除的專案，
+ * 下面只會過不了 gate、丟例外。
  * 序列化點取 `users` 的那一列：它是「這個人有沒有專案」的自然歸屬，而且第一次登入時
  * `projects` 還沒有任何一列可以鎖。
  *

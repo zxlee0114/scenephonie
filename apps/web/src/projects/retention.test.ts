@@ -41,7 +41,7 @@ const card = (title: string, overrides: Partial<ProjectSummary> = {}): ProjectSu
   lastEditedAt: now,
   archivedAt: null,
   deletedAt: null,
-  liveShareLinks: 0,
+  activeShareLinks: 0,
   ...overrides,
 });
 

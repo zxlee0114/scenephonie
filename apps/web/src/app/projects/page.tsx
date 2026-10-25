@@ -51,7 +51,7 @@ export default async function ProjectsPage() {
         actions={{
           archive: archiveProjectAction,
           unarchive: unarchiveProjectAction,
-          remove: deleteProjectAction,
+          delete: deleteProjectAction,
           restore: restoreProjectAction,
         }}
       />

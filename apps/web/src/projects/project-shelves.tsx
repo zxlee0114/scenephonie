@@ -28,11 +28,14 @@ import { PROJECT_RETENTION_DAYS, purgeCountdown, type DashboardShelves } from ".
 export type ShelfActions = {
   archive: (projectId: string) => Promise<boolean>;
   unarchive: (projectId: string) => Promise<boolean>;
-  remove: (projectId: string) => Promise<boolean>;
+  delete: (projectId: string) => Promise<boolean>;
   restore: (projectId: string) => Promise<boolean>;
 };
 
-/** 卡片在哪一區。藏起來的鍵帶著它：refresh 之後同一張卡會出現在另一區，那裡不該跟著被藏。 */
+/**
+ * 卡片在哪一區。`active` 只是程式裡的名字 —— **畫面與詞彙表上主區沒有名字**（CONTEXT.md「封存」）。
+ * 藏起來的鍵帶著它：refresh 之前同一張卡可能已經出現在另一區，那裡不該跟著被藏。
+ */
 type Shelf = "active" | "archived" | "deleted";
 
 /** 剛做完、還能「復原」的那一件。 */
@@ -62,6 +65,14 @@ export function ProjectShelves({
   const [undoable, setUndoable] = useState<Undoable | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
 
+  // 伺服器那份三區重新說話（refresh）之後，它說了算：藏起來的鍵只是「還沒 refresh 之前」的過渡，留著會把
+  // 之後又回到同一區的卡擋掉（封存 → 取消封存，卡片回到主區卻看不見）。
+  const [shownShelves, setShownShelves] = useState(shelves);
+  if (shownShelves !== shelves) {
+    setShownShelves(shelves);
+    setHidden(new Set());
+  }
+
   const keyOf = (shelf: Shelf, project: ProjectSummary) => `${shelf}:${project.projectId}`;
 
   const setVisible = (key: string, visible: boolean) =>
@@ -88,17 +99,17 @@ export function ProjectShelves({
     }
   };
 
-  const remove = async ({ project, shelf, byKeyboard }: PendingDelete) => {
+  const deleteNow = async ({ project, shelf, byKeyboard }: PendingDelete) => {
     setPendingDelete(null);
     const key = keyOf(shelf, project);
-    if (await move(key, () => actions.remove(project.projectId))) {
+    if (await move(key, () => actions.delete(project.projectId))) {
       setUndoable({ message: `已刪除「${project.title}」`, byKeyboard, key, undo: () => actions.restore(project.projectId) });
     }
   };
 
-  const askToRemove = (pending: PendingDelete) => {
-    if (pending.project.liveShareLinks > 0) setPendingDelete(pending);
-    else void remove(pending);
+  const askToDelete = (pending: PendingDelete) => {
+    if (pending.project.activeShareLinks > 0) setPendingDelete(pending);
+    else void deleteNow(pending);
   };
 
   const undo = async ({ key, undo }: Undoable) => {
@@ -125,7 +136,7 @@ export function ProjectShelves({
                     title={project.title}
                     rows={[
                       { label: "封存", run: (byKeyboard) => void archive(project, byKeyboard) },
-                      { label: "刪除", run: (byKeyboard) => askToRemove({ project, shelf: "active", byKeyboard }) },
+                      { label: "刪除", run: (byKeyboard) => askToDelete({ project, shelf: "active", byKeyboard }) },
                     ]}
                   />
                 }
@@ -134,7 +145,11 @@ export function ProjectShelves({
             ))}
           </ul>
         ) : (
-          <p className="project-hub__empty">還沒有專案。按「建立專案」開始第一部。</p>
+          <p className="project-hub__empty">
+            {shelves.archived.length + shelves.deleted.length > 0
+              ? "其他專案在下面的「已封存」或「已刪除」裡。"
+              : "還沒有專案。按「建立專案」開始第一部。"}
+          </p>
         )}
       </section>
 
@@ -155,7 +170,7 @@ export function ProjectShelves({
                         label: "取消封存",
                         run: () => void move(keyOf("archived", project), () => actions.unarchive(project.projectId)),
                       },
-                      { label: "刪除", run: (byKeyboard) => askToRemove({ project, shelf: "archived", byKeyboard }) },
+                      { label: "刪除", run: (byKeyboard) => askToDelete({ project, shelf: "archived", byKeyboard }) },
                     ]}
                   />
                 }
@@ -195,7 +210,7 @@ export function ProjectShelves({
         <ConfirmDelete
           pending={pendingDelete}
           onCancel={() => setPendingDelete(null)}
-          onConfirm={() => void remove(pendingDelete)}
+          onConfirm={() => void deleteNow(pendingDelete)}
         />
       )}
 
@@ -227,7 +242,7 @@ function ConfirmDelete({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const { title, liveShareLinks } = pending.project;
+  const { title, activeShareLinks } = pending.project;
   return (
     <div className="creator__scrim">
       <div
@@ -244,7 +259,7 @@ function ConfirmDelete({
           刪除「{title}」？
         </p>
         <p id="dashboard-confirm-body">
-          {liveShareLinks} 條分享連結會立即停用。{PROJECT_RETENTION_DAYS} 天內可以從「已刪除」還原，連結也會跟著恢復。
+          {activeShareLinks} 條分享連結會立即停用。{PROJECT_RETENTION_DAYS} 天內可以從「已刪除」還原，連結也會跟著恢復。
         </p>
         <div className="creator__actions">
           <button type="button" autoFocus onClick={onCancel}>

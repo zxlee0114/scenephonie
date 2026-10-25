@@ -5,7 +5,7 @@
 
 **Blocked by:** 71
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## 為什麼
 
@@ -88,3 +88,16 @@
 
 **grilling（2026-10-25）**：「開工前要定的事」全部定案，寫成上面 4–16。CONTEXT.md 新增「封存」「刪除（專案）」；
 ADR-0008 補〈收回〉一節。用詞改成「刪除 ↔ 還原」（跟垃圾桶慣例一致）、「封存 ↔ 取消封存」（主區沒有名字）。
+
+**實作（2026-10-25）**：分支 `ticket-72-archive-and-delete`。gate 對已刪除專案（含它的劇本、分享連結）回 `null`，
+還原走 `authorizeDeletedProjectForUser`（只有 `restoreProject` 收的 `DeletedProject` handle）；
+`purgeDeletedProjects` 掛上改名後的 `/api/cron/daily-cleanup`；儀表板三區在 `ProjectShelves`，倒數與分區在
+`projects/retention.ts`；`UndoToast` 抽到 `src/ui/`。
+
+**review 收尾**：
+- 修掉「封存 → 取消封存後卡片在主區看不見」：藏起來的鍵在伺服器送來新的三區時清空。
+- `liveShareLinks` 改名為 `activeShareLinks`（live 在 codebase 專指活連結）；`ShelfActions.remove` 改為 `delete`。
+- 主區空了、下面還有封存或刪除的：改說「其他專案在下面的「已封存」或「已刪除」裡。」
+- 永久刪除的 cascade 測試補齊文件、人物、地點；備份那一條放在 persistence 自己的測試裡（模組邊界不讓外面看備份）。
+- 第 16 條之外多做了一件事：`landingProject()` 查既有專案時排除已刪除的，屬於防禦性寫法 —— 不排除的話，拿回一個
+  已刪除的專案會在 gate 那一步丟例外。
