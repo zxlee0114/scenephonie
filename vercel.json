@@ -4,7 +4,7 @@
   "regions": ["hnd1"],
   "crons": [
     {
-      "path": "/api/cron/guest-cleanup",
+      "path": "/api/cron/daily-cleanup",
       "schedule": "17 19 * * *"
     }
   ],

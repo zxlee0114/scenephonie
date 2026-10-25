@@ -419,6 +419,111 @@ a.hub-card__name:focus-visible {
   white-space: nowrap;
 }
 
+/* ── 封存與刪除（票券 72）── */
+
+/* 「已封存（N）」「已刪除（N）」：預設收起的區塊，標題就是開關。 */
+.dashboard__shelf > summary {
+  cursor: pointer;
+}
+
+.dashboard__shelf > summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.dashboard__shelf[open] > summary {
+  margin-block-end: var(--space-3);
+}
+
+/* 卡片的「⋯」：平常跟其他卡上動作一樣滑過才浮出來；選單開著時一直在。 */
+.card-menu__toggle {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.card-menu__toggle[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.card-menu__toggle:hover {
+  color: var(--text-primary);
+}
+
+.card-menu__list {
+  position: absolute;
+  inset-block-start: calc(50% + var(--space-4));
+  inset-inline-end: 0;
+  z-index: 2;
+  min-inline-size: 9rem;
+  padding: var(--space-1);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-2);
+  background: var(--surface-page);
+  box-shadow: var(--shadow-popover);
+  font-size: var(--text-sm);
+}
+
+.card-menu__list button {
+  display: block;
+  inline-size: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--space-1);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.card-menu__list button:hover,
+.card-menu__list button:focus-visible {
+  background: var(--selection-bg);
+  outline: none;
+}
+
+/* 已刪除的卡上唯一的動作，一直看得到 —— 這一區就是為了它而來的。 */
+.hub-card .dashboard__restore {
+  color: var(--color-accent);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.hub-card .dashboard__restore:hover {
+  color: var(--color-accent-hover);
+}
+
+/* 刪除前的確認（只有還有分享連結時才出現）：建立精靈的彈窗，窄一點。 */
+.dashboard__confirm {
+  inline-size: min(28rem, 100%);
+}
+
+.dashboard__confirm p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.dashboard__confirm p + p {
+  margin-block-start: var(--space-3);
+}
+
+/* 專案首頁頂端「這個專案已封存・取消封存」。 */
+.project-hub__notice {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: var(--space-5) var(--space-5) 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+@media (min-width: 640px) {
+  .card-menu__list {
+    inset-block-start: calc(var(--space-2) + var(--space-6));
+    inset-inline-end: var(--space-2);
+  }
+}
+
 /* ─────────────────────────────────────────── 建立精靈（票券 71） */
 
 .creator__scrim {

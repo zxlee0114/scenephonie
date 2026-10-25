@@ -67,6 +67,35 @@ describe.skipIf(!hasDatabase)("authorizeShareToken（需要 Postgres）", () => 
     expect(await authorizeShareToken(live.token)).toBeNull();
     expect(await authorizeShareToken("not-a-token")).toBeNull();
   });
+
+  it("專案刪除期間兩種連結都是 null；刪除標記拿掉就恢復 —— 連結那一列沒被動過（票券 72）", async () => {
+    const screenplay = await freshScreenplay();
+    const live = await shareLive(screenplay);
+    const delivery = await createDelivery(screenplay);
+    const frozen = await shareDelivery(screenplay, delivery!.deliveryId);
+
+    await getDb().update(projects).set({ deletedAt: new Date() }).where(eq(projects.id, projectId));
+    try {
+      expect(await authorizeShareToken(live.token)).toBeNull();
+      expect(await authorizeShareToken(frozen!.token)).toBeNull();
+    } finally {
+      await getDb().update(projects).set({ deletedAt: null }).where(eq(projects.id, projectId));
+    }
+    expect(await authorizeShareToken(live.token)).not.toBeNull();
+    expect(await authorizeShareToken(frozen!.token)).not.toBeNull();
+  });
+
+  it("封存期間兩種連結照常有效（票券 72）", async () => {
+    const screenplay = await freshScreenplay();
+    const live = await shareLive(screenplay);
+
+    await getDb().update(projects).set({ archivedAt: new Date() }).where(eq(projects.id, projectId));
+    try {
+      expect(await authorizeShareToken(live.token)).not.toBeNull();
+    } finally {
+      await getDb().update(projects).set({ archivedAt: null }).where(eq(projects.id, projectId));
+    }
+  });
 });
 
 /**

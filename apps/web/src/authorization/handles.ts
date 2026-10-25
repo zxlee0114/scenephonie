@@ -38,6 +38,20 @@ export type AuthorizedScreenplay = {
 };
 
 /**
+ * 「這個人可以還原這個**已刪除**的專案」的證據（票券 72）。
+ *
+ * 已刪除的專案過不了 `authorizeProjectForUser` —— 打不開、存不了、分享連結全部停用。可是「還原」總得
+ * 有一個入口，這就是它：**只有還原收它**。它是另一種 brand（`"deleted-project"`），所以結構上塞不進
+ * 任何要 `AuthorizedProject` 的地方 —— 已刪除的專案不會因為拿得到這個 handle 就被讀、被寫。
+ * `AuthorizedProject` 也因此不多出「可能已刪除」這種狀態。
+ */
+export type DeletedProject = {
+  readonly projectId: string;
+  readonly ownerId: string;
+  readonly [authorized]: "deleted-project";
+};
+
+/**
  * 「拿著這條分享連結的人可以讀這份劇本（的這一個投影）」的證據（票券 20）。
  *
  * 唯讀：只有讀取分享內容的那一支（persistence 的 `loadSharedScript`）收它。`deliveryId` 為 `null`
@@ -61,3 +75,6 @@ export const grantScreenplay = (
 ): AuthorizedScreenplay => grant as AuthorizedScreenplay;
 
 export const grantShareViewer = (grant: Omit<ShareViewer, typeof authorized>): ShareViewer => grant as ShareViewer;
+
+export const grantDeletedProject = (grant: Omit<DeletedProject, typeof authorized>): DeletedProject =>
+  grant as DeletedProject;

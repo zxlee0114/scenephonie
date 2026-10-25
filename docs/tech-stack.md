@@ -71,7 +71,8 @@ Web application，Authorized redirect URI 填 `<BETTER_AUTH_URL>/api/auth/callba
 model 的東西**。
 
 **TTL 清理**：`vercel.json` 的 cron 每天 19:17 UTC（台北 03:17）打一次
-`/api/cron/guest-cleanup`，把「`is_demo` 且七天沒動過稿」的 `users` 列刪掉，其餘靠 FK cascade。
+`/api/cron/daily-cleanup`，把「`is_demo` 且七天沒動過稿」的 `users` 列刪掉，其餘靠 FK cascade。
+同一支也清刪除超過一天的自由文件（票券 21）與刪除超過 30 天的專案（票券 72）—— 同週期、同失敗後果，不另開排程。
 它同時就是票券 25 §7 那支 keep-alive ping（Supabase Free 七天無活動即暫停）。
 端點認 `Authorization: Bearer $CRON_SECRET`，**沒設 secret ＝ 整支關閉**（它會刪資料，
 預設值不能是「誰都能打」）。

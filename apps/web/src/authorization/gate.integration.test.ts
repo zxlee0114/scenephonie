@@ -9,7 +9,7 @@ import { projects, users } from "@/db/schema";
 import { createScreenplay } from "@/persistence";
 import { PROJECT_ID_PREFIX, SINGLE_SCREENPLAY_PROJECT } from "@/projects/project-store";
 
-import { authorizeProjectForUser, authorizeScreenplayForUser } from "./gate";
+import { authorizeDeletedProjectForUser, authorizeProjectForUser, authorizeScreenplayForUser } from "./gate";
 
 /**
  * gate 的真實行為 —— 它問的是資料庫裡的 `owner_id`，所以只在真的 Postgres 上才成立。
@@ -94,5 +94,39 @@ describe.skipIf(!hasDatabase)("授權 gate（需要 Postgres）", () => {
 
     expect(await authorizeScreenplayForUser(owner, screenplayId)).toBeNull();
     expect(await authorizeScreenplayForUser(nextOwner, screenplayId)).not.toBeNull();
+  });
+  it("已刪除的專案過不了 gate —— 專案與它的劇本都是 null，跟不存在一樣（票券 72）", async () => {
+    const owner = await newUser();
+    const projectId = await newProject(owner);
+    const screenplayId = await newScreenplay(owner, projectId);
+
+    await getDb().update(projects).set({ deletedAt: new Date() }).where(eq(projects.id, projectId));
+
+    expect(await authorizeProjectForUser(owner, projectId)).toBeNull();
+    expect(await authorizeScreenplayForUser(owner, screenplayId)).toBeNull();
+  });
+
+  it("已封存的專案照常拿得到 handle —— 封存只是整理儀表板（票券 72）", async () => {
+    const owner = await newUser();
+    const projectId = await newProject(owner);
+    const screenplayId = await newScreenplay(owner, projectId);
+
+    await getDb().update(projects).set({ archivedAt: new Date() }).where(eq(projects.id, projectId));
+
+    expect(await authorizeProjectForUser(owner, projectId)).not.toBeNull();
+    expect(await authorizeScreenplayForUser(owner, screenplayId)).not.toBeNull();
+  });
+  it("還原的窄入口只給自己的、已刪除的專案；沒刪的與別人的都是 null（票券 72）", async () => {
+    const owner = await newUser();
+    const intruder = await newUser();
+    const deleted = await newProject(owner);
+    const alive = await newProject(owner);
+    await getDb().update(projects).set({ deletedAt: new Date() }).where(eq(projects.id, deleted));
+
+    expect(await authorizeDeletedProjectForUser(owner, deleted)).toEqual(
+      expect.objectContaining({ projectId: deleted, ownerId: owner }),
+    );
+    expect(await authorizeDeletedProjectForUser(owner, alive)).toBeNull();
+    expect(await authorizeDeletedProjectForUser(intruder, deleted)).toBeNull();
   });
 });

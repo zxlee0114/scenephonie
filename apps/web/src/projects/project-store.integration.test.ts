@@ -5,17 +5,45 @@ import { mintId } from "@scenephonie/schema";
 
 import { USER_ID_PREFIX } from "@/auth/auth";
 import { getDb } from "@/db/client";
-import { screenplays, users } from "@/db/schema";
+import {
+  characters,
+  deliveries,
+  documents,
+  locations,
+  projects,
+  screenplays,
+  shareLinks,
+  users,
+} from "@/db/schema";
+import { createCharacter, createLocation } from "@/entities/entity-store";
 
-import { authorizeProjectForUser } from "@/authorization";
-import { createFreeDocument, deleteDocument, listDocuments, openSubmissionOutline, saveDocument } from "@/persistence";
+import { authorizeDeletedProjectForUser, authorizeProjectForUser, authorizeScreenplayForUser } from "@/authorization";
+import {
+  createDelivery,
+  createFreeDocument,
+  deleteDocument,
+  listDocuments,
+  openSubmissionOutline,
+  saveDocument,
+} from "@/persistence";
+import { revokeShareLinks, shareDelivery, shareLive } from "@/share/share-store";
 
-import { createProject, landingProject, ownedProjects, projectContents } from "./project-store";
+import {
+  archiveProject,
+  createProject,
+  deleteProject,
+  landingProject,
+  ownedProjects,
+  projectContents,
+  purgeDeletedProjects,
+  restoreProject,
+  unarchiveProject,
+} from "./project-store";
+import { projectPurgeCutoff } from "./retention";
 
 /**
  * 登入後的落點是**一次 GET 上的寫入**，所以它必須冪等 —— 第一次登入時的重試、prefetch
- * 或兩個分頁會同時走到這裡，而 v1 沒有刪專案這件事：清不掉的東西不能靠「應該不會同時
- * 發生」來防。
+ * 或兩個分頁會同時走到這裡，多開的那一個不會有人去刪：不能靠「應該不會同時發生」來防。
  */
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 
@@ -190,5 +218,114 @@ describe.skipIf(!hasDatabase)("建立專案（票券 71，需要 Postgres）", (
     await deleteDocument(project, free.documentId);
 
     expect((await ownedProjects(ownerId)).map(({ title }) => title)).toEqual(["乙", "甲"]);
+  });
+  /** 儀表板上這一張卡現在的樣子。 */
+  const cardOf = async (ownerId: string, projectId: string) =>
+    (await ownedProjects(ownerId)).find((card) => card.projectId === projectId)!;
+
+  it("封存與取消封存：卡片帶著封存時刻；專案照常打得開（票券 72）", async () => {
+    const ownerId = await newUser();
+    const { projectId } = await createProject(ownerId, draft());
+    const project = (await authorizeProjectForUser(ownerId, projectId))!;
+
+    await archiveProject(project);
+    expect((await cardOf(ownerId, projectId)).archivedAt).toBeInstanceOf(Date);
+    expect(await authorizeProjectForUser(ownerId, projectId)).not.toBeNull();
+    expect((await projectContents(project)).archived).toBe(true);
+
+    await unarchiveProject(project);
+    expect((await cardOf(ownerId, projectId)).archivedAt).toBeNull();
+  });
+
+  it("刪除之後打不開、卡片帶著刪除時刻；還原後回來，沒封存的仍是沒封存（票券 72）", async () => {
+    const ownerId = await newUser();
+    const { projectId } = await createProject(ownerId, draft());
+
+    await deleteProject((await authorizeProjectForUser(ownerId, projectId))!);
+    expect(await authorizeProjectForUser(ownerId, projectId)).toBeNull();
+    expect((await cardOf(ownerId, projectId)).deletedAt).toBeInstanceOf(Date);
+
+    await restoreProject((await authorizeDeletedProjectForUser(ownerId, projectId))!);
+    expect(await authorizeProjectForUser(ownerId, projectId)).not.toBeNull();
+    expect(await cardOf(ownerId, projectId)).toMatchObject({ deletedAt: null, archivedAt: null });
+  });
+
+  it("已封存的專案刪掉再還原，回到的仍是已封存（票券 72）", async () => {
+    const ownerId = await newUser();
+    const { projectId } = await createProject(ownerId, draft());
+    const project = (await authorizeProjectForUser(ownerId, projectId))!;
+
+    await archiveProject(project);
+    await deleteProject(project);
+    await restoreProject((await authorizeDeletedProjectForUser(ownerId, projectId))!);
+
+    expect(await cardOf(ownerId, projectId)).toMatchObject({ deletedAt: null, archivedAt: expect.any(Date) });
+  });
+
+  it("卡片帶著生效中的分享連結數：活的與凍結的都算，撤銷的不算（票券 72，刪除前要不要確認）", async () => {
+    const ownerId = await newUser();
+    const { projectId, screenplayId } = await createProject(ownerId, draft());
+    expect((await cardOf(ownerId, projectId)).activeShareLinks).toBe(0);
+
+    const screenplay = (await authorizeScreenplayForUser(ownerId, screenplayId))!;
+    const live = await shareLive(screenplay);
+    const delivery = await createDelivery(screenplay);
+    await shareDelivery(screenplay, delivery!.deliveryId);
+    await revokeShareLinks(screenplay, [live.shareId]);
+    await shareLive(screenplay); // 撤銷之後重新鑄的那一條
+
+    expect((await cardOf(ownerId, projectId)).activeShareLinks).toBe(2);
+  });
+  it("排程永久刪除超過 30 天的專案，劇本、交付、分享連結一起消失；不到 30 天的與沒刪的不動（票券 72）", async () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const ownerId = await newUser();
+    const expired = await createProject(ownerId, draft({ projectTitle: "過期" }));
+    const recent = await createProject(ownerId, draft({ projectTitle: "還在期限內" }));
+    const alive = await createProject(ownerId, draft({ projectTitle: "沒刪" }));
+
+    // 過期的那個專案底下每一種東西都放一份：人物、地點、交付、兩種連結；兩份大綱建立時就有了。
+    // 備份是 persistence 的內部機制、這裡看不到（persistence-boundary）—— 它跟著走由 persistence 自己的測試驗。
+    const screenplay = (await authorizeScreenplayForUser(ownerId, expired.screenplayId))!;
+    const expiredProject = (await authorizeProjectForUser(ownerId, expired.projectId))!;
+    await createCharacter(expiredProject, { name: "小明" });
+    await createLocation(expiredProject, { name: "海豚公寓" });
+    const delivery = await createDelivery(screenplay);
+    await shareDelivery(screenplay, delivery!.deliveryId);
+    await shareLive(screenplay);
+
+    /** 過期那個專案底下，每一張表還剩幾列。 */
+    const leftovers = async () => {
+      const { projectId, screenplayId } = expired;
+      const rows = await Promise.all([
+        getDb().select().from(screenplays).where(eq(screenplays.id, screenplayId)),
+        getDb().select().from(documents).where(eq(documents.projectId, projectId)),
+        getDb().select().from(characters).where(eq(characters.projectId, projectId)),
+        getDb().select().from(locations).where(eq(locations.projectId, projectId)),
+        getDb().select().from(deliveries).where(eq(deliveries.screenplayId, screenplayId)),
+        getDb().select().from(shareLinks).where(eq(shareLinks.screenplayId, screenplayId)),
+      ]);
+      return rows.map((table) => table.length);
+    };
+    expect((await leftovers()).every((count) => count > 0)).toBe(true);
+
+    for (const [{ projectId }, daysAgo] of [
+      [expired, 31],
+      [recent, 29],
+    ] as const) {
+      await deleteProject((await authorizeProjectForUser(ownerId, projectId))!);
+      await getDb()
+        .update(projects)
+        .set({ deletedAt: new Date(now.getTime() - daysAgo * DAY) })
+        .where(eq(projects.id, projectId));
+    }
+
+    expect(await purgeDeletedProjects(projectPurgeCutoff(now))).toBeGreaterThanOrEqual(1);
+
+    expect((await ownedProjects(ownerId)).map(({ projectId }) => projectId).sort()).toEqual(
+      [recent.projectId, alive.projectId].sort(),
+    );
+    // cascade 是唯一的實作手段 —— 它真的有接上。交付是唯一刻意不可變的表，這裡是它第一次跟著消失（ADR-0008〈收回〉）。
+    expect(await leftovers()).toEqual([0, 0, 0, 0, 0, 0]);
   });
 });

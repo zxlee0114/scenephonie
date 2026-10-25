@@ -283,6 +283,20 @@ describe.skipIf(!hasDatabase)("screenplay store（需要 Postgres）", () => {
       expect(await backupsOf(fresh.screenplayId)).toHaveLength(1);
     });
 
+    it("專案那一列刪掉，備份跟著走 —— 專案的永久刪除只靠 FK cascade（票券 72）", async () => {
+      // 自己的專案：刪掉共用的那個會帶走這一組其餘的劇本。
+      const doomedId = mintId(PROJECT_ID_PREFIX);
+      await getDb().insert(projects).values({ id: doomedId, type: SINGLE_SCREENPLAY_PROJECT, title: "要刪的", ownerId });
+      const doomed = (await authorizeProjectForUser(ownerId, doomedId))!;
+      const fresh = await createScreenplay(doomed, docWith("base"), { title: "測試劇本" });
+      await saveScreenplay({ screenplay: await authorized(fresh.screenplayId), doc: docWith("v2"), token: fresh.token });
+      expect(await backupsOf(fresh.screenplayId)).toHaveLength(1);
+
+      await getDb().delete(projects).where(eq(projects.id, doomedId));
+
+      expect(await backupsOf(fresh.screenplayId)).toEqual([]);
+    });
+
     it("距上一筆備份滿兩小時的那次存檔，先寫一筆", async () => {
       const fresh = track(await createScreenplay(project, docWith("base"), { title: "測試劇本" }));
 
