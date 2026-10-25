@@ -4,7 +4,7 @@ import { contentDisposition, pdfFilename } from "@/pdf/filename";
 import { printPdf } from "@/pdf/print-pdf";
 import { renderDeliveryHtml } from "@/pdf/render-html";
 import { loadDelivery } from "@/persistence";
-import { projectTitle } from "@/projects/project-store";
+import { screenplayTitle } from "@/projects/project-store";
 
 // Chromium 要 Node runtime；印一份長稿要幾秒，給足時間（Vercel 的上限內）。
 export const runtime = "nodejs";
@@ -35,7 +35,7 @@ export async function GET(
   if (!delivery) return notFound();
 
   const html = renderDeliveryHtml(delivery, exportOptionsFromQuery(new URL(request.url).searchParams));
-  const [pdf, title] = await Promise.all([printPdf(html), projectTitle(screenplay)]);
+  const [pdf, title] = await Promise.all([printPdf(html), screenplayTitle(screenplay)]);
   return new Response(pdf as Uint8Array<ArrayBuffer>, {
     headers: {
       "content-type": "application/pdf",

@@ -69,7 +69,7 @@ describe.skipIf(!hasDatabase)("document store（需要 Postgres）", () => {
     await getDb().insert(projects).values({ id: projectId, type: SINGLE_SCREENPLAY_PROJECT, title: "測試專案", ownerId: userId });
     const granted = await authorizeProjectForUser(userId, projectId);
     if (!granted) throw new Error("剛建立的專案卻過不了 gate");
-    const { screenplayId } = await createScreenplay(granted, emptyScreenplay());
+    const { screenplayId } = await createScreenplay(granted, emptyScreenplay(), { title: "測試劇本" });
     const script = await authorizeScreenplayForUser(userId, screenplayId);
     if (!script) throw new Error("剛建立的劇本卻過不了 gate");
     return { project: granted, screenplay: script };

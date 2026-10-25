@@ -20,8 +20,10 @@ export { loadSharedScript } from "./shared-script";
 export type { SharedScript } from "./shared-script";
 // 劇本外文件（票券 21）：交件大綱、分場大綱。每一支吃的 handle 就是那份文件掛的那一層（不變式 F）。
 export {
+  createFixedDocument,
   createFreeDocument,
   deleteDocument,
+  lastDocumentEditedAt,
   listDocuments,
   loadDocument,
   openSceneOutline,

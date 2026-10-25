@@ -1,6 +1,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 
-import { getDb } from "@/db/client";
+import { getDb, type Db } from "@/db/client";
 import { projects, screenplays, shareLinks } from "@/db/schema";
 
 import {
@@ -35,12 +35,16 @@ import {
  *
  * 與 session 無關的那一半 —— **application logic 而不是 request handling**，
  * 所以它在測試裡不必偽造 cookie，也讓 `./session` 換掉時這條規則不動。
+ *
+ * `db` 給在交易裡剛建好專案、要在**同一個交易**裡拿 handle 的呼叫端（票券 71）—— 判準照舊是資料庫裡的
+ * `owner_id`，只是讀的是那個交易看得到的那一列。
  */
 export async function authorizeProjectForUser(
   userId: string,
   projectId: string,
+  db: Db = getDb(),
 ): Promise<AuthorizedProject | null> {
-  const [row] = await getDb()
+  const [row] = await db
     .select({ id: projects.id, ownerId: projects.ownerId })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -59,8 +63,9 @@ export async function authorizeProjectForUser(
 export async function authorizeScreenplayForUser(
   userId: string,
   screenplayId: string,
+  db: Db = getDb(),
 ): Promise<AuthorizedScreenplay | null> {
-  const [row] = await getDb()
+  const [row] = await db
     .select({
       screenplayId: screenplays.id,
       projectId: projects.id,

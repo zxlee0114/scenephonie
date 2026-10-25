@@ -2,7 +2,7 @@ import { taipeiParts } from "./taipei-time";
 
 /**
  * PDF 的檔名：`劇本名稱_20261022-1430.pdf`。時間是**交付的建立時間**，同一筆交付重印檔名不變；
- * 換一次匯出就是另一個檔名，不會蓋掉上一份。劇本名稱眼下是專案名稱（v1 專案與劇本 1:1）。
+ * 換一次匯出就是另一個檔名，不會蓋掉上一份。名字是**劇本名稱**，不是專案名稱（票券 71）—— 交出去的是劇本。
  */
 export function pdfFilename(title: string, createdAt: Date): string {
   const { year, month, day, hour, minute } = taipeiParts(createdAt);

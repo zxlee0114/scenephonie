@@ -39,7 +39,7 @@ describe.skipIf(!hasDatabase)("share store（需要 Postgres）", () => {
 
   const freshScreenplay = async (doc = docOf(scene("走進房間"))): Promise<AuthorizedScreenplay> => {
     const project = await authorizeProjectForUser(ownerId, projectId);
-    const fresh = await createScreenplay(project!, doc);
+    const fresh = await createScreenplay(project!, doc, { title: "測試劇本" });
     created.push(fresh.screenplayId);
     const handle = await authorizeScreenplayForUser(ownerId, fresh.screenplayId);
     if (!handle) throw new Error("gate 不認得剛建立的劇本");

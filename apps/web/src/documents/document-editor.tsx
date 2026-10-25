@@ -25,8 +25,9 @@ import { FormatMenu } from "@/documents/format-menu";
 import { documentLabel } from "@/documents/labels";
 import { SaveStatusLine } from "@/editor/save-status";
 import type { SaveDoc } from "@/editor/save-capability";
+import { toPlainJson } from "@/editor/plain-json";
 import { useAutosave } from "@/editor/use-autosave";
-import type { SaveToken } from "@/persistence";
+import type { PersistedDoc, SaveToken } from "@/persistence";
 
 import "../styles/documents.css";
 
@@ -73,42 +74,58 @@ const ProseHeading = Heading.extend({
 /** 空白文件裡淡淡的一行：告訴人「從這裡開始寫」，編輯區在哪裡也就一目了然。 */
 const EMPTY_HINT = Placeholder.configure({ placeholder: "從這裡開始寫…" });
 
+/**
+ * 一份文件的內文怎麼落地：
+ *
+ * - **存進資料庫**（文件頁）：自動存檔、狀態列、標題列。
+ * - **交給呼叫端**（建立精靈的頁籤，票券 71）：專案還不存在，每次改動把 doc 交出去寫進本機草稿。
+ *   沒有標題列（頁籤上就是它的名字）、**沒有存檔狀態** —— 「已儲存」在這裡是假話，什麼都還沒到伺服器。
+ */
+type Persistence =
+  | {
+      initialToken: SaveToken;
+      save: SaveDoc;
+      /** 可命名的文件（自由文件）才有。`focus`：剛新增的那一份，一進來就先取名字。 */
+      title?: { initial: string | null; rename: (title: string) => Promise<boolean>; focus?: boolean };
+    }
+  | { onDraftChange: (body: PersistedDoc) => void };
+
 export function DocumentEditor({
   kind,
   initialBody,
-  initialToken,
-  save,
-  title,
-}: {
-  kind: DocumentKind;
-  initialBody: object;
-  initialToken: SaveToken;
-  save: SaveDoc;
-  /** 可命名的文件（自由文件）才有。`focus`：剛新增的那一份，一進來就先取名字。 */
-  title?: { initial: string | null; rename: (title: string) => Promise<boolean>; focus?: boolean };
-}) {
+  ...persistence
+}: { kind: DocumentKind; initialBody: object } & Persistence) {
   const label = documentLabel(kind);
+  const saved = "save" in persistence ? persistence : undefined;
+  const onDraftChange = "onDraftChange" in persistence ? persistence.onDraftChange : undefined;
   const editor = useEditor({
     // Next SSR：先不 render，等 client 掛載，避開 hydration mismatch。
     immediatelyRender: false,
     extensions: [PROSE_KIT, ProseHeading, EMPTY_HINT],
     content: initialBody,
     editorProps: { attributes: { class: "document-page__body", "aria-label": label } },
+    // 精靈的頁籤沒有標題列可以先點：一進來（或換頁籤）游標就在內文末尾，直接寫。
+    autofocus: onDraftChange ? "end" : false,
+    // ProseMirror 的 attrs 是 null-prototype 物件 —— 草稿之後要過 Server Action，先正規化（見 plain-json）。
+    onUpdate: ({ editor }) => onDraftChange?.(toPlainJson(editor.getJSON()) as PersistedDoc),
   });
-  const autosave = useAutosave({ editor, initialToken, save });
+  const autosave = useAutosave({ editor, initialToken: saved?.initialToken, save: saved?.save });
   const count = useWordCount(editor);
+  const title = saved?.title;
 
   // 字數釘在畫面右下角，跟著文件走、不跟標題並排 —— 並排會讓人以為它在數標題（票券 21 驗收）。
   return (
     <div className="document-page">
-      <div className="document-page__head">
-        {title ? (
-          <TitleField placeholder={label} {...title} onEnter={() => editor?.commands.focus("start")} />
-        ) : (
-          <h1 className="document-page__title">{label}</h1>
-        )}
-        <SaveStatusLine {...autosave} noun={title ? "文件" : label} />
-      </div>
+      {saved && (
+        <div className="document-page__head">
+          {title ? (
+            <TitleField placeholder={label} {...title} onEnter={() => editor?.commands.focus("start")} />
+          ) : (
+            <h1 className="document-page__title">{label}</h1>
+          )}
+          <SaveStatusLine {...autosave} noun={title ? "文件" : label} />
+        </div>
+      )}
       {editor && <FormatMenu editor={editor} />}
       <EditorContent editor={editor} />
       {count !== null && (

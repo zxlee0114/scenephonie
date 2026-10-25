@@ -156,7 +156,12 @@ export const verifications = pgTable(
  * 是在它之上加東西，不必否定它。**v1 沒有 `invitations` 表** —— allowlist 是 env var
  * 逗號清單（`src/auth/allowlist.ts`），一看就知道是暫時物，不會假裝自己是領域模型。
  *
- * §4.2 的**專案 meta 欄位**（片名以外，還有交件 PDF 前置頁的那幾欄）此刻只落到 `title`。
+ * `title` 是**專案名稱**（可以是「某某計畫」這種工作代號），不是劇本名稱 —— 那是 `screenplays.title`（票券 71）。
+ *
+ * `creation_id` 是建立精靈在 client 鑄的冪等鍵（票券 71）：同一次建立送兩次只建一個專案。
+ * 只有精靈建的專案有；訪客範例專案與票券 71 之前的專案是 `null`（partial unique index 不管它們）。
+ *
+ * §4.2 的**專案 meta 欄位**（交件 PDF 前置頁的那幾欄）此刻還沒有長出來。
  * 其餘欄位的唯一消費者是交件 PDF 的前置頁（票券 21），**現在長出來會是一組沒有寫入者、
  * 也沒有讀取者的欄位** —— 與票券 05 當初不預先長 `project_id` 是同一條理由。
  */
@@ -169,11 +174,18 @@ export const projects = pgTable(
     ownerId: text("owner_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    creationId: text("creation_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  // gate 與專案 hub 問的都是同一件事：這個人有哪些專案。
-  (table) => [index("projects_owner_id_idx").on(table.ownerId)],
+  (table) => [
+    // gate 與專案儀表板問的都是同一件事：這個人有哪些專案。
+    index("projects_owner_id_idx").on(table.ownerId),
+    // 同一次建立只建一個（票券 71）。鍵是 client 鑄的，所以以人為範圍 —— 別人撞不到你的。
+    uniqueIndex("projects_owner_creation_uidx")
+      .on(table.ownerId, table.creationId)
+      .where(sql`${table.creationId} is not null`),
+  ],
 ).enableRLS();
 
 /**
@@ -267,6 +279,9 @@ export const screenplays = pgTable(
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
+
+    /** **劇本名稱**（票券 71）—— 與專案名稱是兩個值，常常相同但不必相同；也不是片名。 */
+    title: text("title").notNull(),
 
     doc: jsonb("doc").notNull(),
 

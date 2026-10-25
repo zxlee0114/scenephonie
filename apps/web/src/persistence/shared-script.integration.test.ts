@@ -54,7 +54,7 @@ describe.skipIf(!hasDatabase)("loadSharedScript（需要 Postgres）", () => {
 
   const freshScreenplay = async (doc: PersistedDoc) => {
     const project = await authorizeProjectForUser(ownerId, projectId);
-    const fresh = await createScreenplay(project!, doc);
+    const fresh = await createScreenplay(project!, doc, { title: "測試劇本" });
     return (await authorizeScreenplayForUser(ownerId, fresh.screenplayId))!;
   };
 

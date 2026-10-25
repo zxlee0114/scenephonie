@@ -111,8 +111,14 @@
   font-size: var(--text-sm);
 }
 
-.project-hub__wordmark {
+.project-hub__wordmark,
+.project-hub__home {
   font-weight: 600;
+}
+
+.project-hub__home {
+  color: var(--text-primary);
+  text-decoration: none;
 }
 
 .project-hub__sign-out {
@@ -363,4 +369,343 @@ a.hub-card__name:focus-visible {
 .project-hub__empty {
   margin: 0;
   color: var(--text-faint);
+}
+
+/* ─────────────────────────────────────────── 專案儀表板（票券 71） */
+
+.dashboard__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin: var(--space-6) var(--space-5) var(--space-5);
+}
+
+.dashboard__head .project-hub__title {
+  margin: 0;
+}
+
+/* 儀表板上唯一的主要動作。 */
+.dashboard__create {
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: var(--space-2);
+  background: var(--color-accent);
+  color: var(--text-on-accent);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dashboard__create:hover {
+  background: var(--color-accent-hover);
+}
+
+.dashboard__create:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* 專案卡沒有內文預覽：名字、（不同時才有的）劇本名稱、最後編輯壓在卡片下緣。 */
+.project-card {
+  justify-content: flex-end;
+}
+
+.project-card__screenplay {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─────────────────────────────────────────── 建立精靈（票券 71） */
+
+.creator__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-900) 24%, transparent);
+}
+
+.creator {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  inline-size: min(44rem, 100%);
+  max-block-size: calc(100dvh - 2 * var(--space-4));
+  padding: var(--space-5);
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-3);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+}
+
+.creator__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
+}
+
+.creator__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.creator__step {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.creator__close {
+  margin-inline-start: auto;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--space-1);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.creator__close:hover {
+  color: var(--text-primary);
+}
+
+.creator__lede {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.creator__names {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.creator__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.creator__field label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.creator__field input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--control-border);
+  border-radius: var(--space-1);
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.creator__field input:read-only {
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+
+/* 必填的星號是裝飾：欄位本身帶 aria-required，替代文字留空免得被念成「星號」。 */
+.creator__field label[data-required]::after {
+  content: " *" / "";
+  color: var(--error-fg);
+}
+
+.creator__field input[aria-invalid="true"] {
+  border-color: var(--error-fg);
+}
+
+/* 沒填的提示寫在欄位裡（placeholder），不在欄位下方另起一行 —— 版面不跳。 */
+.creator__field input[aria-invalid="true"]::placeholder {
+  color: var(--error-fg);
+  opacity: 1;
+}
+
+/* 緊貼在劇本名稱底下：它說的是那一欄。 */
+.creator__same {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: calc(-1 * var(--space-2));
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.creator__tabs {
+  display: flex;
+  gap: var(--space-4);
+  border-block-end: 1px solid var(--rule);
+}
+
+.creator__tab {
+  padding: var(--space-2) 0;
+  border: 0;
+  border-block-end: 2px solid transparent;
+  margin-block-end: -1px;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.creator__tab[aria-selected="true"] {
+  border-block-end-color: var(--color-accent);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* 編輯器在彈窗裡捲動；文件頁那 40vh 的底部留白在這裡不需要。 */
+.creator__panel {
+  flex: 1 1 auto;
+  min-block-size: 16rem;
+  overflow-y: auto;
+}
+
+.creator__panel .document-page {
+  max-inline-size: none;
+  padding: var(--space-4) 0;
+}
+
+.creator__summary {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+}
+
+.creator__summary dt {
+  color: var(--text-secondary);
+}
+
+.creator__summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.creator__unsaved,
+.creator__error {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+}
+
+.creator__unsaved {
+  color: var(--draft-fg);
+}
+
+.creator__error {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--space-1);
+  background: var(--error-bg);
+  color: var(--error-fg);
+}
+
+.creator__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-block-start: var(--space-5);
+}
+
+.creator__spacer {
+  flex: 1 1 auto;
+}
+
+.creator__actions button {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--control-border);
+  border-radius: var(--space-2);
+  background: var(--surface-page);
+  color: var(--control-fg);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.creator__actions button:hover:not(:disabled, [aria-disabled="true"]) {
+  border-color: var(--rule-strong);
+  color: var(--text-primary);
+}
+
+.creator__actions .creator__primary {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+}
+
+.creator__actions .creator__primary:hover:not(:disabled, [aria-disabled="true"]) {
+  background: var(--color-accent-hover);
+  color: var(--text-on-accent);
+}
+
+.creator__actions .creator__danger {
+  border-color: var(--error-fg);
+  color: var(--error-fg);
+}
+
+/* 名稱沒填齊的「下一步」是 aria-disabled，不是 disabled：要按得到，才知道該在欄位裡提示（見 project-creator）。 */
+.creator__actions button:disabled,
+.creator__actions button[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.creator__close:focus-visible,
+.creator__tab:focus-visible,
+.creator__actions button:focus-visible,
+.creator__field input:focus-visible,
+.creator__same input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* 存不進去時「要捨棄嗎」：蓋在彈窗上，不另開一層。 */
+.creator__discard {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-5);
+  border-radius: var(--space-3);
+  background: color-mix(in srgb, var(--surface-page) 94%, transparent);
+}
+
+.creator__discard p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* 手機寬度：按鈕排成整列，主要動作在最上面好按。 */
+@media (max-width: 639px) {
+  .creator {
+    padding: var(--space-4);
+  }
+
+  .creator__actions {
+    flex-direction: column-reverse;
+  }
+
+  .creator__actions button {
+    inline-size: 100%;
+  }
+
+  .creator__spacer {
+    display: none;
+  }
 }

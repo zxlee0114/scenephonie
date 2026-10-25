@@ -3,7 +3,7 @@ import { eq, max } from "drizzle-orm";
 import { mintId } from "@scenephonie/schema";
 
 import type { AuthorizedProject, AuthorizedScreenplay } from "@/authorization";
-import { getDb } from "@/db/client";
+import { getDb, type Db } from "@/db/client";
 import { screenplayBackups, screenplays } from "@/db/schema";
 
 import { needsBackup } from "./backup-policy";
@@ -55,15 +55,19 @@ export type SaveResult =
  * 在一個已授權的專案下建立一份新劇本。
  *
  * 初始 doc 由呼叫端給 —— 「劇本至少有一場」是編輯器的責任，不是儲存的。
+ *
+ * `db` 給要把這一筆包進自己交易的呼叫端（建立專案，票券 71）；其餘不必傳。
  */
 export async function createScreenplay(
   project: AuthorizedProject,
   doc: PersistedDoc,
+  { title, db = getDb() }: { title: string; db?: Db },
 ): Promise<LoadedScreenplay> {
   const screenplayId = mintId(SCREENPLAY_ID_PREFIX);
-  await getDb().insert(screenplays).values({
+  await db.insert(screenplays).values({
     id: screenplayId,
     projectId: project.projectId,
+    title,
     doc,
     docSchemaVersion: CURRENT_DOC_SCHEMA_VERSION,
   });
