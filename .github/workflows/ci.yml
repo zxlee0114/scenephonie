@@ -44,6 +44,13 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      # .nvmrc 與 engines.node 下限必須同版（票券 77）；Renovate 會一起改，手動改漏時由這裡擋住。
+      - name: Node 版本一致性
+        run: |
+          nvmrc="$(tr -d '[:space:]' < .nvmrc)"
+          engines="$(node -p "require('./package.json').engines.node.replace(/^>=/, '')")"
+          test "$nvmrc" = "$engines" || { echo "::error::.nvmrc ($nvmrc) 與 engines.node ($engines) 不一致"; exit 1; }
+
       - run: pnpm install --frozen-lockfile
 
       - name: Lint (含 §5.5 isomorphic 邊界)

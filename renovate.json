@@ -1,0 +1,26 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [":disableDependencyDashboard"],
+  "enabledManagers": ["nvm", "custom.regex"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "package.json 的 engines.node 下限，與 .nvmrc 同步（票券 77）",
+      "managerFilePatterns": ["/^package\\.json$/"],
+      "matchStrings": ["\"node\":\\s*\">=(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "depNameTemplate": "node",
+      "datasourceTemplate": "node-version",
+      "versioningTemplate": "node"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "只追 22.x minor／patch；大版本由人另開票評估。.nvmrc 與 engines.node 進同一個 PR，不排程、不自動 merge",
+      "matchDepNames": ["node"],
+      "allowedVersions": "<23",
+      "groupName": "Node.js 22.x",
+      "schedule": ["at any time"],
+      "automerge": false
+    }
+  ]
+}
