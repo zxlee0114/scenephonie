@@ -2,7 +2,7 @@
  * 建立精靈（票券 71）：專案儀表板上的「建立專案」與它打開的那個彈窗。
  *
  * 三步：**名稱**（專案名稱、劇本名稱都必填）→ **文件**（故事大綱／分場大綱兩個頁籤）→ **確認**
- * （進入專案頁／直接撰寫劇本）。走完最後那一下才一次建好專案、劇本與兩份大綱；在那之前資料庫裡
+ * （建立專案／建立並開始寫劇本）。走完最後那一下才一次建好專案、劇本與兩份大綱；在那之前資料庫裡
  * 什麼都沒有，中途留下的只有本機草稿（`./creation-draft`），下次按「建立專案」時問要不要接著做。
  *
  * **只有真的會丟東西時才問。** 草稿存得進去，×、取消、Esc、上一頁、重新整理、關分頁一律不問 ——
@@ -384,7 +384,7 @@ function Wizard({
               </button>
               <span className="creator__spacer" />
               <button type="button" disabled={submitting !== null} onClick={() => void submit("hub")}>
-                {submitting === "hub" ? "建立中…" : "進入專案頁"}
+                {submitting === "hub" ? "建立中…" : "建立專案"}
               </button>
               <button
                 type="button"
@@ -392,7 +392,7 @@ function Wizard({
                 disabled={submitting !== null}
                 onClick={() => void submit("editor")}
               >
-                {submitting === "editor" ? "建立中…" : "直接撰寫劇本"}
+                {submitting === "editor" ? "建立中…" : "建立並開始寫劇本"}
               </button>
             </>,
           )}

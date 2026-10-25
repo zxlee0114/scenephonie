@@ -2,7 +2,7 @@
 /**
  * 票券 71 —— 建立精靈：名稱（必填）→ 文件（故事大綱／分場大綱頁籤）→ 確認。走完才建；中途離開只留本機草稿。
  */
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CreateProject, CreateProjectOutcome } from "./create-capability";
@@ -108,12 +108,12 @@ describe("第三步：建立", () => {
     expect(screen.getAllByText("尚未開始")).toHaveLength(2);
   });
 
-  it("直接撰寫劇本：交出名稱與兩份大綱，按下就兩顆都鎖住，建好進劇本編輯器、草稿清掉", async () => {
+  it("建立並開始寫劇本：交出名稱與兩份大綱，按下就兩顆都鎖住，建好進劇本編輯器、草稿清掉", async () => {
     let resolve!: (outcome: CreateProjectOutcome) => void;
     const create = renderCreator(() => new Promise((r) => (resolve = r)));
     walkToConfirm(" 海豚計畫 ", "海豚公寓");
 
-    fireEvent.click(screen.getByRole("button", { name: "直接撰寫劇本" }));
+    fireEvent.click(screen.getByRole("button", { name: "建立並開始寫劇本" }));
 
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -125,7 +125,7 @@ describe("第三步：建立", () => {
       }),
     );
     expect((screen.getByRole("button", { name: "建立中…" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "進入專案頁" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(screen.getByRole("dialog")).getByRole("button", { name: "建立專案" }) as HTMLButtonElement).disabled).toBe(true);
 
     resolve(created);
     await settle();
@@ -134,11 +134,11 @@ describe("第三步：建立", () => {
     expect(creationDraftStore(USER).load()).toBeNull();
   });
 
-  it("進入專案頁：建好進 hub", async () => {
+  it("建立專案：建好進 hub", async () => {
     renderCreator();
     walkToConfirm();
 
-    fireEvent.click(screen.getByRole("button", { name: "進入專案頁" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "建立專案" }));
     await settle();
 
     expect(push).toHaveBeenCalledWith("/projects/pj_new");
@@ -148,14 +148,14 @@ describe("第三步：建立", () => {
     const create = renderCreator(async () => ({ status: "failed" }));
     walkToConfirm();
 
-    fireEvent.click(screen.getByRole("button", { name: "直接撰寫劇本" }));
+    fireEvent.click(screen.getByRole("button", { name: "建立並開始寫劇本" }));
     await settle();
 
     expect(screen.getByRole("alert").textContent).toContain("沒有建立成功");
     expect(push).not.toHaveBeenCalled();
     expect(creationDraftStore(USER).load()?.projectTitle).toBe("海豚計畫");
 
-    fireEvent.click(screen.getByRole("button", { name: "直接撰寫劇本" }));
+    fireEvent.click(screen.getByRole("button", { name: "建立並開始寫劇本" }));
     await settle();
     expect(create.mock.calls[1]![0].creationId).toBe(create.mock.calls[0]![0].creationId);
   });
@@ -275,7 +275,7 @@ describe("大綱內文", () => {
     fireEvent.click(screen.getByRole("button", { name: "接著做" }));
 
     expect(screen.getByText("2 字")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "直接撰寫劇本" }));
+    fireEvent.click(screen.getByRole("button", { name: "建立並開始寫劇本" }));
     await settle();
 
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ creationId: "cr_saved", submissionOutline: outline }));
