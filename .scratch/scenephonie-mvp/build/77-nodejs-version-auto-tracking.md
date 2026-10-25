@@ -4,7 +4,7 @@
 
 **Blocked by:** 76
 
-**Status:** `ready-for-agent`
+**Status:** verified
 
 ## 為什麼
 
@@ -25,7 +25,7 @@
 - [x] 有一份設定（Renovate 或等價工具）能對 `.nvmrc` 的 22.x 新版本自動開 PR
 - [x] `.nvmrc` 與 `engines.node` 同步更新，或有 CI 檢查擋住兩者不一致
 - [x] 大版本升級不會被自動開 PR
-- [ ] 實際跑出至少一個 PR（可用降一版 `.nvmrc` 的測試分支驗證），再還原
+- [x] 實際跑出至少一個 PR（可用降一版 `.nvmrc` 的測試分支驗證），再還原
 - [x] 票上記錄 Vercel 不在自動化範圍
 
 ## 不做
@@ -45,4 +45,5 @@
 - 保險：CI 加「Node 版本一致性」步驟，`.nvmrc` 與 `engines.node` 下限不同版就失敗。
 - 驗證：用 `renovate --platform=local` 把 `.nvmrc`／`engines.node` 降到 22.22.0，產出單一分支 `renovate/node.js-22.x`，兩處皆升到 22.23.4、沒有 24.x，已還原。
 - **Vercel 不在自動化範圍**：Vercel 的 Node 版本在 dashboard 設定、只有大版本（`22.x`），小版本由 Vercel 維護；repo 的版本號不等於線上版本。
-- **需人工**：要在 GitHub 安裝 Renovate app（github.com/apps/renovate）並授權此 repo，設定才會生效；合併後才會看到真正的 PR。
+- Renovate app 已安裝（Renovate Only、Scan and Alert、只授權此 repo）。
+- 實測：#103 把兩處降到 22.22.0 合併後，Renovate 自動開 #104（分支 `renovate/node.js-22.x`），兩處一起升回 22.23.4，CI 全過後合併，`main` 還原。
