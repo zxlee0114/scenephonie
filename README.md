@@ -15,7 +15,7 @@
 
 ## 開發
 
-需求：Node 22（見 `.nvmrc`）、pnpm 11、Docker（本機 Postgres）。
+需求：Node 22.23.4 以上（見 `.nvmrc`）、pnpm 11、Docker（本機 Postgres）。
 
 ```bash
 pnpm install
