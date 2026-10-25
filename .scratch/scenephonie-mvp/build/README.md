@@ -112,7 +112,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [69](./69-unsaved-draft-local-backup.md) | 存不進去的稿，關掉分頁之後救得回來（本機備份）。碰到 spec 排除的離線編輯，範圍開工前先定。**從票券 65 驗收切出來**，blocked by 65。 | `needs-triage` |
 | [70](./70-oauth-state-cookie-expiry.md) | Google 登入超過 5 分鐘才回來就失敗（state cookie 寫死 300 秒，DB 那筆是 10 分鐘），畫面只說「請再試一次」。**從票券 64 驗收切出來**，無 blocker。 | `needs-triage` |
 | [71](./71-project-dashboard-and-create-flow.md) | 登入（含訪客）後先到專案儀表板；「建立專案」是三步彈窗（名稱必填 → 故事大綱／分場大綱頁籤 → 建立專案或建立並開始寫劇本），最後一次交易建好全部，中途離開只留本機草稿、下次問要不要接著做。劇本長出自己的劇本名稱。無 blocker。 | ✅ verified |
-| [72](./72-project-archive-and-delete.md) | 專案封存（只整理儀表板，照常可編輯，可取消封存）與刪除（進已刪除區 30 天、gate 擋下、可還原回原本那區，到期由改名後的 `daily-cleanup` cron 永久刪除）；封存期間分享連結照常、刪除即失效。 | `done` |
+| [72](./72-project-archive-and-delete.md) | 專案封存（只整理儀表板，照常可編輯，可取消封存）與刪除（進已刪除區 30 天、gate 擋下、可還原回原本那區，到期由改名後的 `daily-cleanup` cron 永久刪除）；封存期間分享連結照常、刪除即失效。 | ✅ verified |
 | [73](./73-onboarding-tour.md) | 引導：首次註冊者與訪客跟著一份範例專案走完整個流程，只看不填；跳過或走完才算用掉，可隨時重看。blocked by 71、21。 | `needs-triage` |
 | [74](./74-autosave-status-display.md) | 存檔狀態列的節奏：打字時「儲存中」、存完停留一段、閒置時不顯示或「上次儲存於…」，不再跳動。劇本與文件共用。**從票券 21 驗收撈到**，無 blocker。 | `needs-triage` |
 | [75](./75-rename-project-and-screenplay.md) | 改專案名稱與劇本名稱（建立後目前改不了）。**從票券 71 grilling 拆出來**，blocked by 71。 | `needs-triage` |
