@@ -1642,3 +1642,44 @@ describe("還沒有別場認識的名字，印成一則歷史紀錄（使用者�
     expect(rows(container)[0]).toBe("📍 海豚公寓房間（1 場）");
   });
 });
+
+describe("只在別份文件裡被引用的實體也存在（票券 21：角色設定表是第三個引用來源）", () => {
+  const xiaomei = { id: "ch_1", name: "小美" };
+  const orphan = { id: "ch_2", name: "小美的前男友" };
+
+  const sheetOnly = (onCreate = vi.fn(async (name: string) => ({ id: "ch_new", name }))) => {
+    const committed: EntityRef[][] = [];
+    const view = render(
+      <EntityField
+        kind="character"
+        placeholder="人物"
+        refs={[]}
+        options={[xiaomei, orphan]}
+        // 劇本裡沒有任何一場引用她們 —— 小美只在人物介紹裡。
+        usage={() => new Map()}
+        elsewhere={new Map([[xiaomei.id, "人物介紹"]])}
+        onCommit={(refs) => committed.push(refs)}
+        onCreate={onCreate}
+      />,
+    );
+    return { ...view, committed, onCreate };
+  };
+
+  it("進自動補全，括號裡印它從哪裡來，不印「0 場」；真正的孤兒照樣不出現", () => {
+    const { container } = sheetOnly();
+    fireEvent.change(container.querySelector("input")!, { target: { value: "小美" } });
+
+    expect(rows(container)[0]).toBe("👤 小美（人物介紹）");
+    expect(rows(container).some((row) => row.includes("前男友"))).toBe(false);
+  });
+
+  it("打全名按 Enter 命中那一位，不會冒出第二個小美", async () => {
+    const { container, committed, onCreate } = sheetOnly();
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "小美" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(committed.at(-1)).toEqual([{ id: xiaomei.id, displayName: "小美" }]));
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+});

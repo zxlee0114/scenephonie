@@ -1,6 +1,7 @@
 import { and, asc, eq, isNotNull, isNull, lt, max, type SQL, type SQLWrapper } from "drizzle-orm";
 
 import {
+  characterSheetIds,
   documentFromJSON,
   documentLevel,
   emptyDocument,
@@ -32,7 +33,7 @@ import { decodeSaveToken, encodeSaveToken, type SaveToken } from "./save-token";
  *    因為「型別說不行」擋不住 `as`。
  * 2. **每個 kind 有自己的遷移鏈**（`document-schema-version.ts`）。
  *
- * 固定文件（交件大綱、分場大綱）每個創作單位恰好一份，第一次打開時建立，不能改名、不能刪；
+ * 固定文件（交件大綱、分場大綱、角色設定表）每個創作單位恰好一份，第一次打開時建立，不能改名、不能刪；
  * 自由文件由編劇明確新增，可以改名、可以刪。刪除是先標記（`deleted_at`），排程過了期限才真的清掉。
  *
  * 沒有備份：§6.7 的自動備份只承諾劇本。
@@ -104,7 +105,7 @@ function assertLevel(unit: CreativeUnit, kind: DocumentKind): void {
 }
 
 /** 一份新文件的那一列：內文預設從一個空段落開始、版本是該 kind 的現行版本。先過不變式 F。 */
-function newRow(unit: CreativeUnit, kind: DocumentKind, title: string | null, body: PersistedDoc = emptyDocument()) {
+function newRow(unit: CreativeUnit, kind: DocumentKind, title: string | null, body: PersistedDoc = emptyDocument(kind)) {
   assertLevel(unit, kind);
   return {
     id: mintId(DOCUMENT_ID_PREFIX),
@@ -152,6 +153,28 @@ export function openSubmissionOutline(project: AuthorizedProject): Promise<Loade
 /** 這份劇本的分場大綱 —— 一份劇本一份，第一次打開時建立。 */
 export function openSceneOutline(screenplay: AuthorizedScreenplay): Promise<LoadedDocument> {
   return openFixed(screenplay, "分場大綱");
+}
+
+/** 這個專案的角色設定表（畫面上叫「人物介紹」）—— 一個專案一份，第一次打開時建立。 */
+export function openCharacterSheet(project: AuthorizedProject): Promise<LoadedDocument> {
+  return openFixed(project, "角色設定表");
+}
+
+/**
+ * 角色設定表上收錄了誰，依表上的順序。**不建立那份表** —— 劇本頁每次載入都問這一句，問一次就多一份
+ * 空表不合理；還沒打開過就是還沒收錄任何人。
+ *
+ * 它回答的是「存在＝被引用」跨文件的那一半（ADR-0005）：表是人物的第三個引用來源，只在表上的人物
+ * 在劇本的自動補全裡也要找得到，否則先建表再寫劇本的編劇會在劇本裡冒出第二個小明。
+ */
+export async function characterSheetCharacterIds(project: AuthorizedProject): Promise<string[]> {
+  const [row] = await getDb()
+    .select({ body: documents.body, docSchemaVersion: documents.docSchemaVersion })
+    .from(documents)
+    .where(and(inUnit(project), eq(documents.kind, "角色設定表")))
+    .limit(1);
+  if (!row) return [];
+  return characterSheetIds(migrateDocumentToCurrent("角色設定表", row.body as PersistedDoc, row.docSchemaVersion));
 }
 
 /**

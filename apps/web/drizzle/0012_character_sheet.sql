@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "documents_character_sheet_uidx" ON "documents" USING btree ("project_id") WHERE "documents"."kind" = '角色設定表';

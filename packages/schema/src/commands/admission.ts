@@ -200,6 +200,13 @@ export const COMMAND_CONTRACTS: readonly CommandContract[] = [
       "以實體 id ＋ 舊顯示名定址（不掃位置）；只改顯示名，不建立也不移除引用，所以不碰不變式 ⑧。",
   },
   {
+    name: "addCharacterEntry",
+    enforces: ["⑧"],
+    addressesById: true,
+    rationale:
+      "以人物 id 定址；收錄進角色設定表就是產生一個引用（第三個引用來源），拒絕對不存在的人物收錄（不變式 ⑧），也拒絕同一個人收兩次。",
+  },
+  {
     name: "setSceneExtras",
     enforces: [],
     addressesById: true,

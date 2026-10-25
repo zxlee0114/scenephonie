@@ -118,3 +118,4 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [75](./75-rename-project-and-screenplay.md) | 改專案名稱與劇本名稱（建立後目前改不了）。**從票券 71 grilling 拆出來**，blocked by 71。 | `needs-triage` |
 | [76](./76-nodejs-security-update-2026-10.md) | Node.js 釘到 2026-10-21 安全修補版 22.23.4（`.nvmrc`、`engines.node`、CI、Vercel 一致）。**Brotli decoder RCE（CVE-2026-111497）與數個 TLS／DNS 驗證問題。**無 blocker。 | ✅ verified |
 | [77](./77-nodejs-version-auto-tracking.md) | 自動追蹤 Node.js 安全更新（Renovate 傾向；只追 22.x minor／patch，`.nvmrc` 與 `engines.node` 要同步）。blocked by 76。 | ✅ verified |
+| [78](./78-character-sheet-in-creation-wizard.md) | 建立精靈第 2 步多一個「人物介紹」頁籤：草稿存名字與內文，建立專案的交易裡才鑄人物、寫角色設定表。**從票券 21 第 ② 片 grilling 拆出來**，blocked by 21、71。 | `needs-triage` |

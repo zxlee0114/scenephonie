@@ -117,6 +117,25 @@ export async function renameCharacter(
   return row ?? null;
 }
 
+/**
+ * 寫人物的描述 —— 人物介紹的內文（票券 21）。空白存成 `null`（＝還沒寫）。
+ *
+ * 描述是**關於那個人的事實**，住在人物上、不住在角色設定表上（CONTEXT「角色設定表」）：同一個人在
+ * 不同文件裡不會分岔。所以它跟名字一樣不進任何一份 doc 的 ⌘Z。
+ */
+export async function setCharacterDescription(
+  project: AuthorizedProject,
+  characterId: string,
+  description: string,
+): Promise<boolean> {
+  const updated = await getDb()
+    .update(characters)
+    .set({ description: description.trim() ? description : null, updatedAt: new Date() })
+    .where(and(eq(characters.id, characterId), eq(characters.projectId, project.projectId)))
+    .returning({ id: characters.id });
+  return updated.length > 0;
+}
+
 export async function renameLocation(
   project: AuthorizedProject,
   locationId: string,

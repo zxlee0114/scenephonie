@@ -54,8 +54,8 @@ export function blankCreationDraft(): CreationDraft {
     projectTitle: "",
     screenplayTitle: "",
     sameName: false,
-    submissionOutline: emptyDocument(),
-    sceneOutline: emptyDocument(),
+    submissionOutline: emptyDocument("交件大綱"),
+    sceneOutline: emptyDocument("分場大綱"),
     step: 1,
     tab: OUTLINE_TABS[0]!,
   };

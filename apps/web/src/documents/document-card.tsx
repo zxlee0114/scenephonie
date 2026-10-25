@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
  * 還沒有字的（空白、還沒打開過）放一個淡淡的檔案圖示佔位。手機的清單版面不顯示預覽。
  *
  * 整張卡都點得到：連結的 `::after` 撐滿整張卡。卡上的動作（刪除）疊在連結之上，不包在連結裡 ——
- * 按鈕不能放進 `<a>`。沒有 `href` 的卡是還沒開放的那一份（人物介紹），只佔著位置。
+ * 按鈕不能放進 `<a>`。
  */
 export function DocumentCard({
   href,
@@ -18,7 +18,7 @@ export function DocumentCard({
   excerpt = "",
   action,
 }: {
-  href?: string;
+  href: string;
   name: string;
   /** 內文開頭幾個字；空字串就放圖示。 */
   excerpt?: string;
@@ -27,17 +27,13 @@ export function DocumentCard({
   action?: ReactNode;
 }) {
   return (
-    <li className={href ? "hub-card" : "hub-card hub-card--pending"}>
+    <li className="hub-card">
       <span className="hub-card__preview" aria-hidden="true">
         {excerpt || <FileIcon />}
       </span>
-      {href ? (
-        <Link href={href} className="hub-card__name">
-          {name}
-        </Link>
-      ) : (
-        <span className="hub-card__name">{name}</span>
-      )}
+      <Link href={href} className="hub-card__name">
+        {name}
+      </Link>
       <span className="hub-card__meta">{meta}</span>
       {action}
     </li>

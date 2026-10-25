@@ -398,7 +398,7 @@ export const documents = pgTable(
   (table) => [
     // 專案 hub 問的是「這個專案有哪些文件」（兩層都列）。
     index("documents_project_id_idx").on(table.projectId),
-    // 固定文件每個創作單位一份：交件大綱一個專案一份、分場大綱一份劇本一份。打開它們是 get-or-create，
+    // 固定文件每個創作單位一份：交件大綱與角色設定表一個專案一份、分場大綱一份劇本一份。打開它們是 get-or-create，
     // 兩個分頁同時第一次打開時由這兩條排成序，晚到的那一次拿到先到的那一份，不會多出第二份。
     uniqueIndex("documents_submission_outline_uidx")
       .on(table.projectId)
@@ -406,6 +406,9 @@ export const documents = pgTable(
     uniqueIndex("documents_scene_outline_uidx")
       .on(table.screenplayId)
       .where(sql`${table.kind} = '分場大綱'`),
+    uniqueIndex("documents_character_sheet_uidx")
+      .on(table.projectId)
+      .where(sql`${table.kind} = '角色設定表'`),
     // 不變式 F 的資料層：劇本層的 kind 一定有劇本，其餘一定沒有。
     check("documents_kind_level_check", sql`(${table.kind} in ('分場大綱')) = (${table.screenplayId} is not null)`),
   ],

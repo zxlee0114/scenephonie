@@ -39,6 +39,11 @@ import type { EntityKind, EntityOption } from "./entity-field";
 export type EntityCatalog = {
   characters: readonly EntityOption[];
   locations: readonly EntityOption[];
+  /**
+   * 在劇本之外被引用的人物 → 那份文件在畫面上的名字（票券 21：角色設定表）。人物欄的自動補全拿它
+   * 判斷「存在」，見 `EntityField` 的 `elsewhere`。
+   */
+  charactersElsewhere: ReadonlyMap<string, string>;
   /** command 問「這筆實體在嗎」用的目錄（不變式 ⑧ 的檢查對象）。 */
   directory: EntityDirectory;
   /** 建立一筆實體。**先落地，再讓呼叫端寫 doc**。失敗回 `null`。 */
@@ -55,6 +60,7 @@ export type EntityCatalog = {
 const EMPTY: EntityCatalog = {
   characters: [],
   locations: [],
+  charactersElsewhere: new Map(),
   directory: { hasCharacter: () => false, hasLocation: () => false },
   create: async () => null,
   rename: () => {},
@@ -82,6 +88,10 @@ export function EntityCatalogProvider({
 }) {
   const [characters, setCharacters] = useState<readonly EntityOption[]>(initial?.characters ?? []);
   const [locations, setLocations] = useState<readonly EntityOption[]>(initial?.locations ?? []);
+  // 進站時的快照 —— 這一頁開著的期間，另一個分頁改了角色設定表也不會跟著變（下次進站才算）。
+  const [charactersElsewhere] = useState<ReadonlyMap<string, string>>(
+    () => new Map(Object.entries(initial?.charactersElsewhere ?? {})),
+  );
 
   /**
    * 存在性的**權威來源**，而且是同步的。
@@ -143,11 +153,12 @@ export function EntityCatalogProvider({
     () => ({
       characters,
       locations,
+      charactersElsewhere,
       directory,
       create,
       rename,
     }),
-    [characters, locations, directory, create, rename],
+    [characters, locations, charactersElsewhere, directory, create, rename],
   );
 
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;

@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 
 import { ViewSwitch } from "@/app/view-switch";
 import { authorizeProjectForUser, authorizeScreenplay } from "@/authorization";
+import { documentLabel } from "@/documents/labels";
 import { projectEntities } from "@/entities";
-import { loadScreenplay } from "@/persistence";
+import { characterSheetCharacterIds, loadScreenplay } from "@/persistence";
 
 import {
   createDeliveryAction,
@@ -63,7 +64,8 @@ export default async function EditorLayout({
   // （handle 永遠來自資料庫裡的 `owner_id`，有例外的規則等於沒有規則）。
   const project = await authorizeProjectForUser(authorized.ownerId, authorized.projectId);
   if (!project) notFound();
-  const entities = await projectEntities(project);
+  // 角色設定表是人物的第三個引用來源（ADR-0005）：只在角色設定表上的人物，劇本的自動補全也要找得到。
+  const [entities, characterSheet] = await Promise.all([projectEntities(project), characterSheetCharacterIds(project)]);
   const base = `/projects/${authorized.projectId}/screenplays/${screenplay.screenplayId}`;
 
   return (
@@ -85,6 +87,7 @@ export default async function EditorLayout({
         entities={{
           characters: entities.characters.map(({ id, name }) => ({ id, name })),
           locations: entities.locations,
+          charactersElsewhere: Object.fromEntries(characterSheet.map((id) => [id, documentLabel("角色設定表")])),
         }}
         createEntity={createEntityAction}
         renameEntity={renameEntityAction}

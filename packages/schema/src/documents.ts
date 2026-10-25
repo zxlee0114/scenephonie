@@ -1,7 +1,7 @@
 /**
  * 劇本外文件（票券 21，§6.2、[ADR-0009](../../../docs/adr/0009-documents-hang-on-the-creative-unit-they-describe.md)）。
  *
- * 劇本之外、編劇另外寫的文件：交件大綱、分場大綱、自由文件（角色設定表在下一片）。它們跟劇本一樣是
+ * 劇本之外、編劇另外寫的文件：交件大綱、分場大綱、自由文件、角色設定表。它們跟劇本一樣是
  * ProseMirror doc —— doc 是唯一權威（ADR-0007）—— 但**每個 kind 有自己的 node schema 與自己的
  * 遷移鏈**：三份散文文件眼下長得一樣，卻不是同一個東西，日後各改各的，不准互相牽動。
  *
@@ -16,6 +16,8 @@
  */
 import { Schema, type Node as ProseMirrorNode } from "prosemirror-model";
 
+import { isCharacterId } from "./entities";
+
 /** 文件掛在哪一層。 */
 export type DocumentLevel = "project" | "screenplay";
 
@@ -26,6 +28,7 @@ export type DocumentLevel = "project" | "screenplay";
  * - **交件大綱**（專案，固定）：投稿時繳的那份全片大綱。一個專案一份，附字數計數器、不執行字數規則。
  * - **分場大綱**（劇本，固定）：以場景為單位的規劃文件。**不與場次關聯**。一份劇本一份。
  * - **自由文件**（專案，可多份）：編劇自己命名、用途不限（世界觀、研究筆記、另一個字數的大綱版本……）。
+ * - **角色設定表**（專案，固定）：有序的人物引用清單，畫面上叫「人物介紹」。不是散文 —— 見 `characterSheetSpec`。
  *
  * **固定**＝那個創作單位底下恰好一份，第一次打開時建立，不能改名、不能刪。
  */
@@ -33,6 +36,7 @@ const KINDS = {
   交件大綱: { level: "project", fixed: true },
   分場大綱: { level: "screenplay", fixed: true },
   自由文件: { level: "project", fixed: false },
+  角色設定表: { level: "project", fixed: true },
 } as const satisfies Record<string, { level: DocumentLevel; fixed: boolean }>;
 
 export type DocumentKind = keyof typeof KINDS;
@@ -96,6 +100,35 @@ const proseSpec = {
 };
 
 /**
+ * 角色設定表：每個節點一筆人物引用 `{ characterId }`，順序就是節點的順序（§6.2）。
+ *
+ * **人物介紹的內文不在這裡**，在人物實體的描述欄上（CONTEXT「角色設定表」）—— 人物屬於專案，描述是關於
+ * 那個人的事實，掛在表上會讓同一個人在不同文件裡分岔。也沒有顯示名：表上印的就是實體的名字，
+ * 這裡沒有「這一場叫他什麼」可言。
+ *
+ * 選 PM doc 而不是關聯表，是為了讓引用只有一種住所（ADR-0007）—— 那個選擇有有效期，見規格 §6.2 的警示。
+ *
+ * `doc` 寫 `characterEntry*`：零筆是合法的（還沒收錄任何人），而且 `characterId` 沒有預設值的節點放不進
+ * 必填位置（ProseMirror 的 generatable 檢查，同劇本的 `scene*`）。
+ */
+const characterSheetSpec = {
+  nodes: {
+    doc: { content: "characterEntry*" },
+    characterEntry: {
+      atom: true,
+      attrs: {
+        characterId: {
+          validate: (value: unknown) => {
+            if (!isCharacterId(value)) throw new RangeError(`角色設定表只收人物，「${String(value)}」不是人物 id`);
+          },
+        },
+      },
+    },
+    text: {},
+  },
+};
+
+/**
  * 每個 kind 一個 schema 實體。**刻意不共用同一個物件**：共用的話，有人為交件大綱加一個節點，
  * 分場大綱就默默跟著變了 —— 而它的 schema 版本號不會跟著 +1。
  */
@@ -103,6 +136,7 @@ const SCHEMAS: Record<DocumentKind, Schema> = {
   交件大綱: new Schema(proseSpec),
   分場大綱: new Schema(proseSpec),
   自由文件: new Schema(proseSpec),
+  角色設定表: new Schema(characterSheetSpec),
 };
 
 export function documentSchema(kind: DocumentKind): Schema {
@@ -116,8 +150,9 @@ export function documentFromJSON(kind: DocumentKind, json: unknown): ProseMirror
   return doc;
 }
 
-/** 一份空的文件：一個空段落（`block+` 至少要有一塊）。 */
-export function emptyDocument(): Record<string, unknown> {
+/** 一份空的文件。散文文件是一個空段落（`block+` 至少要有一塊）；角色設定表是零筆。 */
+export function emptyDocument(kind: DocumentKind): Record<string, unknown> {
+  if (kind === "角色設定表") return { type: "doc", content: [] };
   return { type: "doc", content: [{ type: "paragraph" }] };
 }
 
