@@ -10,7 +10,11 @@
  *
  * 整頁的樣子就是 PDF 人物介紹頁的樣子：名字當標題、內文寫在底下（使用者裁決 2026-10-26）。
  *
- * **加入人物時回頭補表命中既有實體**：底下那一欄是劇本用的同一個 `EntityField`，存在＝被引用要跨文件算
+ * **新增人物是一列一列寫的**（驗收回饋 2026-10-26）：按「＋ 新增人物」長出一列空的名字欄，名字按 Enter
+ * 收錄進表、游標進到那一位的介紹內文；寫完再按一次「＋ 新增人物」。那一列在名字定案之前**不在表上** ——
+ * 表上每一筆都是人物引用，沒有名字就沒有人物可指（不變式 ⑧）。
+ *
+ * **新增時回頭補表命中既有實體**：那一列的名字欄是劇本用的同一個 `EntityField`，存在＝被引用要跨文件算
  * （ADR-0005）—— 劇本裡用到的人物印出場數、命中就是那一位，不會冒出第二個小明；已經在表上的不再列出。
  */
 "use client";
@@ -77,6 +81,10 @@ type SheetContextValue = {
   pendingRename: (id: string) => PendingRename | null;
   /** 編劇對那一問的裁決：`true` 連劇本一起改、`false` 只改人物、`null` 不改了。 */
   resolveRename: (id: string, retitle: boolean | null) => void;
+  /** 把游標放進這一位的介紹內文（名字按 Enter 之後）。剛收錄、內文框還沒掛上時，掛上那一刻才放。 */
+  focusDescription: (id: string) => void;
+  /** 內文框掛上（`null` ＝ 卸下）時回報，`focusDescription` 才找得到它。 */
+  registerDescription: (id: string, field: HTMLTextAreaElement | null) => void;
 };
 
 /** `taken` ＝ 新名字是另一位存在人物的名字，沒有改。 */
@@ -131,6 +139,12 @@ export function CharacterSheetEditor({
    */
   const known = useRef<readonly SheetCharacter[]>(initialCharacters);
   const [pending, setPending] = useState<Record<string, PendingRename>>({});
+  /** 「＋ 新增人物」長出來的那一列開著沒。 */
+  const [drafting, setDrafting] = useState(false);
+  const draftInput = useRef<HTMLInputElement | null>(null);
+  const descriptionFields = useRef(new Map<string, HTMLTextAreaElement>());
+  /** 要拿到游標、但內文框還沒掛上的那一位（node view 是非同步掛載的）。 */
+  const focusWhenMounted = useRef<string | null>(null);
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [SheetDocument, Text, CharacterEntry, UndoRedo, Dropcursor],
@@ -199,7 +213,28 @@ export function CharacterSheetEditor({
     },
     pendingRename: (id) => pending[id] ?? null,
     resolveRename: (id, retitle) => pending[id]?.decide(retitle),
+    focusDescription: (id) => {
+      const field = descriptionFields.current.get(id);
+      if (field) field.focus();
+      else focusWhenMounted.current = id;
+    },
+    registerDescription: (id, field) => {
+      if (!field) {
+        descriptionFields.current.delete(id);
+        return;
+      }
+      descriptionFields.current.set(id, field);
+      if (focusWhenMounted.current === id) {
+        focusWhenMounted.current = null;
+        field.focus();
+      }
+    },
   };
+
+  // 那一列一長出來游標就在名字欄裡 —— 按下按鈕就是要開始打字。
+  useEffect(() => {
+    if (drafting) draftInput.current?.focus();
+  }, [drafting]);
 
   // 存在＝被引用（ADR-0005）：劇本裡用到的才是候選，已經在表上的不再列 —— 同一個人不收兩次。
   const options = characters.filter((c) => !listed.includes(c.id));
@@ -213,26 +248,47 @@ export function CharacterSheetEditor({
           <SaveStatusLine {...autosave} noun={label} />
         </div>
         <EditorContent editor={editor} />
-        {editor && (
-          <div className="character-sheet__add">
-            <EntityField
-              kind="character"
-              placeholder="＋ 加入人物…"
-              refs={[]}
-              options={options}
-              usage={usage}
-              onCommit={(refs) => {
-                for (const ref of refs) if (ref.id) add(ref.id);
+        {editor &&
+          (drafting ? (
+            <div
+              className="character-sheet__draft"
+              // Esc 在空的名字欄上 ＝ 不新增了。欄位自己會吃掉 Esc（關選單），所以要在它之前聽。
+              onKeyDownCapture={(event) => {
+                if (event.key === "Escape" && !draftInput.current?.value) setDrafting(false);
               }}
-              onCreate={async (name) => {
-                const created = await createCharacter(name);
-                if (!created) return null;
-                put({ ...created, description: null });
-                return created;
+              // 名字還空著就點走：那一列收掉，不留一列空白在頁面上。
+              onBlur={(event) => {
+                if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                if (!draftInput.current?.value) setDrafting(false);
               }}
-            />
-          </div>
-        )}
+            >
+              <EntityField
+                kind="character"
+                placeholder="人物名字"
+                refs={[]}
+                options={options}
+                usage={usage}
+                inputRef={draftInput}
+                onCommit={(refs) => {
+                  const ids = refs.flatMap((ref) => (ref.id ? [ref.id] : []));
+                  for (const id of ids) add(id);
+                  setDrafting(false);
+                  const last = ids.at(-1);
+                  if (last) context.focusDescription(last);
+                }}
+                onCreate={async (name) => {
+                  const created = await createCharacter(name);
+                  if (!created) return null;
+                  put({ ...created, description: null });
+                  return created;
+                }}
+              />
+            </div>
+          ) : (
+            <button type="button" className="character-sheet__add" onClick={() => setDrafting(true)}>
+              ＋ 新增人物
+            </button>
+          ))}
       </div>
     </SheetContext.Provider>
   );
@@ -289,21 +345,36 @@ function NameField({ id, name }: { id: string; name: string }) {
   const [value, setValue] = useState(name);
   const [taken, setTaken] = useState<string | null>(null);
   const busy = useRef(false);
+  /**
+   * 目前的名字，同步的那一份：改名成功、游標接著跳進內文的那一下會觸發離開欄位的定案，那時 prop 可能還是
+   * 舊名 —— 只比 prop 的話會把同一次改名再送一次。
+   */
+  const current = useRef(name);
   const choice = sheet?.pendingRename(id) ?? null;
 
-  useEffect(() => setValue(name), [name]);
+  useEffect(() => {
+    current.current = name;
+    setValue(name);
+  }, [name]);
 
-  const commit = () => {
+  /** 定案。回傳名字現在算不算寫好了（沒改、或改成了）—— Enter 憑這個決定游標要不要往下走。 */
+  const commit = async (): Promise<boolean> => {
     const next = value.trim();
-    if (!sheet || busy.current || next === name) return;
-    if (!next) return setValue(name);
+    if (!sheet || busy.current) return false;
+    if (next === current.current) return true;
+    if (!next) {
+      setValue(current.current);
+      return true;
+    }
     busy.current = true;
     setTaken(null);
-    void sheet.rename(id, name, next).then((outcome) => {
-      busy.current = false;
-      if (outcome !== "renamed") setValue(name);
-      if (outcome === "taken") setTaken(next);
-    });
+    const from = current.current;
+    const outcome = await sheet.rename(id, from, next);
+    busy.current = false;
+    if (outcome === "renamed") current.current = next;
+    else setValue(from);
+    if (outcome === "taken") setTaken(next);
+    return outcome === "renamed";
   };
 
   return (
@@ -316,12 +387,15 @@ function NameField({ id, name }: { id: string; name: string }) {
           setValue(event.target.value);
           setTaken(null);
         }}
-        onBlur={commit}
+        onBlur={() => void commit()}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return;
           if (event.key === "Enter") {
             event.preventDefault();
-            commit();
+            // 名字寫好了就接著寫介紹（驗收回饋 2026-10-26）。
+            void commit().then((done) => {
+              if (done) sheet?.focusDescription(id);
+            });
           } else if (event.key === "Escape" && choice) {
             event.preventDefault();
             sheet?.resolveRename(id, null);
@@ -376,6 +450,7 @@ function DescriptionField({ id, initial }: { id: string; initial: string }) {
   return (
     <div className="character-entry__body" contentEditable={false}>
       <textarea
+        ref={(field) => sheet?.registerDescription(id, field)}
         className="character-entry__description"
         aria-label="人物介紹內文"
         placeholder="這個人是誰…"

@@ -390,14 +390,33 @@
   font-size: var(--text-sm);
 }
 
+/* 「＋ 新增人物」：一行安靜的文字按鈕，接在最後一位底下。 */
 .character-sheet__add {
+  margin-block-start: var(--space-4);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.character-sheet__add:hover {
+  color: var(--text-primary);
+}
+
+/* 按下去長出來的那一列：名字欄跟表上每一位的名字同一個位置、同一個字級。 */
+.character-sheet__draft {
   position: relative;
   margin-block-start: var(--space-4);
 }
 
-.character-sheet__add .entity-field {
-  font-family: var(--font-ui);
-  font-size: 1rem;
+.character-sheet__draft input {
+  font-family: var(--font-body);
+  font-size: 1.35em;
+  font-weight: 700;
+  line-height: var(--leading-sm);
 }
 
 .character-entry__note {
