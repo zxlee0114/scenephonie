@@ -229,7 +229,7 @@ describe("對白的區塊邊界（票券 62）", () => {
     expect(caret()).toEqual({ block: 0, offset: 0 });
   });
 
-  it("空對白是場次第一個區塊時按 ⌫：退回空描述，區塊留著（上面是場次抬頭，沒地方回）", () => {
+  it("空對白是場次第一個區塊、下面還有區塊時按 ⌫：照樣拿掉，游標落到下一個區塊開頭", () => {
     build([
       { type: "dialogue" },
       { type: "action", content: [{ type: "text", text: "門開了" }] },
@@ -238,8 +238,20 @@ describe("對白的區塊邊界（票券 62）", () => {
 
     press("Backspace");
 
-    expect(blockTypes()).toEqual(["action", "action"]);
+    expect(blockTypes()).toEqual(["action"]);
     expect(caret()).toEqual({ block: 0, offset: 0 });
+  });
+
+  it("空對白是場次第一個區塊、下面是子場次時按 ⌫：退回空描述（場次不能以子場次開頭）", () => {
+    build([
+      { type: "dialogue" },
+      { type: "subscene", attrs: { sceneId: "sc_sub", kind: "插入" }, content: [{ type: "action", content: [{ type: "text", text: "閃回" }] }] },
+    ]);
+    caretAtStartOfBlock(0);
+
+    press("Backspace");
+
+    expect(blockTypes()).toEqual(["action", "subscene"]);
   });
 
   it("描述開頭按 ⌫、上一句是有人物台詞空的對白：併不刪 —— 字接進台詞，人物留著", () => {
@@ -297,6 +309,65 @@ describe("對白的區塊邊界（票券 62）", () => {
     expect(blockTypes()).toEqual(["dialogue"]);
     expect(block(0).attrs.character).toEqual(xiaoming.character);
     expect(block(0).textContent).toBe("門開了");
+  });
+
+  /** 游標放到 doc 裡第一句對白的台詞尾端（不論它在哪一層）。 */
+  function caretAtEndOfFirstDialogue() {
+    let at = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (at < 0 && node.type.name === "dialogue") at = pos + 1 + node.content.size;
+      return at < 0;
+    });
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, at)));
+  }
+
+  const firstDialogue = () => {
+    let found: { attrs: Record<string, unknown> } | null = null;
+    editor.state.doc.descendants((node) => {
+      if (!found && node.type.name === "dialogue") found = node;
+      return !found;
+    });
+    return found as { attrs: Record<string, unknown> } | null;
+  };
+
+  it.each([
+    ["下面接子場次", [
+      { type: "dialogue", attrs: xiaoming },
+      { type: "subscene", attrs: { sceneId: "sc_sub", kind: "插入" }, content: [{ type: "action", content: [{ type: "text", text: "閃回" }] }] },
+    ]],
+    ["它是子場次的最後一個區塊", [
+      { type: "action", content: [{ type: "text", text: "門開了" }] },
+      { type: "subscene", attrs: { sceneId: "sc_sub", kind: "插入" }, content: [{ type: "dialogue", attrs: xiaoming }] },
+    ]],
+  ])("有人物、台詞空的對白在行尾按 Delete，%s：什麼都不做，人物留著", (_label, blocks) => {
+    build(blocks);
+    caretAtEndOfFirstDialogue();
+
+    press("Delete");
+
+    expect(firstDialogue()?.attrs.character).toEqual(xiaoming.character);
+  });
+
+  it("場次第一個區塊的台詞開頭按 Enter，再按 ⌫ 回得去：拿掉上方那句空對白，游標回到原句開頭", () => {
+    build([{ type: "dialogue", attrs: xiaoming, content: [{ type: "text", text: "我是龍" }] }]);
+    caretAtStartOfBlock(0);
+
+    press("Enter");
+    caretAtStartOfBlock(0);
+    press("Backspace");
+
+    expect(blockTypes()).toEqual(["dialogue"]);
+    expect(block(0).attrs.character).toEqual(xiaoming.character);
+    expect(caret()).toEqual({ block: 0, offset: 0 });
+  });
+
+  it("空對白是這段內容唯一的區塊時按 ⌫：退回空描述", () => {
+    build([{ type: "dialogue" }]);
+    caretAtStartOfBlock(0);
+
+    press("Backspace");
+
+    expect(blockTypes()).toEqual(["action"]);
   });
 
   it("台詞開頭按 Enter：上方插一句空對白，原句的人物與台詞不動，焦點排給上方那句的人物欄", () => {

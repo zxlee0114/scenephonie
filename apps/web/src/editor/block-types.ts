@@ -42,6 +42,14 @@ export function hasSpeaker(node: PMNode): boolean {
 }
 
 /**
+ * 有人物、台詞還空著的對白 —— 人物填好了、還沒開始寫那句話。ProseMirror 的 `joinMaybeClear`
+ * 只看 content，會把它當成空區塊整句刪掉；票券 62 的 ⌫／Delete 在這裡改成「併不刪」。
+ */
+export function isSpeakerOnly(node: PMNode): boolean {
+  return hasSpeaker(node) && node.content.size === 0;
+}
+
+/**
  * 把某個區塊換成指定型別（意圖 ＝ kernel 的 `setBlockType`），並安置游標／焦點：
  * 一律把游標放回同一個區塊的**文字末端**（否則連按會找不到區塊；末端是因為換型別之後接著
  * 做的事是續寫，不是回頭改開頭 —— 使用者回饋 2026-09-04）；轉成對白時另外把焦點排給人物欄。
