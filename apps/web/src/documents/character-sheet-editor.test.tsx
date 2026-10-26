@@ -144,6 +144,22 @@ describe("新增人物：一列一列寫（驗收回饋 2026-10-26）", () => {
     expect(addButton()).toBeTruthy();
   });
 
+  it("表上還沒有人時新增第一位：游標一樣進到他的介紹內文", async () => {
+    // 瀏覽器不把焦點交給藏起來（`hidden`）的東西 —— 空表時整塊是藏著的。jsdom 沒有版面，這裡替它守這條規則。
+    const focus = HTMLElement.prototype.focus;
+    vi.spyOn(HTMLElement.prototype, "focus").mockImplementation(function (this: HTMLElement, options) {
+      if (!this.closest("[hidden]")) focus.call(this, options);
+    });
+    const { container } = setup({ body: emptyDocument("角色設定表") });
+    const input = await addInput(container);
+
+    fireEvent.change(input, { target: { value: "阿杰" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(entries(container)).toEqual(["阿杰"]));
+    await waitFor(() => expect(caretInDescriptionOf(container)).toBe("阿杰"));
+  });
+
   it("沒寫名字就按 Esc：那一列收掉，表不變", async () => {
     const { container, save } = setup();
     const input = await addInput(container);
@@ -167,6 +183,16 @@ describe("新增人物：回頭補表命中既有實體", () => {
 
     fireEvent.change(input, { target: { value: "若晴" } });
     expect(menuRows(container).some((row) => row.startsWith("👤 若晴"))).toBe(false);
+  });
+
+  it("沒有「另一個名字」那一列：人物介紹上沒有「這一場的叫法」可取", async () => {
+    const { container } = setup();
+    const input = await addInput(container);
+
+    fireEvent.change(input, { target: { value: "小美" } });
+    expect(menuRows(container)).toEqual(["👤 小美（12 場）"]);
+    fireEvent.change(input, { target: { value: "小桃" } });
+    expect(menuRows(container).some((row) => row.includes("另一個名字"))).toBe(false);
   });
 
   it("命中既有的那一位：排在最後，不會冒出第二個小美", async () => {
@@ -208,7 +234,7 @@ describe("新增人物：撞到表上已經有的人", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     const dialog = await screen.findByRole("alertdialog");
-    expect(dialog.textContent).toContain("已經有一位「若晴」了，沒有另外新增。");
+    expect(dialog.textContent).toContain("「若晴」已經使用，請選擇另外一個名字。");
     fireEvent.click(within(dialog).getByRole("button", { name: "確認" }));
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
@@ -333,7 +359,7 @@ describe("改名：改的是人物實體的名字", () => {
     await renameTo(container, "小美");
 
     const dialog = await screen.findByRole("alertdialog");
-    expect(dialog.textContent).toContain("已經有一位「小美」了，名字沒有改。");
+    expect(dialog.textContent).toContain("「小美」已經使用，請選擇另外一個名字。");
     fireEvent.click(within(dialog).getByRole("button", { name: "確認" }));
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
@@ -353,5 +379,103 @@ describe("改名：改的是人物實體的名字", () => {
     await renameTo(container, "  ");
     await waitFor(() => expect(entries(container)).toEqual(["若晴"]));
     expect(rename.count).not.toHaveBeenCalled();
+  });
+});
+
+describe("⌘A 一層一層往外選（驗收回饋 2026-10-26）", () => {
+  /** jsdom 不是 Mac：Tiptap 的 `Mod-a` 在這裡是 Ctrl。 */
+  const selectAll = (target: Element) => fireEvent.keyDown(target, { key: "a", code: "KeyA", ctrlKey: true });
+  const selectedEntries = (container: HTMLElement) =>
+    [...container.querySelectorAll(".character-entry--selected .character-entry__name")].map(
+      (input) => (input as HTMLInputElement).value,
+    );
+
+  it("在介紹裡：先選這一位的介紹，再選整位，再選全部", async () => {
+    const { container } = setup({ body: sheetOf(ruoqing.id, xiaomei.id) });
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
+    fireEvent.keyDown(container.querySelector(".character-entry__name")!, { key: "Enter" });
+    await waitFor(() => expect(caretInDescriptionOf(container)).toBe("若晴"));
+
+    selectAll(prose(container));
+    await waitFor(() => expect(window.getSelection()?.toString()).toBe("三十歲，醫院護理師。"));
+    expect(selectedEntries(container)).toEqual([]);
+
+    selectAll(prose(container));
+    await waitFor(() => expect(selectedEntries(container)).toEqual(["若晴"]));
+
+    selectAll(prose(container));
+    // 全選之後 ⌫：兩位都拿掉了，才知道第三次選的是全部。
+    fireEvent.keyDown(prose(container), { key: "Backspace", code: "Backspace" });
+    await waitFor(() => expect(entries(container)).toEqual([]));
+  });
+
+  it("在名字裡：名字已經整串選起來時，再按一次選整位", async () => {
+    const { container } = setup({ body: sheetOf(ruoqing.id, xiaomei.id) });
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
+    const name = container.querySelector<HTMLInputElement>(".character-entry__name")!;
+    name.focus();
+    name.setSelectionRange(0, 1);
+
+    // 還沒整串選起來：這一下是名字欄自己的全選。
+    selectAll(name);
+    expect(selectedEntries(container)).toEqual([]);
+
+    name.setSelectionRange(0, name.value.length);
+    selectAll(name);
+    await waitFor(() => expect(selectedEntries(container)).toEqual(["若晴"]));
+  });
+});
+
+describe("方向鍵走得到名字（驗收回饋 2026-10-26）", () => {
+  const names = (container: HTMLElement) => [...container.querySelectorAll<HTMLInputElement>(".character-entry__name")];
+  const press = (target: Element, key: string) => fireEvent.keyDown(target, { key, code: key });
+  /** 游標放進某一位介紹的開頭（名字 Enter 就會到那裡）。 */
+  const caretIntoDescriptionOf = async (container: HTMLElement, at: number) => {
+    fireEvent.keyDown(names(container)[at]!, { key: "Enter" });
+    await waitFor(() => expect(caretInDescriptionOf(container)).toBe(names(container)[at]!.value));
+  };
+
+  it("介紹最前面按 ←：回到這一位的名字", async () => {
+    const { container } = setup({ body: sheetOf(ruoqing.id, xiaomei.id) });
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
+    await caretIntoDescriptionOf(container, 1);
+
+    press(prose(container), "ArrowLeft");
+    await waitFor(() => expect(document.activeElement).toBe(names(container)[1]));
+  });
+
+  it("介紹第一行按 ↑：回到這一位的名字，不跳過它", async () => {
+    const { container } = setup({ body: sheetOf(ruoqing.id, xiaomei.id) });
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
+    await caretIntoDescriptionOf(container, 1);
+
+    press(prose(container), "ArrowUp");
+    await waitFor(() => expect(document.activeElement).toBe(names(container)[1]));
+  });
+
+  it("名字按 ↓：進到這一位的介紹", async () => {
+    const { container } = setup({ body: sheetOf(ruoqing.id, xiaomei.id) });
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
+
+    press(names(container)[0]!, "ArrowDown");
+    await waitFor(() => expect(caretInDescriptionOf(container)).toBe("若晴"));
+  });
+
+  it("名字按 ↑：到上一位的介紹", async () => {
+    const { container } = setup({ body: sheetOf(ruoqing.id, xiaomei.id) });
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
+
+    press(names(container)[1]!, "ArrowUp");
+    await waitFor(() => expect(caretInDescriptionOf(container)).toBe("若晴"));
+  });
+
+  it.each(["ArrowDown", "ArrowRight"])("介紹最後面按 %s：到下一位的名字", async (key) => {
+    // 小美還沒寫介紹：游標在開頭也就在字尾、在最後一行。
+    const { container } = setup({ body: sheetOf(xiaomei.id, ruoqing.id) });
+    await waitFor(() => expect(entries(container)).toEqual(["小美", "若晴"]));
+    await caretIntoDescriptionOf(container, 0);
+
+    press(prose(container), key);
+    await waitFor(() => expect(document.activeElement).toBe(names(container)[1]));
   });
 });

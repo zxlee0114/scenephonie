@@ -18,8 +18,9 @@
  */
 "use client";
 
-import { Node as TiptapNode, type Editor } from "@tiptap/core";
-import { TextSelection } from "@tiptap/pm/state";
+import { Extension, Node as TiptapNode, type Editor } from "@tiptap/core";
+import type { Node as PMNode, ResolvedPos } from "@tiptap/pm/model";
+import { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
 import { Placeholder } from "@tiptap/extensions";
 import {
   EditorContent,
@@ -30,6 +31,7 @@ import {
   type ReactNodeViewProps,
 } from "@tiptap/react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { addCharacterEntry, characterSheetIds, documentFromJSON, entityDirectory } from "@scenephonie/schema";
 
@@ -88,11 +90,11 @@ type RenameOutcome = "renamed" | "unchanged" | "taken";
  * 改名途中一定要編劇回答的那一問（使用者裁決 2026-10-26：對話框，不能略過）。
  *
  * - `retitle`：劇本裡還有場次印著舊名，要不要一起改。
- * - `taken`：新名字是另一位人物的名字，只能知道了。
+ * - `taken`：這個名字另一位人物已經在用，請編劇換一個（新增與改名同一句）。
  */
 type Question =
   | { kind: "retitle"; from: string; to: string; answer: (retitle: boolean) => void }
-  | { kind: "taken"; name: string; outcome: string; answer: () => void };
+  | { kind: "taken"; name: string; answer: () => void };
 
 const SheetContext = createContext<SheetContextValue | null>(null);
 
@@ -128,12 +130,122 @@ const DESCRIPTION_HINT = Placeholder.configure({
   showOnlyCurrent: false,
 });
 
-/** 把游標放進 `pos` 那一位的介紹內文開頭。 */
-function caretIntoEntry(editor: Editor, pos: number) {
+/** 游標所在的那一位（在 doc 裡的位置與節點）。不在任何一位裡就是 `null`。 */
+function entryAround($pos: ResolvedPos): { pos: number; node: PMNode } | null {
+  for (let depth = $pos.depth; depth > 0; depth--) {
+    if ($pos.node(depth).type.name === "characterEntry") return { pos: $pos.before(depth), node: $pos.node(depth) };
+  }
+  return null;
+}
+
+/** `pos` 那一位的介紹內文，游標停得下的第一個與最後一個位置。 */
+function bodyEdges(doc: PMNode, pos: number): { start: number; end: number } {
+  const size = doc.nodeAt(pos)?.nodeSize ?? 2;
+  return {
+    start: Selection.findFrom(doc.resolve(pos + 1), 1, true)?.from ?? pos + 1,
+    end: Selection.findFrom(doc.resolve(pos + size - 1), -1, true)?.to ?? pos + size - 1,
+  };
+}
+
+/** 把游標放進 `pos` 那一位的介紹內文開頭（或字尾）。 */
+function caretIntoEntry(editor: Editor, pos: number, edge: "start" | "end" = "start") {
   const { state, view } = editor;
-  view.dispatch(state.tr.setSelection(TextSelection.near(state.doc.resolve(pos + 1))).scrollIntoView());
+  const at = bodyEdges(state.doc, pos)[edge];
+  view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, at)).scrollIntoView());
   view.focus();
 }
+
+/** 焦點進到 `pos` 那一位的名字欄，游標停在名字的開頭或字尾。那一位不在了就回 `false`。 */
+function focusName(editor: Editor, pos: number, edge: "start" | "end"): boolean {
+  const dom = editor.view.nodeDOM(pos);
+  const input = dom instanceof HTMLElement ? dom.querySelector<HTMLInputElement>(".character-entry__name") : null;
+  if (!input) return false;
+  input.focus();
+  const at = edge === "start" ? 0 : input.value.length;
+  input.setSelectionRange(at, at);
+  return true;
+}
+
+/** `pos` 那一位的上一位／下一位在哪；沒有就是 `null`。 */
+function neighbour(doc: PMNode, pos: number, dir: -1 | 1): number | null {
+  const index = doc.resolve(pos).index(0);
+  if (dir === -1) return index > 0 ? pos - doc.child(index - 1).nodeSize : null;
+  return index + 1 < doc.childCount ? pos + doc.child(index).nodeSize : null;
+}
+
+/** 選起 `pos` 那一位：名字連同介紹（點把手、名字欄裡第二次 ⌘A）。 */
+function selectEntry(editor: Editor, pos: number) {
+  editor.chain().focus().setNodeSelection(pos).run();
+}
+
+/**
+ * ⌘A 一層一層往外選（驗收回饋 2026-10-26）：這一位的介紹 → 整位 → 全部。看的是**現在選了什麼**，不記按了幾次 ——
+ * 中間點了別處、打了字，下一次 ⌘A 就從那裡重新算起。名字欄那一層在 `NameField`。
+ */
+function widenSelection(editor: Editor): boolean {
+  const { state, view } = editor;
+  const { selection, doc } = state;
+  // 已經選起整位：交給原本的全選。
+  if (selection instanceof NodeSelection && selection.node.type.name === "characterEntry") return false;
+  const entry = entryAround(selection.$from);
+  if (!entry || entryAround(selection.$to)?.pos !== entry.pos) return false;
+  const { start, end } = bodyEdges(doc, entry.pos);
+  const whole = selection.from <= start && selection.to >= end;
+  view.dispatch(state.tr.setSelection(whole ? NodeSelection.create(doc, entry.pos) : TextSelection.create(doc, start, end)));
+  return true;
+}
+
+/**
+ * 介紹內文這一側的鍵（驗收回饋 2026-10-26）。名字欄在 node view 裡、不在 ProseMirror 的位置空間，原生的方向鍵
+ * 會跳過它，所以：
+ *
+ * - 介紹第一行 ↑、最前面 ← → 這一位的名字
+ * - 介紹最後一行 ↓、最後面 → → 下一位的名字（最後一位就照原生走）
+ *
+ * 反向（名字 → 介紹）在 `NameField`。判準同劇本的 `vertical-nav`：版面查詢之外，貼著字首／字尾也算走到邊。
+ */
+const SheetKeys = Extension.create({
+  name: "characterSheetKeys",
+  // 壓過 StarterKit 與 core keymap（`Mod-a` 的全選）。
+  priority: 1102,
+  addKeyboardShortcuts() {
+    const caret = () => {
+      const { selection } = this.editor.state;
+      if (!(selection instanceof TextSelection) || !selection.empty) return null;
+      const entry = entryAround(selection.$from);
+      return entry ? { $from: selection.$from, entry, edges: bodyEdges(this.editor.state.doc, entry.pos) } : null;
+    };
+    /** 游標在這一位的第一個／最後一個文字區塊的第一行／最後一行。 */
+    const onEdgeLine = (dir: "up" | "down", $from: ResolvedPos, edge: number) =>
+      this.editor.state.doc.resolve(edge).start() === $from.start() &&
+      (this.editor.view.endOfTextblock(dir) ||
+        (dir === "up" ? $from.parentOffset === 0 : $from.parentOffset === $from.parent.content.size));
+    const toNext = (pos: number) => {
+      const next = neighbour(this.editor.state.doc, pos, 1);
+      return next !== null && focusName(this.editor, next, "start");
+    };
+
+    return {
+      "Mod-a": () => widenSelection(this.editor),
+      ArrowUp: () => {
+        const at = caret();
+        return !!at && onEdgeLine("up", at.$from, at.edges.start) && focusName(this.editor, at.entry.pos, "end");
+      },
+      ArrowLeft: () => {
+        const at = caret();
+        return !!at && at.$from.pos === at.edges.start && focusName(this.editor, at.entry.pos, "end");
+      },
+      ArrowDown: () => {
+        const at = caret();
+        return !!at && onEdgeLine("down", at.$from, at.edges.end) && toNext(at.entry.pos);
+      },
+      ArrowRight: () => {
+        const at = caret();
+        return !!at && at.$from.pos === at.edges.end && toNext(at.entry.pos);
+      },
+    };
+  },
+});
 
 export function CharacterSheetEditor({
   initialBody,
@@ -167,6 +279,7 @@ export function CharacterSheetEditor({
       proseKit({ document: false, dropcursor: true }),
       proseHeading([3]),
       DESCRIPTION_HINT,
+      SheetKeys,
     ],
     content: initialBody,
     editorProps: { attributes: { class: "document-page__body character-sheet__entries", "aria-label": label } },
@@ -193,7 +306,9 @@ export function CharacterSheetEditor({
     }
     const entry = editor.schema.nodeFromJSON(result.value.lastChild!.toJSON());
     const at = editor.state.doc.content.size;
-    editor.view.dispatch(editor.state.tr.insert(at, entry));
+    // 同步畫完再放游標：表上本來一位都沒有時整塊是藏著的（`hidden`），瀏覽器不把焦點交給藏起來的東西 ——
+    // 等 React 下一次重繪才露出來，游標就落空了（驗收回饋 2026-10-26：第一位進不了介紹）。
+    flushSync(() => editor.view.dispatch(editor.state.tr.insert(at, entry)));
     caretIntoEntry(editor, at);
   };
 
@@ -233,7 +348,7 @@ export function CharacterSheetEditor({
     rename: async (id, from, to) => {
       // 改成另一位的名字：改下去目錄裡就有兩個小美（同劇本實體欄位的改名列，票券 39）。
       if (taken(to, id)) {
-        await new Promise<void>((answer) => setQuestion({ kind: "taken", name: to, outcome: "名字沒有改", answer }));
+        await new Promise<void>((answer) => setQuestion({ kind: "taken", name: to, answer }));
         setQuestion(null);
         return "taken";
       }
@@ -290,6 +405,7 @@ export function CharacterSheetEditor({
                   refs={[]}
                   options={options}
                   usage={usage}
+                  aliasing={false}
                   inputRef={draftInput}
                   onCommit={(refs) => {
                     setDrafting(false);
@@ -302,7 +418,6 @@ export function CharacterSheetEditor({
                       setQuestion({
                         kind: "taken",
                         name,
-                        outcome: "沒有另外新增",
                         answer: () => {
                           setQuestion(null);
                           // 對話框拿走焦點時，名字欄可能已經清空、那一列跟著收起來了 —— 重開一次。
@@ -414,9 +529,7 @@ function QuestionDialog({ question }: { question: Question }) {
           </>
         ) : (
           <>
-            <p id="sheet-dialog-body">
-              已經有一位「{question.name}」了，{question.outcome}。
-            </p>
+            <p id="sheet-dialog-body">「{question.name}」已經使用，請選擇另外一個名字。</p>
             <div className="creator__actions">
               <button ref={primary} type="button" className="creator__primary" onClick={question.answer}>
                 確認
@@ -440,19 +553,22 @@ function EntryView({ node, editor, getPos, selected }: ReactNodeViewProps) {
   const name = sheet?.name(id) ?? "";
   const aliases = sheet?.aliases(id) ?? [];
 
-  const select = () => {
+  /** 這一位現在在 doc 的哪裡，拿到了才做。 */
+  const at = (run: (pos: number) => void) => () => {
     const pos = getPos();
-    if (typeof pos === "number") editor.chain().focus().setNodeSelection(pos).run();
+    if (typeof pos === "number") run(pos);
   };
+  const select = at((pos) => selectEntry(editor, pos));
   const remove = () => {
     const pos = getPos();
     if (typeof pos !== "number") return;
     editor.chain().deleteRange({ from: pos, to: pos + node.nodeSize }).focus().run();
   };
-  const writeDescription = () => {
-    const pos = getPos();
-    if (typeof pos === "number") caretIntoEntry(editor, pos);
-  };
+  const writeDescription = at((pos) => caretIntoEntry(editor, pos));
+  const backToPrevious = at((pos) => {
+    const previous = neighbour(editor.state.doc, pos, -1);
+    if (previous !== null) caretIntoEntry(editor, previous, "end");
+  });
 
   return (
     <NodeViewWrapper as="section" className={selected ? "character-entry character-entry--selected" : "character-entry"}>
@@ -460,7 +576,7 @@ function EntryView({ node, editor, getPos, selected }: ReactNodeViewProps) {
         <span className="character-entry__grip" onClick={select}>
           <DragHandle />
         </span>
-        <NameField id={id} name={name} onDone={writeDescription} />
+        <NameField id={id} name={name} onDone={writeDescription} onBack={backToPrevious} onSelectEntry={select} />
         <button type="button" className="character-entry__remove" aria-label={`從人物介紹移除「${name}」`} onClick={remove}>
           ×
         </button>
@@ -478,8 +594,23 @@ function EntryView({ node, editor, getPos, selected }: ReactNodeViewProps) {
 /**
  * 名字。按 Enter 或離開欄位才定案；清成空白不算改名、退回原本的名字。撞名與要不要連劇本一起改，都由對話框問。
  * 按 Enter 定案之後游標進到介紹內文（驗收回饋 2026-10-26）。
+ *
+ * 方向鍵接回內文（第四輪驗收回饋）：↓ 與字尾的 → 進這一位的介紹，↑ 與字首的 ← 回上一位的介紹。名字已經整串選起來
+ * 時再按 ⌘A 選起整位（`widenSelection` 的第一層）。
  */
-function NameField({ id, name, onDone }: { id: string; name: string; onDone: () => void }) {
+function NameField({
+  id,
+  name,
+  onDone,
+  onBack,
+  onSelectEntry,
+}: {
+  id: string;
+  name: string;
+  onDone: () => void;
+  onBack: () => void;
+  onSelectEntry: () => void;
+}) {
   const sheet = useContext(SheetContext);
   const [value, setValue] = useState(name);
   const input = useRef<HTMLInputElement>(null);
@@ -527,12 +658,27 @@ function NameField({ id, name, onDone }: { id: string; name: string; onDone: () 
       onChange={(event) => setValue(event.target.value)}
       onBlur={() => void commit()}
       onKeyDown={(event) => {
-        // ⌘↵ 是新增人物（往上冒到整頁），不是定案名字。
-        if (event.key !== "Enter" || event.nativeEvent.isComposing || event.metaKey || event.ctrlKey) return;
-        event.preventDefault();
-        void commit().then((done) => {
-          if (done) onDone();
-        });
+        if (event.nativeEvent.isComposing) return;
+        const el = event.currentTarget;
+        const { selectionStart: from, selectionEnd: to } = el;
+        const caretAt = (offset: number) => from === offset && to === offset;
+        const leave = (go: () => void) => {
+          event.preventDefault();
+          go();
+        };
+        if (event.metaKey || event.ctrlKey) {
+          // ⌘↵ 是新增人物（往上冒到整頁），不是定案名字。
+          if (event.key === "a" && from === 0 && to === el.value.length) leave(onSelectEntry);
+          return;
+        }
+        if (event.key === "Enter")
+          leave(() => {
+            void commit().then((done) => {
+              if (done) onDone();
+            });
+          });
+        else if (event.key === "ArrowDown" || (event.key === "ArrowRight" && caretAt(el.value.length))) leave(onDone);
+        else if (event.key === "ArrowUp" || (event.key === "ArrowLeft" && caretAt(0))) leave(onBack);
       }}
     />
   );

@@ -164,6 +164,11 @@ type Props = {
   onCommit: (refs: EntityRef[]) => void;
   /** 建立一筆新實體。**必須在 `onCommit` 之前完成** —— 先建立實體、再寫入 doc。 */
   onCreate: (name: string) => Promise<EntityOption | null>;
+  /**
+   * 第三列「作為既有實體的另一個名字」出不出現（預設出現）。別名是**某一個引用**的顯示名 —— 劇本裡一場一場的
+   * 叫法；人物介紹上的一位沒有「這一場」，那一列在那裡沒有意思（票券 21 驗收回饋 2026-10-26）。
+   */
+  aliasing?: boolean;
   /** 把實體本身改名（`✏️` 那一列，以及第三列第二步的「同時把實體改名」）。沒給就不出現。 */
   onRenameEntity?: (id: string, name: string) => void;
   /**
@@ -257,6 +262,7 @@ export function EntityField({
   onPromoteFromExtra,
   multiple = false,
   confirmReplace,
+  aliasing = true,
   onCommit,
   onCreate,
   onRenameEntity,
@@ -974,7 +980,7 @@ export function EntityField({
       // 第三列永遠在 —— 它不是建議，是一個入口。（一個存在的實體都沒有時就沒得指了。）
       // ⚠️ 這一列問的是「指到**別的**哪一筆」，所以讀 `existing()` 而不是 `candidates()`：
       // 手上那一筆不是它的目標（把自己設成自己的別名沒有意義，票券 52）。
-      if (existing().length > 0) {
+      if (aliasing && existing().length > 0) {
         rows.push({
           key: "alias",
           label: "🔗 作為既有實體的另一個名字…",

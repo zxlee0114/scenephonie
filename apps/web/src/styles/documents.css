@@ -300,6 +300,14 @@
   gap: var(--space-2);
 }
 
+/*
+ * 把手那一層不佔排版：把手本身浮在左邊的空白裡，這一層要是當成一格，flex 的間距就會把名字往右推一截，
+ * 跟底下的介紹對不齊（第四輪驗收回饋）。
+ */
+.character-entry__grip {
+  display: contents;
+}
+
 /* 把手在名字左邊的空白裡，滑過這一位時才出現（同劇本的區塊把手）。 */
 .character-entry .drag-handle {
   inset-inline-start: calc(-1 * var(--space-5));
