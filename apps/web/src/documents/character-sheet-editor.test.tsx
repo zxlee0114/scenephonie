@@ -35,10 +35,16 @@ const sheetOf = (...ids: string[]) => ({
   }),
 });
 
-function setup({ body = sheetOf(ruoqing.id), count = 0 }: { body?: object; count?: number } = {}) {
+function setup({
+  body = sheetOf(ruoqing.id),
+  count = 0,
+  aliases = {},
+}: { body?: object; count?: number; aliases?: Record<string, string[]> } = {}) {
+  let minted = 0;
   const capabilities = {
     save: vi.fn<SaveDoc>(async () => ({ status: "saved", token })),
-    createCharacter: vi.fn(async (name: string) => ({ id: `ch_new_${name}`, name })),
+    // 每次都是一位新的人物（新的 id）—— 建兩次就是兩個阿杰，不會被「同一個人不收兩次」擋掉而看不出來。
+    createCharacter: vi.fn(async (name: string) => ({ id: `ch_new_${name}${minted++ ? `_${minted}` : ""}`, name })),
     rename: {
       count: vi.fn<RenameCharacter["count"]>(async () => count),
       run: vi.fn<RenameCharacter["run"]>(async () => true),
@@ -51,6 +57,7 @@ function setup({ body = sheetOf(ruoqing.id), count = 0 }: { body?: object; count
       characters={[ruoqing, xiaomei, orphan]}
       // 小美在劇本裡用了 12 場；孤兒一場都沒有。
       scenes={{ [xiaomei.id]: 12 }}
+      aliases={aliases}
       {...capabilities}
     />,
   );
@@ -183,9 +190,45 @@ describe("新增人物：回頭補表命中既有實體", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() => expect(entries(container)).toEqual(["若晴", "阿杰"]));
-    expect(createCharacter).toHaveBeenCalledWith("阿杰");
+    // 游標移進介紹的那一下，名字欄會失焦 —— 那不是第二次定案。
+    await act(async () => {});
+    expect(createCharacter).toHaveBeenCalledTimes(1);
+    expect(entries(container)).toEqual(["若晴", "阿杰"]);
     saveNow();
     await waitFor(() => expect(lastSaved(save)).toEqual([ruoqing.id, "ch_new_阿杰"]));
+  });
+});
+
+describe("新增人物：撞到表上已經有的人", () => {
+  it("名字是表上某一位的名字：對話框說已經有了，不另建一位；確認後回到名字欄", async () => {
+    const { container, createCharacter } = setup();
+    const input = await addInput(container);
+
+    fireEvent.change(input, { target: { value: "若晴" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("已經有一位「若晴」了，沒有另外新增。");
+    fireEvent.click(within(dialog).getByRole("button", { name: "確認" }));
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(createCharacter).not.toHaveBeenCalled();
+    expect(entries(container)).toEqual(["若晴"]);
+    await waitFor(() => expect(document.activeElement).toBe(draftInput(container)));
+  });
+});
+
+describe("別名：劇本裡叫過他的其他名字", () => {
+  it("印在名字底下", async () => {
+    const { container } = setup({ aliases: { [ruoqing.id]: ["阿晴", "林小姐"] } });
+    await waitFor(() => expect(entries(container)).toEqual(["若晴"]));
+    expect(container.querySelector(".character-entry__aliases")?.textContent).toBe("別名：阿晴、林小姐");
+  });
+
+  it("沒有別名就不印", async () => {
+    const { container } = setup();
+    await waitFor(() => expect(entries(container)).toEqual(["若晴"]));
+    expect(container.querySelector(".character-entry__aliases")).toBeNull();
   });
 });
 
@@ -208,7 +251,8 @@ describe("移除與復原", () => {
     await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
 
     fireEvent.click(container.querySelector(".character-entry__grip")!);
-    await waitFor(() => expect(container.querySelector(".ProseMirror-selectednode .character-entry__name")).toBeTruthy());
+    // 選起來看得出來：那一位整塊上一層底色。
+    await waitFor(() => expect(container.querySelector(".character-entry--selected .character-entry__name")).toBeTruthy());
     fireEvent.keyDown(prose(container), { key: "Backspace", code: "Backspace" });
 
     await waitFor(() => expect(entries(container)).toEqual(["小美"]));
@@ -251,21 +295,34 @@ describe("改名：改的是人物實體的名字", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
-  it("選「否，只改人物介紹」：人物改名，劇本照舊", async () => {
+  it("選「否，只改人物介紹」：人物改名，劇本照舊 —— 舊名成了劇本裡的別名", async () => {
     const { container, rename } = setup({ count: 2 });
     await renameTo(container, "林若晴");
 
     fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "否，只改人物介紹" }));
     await waitFor(() => expect(rename.run).toHaveBeenCalledWith(ruoqing.id, "若晴", "林若晴", false));
+    await waitFor(() => expect(container.querySelector(".character-entry__aliases")?.textContent).toBe("別名：若晴"));
   });
 
-  it("一定要選：Esc 關不掉，預設焦點在不動劇本的那一顆", async () => {
+  it("跟其他對話框一致：主要動作「是」在右邊、預設焦點在它；← → 換顆", async () => {
+    const { container } = setup({ count: 2 });
+    await renameTo(container, "林若晴");
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getAllByRole("button").map((b) => b.textContent)).toEqual(["否，只改人物介紹", "是"]);
+    await waitFor(() => expect(document.activeElement?.textContent).toBe("是"));
+
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft" });
+    expect(document.activeElement?.textContent).toBe("否，只改人物介紹");
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
+    expect(document.activeElement?.textContent).toBe("是");
+  });
+
+  it("一定要選：Esc 關不掉", async () => {
     const { container, rename } = setup({ count: 2 });
     await renameTo(container, "林若晴");
     const dialog = await screen.findByRole("alertdialog");
-    await waitFor(() => expect(document.activeElement?.textContent).toBe("否，只改人物介紹"));
 
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    fireEvent.keyDown(within(dialog).getByRole("button", { name: "是" }), { key: "Escape" });
     await act(async () => {});
     expect(screen.getByRole("alertdialog")).toBe(dialog);
     expect(rename.run).not.toHaveBeenCalled();
@@ -276,7 +333,7 @@ describe("改名：改的是人物實體的名字", () => {
     await renameTo(container, "小美");
 
     const dialog = await screen.findByRole("alertdialog");
-    expect(dialog.textContent).toContain("已經有一位「小美」了");
+    expect(dialog.textContent).toContain("已經有一位「小美」了，名字沒有改。");
     fireEvent.click(within(dialog).getByRole("button", { name: "確認" }));
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());

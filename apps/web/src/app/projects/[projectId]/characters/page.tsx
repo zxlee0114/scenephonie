@@ -5,7 +5,7 @@ import { schema as kernelSchema } from "@scenephonie/schema";
 import { authorizeProject } from "@/authorization";
 import { CharacterSheetEditor } from "@/documents/character-sheet-editor";
 import { DocumentShell } from "@/documents/document-shell";
-import { entityUsage } from "@/editor/entity-usage";
+import { aliasesOf, entityUsage } from "@/editor/entity-usage";
 import { projectEntities } from "@/entities";
 import { loadScreenplay, openCharacterSheet } from "@/persistence";
 import { projectScreenplay } from "@/projects/project-store";
@@ -40,7 +40,12 @@ export default async function CharactersPage({ params }: { params: Promise<{ pro
     projectScreenplay(project),
   ]);
   const loaded = screenplay ? await loadScreenplay(screenplay) : null;
-  const scenes = loaded ? Object.fromEntries(entityUsage(kernelSchema.nodeFromJSON(loaded.doc))) : {};
+  const doc = loaded ? kernelSchema.nodeFromJSON(loaded.doc) : null;
+  const scenes = doc ? Object.fromEntries(entityUsage(doc)) : {};
+  // 別名就是劇本裡叫過他的其他名字（ADR-0005：不存在實體上，要列時查一次）。
+  const aliases = doc
+    ? Object.fromEntries(entities.characters.map(({ id, name }) => [id, aliasesOf(doc, id, name)]))
+    : {};
 
   return (
     <DocumentShell projectId={project.projectId}>
@@ -50,6 +55,7 @@ export default async function CharactersPage({ params }: { params: Promise<{ pro
         save={saveDocumentAction.bind(null, { projectId: project.projectId }, document.documentId)}
         characters={entities.characters.map(({ id, name }) => ({ id, name }))}
         scenes={scenes}
+        aliases={aliases}
         createCharacter={createCharacterAction.bind(null, project.projectId)}
         rename={{
           count: scenesShowingCharacterNameAction.bind(null, project.projectId),

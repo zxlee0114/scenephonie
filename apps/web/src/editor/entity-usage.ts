@@ -85,3 +85,17 @@ export function scenesShowingName(doc: PMNode, entityId: string, displayName: st
   });
   return scenes.size;
 }
+
+/**
+ * 劇本裡**叫過這筆實體、但不是它的名字**的那些顯示名 —— 它的別名（人物介紹印在名字底下，票券 21 驗收）。
+ *
+ * 別名不存在實體上，就是散在各引用上的顯示名（ADR-0005）；這裡是 ADR 說的「要列出別名時做一次查詢」。
+ * 依 doc 裡第一次出現的順序，同一個名字只列一次。
+ */
+export function aliasesOf(doc: PMNode, entityId: string, entityName: string): string[] {
+  const aliases = new Set<string>();
+  eachRef(doc, (id, shown) => {
+    if (id === entityId && shown !== entityName && shown.trim() !== "") aliases.add(shown);
+  });
+  return [...aliases];
+}

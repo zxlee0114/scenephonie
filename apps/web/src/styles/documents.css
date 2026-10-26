@@ -284,10 +284,14 @@
   margin-block-end: var(--space-5);
 }
 
-/* 點把手（或拖曳時）選起整位：名字連同介紹一層淡底，看得出接下來 ⌫ 刪的、拖的是哪一位。 */
-.character-entry.ProseMirror-selectednode {
+/*
+ * 點把手（或拖曳時）選起整位：名字連同介紹一層反白底，看得出接下來 ⌫ 刪的、拖的是哪一位。
+ * 掛在 node view 自己的 class 上：ProseMirror 的 `ProseMirror-selectednode` 加在外面那層 renderer 上，不在這一塊。
+ */
+.character-entry--selected {
   border-radius: var(--space-1);
   background: var(--selection-bg);
+  box-shadow: 0 0 0 var(--space-2) var(--selection-bg);
 }
 
 .character-entry__head {
@@ -303,7 +307,7 @@
 }
 
 .character-entry:hover .drag-handle,
-.character-entry.ProseMirror-selectednode .drag-handle {
+.character-entry--selected .drag-handle {
   opacity: 1;
 }
 
@@ -343,6 +347,14 @@
 
 .character-entry__remove:hover {
   color: var(--text-primary);
+}
+
+/* 別名：名字底下一行小字，像標題的副標。 */
+.character-entry__aliases {
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
 }
 
 .character-entry__body {
@@ -395,62 +407,22 @@
   line-height: var(--leading-sm);
 }
 
-/* 新增的按鈕捲出畫面時，右下角那一顆。 */
-.character-sheet__jump {
+/* 新增的按鈕捲出畫面時：同一顆按鈕浮在畫面下緣正中。 */
+.character-sheet__add--floating {
   position: fixed;
   inset-block-end: var(--space-5);
-  inset-inline-end: var(--space-5);
+  inset-inline-start: 50%;
   z-index: 20;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--space-3);
-  background: var(--surface-page);
-  box-shadow: var(--shadow-popover);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.character-sheet__jump:hover {
-  background: var(--surface-raised);
-}
-
-/* 改名途中一定要回答的對話框：沒有取消、點背景不關（同「這一下會合併場次」的長相）。 */
-.sheet-dialog__scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-5);
-  background: color-mix(in srgb, var(--surface-page) 72%, transparent);
-}
-
-.sheet-dialog {
-  inline-size: min(28rem, 100%);
-  padding: var(--space-5);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--space-3);
-  background: var(--surface-page);
-  box-shadow: var(--shadow-popover);
-  color: var(--text-primary);
-  font-family: var(--font-ui);
-}
-
-.sheet-dialog__body {
   margin: 0;
-  line-height: 1.6;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-5);
+  background: var(--surface-page);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
+  transform: translateX(-50%);
 }
 
-.sheet-dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-3);
-  margin-block-start: var(--space-4);
-}
-
-.sheet-dialog__actions button:focus-visible {
-  outline: 2px solid var(--focus-ring);
+.character-sheet__add--floating:hover {
+  background: var(--surface-raised);
 }

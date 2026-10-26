@@ -1088,9 +1088,18 @@ export function EntityField({
 
   const activeRow = rows[Math.min(active, rows.length - 1)];
 
+  /**
+   * 正在定案的那一串字還沒做完（建立實體要等伺服器）。
+   *
+   * 定案的最後是 `onCommit`，呼叫端常在那裡把游標移走（人物介紹：進到新那一位的介紹內文）—— 焦點一離開就是
+   * `blur`，而 `blur` 也會定案。那一刻框裡還是同一串字（`reset()` 排在 `merge` 之後），於是同一個名字又建一次，
+   * 一按 Enter 冒出兩個巴巴（票券 21 驗收回饋 2026-10-26）。所以一次只做一個。
+   */
+  const committing = useRef(false);
+
   /** 把還沒 chip 化的字定案（Enter、離開欄位、選單的「建立新實體」都走這裡）。 */
   const commitText = async () => {
-    if (!query) return;
+    if (!query || committing.current) return;
     // 第二個值先問過 —— **不 resolve、不建實體**，只把字留在框裡反白起來。
     if (needsConfirm) {
       setPending(query);
@@ -1099,9 +1108,14 @@ export function EntityField({
       selectNext.current = true;
       return;
     }
-    const ref = await resolve(query);
-    if (ref) merge([ref]);
-    reset();
+    committing.current = true;
+    try {
+      const ref = await resolve(query);
+      if (ref) merge([ref]);
+      reset();
+    } finally {
+      committing.current = false;
+    }
   };
 
   /**

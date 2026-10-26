@@ -67,6 +67,8 @@ type Props = {
   characters: readonly EntityOption[];
   /** 劇本裡每位人物用在幾場（另一個引用來源；進站時伺服器端算好）。 */
   scenes: Readonly<Record<string, number>>;
+  /** 劇本裡叫過每位人物的其他名字（別名），印在名字底下。 */
+  aliases?: Readonly<Record<string, readonly string[]>>;
   /** 建立一筆人物。**先落地，再寫進表**（不變式 ⑧）。 */
   createCharacter: (name: string) => Promise<EntityOption | null>;
   rename: RenameCharacter;
@@ -75,6 +77,7 @@ type Props = {
 /** node view 拿得到的東西 —— node view 由編輯器掛載，中間沒有傳 prop 的路（同 `EntityCatalogProvider`）。 */
 type SheetContextValue = {
   name: (id: string) => string;
+  aliases: (id: string) => readonly string[];
   rename: (id: string, from: string, to: string) => Promise<RenameOutcome>;
 };
 
@@ -89,7 +92,7 @@ type RenameOutcome = "renamed" | "unchanged" | "taken";
  */
 type Question =
   | { kind: "retitle"; from: string; to: string; answer: (retitle: boolean) => void }
-  | { kind: "taken"; name: string; answer: () => void };
+  | { kind: "taken"; name: string; outcome: string; answer: () => void };
 
 const SheetContext = createContext<SheetContextValue | null>(null);
 
@@ -138,6 +141,7 @@ export function CharacterSheetEditor({
   save,
   characters: initialCharacters,
   scenes,
+  aliases: initialAliases = {},
   createCharacter,
   rename,
 }: Props) {
@@ -148,6 +152,7 @@ export function CharacterSheetEditor({
    * 同一個 tick 就呼叫 `onCommit`，只看 state 的話 command 會說這個人不存在（同 `EntityCatalogProvider`）。
    */
   const known = useRef<readonly EntityOption[]>(initialCharacters);
+  const [aliases, setAliases] = useState(initialAliases);
   const [question, setQuestion] = useState<Question | null>(null);
   /** 「＋ 新增人物」長出來的那一列開著沒。 */
   const [drafting, setDrafting] = useState(false);
@@ -219,14 +224,16 @@ export function CharacterSheetEditor({
 
   /** 存在的人物：表上收錄的，加上劇本裡用到的（存在＝被引用，ADR-0005）。 */
   const exists = () => known.current.filter((c) => listed.includes(c.id) || (scenes[c.id] ?? 0) > 0);
+  /** 另一位**存在**的人物已經叫這個名字 —— 再取一次就是第二個小美。孤兒不算，它不存在。 */
+  const taken = (name: string, except?: string) => exists().some((c) => c.id !== except && c.name === name);
 
   const context: SheetContextValue = {
     name: (id) => characters.find((c) => c.id === id)?.name ?? "",
+    aliases: (id) => aliases[id] ?? [],
     rename: async (id, from, to) => {
-      // 另一位**存在**的人物已經叫這個名字：改下去目錄裡就有兩個小美（同劇本實體欄位的改名列，
-      // 票券 39）。孤兒不算 —— 它不存在。
-      if (exists().some((c) => c.id !== id && c.name === to)) {
-        await new Promise<void>((answer) => setQuestion({ kind: "taken", name: to, answer }));
+      // 改成另一位的名字：改下去目錄裡就有兩個小美（同劇本實體欄位的改名列，票券 39）。
+      if (taken(to, id)) {
+        await new Promise<void>((answer) => setQuestion({ kind: "taken", name: to, outcome: "名字沒有改", answer }));
         setQuestion(null);
         return "taken";
       }
@@ -237,6 +244,11 @@ export function CharacterSheetEditor({
       setQuestion(null);
       if (!(await rename.run(id, from, to, retitle))) return "unchanged";
       put({ id, name: to });
+      // 劇本那幾場沒跟著改：舊名從此是那幾場的叫法，也就是別名。新名字本身不再是別名。
+      setAliases((all) => {
+        const kept = (all[id] ?? []).filter((alias) => alias !== to);
+        return { ...all, [id]: others > 0 && !retitle ? [...kept, from] : kept };
+      });
       return "renamed";
     },
   };
@@ -284,6 +296,21 @@ export function CharacterSheetEditor({
                     for (const ref of refs) if (ref.id) add(ref.id);
                   }}
                   onCreate={async (name) => {
+                    // 表上已經有這個名字的人（表上的人不在候選裡，所以欄位會走到「建立新實體」）：
+                    // 說一聲、不另建一位，知道了之後回到名字欄換一個。
+                    if (taken(name)) {
+                      setQuestion({
+                        kind: "taken",
+                        name,
+                        outcome: "沒有另外新增",
+                        answer: () => {
+                          setQuestion(null);
+                          // 對話框拿走焦點時，名字欄可能已經清空、那一列跟著收起來了 —— 重開一次。
+                          openDraft();
+                        },
+                      });
+                      return null;
+                    }
                     const created = await createCharacter(name);
                     if (created) put(created);
                     return created;
@@ -302,10 +329,10 @@ export function CharacterSheetEditor({
               </button>
             ))}
         </div>
-        {/* 人物介紹長過一個視窗、新增的按鈕捲出畫面時：右下角一顆，按了捲到底、直接開始寫下一位。 */}
+        {/* 人物介紹長過一個視窗、新增的按鈕捲出畫面時：同一顆按鈕浮在畫面下緣正中，按了捲到底、直接開始寫下一位。 */}
         {editor && !bottomInView && (
-          <button type="button" className="character-sheet__jump" onClick={openDraft}>
-            ↓ 新增人物
+          <button type="button" className="character-sheet__add character-sheet__add--floating" onClick={openDraft}>
+            ＋ 新增人物<kbd>⌘↵</kbd>
           </button>
         )}
       </div>
@@ -344,43 +371,54 @@ function useInView(target: React.RefObject<HTMLElement | null>): boolean {
 
 /**
  * 改名途中的對話框：**一定要回答**才關得掉 —— 沒有取消、Esc 與點背景都不算（使用者裁決 2026-10-26）。
- * 改名那一問的預設焦點在「否」：只改人物介紹不動劇本，連按 Enter 不該順手改掉劇本。
+ *
+ * 長相跟其他對話框一致（`creator__*`）：主要動作在右邊、預設焦點在它；← → 在幾顆按鈕之間換（Tab 照常）。
  */
 function QuestionDialog({ question }: { question: Question }) {
-  const safe = useRef<HTMLButtonElement>(null);
-  useEffect(() => safe.current?.focus(), []);
+  const primary = useRef<HTMLButtonElement>(null);
+  useEffect(() => primary.current?.focus(), []);
+
+  const moveFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    // 鍵不往外漏：⌘↵ 不該在對話框開著時又開一列新增。
+    event.stopPropagation();
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    const buttons = [...event.currentTarget.querySelectorAll("button")];
+    const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const next = buttons[(at + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length];
+    event.preventDefault();
+    next?.focus();
+  };
 
   return (
-    <div className="sheet-dialog__scrim">
+    <div className="creator__scrim">
       <div
-        className="sheet-dialog"
+        className="creator dashboard__confirm"
         role="alertdialog"
         aria-modal="true"
         aria-describedby="sheet-dialog-body"
-        // 鍵不往外漏：⌘↵ 不該在對話框開著時又開一列新增。
-        onKeyDown={(event) => event.stopPropagation()}
+        onKeyDown={moveFocus}
       >
         {question.kind === "retitle" ? (
           <>
-            <p id="sheet-dialog-body" className="sheet-dialog__body">
+            <p id="sheet-dialog-body">
               這名角色（原名：{question.from}）已經用於劇本當中，要一起改成「{question.to}」嗎？
             </p>
-            <div className="sheet-dialog__actions">
-              <button type="button" onClick={() => question.answer(true)}>
-                是
-              </button>
-              <button ref={safe} type="button" onClick={() => question.answer(false)}>
+            <div className="creator__actions">
+              <button type="button" onClick={() => question.answer(false)}>
                 否，只改人物介紹
+              </button>
+              <button ref={primary} type="button" className="creator__primary" onClick={() => question.answer(true)}>
+                是
               </button>
             </div>
           </>
         ) : (
           <>
-            <p id="sheet-dialog-body" className="sheet-dialog__body">
-              已經有一位「{question.name}」了，名字沒有改。
+            <p id="sheet-dialog-body">
+              已經有一位「{question.name}」了，{question.outcome}。
             </p>
-            <div className="sheet-dialog__actions">
-              <button ref={safe} type="button" onClick={question.answer}>
+            <div className="creator__actions">
+              <button ref={primary} type="button" className="creator__primary" onClick={question.answer}>
                 確認
               </button>
             </div>
@@ -396,10 +434,11 @@ function QuestionDialog({ question }: { question: Question }) {
  *
  * **點把手選起整位**（同劇本的區塊把手）：名字連同介紹一起反白，接著按 ⌫ 或 Delete 就整位拿掉。
  */
-function EntryView({ node, editor, getPos }: ReactNodeViewProps) {
+function EntryView({ node, editor, getPos, selected }: ReactNodeViewProps) {
   const sheet = useContext(SheetContext);
   const id = node.attrs.characterId as string;
   const name = sheet?.name(id) ?? "";
+  const aliases = sheet?.aliases(id) ?? [];
 
   const select = () => {
     const pos = getPos();
@@ -416,7 +455,7 @@ function EntryView({ node, editor, getPos }: ReactNodeViewProps) {
   };
 
   return (
-    <NodeViewWrapper as="section" className="character-entry">
+    <NodeViewWrapper as="section" className={selected ? "character-entry character-entry--selected" : "character-entry"}>
       <div className="character-entry__head" contentEditable={false}>
         <span className="character-entry__grip" onClick={select}>
           <DragHandle />
@@ -426,6 +465,11 @@ function EntryView({ node, editor, getPos }: ReactNodeViewProps) {
           ×
         </button>
       </div>
+      {aliases.length > 0 && (
+        <p className="character-entry__aliases" contentEditable={false}>
+          別名：{aliases.join("、")}
+        </p>
+      )}
       <NodeViewContent className="character-entry__body" />
     </NodeViewWrapper>
   );
