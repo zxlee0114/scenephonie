@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { docFromJSON, mintSceneId } from "@scenephonie/schema";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { entityUsage, scenesShowingName } from "./entity-usage";
+import { aliasesOf, entityUsage, scenesShowingName } from "./entity-usage";
 
 const scene = (attrs: Record<string, unknown>, blocks: Record<string, unknown>[] = []) => ({
   type: "scene",
@@ -93,5 +93,22 @@ describe("scenesShowingName", () => {
     const doc = docOf(scene({}, [dialogue("ch_2", "阿盈")]));
 
     expect(scenesShowingName(doc, "ch_1", "阿盈")).toBe(0);
+  });
+});
+
+describe("aliasesOf", () => {
+  it("劇本裡叫過他、但不是實體名的那些名字，依第一次出現的順序，不重複", () => {
+    const doc = docOf(
+      scene({ appearingCharacters: [{ characterId: "ch_1", displayName: "小陳" }] }, [dialogue("ch_1", "小智")]),
+      scene({}, [dialogue("ch_1", "小陳"), dialogue("ch_1", "阿智")]),
+    );
+
+    expect(aliasesOf(doc, "ch_1", "小智")).toEqual(["小陳", "阿智"]);
+  });
+
+  it("別筆實體的顯示名不算", () => {
+    const doc = docOf(scene({}, [dialogue("ch_2", "阿盈")]));
+
+    expect(aliasesOf(doc, "ch_1", "小智")).toEqual([]);
   });
 });

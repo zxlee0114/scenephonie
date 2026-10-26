@@ -1,0 +1,67 @@
+import { notFound } from "next/navigation";
+
+import { schema as kernelSchema } from "@scenephonie/schema";
+
+import { authorizeProject } from "@/authorization";
+import { CharacterSheetEditor } from "@/documents/character-sheet-editor";
+import { DocumentShell } from "@/documents/document-shell";
+import { aliasesOf, entityUsage } from "@/editor/entity-usage";
+import { projectEntities } from "@/entities";
+import { loadScreenplay, openCharacterSheet } from "@/persistence";
+import { projectScreenplay } from "@/projects/project-store";
+
+import { saveDocumentAction } from "../documents/actions";
+import {
+  createCharacterAction,
+  renameCharacterAction,
+  scenesShowingCharacterNameAction,
+} from "./actions";
+
+// route handler／server component 必須連得到 Postgres —— 不可 edge-only（§13.1）。
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/**
+ * 這個專案的角色設定表（畫面上叫「人物介紹」，票券 21 第 ② 片）：專案層、一個專案一份，第一次打開時建立。
+ *
+ * 網址沒有文件 id，理由同故事大綱。路徑叫 `characters` 而不是文件的 kind：編劇在這裡做的事是整理人物。
+ *
+ * 劇本的場數在這裡算好帶過去：存在＝被引用要跨文件算（ADR-0005）—— 劇本裡用到的人物在「＋ 新增人物」
+ * 裡找得到、印出場數，回頭補表時命中的就是那一位。
+ */
+export default async function CharactersPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
+  const project = await authorizeProject(projectId);
+  if (!project) notFound();
+
+  const [document, entities, screenplay] = await Promise.all([
+    openCharacterSheet(project),
+    projectEntities(project),
+    projectScreenplay(project),
+  ]);
+  const loaded = screenplay ? await loadScreenplay(screenplay) : null;
+  const doc = loaded ? kernelSchema.nodeFromJSON(loaded.doc) : null;
+  const scenes = doc ? Object.fromEntries(entityUsage(doc)) : {};
+  // 別名就是劇本裡叫過他的其他名字（ADR-0005：不存在實體上，要列時查一次）。
+  const aliases = doc
+    ? Object.fromEntries(entities.characters.map(({ id, name }) => [id, aliasesOf(doc, id, name)]))
+    : {};
+
+  return (
+    <DocumentShell projectId={project.projectId}>
+      <CharacterSheetEditor
+        initialBody={document.body}
+        initialToken={document.token}
+        save={saveDocumentAction.bind(null, { projectId: project.projectId }, document.documentId)}
+        characters={entities.characters.map(({ id, name }) => ({ id, name }))}
+        scenes={scenes}
+        aliases={aliases}
+        createCharacter={createCharacterAction.bind(null, project.projectId)}
+        rename={{
+          count: scenesShowingCharacterNameAction.bind(null, project.projectId),
+          run: renameCharacterAction.bind(null, project.projectId),
+        }}
+      />
+    </DocumentShell>
+  );
+}

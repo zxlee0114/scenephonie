@@ -105,6 +105,16 @@ type Props = {
    * 只有選單真的要畫的時候才問。
    */
   usage?: () => ReadonlyMap<string, number>;
+  /**
+   * 在**別份文件**裡被引用的實體 —— id → 那份文件在畫面上的名字（票券 21：只在角色設定表上的人物）。
+   *
+   * 存在＝被引用，而引用不只住在這份 doc 裡：角色設定表是人物的第三個引用來源（ADR-0005）。只問
+   * `usage` 的話，先建表再寫劇本的編劇會在這裡打出「建立新實體」—— 冒出第二個小明。所以這些也算存在；
+   * 這一份 doc 一場都沒用到時，選單括號裡印它從哪裡來，不印「0 場」（使用者裁決 2026-10-26）。
+   *
+   * 是值不是函式：它是進站時伺服器端算好的，這一頁開著的期間不會變。
+   */
+  elsewhere?: ReadonlyMap<string, string>;
   /** 多值欄（地點／登場人物）；對白人物欄是單值。 */
   multiple?: boolean;
   /**
@@ -154,6 +164,11 @@ type Props = {
   onCommit: (refs: EntityRef[]) => void;
   /** 建立一筆新實體。**必須在 `onCommit` 之前完成** —— 先建立實體、再寫入 doc。 */
   onCreate: (name: string) => Promise<EntityOption | null>;
+  /**
+   * 第三列「作為既有實體的另一個名字」出不出現（預設出現）。別名是**某一個引用**的顯示名 —— 劇本裡一場一場的
+   * 叫法；人物介紹上的一位沒有「這一場」，那一列在那裡沒有意思（票券 21 驗收回饋 2026-10-26）。
+   */
+  aliasing?: boolean;
   /** 把實體本身改名（`✏️` 那一列，以及第三列第二步的「同時把實體改名」）。沒給就不出現。 */
   onRenameEntity?: (id: string, name: string) => void;
   /**
@@ -241,11 +256,13 @@ export function EntityField({
   refs,
   options,
   usage,
+  elsewhere,
   sceneExtras: readSceneExtras,
   onCreateExtra,
   onPromoteFromExtra,
   multiple = false,
   confirmReplace,
+  aliasing = true,
   onCommit,
   onCreate,
   onRenameEntity,
@@ -394,14 +411,14 @@ export function EntityField({
   });
 
   /**
-   * 目前**存在**的實體 —— 目錄減掉孤兒（存在＝被引用，ADR-0005）。
+   * 目前**存在**的實體 —— 目錄減掉孤兒（存在＝被引用，ADR-0005）。被別份文件引用的也算（`elsewhere`）。
    *
    * 沒有 `usage` 可問時（獨立使用的欄位、測試）就是整份目錄：那時沒有 doc，也就沒有
    * 「被誰引用」這個問題。
    */
   const existing = (): readonly EntityOption[] => {
     const counts = usage?.();
-    return counts ? options.filter((o) => counts.has(o.id)) : options;
+    return counts ? options.filter((o) => counts.has(o.id) || elsewhere?.has(o.id)) : options;
   };
 
   /** 同名的**存在**實體。孤兒不算命中 —— 它不存在，所以那個名字仍然是「建立新實體」。 */
@@ -498,6 +515,8 @@ export function EntityField({
       alias && `這場顯示為 ${alias}`,
       // 手上那一筆一個數字都不印 —— 別場認不認識它都一樣（見這一段的 doc）。
       !held && scenes && `${scenes} 場`,
+      // 這份 doc 一場都沒用到、只在別份文件裡被引用：說它從哪裡來（見 `elsewhere`）。
+      !held && !scenes && elsewhere?.get(option.id),
     ]
       .filter(Boolean)
       .join("，");
@@ -961,7 +980,7 @@ export function EntityField({
       // 第三列永遠在 —— 它不是建議，是一個入口。（一個存在的實體都沒有時就沒得指了。）
       // ⚠️ 這一列問的是「指到**別的**哪一筆」，所以讀 `existing()` 而不是 `candidates()`：
       // 手上那一筆不是它的目標（把自己設成自己的別名沒有意義，票券 52）。
-      if (existing().length > 0) {
+      if (aliasing && existing().length > 0) {
         rows.push({
           key: "alias",
           label: "🔗 作為既有實體的另一個名字…",
@@ -1075,9 +1094,18 @@ export function EntityField({
 
   const activeRow = rows[Math.min(active, rows.length - 1)];
 
+  /**
+   * 正在定案的那一串字還沒做完（建立實體要等伺服器）。
+   *
+   * 定案的最後是 `onCommit`，呼叫端常在那裡把游標移走（人物介紹：進到新那一位的介紹內文）—— 焦點一離開就是
+   * `blur`，而 `blur` 也會定案。那一刻框裡還是同一串字（`reset()` 排在 `merge` 之後），於是同一個名字又建一次，
+   * 一按 Enter 冒出兩個巴巴（票券 21 驗收回饋 2026-10-26）。所以一次只做一個。
+   */
+  const committing = useRef(false);
+
   /** 把還沒 chip 化的字定案（Enter、離開欄位、選單的「建立新實體」都走這裡）。 */
   const commitText = async () => {
-    if (!query) return;
+    if (!query || committing.current) return;
     // 第二個值先問過 —— **不 resolve、不建實體**，只把字留在框裡反白起來。
     if (needsConfirm) {
       setPending(query);
@@ -1086,9 +1114,14 @@ export function EntityField({
       selectNext.current = true;
       return;
     }
-    const ref = await resolve(query);
-    if (ref) merge([ref]);
-    reset();
+    committing.current = true;
+    try {
+      const ref = await resolve(query);
+      if (ref) merge([ref]);
+      reset();
+    } finally {
+      committing.current = false;
+    }
   };
 
   /**

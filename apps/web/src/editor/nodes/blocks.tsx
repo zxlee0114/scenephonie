@@ -309,6 +309,7 @@ function DialogueView(props: NodeViewProps) {
         refs={speaker}
         options={catalog.characters}
         usage={() => entityUsage(editor.state.doc)}
+        elsewhere={catalog.charactersElsewhere}
         // 合法目標是「人物」或「**本場次的**群演」（§5.1）—— id 只在該場次內有意義。
         // 給函式不給值：群演住在場次 attr，改了它這個 view 不會重繪（票券 56）。
         sceneExtras={() =>

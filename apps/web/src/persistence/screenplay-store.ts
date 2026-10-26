@@ -1,10 +1,13 @@
 import { eq, max } from "drizzle-orm";
 
-import { mintId } from "@scenephonie/schema";
+import { mintId, retitleEntityRefs, schema as kernelSchema } from "@scenephonie/schema";
 
 import type { AuthorizedProject, AuthorizedScreenplay } from "@/authorization";
 import { getDb, type Db } from "@/db/client";
 import { screenplayBackups, screenplays } from "@/db/schema";
+
+import { scenesShowingName } from "@/editor/entity-usage";
+import { toPlainJson } from "@/editor/plain-json";
 
 import { needsBackup } from "./backup-policy";
 import { CURRENT_DOC_SCHEMA_VERSION, migrateDocToCurrent, type PersistedDoc } from "./doc-schema-version";
@@ -166,4 +169,52 @@ export async function saveScreenplay({
 
     return { status: "saved", token: encodeSaveToken(nextDocSeq) };
   });
+}
+
+/**
+ * 這份劇本**還印著 `name` 的場次有幾場**（以這筆人物的 id 為準）—— 在角色設定表上改名時，問劇本要不要
+ * 跟著改之前先數出來（票券 21 第 ② 片，沿用票券 39 的措辭）。與編輯器裡數的是同一支 `scenesShowingName`。
+ */
+export async function scenesShowingCharacterName(
+  screenplay: AuthorizedScreenplay,
+  characterId: string,
+  name: string,
+): Promise<number> {
+  const loaded = await loadScreenplay(screenplay);
+  if (!loaded) return 0;
+  return scenesShowingName(kernelSchema.nodeFromJSON(loaded.doc), characterId, name);
+}
+
+/** 存檔撞到別處的寫入時重試幾次（編劇開著的劇本分頁正好在這一刻自動存檔）。 */
+const RETITLE_ATTEMPTS = 3;
+
+/**
+ * 伺服器端改一份劇本：把指向這筆人物、還印著 `from` 的引用改成印 `to`（`retitleEntityRefs`）。
+ *
+ * 走一般的存檔路徑（`saveScreenplay`），所以備份照規矩來，`doc_seq` 也往前走 —— 編劇若另開著這份劇本，
+ * 那個分頁下次存檔會得到 `conflict`、請他重新整理，而不是拿舊稿蓋掉這一次的改動。
+ * 存檔被別處搶先時重新載入再做一次；一場都沒有要改的也算成功。
+ *
+ * @returns 改成了沒（command 拒絕或一直搶不到存檔就是 `false`）。
+ */
+export async function retitleCharacterInScreenplay(
+  screenplay: AuthorizedScreenplay,
+  { characterId, from, to }: { characterId: string; from: string; to: string },
+): Promise<boolean> {
+  for (let attempt = 0; attempt < RETITLE_ATTEMPTS; attempt += 1) {
+    const loaded = await loadScreenplay(screenplay);
+    if (!loaded) return false;
+    const doc = kernelSchema.nodeFromJSON(loaded.doc);
+    if (scenesShowingName(doc, characterId, from) === 0) return true;
+
+    const result = retitleEntityRefs(doc, { entityId: characterId, from, to });
+    if (!result.ok) return false;
+    const saved = await saveScreenplay({
+      screenplay,
+      doc: toPlainJson(result.value.toJSON()) as PersistedDoc,
+      token: loaded.token,
+    });
+    if (saved.status === "saved") return true;
+  }
+  return false;
 }

@@ -85,6 +85,13 @@
       "when": 1792918755851,
       "tag": "0011_project_archive_and_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792947404392,
+      "tag": "0012_character_sheet",
+      "breakpoints": true
     }
   ]
 }

@@ -206,6 +206,22 @@ export async function projectContents(project: AuthorizedProject): Promise<Proje
   };
 }
 
+/**
+ * 這個專案的那一份劇本的 handle（單一劇本專案）；還沒有劇本就是 `null`。
+ *
+ * handle 從 gate 拿、以**這個專案的 owner** 去問 —— 不就地捏一個（不變式 H）。給要從專案層的頁面或寫入
+ * 碰到劇本的呼叫端用（角色設定表要劇本的場數、改名時要跟著改劇本，票券 21）。
+ */
+export async function projectScreenplay(project: AuthorizedProject): Promise<AuthorizedScreenplay | null> {
+  const [script] = await getDb()
+    .select({ id: screenplays.id })
+    .from(screenplays)
+    .where(eq(screenplays.projectId, project.projectId))
+    .orderBy(screenplays.createdAt)
+    .limit(1);
+  return script ? authorizeScreenplayForUser(project.ownerId, script.id) : null;
+}
+
 /** 劇本名稱（PDF 檔名用 —— 交出去的是劇本，不是「某某計畫」，票券 71）。 */
 export async function screenplayTitle(screenplay: AuthorizedScreenplay): Promise<string> {
   const [row] = await getDb()

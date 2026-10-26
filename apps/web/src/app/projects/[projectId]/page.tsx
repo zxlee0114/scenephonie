@@ -7,7 +7,8 @@ import { authorizeProject } from "@/authorization";
 import { cardMeta, DocumentCard } from "@/documents/document-card";
 import { FreeDocumentList } from "@/documents/free-document-list";
 import { documentLabel } from "@/documents/labels";
-import { listDocuments } from "@/persistence";
+import { projectEntities } from "@/entities";
+import { characterSheetCharacterIds, listDocuments } from "@/persistence";
 import { projectContents } from "@/projects/project-store";
 
 import { unarchiveFromHubAction } from "../actions";
@@ -46,9 +47,16 @@ export default async function ProjectHubPage({
   const project = await authorizeProject(projectId);
   if (!project) notFound();
 
-  const [{ title, archived, screenplayTitle, screenplayId, screenplayUpdatedAt, screenplayExcerpt }, documents] = await Promise.all([
+  const [
+    { title, archived, screenplayTitle, screenplayId, screenplayUpdatedAt, screenplayExcerpt },
+    documents,
+    characterSheet,
+    entities,
+  ] = await Promise.all([
     projectContents(project),
     listDocuments(project),
+    characterSheetCharacterIds(project),
+    projectEntities(project),
   ]);
   const fixed = (kind: DocumentKind) => documents.find((document) => document.kind === kind);
   const freeDocuments = documents
@@ -60,6 +68,9 @@ export default async function ProjectHubPage({
       excerpt: document.excerpt,
     }));
   const projectPath = `/projects/${project.projectId}`;
+  // 角色設定表沒有字可數：卡片預覽印收錄了誰，那一行淡字寫幾位（還沒收錄任何人就是「尚未開始」）。
+  const castNames = characterSheet.flatMap((id) => entities.characters.find((c) => c.id === id)?.name ?? []);
+  const castSheet = fixed("角色設定表");
 
   return (
     <main className="project-hub">
@@ -124,7 +135,12 @@ export default async function ProjectHubPage({
               excerpt={fixed("分場大綱")?.excerpt}
             />
           )}
-          <DocumentCard name="人物介紹" meta="尚未開放" />
+          <DocumentCard
+            href={`${projectPath}/characters`}
+            name={documentLabel("角色設定表")}
+            meta={castSheet && castNames.length > 0 ? `${cardMeta({ updatedAt: castSheet.updatedAt })} · ${castNames.length} 位人物` : cardMeta(undefined)}
+            excerpt={castNames.join("、")}
+          />
           <FreeDocumentList
             projectId={project.projectId}
             documents={freeDocuments}

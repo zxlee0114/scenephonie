@@ -177,6 +177,7 @@ function SceneEntityChip({
           refs={refs}
           options={kind === "location" ? catalog.locations : catalog.characters}
           usage={usage}
+          elsewhere={kind === "character" ? catalog.charactersElsewhere : undefined}
           multiple={multiple}
           confirmReplace={confirmReplace}
           onCommit={(next) =>

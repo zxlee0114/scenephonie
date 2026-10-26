@@ -34,4 +34,10 @@ export type RenameEntity = (request: RenameEntityRequest) => Promise<boolean>;
 export type EntityCatalogSnapshot = {
   characters: { id: string; name: string }[];
   locations: { id: string; name: string }[];
+  /**
+   * 在劇本之外被引用的人物 → 那份文件在畫面上的名字（票券 21：角色設定表上的人物）。它們在劇本裡
+   * 一場都沒用到也算存在（ADR-0005），自動補全才找得到先在角色設定表上建好的人。名字由頁面給 ——
+   * 編輯器不認識有哪些文件。
+   */
+  charactersElsewhere?: Record<string, string>;
 };

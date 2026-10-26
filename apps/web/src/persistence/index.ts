@@ -8,7 +8,13 @@
  * **沒有備份、沒有 `doc_seq`、沒有 schema 遷移** —— 那些是這個模組怎麼守住承諾的內部手段（§6.7）。
  * 交付與備份是兩條分開的寫入路徑（§10.4），只是同住在這裡：讀出 canonical doc 只准在這個模組。
  */
-export { createScreenplay, loadScreenplay, saveScreenplay } from "./screenplay-store";
+export {
+  createScreenplay,
+  loadScreenplay,
+  retitleCharacterInScreenplay,
+  saveScreenplay,
+  scenesShowingCharacterName,
+} from "./screenplay-store";
 export type { LoadedScreenplay, SaveRequest, SaveResult } from "./screenplay-store";
 export type { SaveToken } from "./save-token";
 export type { PersistedDoc } from "./doc-schema-version";
@@ -18,14 +24,16 @@ export type { Delivery } from "./delivery-store";
 // 分享頁的唯一讀取口（票券 20）：只收 `ShareViewer`。
 export { loadSharedScript } from "./shared-script";
 export type { SharedScript } from "./shared-script";
-// 劇本外文件（票券 21）：交件大綱、分場大綱。每一支吃的 handle 就是那份文件掛的那一層（不變式 F）。
+// 劇本外文件（票券 21）：交件大綱、分場大綱、自由文件、角色設定表。每一支吃的 handle 就是那份文件掛的那一層（不變式 F）。
 export {
+  characterSheetCharacterIds,
   createFixedDocument,
   createFreeDocument,
   deleteDocument,
   lastDocumentEditedAt,
   listDocuments,
   loadDocument,
+  openCharacterSheet,
   openSceneOutline,
   openSubmissionOutline,
   purgeDeletedDocuments,

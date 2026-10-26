@@ -83,3 +83,6 @@ export type { DedupeResult, DedupeOptions, DedupeMeta, Remint } from "./dedupe";
 
 export { satisfiesAdmission, COMMAND_CONTRACTS } from "./admission";
 export type { CommandContract, InvariantId } from "./admission";
+
+export { addCharacterEntry, characterSheetIds } from "./character-sheet";
+export type { AddCharacterEntryOptions } from "./character-sheet";

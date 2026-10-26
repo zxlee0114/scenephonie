@@ -45,7 +45,7 @@ describe("字數計數器", () => {
 
   it("打字之後跟著變", async () => {
     const { container } = render(
-      <DocumentEditor kind="交件大綱" initialBody={emptyDocument()} initialToken={token} save={save} />,
+      <DocumentEditor kind="交件大綱" initialBody={emptyDocument("交件大綱")} initialToken={token} save={save} />,
     );
     const editor = await editorIn(container);
     await waitFor(() => expect(screen.getByText(/0\s*字/)).toBeTruthy());
@@ -79,7 +79,7 @@ describe("三種文字文件都有計數器，畫面上用編劇熟的名字", (
 describe("簡單的富文本", () => {
   it("標題、清單、引用、分隔線、粗斜體打出來的東西，寫入邊界讀得懂", async () => {
     const { container } = render(
-      <DocumentEditor kind="自由文件" initialBody={emptyDocument()} initialToken={token} save={save} />,
+      <DocumentEditor kind="自由文件" initialBody={emptyDocument("自由文件")} initialToken={token} save={save} />,
     );
     const editor = await editorIn(container);
 
@@ -125,7 +125,7 @@ describe("Markdown 捷徑", () => {
   };
 
   it("一般段落裡打「## 」變成標題", async () => {
-    const { container } = render(<DocumentEditor kind="自由文件" initialBody={emptyDocument()} initialToken={token} save={save} />);
+    const { container } = render(<DocumentEditor kind="自由文件" initialBody={emptyDocument("自由文件")} initialToken={token} save={save} />);
     const editor = await editorIn(container);
     act(() => {
       editor.commands.focus("start");
@@ -182,7 +182,7 @@ describe("改名", () => {
     render(
       <DocumentEditor
         kind="自由文件"
-        initialBody={emptyDocument()}
+        initialBody={emptyDocument("自由文件")}
         initialToken={token}
         save={save}
         title={{ initial: "世界觀", rename }}
@@ -214,7 +214,7 @@ describe("改名", () => {
     render(
       <DocumentEditor
         kind="自由文件"
-        initialBody={emptyDocument()}
+        initialBody={emptyDocument("自由文件")}
         initialToken={token}
         save={save}
         title={{ initial: null, rename: vi.fn(async () => true), focus: true }}
@@ -224,7 +224,7 @@ describe("改名", () => {
   });
 
   it("固定文件沒有名字欄：名字就是它是什麼", () => {
-    render(<DocumentEditor kind="分場大綱" initialBody={emptyDocument()} initialToken={token} save={save} />);
+    render(<DocumentEditor kind="分場大綱" initialBody={emptyDocument("分場大綱")} initialToken={token} save={save} />);
     expect(screen.queryByLabelText("文件名稱")).toBeNull();
   });
 
@@ -240,7 +240,7 @@ describe("改名", () => {
     render(
       <DocumentEditor
         kind="自由文件"
-        initialBody={emptyDocument()}
+        initialBody={emptyDocument("自由文件")}
         initialToken={token}
         save={save}
         title={{ initial: null, rename: vi.fn(async () => true) }}

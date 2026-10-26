@@ -12,17 +12,16 @@
  */
 "use client";
 
-import { textblockTypeInputRule, type Editor } from "@tiptap/core";
-import { Heading } from "@tiptap/extension-heading";
+import type { Editor } from "@tiptap/core";
 import { Placeholder } from "@tiptap/extensions";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { StarterKit } from "@tiptap/starter-kit";
 import { useEffect, useState } from "react";
 
 import { wordCount, type DocumentKind } from "@scenephonie/schema";
 
 import { FormatMenu } from "@/documents/format-menu";
 import { documentLabel } from "@/documents/labels";
+import { proseHeading, proseKit } from "@/documents/prose-kit";
 import { SaveStatusLine } from "@/editor/save-status";
 import type { SaveDoc } from "@/editor/save-capability";
 import { toPlainJson } from "@/editor/plain-json";
@@ -30,46 +29,6 @@ import { useAutosave } from "@/editor/use-autosave";
 import type { PersistedDoc, SaveToken } from "@/persistence";
 
 import "../styles/documents.css";
-
-/**
- * 簡單的富文本：第二、三層標題、項目與編號清單、引用、分隔線、粗體、斜體（2026-10-24 使用者裁決）。
- * 每一樣都有 Markdown 捷徑（`## `、`- `、`1. `、`> `、`---`、`**粗**`、`*斜*`），那是 StarterKit 內建的 input rule。
- *
- * 第一層標題留給文件名稱。其餘全關：底線、刪除線、連結、程式碼不在清單上；`hardBreak` 也關 ——
- * 一段就是一段，換段按 Enter。標題換成下面那個 `ProseHeading`。
- */
-const PROSE_KIT = StarterKit.configure({
-  heading: false,
-  hardBreak: false,
-  codeBlock: false,
-  strike: false,
-  code: false,
-  link: false,
-  underline: false,
-  dropcursor: false,
-  trailingNode: false,
-});
-
-/**
- * 第二、三層標題，捷徑**只在一般段落裡**生效。原生的 Heading 在標題裡也吃 `## `：標題打字打到
- * 「## 」開頭，那幾個字就被吃掉、只是又變成一次標題（票券 21 驗收）。捷徑剛轉換完時按一次 Backspace
- * 會退回原本打的字（Tiptap 內建），但那要先知道。
- */
-const ProseHeading = Heading.extend({
-  addInputRules() {
-    return this.options.levels.map((level) => {
-      const rule = textblockTypeInputRule({
-        find: new RegExp(`^(#{${Math.min(...this.options.levels)},${level}})\\s$`),
-        type: this.type,
-        getAttributes: { level },
-      });
-      const convert = rule.handler;
-      rule.handler = (props) =>
-        props.state.doc.resolve(props.range.from).parent.type.name === "paragraph" ? convert(props) : null;
-      return rule;
-    });
-  },
-}).configure({ levels: [2, 3] });
 
 /** 空白文件裡淡淡的一行：告訴人「從這裡開始寫」，編輯區在哪裡也就一目了然。 */
 const EMPTY_HINT = Placeholder.configure({ placeholder: "從這裡開始寫…" });
@@ -101,7 +60,7 @@ export function DocumentEditor({
   const editor = useEditor({
     // Next SSR：先不 render，等 client 掛載，避開 hydration mismatch。
     immediatelyRender: false,
-    extensions: [PROSE_KIT, ProseHeading, EMPTY_HINT],
+    extensions: [proseKit(), proseHeading([2, 3]), EMPTY_HINT],
     content: initialBody,
     editorProps: { attributes: { class: "document-page__body", "aria-label": label } },
     // 精靈的頁籤沒有標題列可以先點：一進來（或換頁籤）游標就在內文末尾，直接寫。

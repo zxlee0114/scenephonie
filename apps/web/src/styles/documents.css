@@ -1,5 +1,5 @@
 /*
- * 劇本外文件頁 —— 故事大綱（交件大綱）、分場大綱、自由文件（票券 21）。
+ * 劇本外文件頁 —— 故事大綱（交件大綱）、分場大綱、自由文件、人物介紹（角色設定表）（票券 21）。
  *
  * 與劇本編輯器同一套閱讀呈現（§7.9 不變式 G）：沒有 A4 紙感、沒有邊框，只有一條由全形字數決定的
  * 閱讀行長。字數計數器只是一行淡字 —— 它計數、不評判，所以沒有顏色在說「太多了」。
@@ -245,6 +245,13 @@
   background: var(--surface-sunken);
 }
 
+/* 這份文件沒有的格式（人物介紹的第二層標題）：灰掉，tooltip 說為什麼。 */
+.format-menu__button:disabled {
+  background: none;
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
 .format-menu__button[aria-pressed="true"] {
   background: var(--color-accent-weak);
   color: var(--color-accent);
@@ -261,4 +268,169 @@
 
 .format-menu__button--italic {
   font-style: italic;
+}
+
+/*
+ * 角色設定表（畫面上叫「人物介紹」，票券 21 第 ② 片）：一位人物一塊，名字當標題、介紹內文寫在底下 —— 整頁就是
+ * PDF 人物介紹頁的樣子。名字是人物的欄位（一個長得像紙上標題的輸入框）；內文是這份文件的散文，跟其他文件
+ * 同一套樣式（`.document-page__body`）。
+ */
+.character-sheet__entries {
+  min-block-size: 0;
+}
+
+.character-entry {
+  position: relative;
+  margin-block-end: var(--space-5);
+}
+
+/*
+ * 點把手（或拖曳時）選起整位：名字連同介紹一層反白底，看得出接下來 ⌫ 刪的、拖的是哪一位。
+ * 掛在 node view 自己的 class 上：ProseMirror 的 `ProseMirror-selectednode` 加在外面那層 renderer 上，不在這一塊。
+ */
+.character-entry--selected {
+  border-radius: var(--space-1);
+  background: var(--selection-bg);
+  box-shadow: 0 0 0 var(--space-2) var(--selection-bg);
+}
+
+.character-entry__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+/*
+ * 把手那一層不佔排版：把手本身浮在左邊的空白裡，這一層要是當成一格，flex 的間距就會把名字往右推一截，
+ * 跟底下的介紹對不齊（第四輪驗收回饋）。
+ */
+.character-entry__grip {
+  display: contents;
+}
+
+/* 把手在名字左邊的空白裡，滑過這一位時才出現（同劇本的區塊把手）。 */
+.character-entry .drag-handle {
+  inset-inline-start: calc(-1 * var(--space-5));
+  block-size: calc(1.35em * var(--leading-sm));
+}
+
+.character-entry:hover .drag-handle,
+.character-entry--selected .drag-handle {
+  opacity: 1;
+}
+
+/* 名字就是這一塊的標題：跟散文文件的第二層標題同一級。 */
+.character-entry__name {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: var(--font-body);
+  font-size: 1.35em;
+  font-weight: 700;
+  line-height: var(--leading-sm);
+}
+
+.character-entry__name:focus {
+  outline: none;
+}
+
+.character-entry__remove {
+  flex: none;
+  padding: 0 var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--text-faint);
+  font-size: var(--text-base);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.character-entry:hover .character-entry__remove,
+.character-entry__remove:focus-visible {
+  opacity: 1;
+}
+
+.character-entry__remove:hover {
+  color: var(--text-primary);
+}
+
+/* 別名：名字底下一行小字，像標題的副標。 */
+.character-entry__aliases {
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.character-entry__body {
+  margin-block-start: var(--space-2);
+}
+
+/* 這一位還沒寫介紹：淡淡一行提示（Placeholder 把字放在 data-placeholder 上）。 */
+.character-entry__body p.is-empty:only-child::before {
+  content: attr(data-placeholder);
+  float: inline-start;
+  block-size: 0;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+/* 「＋ 新增人物」：一行安靜的文字按鈕，接在最後一位底下；快捷鍵跟在後面。 */
+.character-sheet__add {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.character-sheet__add:hover {
+  color: var(--text-primary);
+}
+
+.character-sheet__add kbd {
+  color: var(--text-faint);
+  font-family: inherit;
+}
+
+/* 按下去長出來的那一列：名字欄跟表上每一位的名字同一個位置、同一個字級。 */
+.character-sheet__draft {
+  position: relative;
+  margin-block-start: var(--space-4);
+}
+
+.character-sheet__draft input {
+  font-family: var(--font-body);
+  font-size: 1.35em;
+  font-weight: 700;
+  line-height: var(--leading-sm);
+}
+
+/* 新增的按鈕捲出畫面時：同一顆按鈕浮在畫面下緣正中。 */
+.character-sheet__add--floating {
+  position: fixed;
+  inset-block-end: var(--space-5);
+  inset-inline-start: 50%;
+  z-index: 20;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-5);
+  background: var(--surface-page);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
+  transform: translateX(-50%);
+}
+
+.character-sheet__add--floating:hover {
+  background: var(--surface-raised);
 }

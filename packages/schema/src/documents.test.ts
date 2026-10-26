@@ -9,6 +9,7 @@ import {
   documentLevel,
   documentSchema,
   isDocumentKind,
+  emptyDocument,
   isFixedDocument,
 } from "./documents";
 
@@ -169,5 +170,83 @@ describe("documentFromJSON：照該 kind 的 schema 驗證", () => {
   it("每個 kind 有自己的 schema（改一個不會牽動另一個）", () => {
     expect(documentSchema("交件大綱")).not.toBe(documentSchema("分場大綱"));
     expect(documentSchema("自由文件")).not.toBe(documentSchema("交件大綱"));
+  });
+});
+
+describe("角色設定表：有序的人物引用，每一位底下是他的介紹內文", () => {
+  const entry = (characterId: string, content: unknown[] = [{ type: "paragraph" }]) => ({
+    type: "characterEntry",
+    attrs: { characterId },
+    content,
+  });
+  const sheet = (...ids: string[]) =>
+    documentFromJSON("角色設定表", { type: "doc", content: ids.map((id) => entry(id)) });
+  const text = (value: string, marks?: unknown[]) => ({ type: "text", text: value, ...(marks ? { marks } : {}) });
+
+  it("描述整部作品 → 掛專案；一個專案一份", () => {
+    expect(documentLevel("角色設定表")).toBe("project");
+    expect(isFixedDocument("角色設定表")).toBe(true);
+  });
+
+  it("每一筆是一個人物引用，順序就是節點的順序", () => {
+    const doc = sheet("ch_若晴", "ch_小明");
+    expect(doc.childCount).toBe(2);
+    expect(doc.child(1).attrs.characterId).toBe("ch_小明");
+  });
+
+  it("一筆都沒有也合法 —— 還沒收錄任何人", () => {
+    expect(sheet().childCount).toBe(0);
+  });
+
+  it("空的角色設定表是一份零筆的表，不是一個空段落", () => {
+    expect(() => documentFromJSON("角色設定表", emptyDocument("角色設定表"))).not.toThrow();
+    expect(emptyDocument("角色設定表")).toEqual({ type: "doc", content: [] });
+  });
+
+  it("介紹內文是散文：段落、小標題、清單、引用、分隔線，字上有粗體與斜體", () => {
+    const doc = documentFromJSON("角色設定表", {
+      type: "doc",
+      content: [
+        entry("ch_若晴", [
+          { type: "heading", attrs: { level: 3 }, content: [text("背景")] },
+          { type: "paragraph", content: [text("三十歲，"), text("護理師", [{ type: "bold" }])] },
+          { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [text("怕水", [{ type: "italic" }])] }] }] },
+          { type: "blockquote", content: [{ type: "paragraph", content: [text("我沒事。")] }] },
+          { type: "horizontalRule" },
+        ]),
+      ],
+    });
+    expect(doc.child(0).childCount).toBe(5);
+  });
+
+  it("內文沒有第二層標題 —— 那一層是人物的名字", () => {
+    expect(() =>
+      documentFromJSON("角色設定表", {
+        type: "doc",
+        content: [entry("ch_若晴", [{ type: "heading", attrs: { level: 2 }, content: [text("背景")] }])],
+      }),
+    ).toThrow();
+  });
+
+  it("內文一定掛在某一位底下：段落不能直接放在表上", () => {
+    expect(() =>
+      documentFromJSON("角色設定表", {
+        type: "doc",
+        content: [{ type: "paragraph", content: [text("三十歲，護理師")] }],
+      }),
+    ).toThrow();
+  });
+
+  it("指的不是人物 id（地點、空字串）就進不來", () => {
+    expect(() => sheet("lo_海邊")).toThrow();
+    expect(() => sheet("")).toThrow();
+  });
+
+  it("字數只數介紹內文", () => {
+    const doc = documentFromJSON("角色設定表", {
+      type: "doc",
+      content: [entry("ch_若晴", [{ type: "paragraph", content: [text("三十歲")] }])],
+    });
+    expect(wordCount(doc)).toBe(3);
   });
 });

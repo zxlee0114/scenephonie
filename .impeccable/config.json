@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "apps/web/src/styles/documents.css"
+        ],
+        "createdAt": "2026-10-26T07:39:23.277Z",
+        "reason": "agent judgement: the flagged rule is the prose blockquote quote bar (neutral --rule-strong grey, not a coloured card accent), added in slice ① commit 673f5a7, predates this session"
+      }
+    ]
+  }
+}
