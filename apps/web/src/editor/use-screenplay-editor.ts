@@ -24,6 +24,7 @@ import { GroupFragmentNode, SceneGroupNode } from "./nodes/group";
 import { GroupMemberNode, SceneNode, SubsceneNode } from "./nodes/scene";
 import { AppearingPromptPlugin } from "./extensions/appearing-prompt";
 import { BlockCycle } from "./extensions/block-cycle";
+import { BlockJoin } from "./extensions/block-join";
 import { ContinueBlock } from "./extensions/continue-block";
 import { DragReorder } from "./extensions/drag-reorder";
 import { FragmentKeys } from "./extensions/fragment-keys";
@@ -121,6 +122,7 @@ export function useScreenplayEditor(
       ReturnMarkers,
       BlockCycle,
       ContinueBlock,
+      BlockJoin,
       SelectScope,
       NextScene,
       FragmentKeys,

@@ -27,7 +27,7 @@ import { unlistedSpeakers, type DialogueCharacterRef } from "@scenephonie/schema
 import { blockAddressOf, findSceneNode, sameBlock, sceneContext, type BlockAddress } from "../address";
 import { isBlankBlock } from "../block-types";
 import { blockContentPos, KERNEL_REPLACE } from "../command-bridge";
-import { continueBlock } from "./continue-block";
+import { continueBlock, insertsAbove } from "./continue-block";
 
 /** 一份打開著的提示：哪一句對白（doc 座標＋定址）、問的是哪幾位。 */
 export interface AppearingPrompt extends BlockAddress {
@@ -113,6 +113,8 @@ export const AppearingPromptPlugin = Extension.create({
         const { $from } = selection;
         // 空對白的 Enter 是「退回描述」（`continueBlock`），不是寫完了一句。
         if ($from.parent.type.name !== "dialogue" || isBlankBlock($from.parent)) return false;
+        // 台詞開頭的 Enter ＝ 在上面插一句（票券 62），這一句還沒寫完。
+        if (insertsAbove(selection)) return false;
         const prompt = promptAt(state.doc, $from.before($from.depth));
         if (!prompt) return false;
         this.editor.view.dispatch(state.tr.setMeta(key, { open: prompt } satisfies PromptMeta));

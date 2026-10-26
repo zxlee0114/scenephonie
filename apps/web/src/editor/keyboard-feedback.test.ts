@@ -16,7 +16,9 @@ import { TextSelection } from "@tiptap/pm/state";
 import { docFromJSON, mintSceneId } from "@scenephonie/schema";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { BlockJoin } from "./extensions/block-join";
 import { ContinueBlock } from "./extensions/continue-block";
+import { claimFocus } from "./focus";
 import { InsertShotNode } from "./nodes/blocks";
 import { Action, Dialogue, Doc, GroupFragment, GroupMember, Scene, SceneGroup, Subscene } from "./schema";
 import { SceneIds } from "./extensions/scene-ids";
@@ -43,6 +45,7 @@ function build(blocks: object[]) {
       SceneIds,
       SoftBreak,
       ContinueBlock,
+      BlockJoin,
     ],
     content: {
       type: "doc",
@@ -178,6 +181,167 @@ describe("Enter：延續當前區塊型別", () => {
     expect(first.attrs.character).toEqual({ id: null, displayName: "小明" }); // 原本那段不動
     expect(next.attrs.character).toBeNull(); // 新那段：說話者清空
     expect(next.attrs.voiceStyle).toBe("一般"); // schema 預設
+  });
+});
+
+/**
+ * 票券 62：對白之間的 Backspace／Delete／Enter。不變式：**Backspace／Delete 不會刪掉、也不會併掉
+ * 一句帶人物的對白** —— 人物只會在編劇一步一步拆的時候消失。
+ */
+describe("對白的區塊邊界（票券 62）", () => {
+  const xiaoming = { character: { id: null, displayName: "小明" }, voiceStyle: "一般" };
+  const block = (i: number) => editor.state.doc.child(0).child(i);
+
+  /** 游標放到第 `i` 個區塊內文開頭。 */
+  function caretAtStartOfBlock(i: number) {
+    const scene = editor.state.doc.child(0);
+    let pos = 2;
+    for (let k = 0; k < i; k++) pos += scene.child(k).nodeSize;
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, pos)));
+  }
+
+  /**
+   * 直接把 keydown 交給 ProseMirror。`editor.commands.keyboardShortcut` 只把處理器送出的 step 重播到
+   * 自己那一筆 transaction 上、**不帶選取**，游標會被沖到文件尾 —— 這裡要驗的正是游標落在哪。
+   */
+  function press(key: string, init: KeyboardEventInit = {}) {
+    const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+    editor.view.someProp("handleKeyDown", (f) => f(editor.view, event));
+  }
+
+  /** 游標所在區塊的序號與區塊內偏移。 */
+  function caret() {
+    const { $from } = editor.state.selection;
+    return { block: $from.index(1), offset: $from.parentOffset };
+  }
+
+  it("空對白在台詞開頭按 ⌫：拿掉的是這一句，上面那句有人物、台詞空的對白留著", () => {
+    build([
+      { type: "dialogue", attrs: xiaoming },
+      { type: "dialogue" },
+    ]);
+    caretAtStartOfBlock(1);
+
+    press("Backspace");
+
+    expect(blockTypes()).toEqual(["dialogue"]);
+    expect(block(0).attrs.character).toEqual(xiaoming.character);
+    expect(caret()).toEqual({ block: 0, offset: 0 });
+  });
+
+  it("空對白是場次第一個區塊時按 ⌫：退回空描述，區塊留著（上面是場次抬頭，沒地方回）", () => {
+    build([
+      { type: "dialogue" },
+      { type: "action", content: [{ type: "text", text: "門開了" }] },
+    ]);
+    caretAtStartOfBlock(0);
+
+    press("Backspace");
+
+    expect(blockTypes()).toEqual(["action", "action"]);
+    expect(caret()).toEqual({ block: 0, offset: 0 });
+  });
+
+  it("描述開頭按 ⌫、上一句是有人物台詞空的對白：併不刪 —— 字接進台詞，人物留著", () => {
+    build([
+      { type: "dialogue", attrs: xiaoming },
+      { type: "action", content: [{ type: "text", text: "我是龍" }] },
+    ]);
+    caretAtStartOfBlock(1);
+
+    press("Backspace");
+
+    expect(blockTypes()).toEqual(["dialogue"]);
+    expect(block(0).attrs.character).toEqual(xiaoming.character);
+    expect(block(0).textContent).toBe("我是龍");
+    expect(caret()).toEqual({ block: 0, offset: 0 });
+  });
+
+  it("沒人物、有台詞的對白在開頭按 ⌫：併回上一句，上一句的人物留著（舊的台詞開頭 Enter 切出來的那個狀態）", () => {
+    build([
+      { type: "dialogue", attrs: xiaoming },
+      { type: "dialogue", content: [{ type: "text", text: "yo" }] },
+    ]);
+    caretAtStartOfBlock(1);
+
+    press("Backspace");
+
+    expect(blockTypes()).toEqual(["dialogue"]);
+    expect(block(0).attrs.character).toEqual(xiaoming.character);
+    expect(block(0).textContent).toBe("yo");
+  });
+
+  it("行尾按 Delete、下一句帶人物：什麼都不做", () => {
+    build([
+      { type: "action", content: [{ type: "text", text: "門開了" }] },
+      { type: "dialogue", attrs: xiaoming, content: [{ type: "text", text: "我是龍" }] },
+    ]);
+    caretAtEndOfBlock(0);
+
+    press("Delete");
+
+    expect(blockTypes()).toEqual(["action", "dialogue"]);
+    expect(block(1).attrs.character).toEqual(xiaoming.character);
+    expect(block(1).textContent).toBe("我是龍");
+  });
+
+  it("有人物、台詞空的對白在行尾按 Delete：併不刪 —— 下一行的字接進台詞，人物留著", () => {
+    build([
+      { type: "dialogue", attrs: xiaoming },
+      { type: "action", content: [{ type: "text", text: "門開了" }] },
+    ]);
+    caretAtEndOfBlock(0);
+
+    press("Delete");
+
+    expect(blockTypes()).toEqual(["dialogue"]);
+    expect(block(0).attrs.character).toEqual(xiaoming.character);
+    expect(block(0).textContent).toBe("門開了");
+  });
+
+  it("台詞開頭按 Enter：上方插一句空對白，原句的人物與台詞不動，焦點排給上方那句的人物欄", () => {
+    build([
+      { type: "action", content: [{ type: "text", text: "門開了" }] },
+      { type: "dialogue", attrs: xiaoming, content: [{ type: "text", text: "我是龍" }] },
+    ]);
+    caretAtStartOfBlock(1);
+
+    press("Enter");
+
+    expect(blockTypes()).toEqual(["action", "dialogue", "dialogue"]);
+    expect(block(1).attrs.character).toBeNull();
+    expect(block(1).textContent).toBe("");
+    expect(block(2).attrs.character).toEqual(xiaoming.character);
+    expect(block(2).textContent).toBe("我是龍");
+    const sceneId = editor.state.doc.child(0).attrs.sceneId as string;
+    expect(claimFocus((p) => p.kind === "speaker" && p.sceneId === sceneId && p.blockIndex === 1)).toBe(true);
+  });
+
+  it("有人物、台詞空的對白按 Enter：新對白開在**下面**（往下走，不是往上插）", () => {
+    build([{ type: "dialogue", attrs: xiaoming }]);
+    caretAtStartOfBlock(0);
+
+    press("Enter");
+
+    expect(blockTypes()).toEqual(["dialogue", "dialogue"]);
+    expect(block(0).attrs.character).toEqual(xiaoming.character);
+    expect(block(1).attrs.character).toBeNull();
+  });
+
+  it("再按 ⌫ 回得去：上方那句空對白拿掉，原句不動", () => {
+    build([
+      { type: "action", content: [{ type: "text", text: "門開了" }] },
+      { type: "dialogue", attrs: xiaoming, content: [{ type: "text", text: "我是龍" }] },
+    ]);
+    caretAtStartOfBlock(1);
+
+    press("Enter");
+    caretAtStartOfBlock(1); // 人物欄的空輸入框與台詞開頭是同一個位置
+    press("Backspace");
+
+    expect(blockTypes()).toEqual(["action", "dialogue"]);
+    expect(block(1).attrs.character).toEqual(xiaoming.character);
+    expect(block(1).textContent).toBe("我是龍");
   });
 });
 

@@ -29,8 +29,16 @@ export const BLOCK_META: Record<BlockType, { readonly label: string; readonly hi
  */
 export function isBlankBlock(node: PMNode): boolean {
   if (node.textContent.trim() !== "") return false;
-  if (node.type.name !== "dialogue") return true;
-  return dialogueCharacters(node.attrs.character).every((r) => r.displayName.trim() === "");
+  return !hasSpeaker(node);
+}
+
+/**
+ * 這是一句**帶人物的對白** —— 人物欄裡至少一筆顯示名不是空白（一筆或齊聲都算；懸空引用也算，
+ * 顯示名照印）。Backspace／Delete 不會刪掉、也不會併掉這樣的一句（票券 62）。
+ */
+export function hasSpeaker(node: PMNode): boolean {
+  if (node.type.name !== "dialogue") return false;
+  return dialogueCharacters(node.attrs.character).some((r) => r.displayName.trim() !== "");
 }
 
 /**

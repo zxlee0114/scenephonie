@@ -24,6 +24,7 @@
 
 import {
   useEffect,
+  useImperativeHandle,
   useReducer,
   useRef,
   useState,
@@ -207,6 +208,13 @@ type Props = {
   /** 這一格自己用不到的鍵（chip row 的格線導航）。焦點在 chip 上時 target 是那個 chip。 */
   onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
   inputRef?: React.Ref<HTMLInputElement>;
+  /** 呼叫端要從欄位外面驅動它時用（台詞開頭的 Backspace 走進人物欄，票券 62）。 */
+  handleRef?: React.Ref<EntityFieldHandle>;
+};
+
+export type EntityFieldHandle = {
+  /** 拿起**最後一顆** chip 重編輯（整串反白）—— 與「游標在隊尾、空欄位上按 Backspace」同一條路。 */
+  pickUpLast: () => void;
 };
 
 /**
@@ -272,6 +280,7 @@ export function EntityField({
   describedBy,
   onKeyDown,
   inputRef,
+  handleRef,
 }: Props) {
   const [text, setText] = useState("");
   const [stage, setStage] = useState<Stage>({ name: "suggest" });
@@ -648,6 +657,13 @@ export function EntityField({
     onCommit(refs.filter((r) => r !== ref));
     input.current?.focus();
   };
+
+  useImperativeHandle(handleRef, () => ({
+    pickUpLast: () => {
+      const last = refs[refs.length - 1];
+      if (last) editRef(last);
+    },
+  }));
 
   /**
    * 把一筆引用**還原成可編輯的文字**（點 chip、空欄位上的 Backspace）。

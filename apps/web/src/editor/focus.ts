@@ -21,7 +21,11 @@ export type PendingFocus =
    * 不是「上次離開時停在哪一格」—— 那是同一顆鍵依看不見的狀態做不同的事（§7.3 已否決過）。
    */
   | { readonly kind: "sceneChipsEnd"; readonly sceneId: string }
-  | ({ readonly kind: "speaker" } & BlockAddress);
+  /**
+   * 對白的人物欄。`pickUp` ＝ 進來之後**拿起最後一顆 chip**（整串反白）—— 台詞開頭按 Backspace
+   * 走進人物欄的那一下（票券 62），等於「游標到空輸入框、再按一次 Backspace」。
+   */
+  | ({ readonly kind: "speaker"; readonly pickUp?: boolean } & BlockAddress);
 
 let pending: PendingFocus | null = null;
 const listeners = new Set<() => void>();

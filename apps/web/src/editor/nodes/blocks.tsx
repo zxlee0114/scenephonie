@@ -42,6 +42,7 @@ import {
 import { AppearingPromptMenu } from "../appearing-prompt-menu";
 import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { fieldEdge } from "../chip-nav";
+import { backspaceFromSpeakerField } from "../extensions/block-join";
 import { runKernelCommand } from "../command-bridge";
 import { forwardHistoryKey } from "../history-keys";
 import {
@@ -52,7 +53,7 @@ import {
 } from "../extensions/appearing-prompt";
 import { Action, Dialogue, InsertShot } from "../schema";
 import { useEntityCatalog } from "../entity-catalog";
-import { EntityField, type EntityOption, type EntityRef } from "../entity-field";
+import { EntityField, type EntityFieldHandle, type EntityOption, type EntityRef } from "../entity-field";
 import { entityUsage } from "../entity-usage";
 import { retitleOthersIn } from "../retitle-others";
 import { claimFocus, requestFocus, subscribeFocusRequest } from "../focus";
@@ -105,6 +106,7 @@ function insertShotTag(): HTMLElement {
 function DialogueView(props: NodeViewProps) {
   const { node, editor } = props;
   const inputRef = useRef<HTMLInputElement>(null);
+  const fieldRef = useRef<EntityFieldHandle>(null);
   const catalog = useEntityCatalog();
   /**
    * 在這一欄剛新建、**還沒寫進 doc** 的群演。
@@ -144,13 +146,18 @@ function DialogueView(props: NodeViewProps) {
   useEffect(() => {
     const claim = () => {
       const here = locateBlock(props);
+      let pickUp = false;
       if (
         here &&
-        claimFocus(
-          (p) => p.kind === "speaker" && sameBlock(p, here),
-        )
+        claimFocus((p) => {
+          if (p.kind !== "speaker" || !sameBlock(p, here)) return false;
+          pickUp = p.pickUp === true;
+          return true;
+        })
       ) {
-        inputRef.current?.focus();
+        // 台詞開頭的 Backspace 走進來（票券 62）：拿起最後一顆 —— 它自己會把焦點交給輸入框。
+        if (pickUp) fieldRef.current?.pickUpLast();
+        else inputRef.current?.focus();
       }
     };
     claim();
@@ -302,6 +309,7 @@ function DialogueView(props: NodeViewProps) {
           只能靠這一欄回答。寫入走 domain command，引用完整性住在那裡。 */}
       <EntityField
         inputRef={inputRef}
+        handleRef={fieldRef}
         kind="character"
         placeholder="人物"
         className="block__speaker-field"
@@ -405,6 +413,17 @@ function DialogueView(props: NodeViewProps) {
               return;
             }
             enterDialogueBody();
+            return;
+          }
+          // 空的人物欄上按 Backspace ＝ 在台詞開頭按（票券 62）：空對白整句拿掉、沒人物有台詞的
+          // 併回上一個區塊。欄位裡還有 chip 時（游標在第一顆前面）這裡什麼都不做。
+          if (e.key === "Backspace" && e.currentTarget instanceof HTMLInputElement && e.currentTarget.value === "") {
+            const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
+            if (pos != null) {
+              e.preventDefault();
+              e.stopPropagation();
+              backspaceFromSpeakerField(editor, pos);
+            }
             return;
           }
           // 上下方向鍵把人物欄接進文件的垂直動線（使用者回饋 2026-09-04）：

@@ -17,6 +17,8 @@
  * **例外**：還什麼都沒寫的對白／插入畫面（`isBlankBlock`）按 `Enter` ＝ 取消型別、退回描述
  * （action）——選錯型別時的退路，不是再生一個同樣空的區塊。
  *
+ * **台詞開頭**（有字）按 `Enter` ＝ 在上方插一句空對白，原句不動（票券 62）。
+ *
  * **雙 Enter**：子場次最後一個區塊是空的動作時，`Enter` 把它提升出去、回到主場次（票券 11，
  * 見 `./subscene-exit`）。
  *
@@ -34,6 +36,17 @@ const SCENE_BLOCKS = new Set(["action", "dialogue", "insertShot"]);
 
 /** 「還什麼都沒寫就按 Enter」＝ 取消這個型別，退回描述。動作本身就是退路，不在其中。 */
 const ESCAPABLE = new Set(["dialogue", "insertShot"]);
+
+/**
+ * 這一顆 Enter 是不是「在上面插一句」—— 游標停在一句有台詞的對白**開頭**（票券 62）。登場人物
+ * 提示（`./appearing-prompt`）也問這一句：那不是寫完了一句，不該問。
+ */
+export function insertsAbove(selection: TextSelection): boolean {
+  const { $from, empty } = selection;
+  return (
+    empty && $from.parent.type.name === "dialogue" && $from.parentOffset === 0 && $from.parent.content.size > 0
+  );
+}
 
 /**
  * `Enter` 的本體 —— 登場人物提示（`./appearing-prompt`）會先攔下這一顆 Enter，問完再從這裡接著走。
@@ -64,6 +77,18 @@ export function continueBlock(editor: Editor): boolean {
   // `liftEmptyBlock` 語意）。空的對白／插入畫面先走上面那條退回動作，再按一次才出去。
   if (parent.type.name === "action" && canLiftEmptyBlock($from)) {
     return exitSubscene(editor);
+  }
+
+  // 台詞開頭（有字）按 Enter ＝ 在**上方**插一句空對白（票券 62）。切開時「沒有字的那一半是新的
+  // 那一半」：人物跟著台詞走，原句的人物與台詞都不動。照預設的 split，人物會留在空掉的上半段、
+  // 字跑到沒有人物的下半段。台詞空著時（只填了人物）不在此列 —— 那是往下走，新對白開在下面。
+  if (ctx && insertsAbove(selection)) {
+    const at = $from.before();
+    const tr = editor.state.tr.insert(at, parent.type.create());
+    editor.view.dispatch(tr.setSelection(TextSelection.create(tr.doc, at + 1)).scrollIntoView());
+    // 同下面的理由，焦點請求一定要在插入**之後**才發。
+    requestFocus({ kind: "speaker", ...blockAddressOf(ctx) });
+    return true;
   }
 
   const split = editor.commands.command(({ tr, dispatch }) => {
