@@ -2,8 +2,8 @@
 /**
  * 票券 21 第 ② 片 —— 人物介紹（角色設定表）的編輯器。
  *
- * 表上每一筆是一個人物引用；名字與介紹內文是人物實體的欄位，不在表上。拖曳排序走 ProseMirror 內建、
- * jsdom 沒有版面，留給人工驗收。
+ * 表上每一位是一個人物引用，底下是他的介紹內文（這份 doc 的散文）；名字是人物實體的欄位。拖曳排序走
+ * ProseMirror 內建、格式選單是 BubbleMenu —— jsdom 沒有版面，兩者留給人工驗收。
  */
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { characterSheetIds, emptyDocument } from "@scenephonie/schema";
@@ -16,21 +16,29 @@ import { CharacterSheetEditor, type RenameCharacter } from "./character-sheet-ed
 
 const token = "st_0" as SaveToken;
 
-const ruoqing = { id: "ch_ruoqing", name: "若晴", description: "三十歲，醫院護理師。" };
-const xiaomei = { id: "ch_xiaomei", name: "小美", description: null };
+const ruoqing = { id: "ch_ruoqing", name: "若晴" };
+const xiaomei = { id: "ch_xiaomei", name: "小美" };
 /** ⌘Z 留下的孤兒：目錄裡有，但沒有任何引用指向她。 */
-const orphan = { id: "ch_orphan", name: "小美的前男友", description: null };
+const orphan = { id: "ch_orphan", name: "小美的前男友" };
+
+const DESCRIPTIONS: Record<string, string> = { [ruoqing.id]: "三十歲，醫院護理師。" };
 
 const sheetOf = (...ids: string[]) => ({
   type: "doc",
-  content: ids.map((characterId) => ({ type: "characterEntry", attrs: { characterId } })),
+  content: ids.map((characterId) => {
+    const text = DESCRIPTIONS[characterId];
+    return {
+      type: "characterEntry",
+      attrs: { characterId },
+      content: [{ type: "paragraph", ...(text ? { content: [{ type: "text", text }] } : {}) }],
+    };
+  }),
 });
 
 function setup({ body = sheetOf(ruoqing.id), count = 0 }: { body?: object; count?: number } = {}) {
   const capabilities = {
     save: vi.fn<SaveDoc>(async () => ({ status: "saved", token })),
     createCharacter: vi.fn(async (name: string) => ({ id: `ch_new_${name}`, name })),
-    saveDescription: vi.fn<(id: string, description: string) => Promise<boolean>>(async () => true),
     rename: {
       count: vi.fn<RenameCharacter["count"]>(async () => count),
       run: vi.fn<RenameCharacter["run"]>(async () => true),
@@ -51,6 +59,7 @@ function setup({ body = sheetOf(ruoqing.id), count = 0 }: { body?: object; count
 
 const entries = (container: HTMLElement) =>
   [...container.querySelectorAll<HTMLInputElement>(".character-entry__name")].map((input) => input.value);
+const prose = (container: HTMLElement) => container.querySelector<HTMLElement>(".ProseMirror")!;
 const addButton = () => screen.getByRole("button", { name: "＋ 新增人物" });
 /** 按「＋ 新增人物」長出來的那一列的名字欄。 */
 const draftInput = (container: HTMLElement) => container.querySelector<HTMLInputElement>(".character-sheet__draft input");
@@ -59,14 +68,18 @@ const addInput = async (container: HTMLElement) => {
   fireEvent.click(await screen.findByRole("button", { name: "＋ 新增人物" }));
   return draftInput(container)!;
 };
-/** 某一位的介紹內文框（依表上的順序）。 */
-const descriptions = (container: HTMLElement) => [
-  ...container.querySelectorAll<HTMLTextAreaElement>(".character-entry__description"),
-];
 const menuRows = (container: HTMLElement) =>
   [...container.querySelectorAll(".character-sheet__draft .entity-field__menu li:not(.entity-field__menu-hint)")].map(
     (li) => li.textContent ?? "",
   );
+/** 游標在哪一位的介紹內文裡（名字）；不在任何一位的內文裡就是 `null`。 */
+const caretInDescriptionOf = (container: HTMLElement) => {
+  if (document.activeElement !== prose(container)) return null;
+  const anchor = window.getSelection()?.anchorNode;
+  const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+  if (!element?.closest(".character-entry__body")) return null;
+  return element.closest(".character-entry")?.querySelector<HTMLInputElement>(".character-entry__name")?.value ?? null;
+};
 /** ⌘S：立刻存，不等打字停頓的 2.5 秒（`SaveStatusLine` 接這顆鍵）。 */
 const saveNow = () => fireEvent.keyDown(window, { key: "s", metaKey: true });
 /** 最後一次存檔送出的表：收錄了誰。 */
@@ -77,17 +90,18 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("表上印的是人物實體", () => {
-  it("每一筆印人物的名字與介紹內文", async () => {
+describe("表上每一位：名字是人物，介紹內文寫在底下", () => {
+  it("每一位印人物的名字與介紹內文", async () => {
     const { container } = setup();
     await waitFor(() => expect(entries(container)).toEqual(["若晴"]));
-    expect(screen.getByDisplayValue("三十歲，醫院護理師。")).toBeTruthy();
+    expect(container.querySelector(".character-entry__body")?.textContent).toBe("三十歲，醫院護理師。");
   });
 
-  it("還沒收錄任何人也打得開", async () => {
+  it("還沒收錄任何人：只有按鈕，沒有一行點得進去、卻打不了字的空白", async () => {
     const { container } = setup({ body: emptyDocument("角色設定表") });
     expect(await screen.findByRole("button", { name: "＋ 新增人物" })).toBeTruthy();
     expect(entries(container)).toEqual([]);
+    expect(container.querySelector<HTMLElement>(".character-sheet__list")?.hidden).toBe(true);
   });
 });
 
@@ -101,6 +115,15 @@ describe("新增人物：一列一列寫（驗收回饋 2026-10-26）", () => {
     await waitFor(() => expect(document.activeElement).toBe(input));
   });
 
+  it("⌘↵ 也是新增人物，游標在頁面上哪裡都算", async () => {
+    const { container } = setup();
+    await waitFor(() => expect(entries(container)).toEqual(["若晴"]));
+
+    fireEvent.keyDown(container.querySelector(".character-entry__name")!, { key: "Enter", metaKey: true });
+
+    await waitFor(() => expect(document.activeElement).toBe(draftInput(container)));
+  });
+
   it("名字按 Enter：收錄進表，游標進到那一位的介紹內文；可以接著再新增下一位", async () => {
     const { container } = setup();
     const input = await addInput(container);
@@ -109,7 +132,7 @@ describe("新增人物：一列一列寫（驗收回饋 2026-10-26）", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() => expect(entries(container)).toEqual(["若晴", "阿杰"]));
-    await waitFor(() => expect(document.activeElement).toBe(descriptions(container)[1]));
+    await waitFor(() => expect(caretInDescriptionOf(container)).toBe("阿杰"));
     expect(draftInput(container)).toBeNull();
     expect(addButton()).toBeTruthy();
   });
@@ -167,7 +190,7 @@ describe("新增人物：回頭補表命中既有實體", () => {
 });
 
 describe("移除與復原", () => {
-  it("× 拿掉那一筆；⌘Z 拿回來", async () => {
+  it("× 拿掉那一位（連同介紹）；⌘Z 拿回來", async () => {
     const { container } = setup({ body: sheetOf(ruoqing.id, xiaomei.id) });
     await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
 
@@ -175,38 +198,20 @@ describe("移除與復原", () => {
     await waitFor(() => expect(entries(container)).toEqual(["小美"]));
 
     // jsdom 不是 Mac：Tiptap 的 `Mod-z` 在這裡是 Ctrl。
-    fireEvent.keyDown(container.querySelector(".ProseMirror")!, { key: "z", code: "KeyZ", ctrlKey: true });
+    fireEvent.keyDown(prose(container), { key: "z", code: "KeyZ", ctrlKey: true });
     await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
-  });
-});
-
-describe("介紹內文寫進人物的描述欄", () => {
-  it("離開欄位時存下去", async () => {
-    const { saveDescription } = setup();
-    const field = await screen.findByDisplayValue("三十歲，醫院護理師。");
-
-    fireEvent.change(field, { target: { value: "三十歲，醫院護理師。幼時在海邊埋下一枚戒指。" } });
-    fireEvent.blur(field);
-
-    await waitFor(() =>
-      expect(saveDescription).toHaveBeenCalledWith(ruoqing.id, "三十歲，醫院護理師。幼時在海邊埋下一枚戒指。"),
-    );
+    expect(screen.getByText("三十歲，醫院護理師。")).toBeTruthy();
   });
 
-  it("打字停一下就存，不必離開欄位 —— 直接關分頁也不會掉", async () => {
-    const { saveDescription } = setup();
-    const field = await screen.findByDisplayValue("三十歲，醫院護理師。");
+  it("點把手選起整位，按 ⌫ 就拿掉（同劇本的區塊把手）", async () => {
+    const { container } = setup({ body: sheetOf(ruoqing.id, xiaomei.id) });
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
 
-    fireEvent.change(field, { target: { value: "三十歲。" } });
+    fireEvent.click(container.querySelector(".character-entry__grip")!);
+    await waitFor(() => expect(container.querySelector(".ProseMirror-selectednode .character-entry__name")).toBeTruthy());
+    fireEvent.keyDown(prose(container), { key: "Backspace", code: "Backspace" });
 
-    await waitFor(() => expect(saveDescription).toHaveBeenCalledWith(ruoqing.id, "三十歲。"), { timeout: 3000 });
-  });
-
-  it("沒改就不存", async () => {
-    const { saveDescription } = setup();
-    fireEvent.blur(await screen.findByDisplayValue("三十歲，醫院護理師。"));
-    await act(async () => {});
-    expect(saveDescription).not.toHaveBeenCalled();
+    await waitFor(() => expect(entries(container)).toEqual(["小美"]));
   });
 });
 
@@ -218,42 +223,65 @@ describe("改名：改的是人物實體的名字", () => {
     fireEvent.keyDown(input, { key: "Enter" });
   };
 
-  it("劇本裡沒有一場印著舊名：直接改", async () => {
+  it("劇本裡沒有一場印著舊名：直接改，不問", async () => {
     const { container, rename } = setup({ count: 0 });
     await renameTo(container, "林若晴");
 
     await waitFor(() => expect(rename.run).toHaveBeenCalledWith(ruoqing.id, "若晴", "林若晴", false));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
-  it("還有幾場印著舊名：先問，代價寫在按下去之前", async () => {
+  it("名字按 Enter：游標進到介紹內文", async () => {
+    const { container } = setup({ count: 0 });
+    await renameTo(container, "林若晴");
+    await waitFor(() => expect(caretInDescriptionOf(container)).toBe("林若晴"));
+  });
+
+  it("劇本裡用過這個名字：對話框問要不要一起改，選「是」連劇本一起改", async () => {
     const { container, rename } = setup({ count: 2 });
     await renameTo(container, "林若晴");
 
-    const choice = await screen.findByRole("group", { name: "劇本裡的舊名字要不要跟著改" });
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("這名角色（原名：若晴）已經用於劇本當中，要一起改成「林若晴」嗎？");
     expect(rename.run).not.toHaveBeenCalled();
-    expect(within(choice).getByRole("button", { name: "只改人物介紹 —— 劇本那 2 場繼續印「若晴」" })).toBeTruthy();
 
-    fireEvent.click(within(choice).getByRole("button", { name: "連劇本那 2 場一起改成「林若晴」" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "是" }));
     await waitFor(() => expect(rename.run).toHaveBeenCalledWith(ruoqing.id, "若晴", "林若晴", true));
-    expect(entries(container)).toEqual(["林若晴"]);
+    await waitFor(() => expect(entries(container)).toEqual(["林若晴"]));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
-  it("問的時候按 Esc：不改，名字退回去", async () => {
+  it("選「否，只改人物介紹」：人物改名，劇本照舊", async () => {
     const { container, rename } = setup({ count: 2 });
     await renameTo(container, "林若晴");
-    await screen.findByRole("group", { name: "劇本裡的舊名字要不要跟著改" });
 
-    fireEvent.keyDown(container.querySelector(".character-entry__name")!, { key: "Escape" });
-    await waitFor(() => expect(entries(container)).toEqual(["若晴"]));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "否，只改人物介紹" }));
+    await waitFor(() => expect(rename.run).toHaveBeenCalledWith(ruoqing.id, "若晴", "林若晴", false));
+  });
+
+  it("一定要選：Esc 關不掉，預設焦點在不動劇本的那一顆", async () => {
+    const { container, rename } = setup({ count: 2 });
+    await renameTo(container, "林若晴");
+    const dialog = await screen.findByRole("alertdialog");
+    await waitFor(() => expect(document.activeElement?.textContent).toBe("否，只改人物介紹"));
+
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await act(async () => {});
+    expect(screen.getByRole("alertdialog")).toBe(dialog);
     expect(rename.run).not.toHaveBeenCalled();
   });
 
-  it("改成另一位人物的名字：不改，說出撞到誰 —— 那會是第二個小美", async () => {
+  it("改成另一位人物的名字：對話框說撞到誰，確認後名字退回去 —— 那會是第二個小美", async () => {
     const { container, rename } = setup({ body: sheetOf(ruoqing.id) });
     await renameTo(container, "小美");
 
-    expect(await screen.findByText("已經有一位「小美」了")).toBeTruthy();
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("已經有一位「小美」了");
+    fireEvent.click(within(dialog).getByRole("button", { name: "確認" }));
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     await waitFor(() => expect(entries(container)).toEqual(["若晴"]));
+    expect(document.activeElement).toBe(container.querySelector(".character-entry__name"));
     expect(rename.count).not.toHaveBeenCalled();
   });
 
@@ -261,12 +289,6 @@ describe("改名：改的是人物實體的名字", () => {
     const { container, rename } = setup({ count: 0 });
     await renameTo(container, "小美的前男友");
     await waitFor(() => expect(rename.run).toHaveBeenCalledWith(ruoqing.id, "若晴", "小美的前男友", false));
-  });
-
-  it("名字按 Enter：游標進到介紹內文", async () => {
-    const { container } = setup({ count: 0 });
-    await renameTo(container, "林若晴");
-    await waitFor(() => expect(document.activeElement).toBe(descriptions(container)[0]));
   });
 
   it("清成空白不算改名", async () => {

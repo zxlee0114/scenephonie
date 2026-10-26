@@ -27,7 +27,7 @@ const hasDatabase = Boolean(process.env.DATABASE_URL);
 
 const sheetOf = (...ids: string[]): PersistedDoc => ({
   type: "doc",
-  content: ids.map((characterId) => ({ type: "characterEntry", attrs: { characterId } })),
+  content: ids.map((characterId) => ({ type: "characterEntry", attrs: { characterId }, content: [{ type: "paragraph" }] })),
 });
 
 /** 一份劇本：每個參數是一場，那一場的登場人物欄只有這一筆。 */

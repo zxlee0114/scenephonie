@@ -1,32 +1,25 @@
 "use server";
 
 import { authorizeProject } from "@/authorization";
-import { createCharacter, renameCharacter, setCharacterDescription } from "@/entities";
+import { createCharacter, renameCharacter } from "@/entities";
 import { retitleCharacterInScreenplay, scenesShowingCharacterName } from "@/persistence";
 import { projectScreenplay } from "@/projects/project-store";
 
 /**
  * 角色設定表（畫面上叫「人物介紹」）的寫入入口（票券 21 第 ② 片）。表本身走 `../documents/actions` 的 `saveDocumentAction`；
- * 這裡是**人物實體**那一半：建立、介紹內文、改名。
+ * 這裡是**人物實體**那一半：建立、改名（介紹內文住在表上，跟著表存）。
  *
  * **授權在這裡**（不變式 H）：瀏覽器給的是字串，每一支都先換成 handle。人物屬於專案，所以授權主體是專案；
  * 改名要動到劇本時，劇本的 handle 由 `projectScreenplay` 從 gate 拿，不就地捏一個。
  */
 
-/** 表上「＋ 加入人物」打了一個新名字：先建立人物（不變式 ⑧：先建立實體、再寫入 doc）。空名字不建。 */
+/** 「＋ 新增人物」打了一個新名字：先建立人物（不變式 ⑧：先建立實體、再寫入 doc）。空名字不建。 */
 export async function createCharacterAction(projectId: string, name: string): Promise<{ id: string; name: string } | null> {
   const project = await authorizeProject(projectId);
   const trimmed = name.trim();
   if (!project || !trimmed) return null;
   const created = await createCharacter(project, { name: trimmed });
   return { id: created.id, name: created.name };
-}
-
-/** 人物的介紹內文 —— 寫進人物的描述欄。 */
-export async function saveCharacterDescriptionAction(projectId: string, characterId: string, description: string): Promise<boolean> {
-  const project = await authorizeProject(projectId);
-  if (!project) return false;
-  return setCharacterDescription(project, characterId, description);
 }
 
 /** 劇本裡還有幾場印著這個名字（改名前先數，數到 0 就不問）。 */

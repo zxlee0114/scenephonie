@@ -4,8 +4,8 @@
  * 角色設定表是人物實體的**第三個引用來源**（另兩個是場次 metadata 與對白人物欄）。收錄一個人就是產生一個
  * 引用，所以寫入那一半跟劇本裡的 chip 守同一條不變式 ⑧：**拒絕對不存在實體的引用，先建立實體、再寫入 doc**。
  *
- * 移除與排序沒有 command：一筆就是一個 atom 節點，刪掉與拖曳是 ProseMirror 本來就會的事，不會長出
- * 新的引用（不碰 ⑧），也不會讓同一個人出現兩次。
+ * 移除與排序沒有 command：一筆就是一個節點（連同他的介紹內文），刪掉與拖曳是 ProseMirror 本來就會的事，
+ * 不會長出新的引用（不碰 ⑧），也不會讓同一個人出現兩次。
  */
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
@@ -18,7 +18,7 @@ export interface AddCharacterEntryOptions {
 }
 
 /**
- * 把一位人物收錄進表，排在最後。
+ * 把一位人物收錄進表，排在最後，底下一段空的介紹內文等著寫。
  *
  * **同一個人不收兩次**：表的每一筆是「收錄了誰」，第二筆不帶來任何新資訊，印出來卻是同一段介紹兩遍。
  */
@@ -30,7 +30,7 @@ export function addCharacterEntry(doc: ProseMirrorNode, options: AddCharacterEnt
   if (characterSheetIds(doc.toJSON()).includes(characterId)) {
     return reject(`人物「${characterId}」已經在角色設定表上`);
   }
-  const entry = doc.type.schema.nodes.characterEntry!.create({ characterId });
+  const entry = doc.type.schema.nodes.characterEntry!.createAndFill({ characterId })!;
   return ok(doc.copy(doc.content.addToEnd(entry)));
 }
 

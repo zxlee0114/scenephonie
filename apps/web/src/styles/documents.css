@@ -245,6 +245,13 @@
   background: var(--surface-sunken);
 }
 
+/* 這份文件沒有的格式（人物介紹的第二層標題）：灰掉，tooltip 說為什麼。 */
+.format-menu__button:disabled {
+  background: none;
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
 .format-menu__button[aria-pressed="true"] {
   background: var(--color-accent-weak);
   color: var(--color-accent);
@@ -265,10 +272,11 @@
 
 /*
  * 角色設定表（畫面上叫「人物介紹」，票券 21 第 ② 片）：一位人物一塊，名字當標題、介紹內文寫在底下 —— 整頁就是
- * PDF 人物介紹頁的樣子。名字與內文都是人物的欄位，所以都是普通的輸入框，只是長得像紙上的字。
+ * PDF 人物介紹頁的樣子。名字是人物的欄位（一個長得像紙上標題的輸入框）；內文是這份文件的散文，跟其他文件
+ * 同一套樣式（`.document-page__body`）。
  */
 .character-sheet__entries {
-  outline: none;
+  min-block-size: 0;
 }
 
 .character-entry {
@@ -276,10 +284,10 @@
   margin-block-end: var(--space-5);
 }
 
-/* 拖曳時 ProseMirror 選起整筆：淡淡一層底，看得出拖的是哪一位。 */
+/* 點把手（或拖曳時）選起整位：名字連同介紹一層淡底，看得出接下來 ⌫ 刪的、拖的是哪一位。 */
 .character-entry.ProseMirror-selectednode {
   border-radius: var(--space-1);
-  background: var(--surface-raised);
+  background: var(--selection-bg);
 }
 
 .character-entry__head {
@@ -294,18 +302,15 @@
   block-size: calc(1.35em * var(--leading-sm));
 }
 
-.character-entry:hover .drag-handle {
+.character-entry:hover .drag-handle,
+.character-entry.ProseMirror-selectednode .drag-handle {
   opacity: 1;
-}
-
-.character-entry__name-box {
-  flex: 1;
-  min-inline-size: 0;
 }
 
 /* 名字就是這一塊的標題：跟散文文件的第二層標題同一級。 */
 .character-entry__name {
-  inline-size: 100%;
+  flex: 1;
+  min-inline-size: 0;
   padding: 0;
   border: 0;
   background: none;
@@ -316,8 +321,7 @@
   line-height: var(--leading-sm);
 }
 
-.character-entry__name:focus,
-.character-entry__description:focus {
+.character-entry__name:focus {
   outline: none;
 }
 
@@ -341,57 +345,24 @@
   color: var(--text-primary);
 }
 
-/* 改名時問劇本要不要跟：兩顆按鈕把場數說出來，排在名字底下。 */
-.character-entry__retitle {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-block: var(--space-2);
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
+.character-entry__body {
+  margin-block-start: var(--space-2);
 }
 
-.character-entry__retitle button {
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--space-1);
-  background: var(--surface-page);
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.character-entry__retitle button:hover {
-  background: var(--surface-raised);
-}
-
-/* 內文框跟著字長高：寫多少就多高，看起來是紙上的一段，不是一個表單欄位。 */
-.character-entry__description {
-  display: block;
-  inline-size: 100%;
-  margin-block-start: var(--space-1);
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  resize: none;
-  field-sizing: content;
-  min-block-size: calc(1lh * 2);
-}
-
-.character-entry__description::placeholder {
+/* 這一位還沒寫介紹：淡淡一行提示（Placeholder 把字放在 data-placeholder 上）。 */
+.character-entry__body p.is-empty:only-child::before {
+  content: attr(data-placeholder);
+  float: inline-start;
+  block-size: 0;
   color: var(--text-faint);
+  pointer-events: none;
 }
 
-.character-entry__failed {
-  margin: var(--space-1) 0 0;
-  color: var(--error-fg);
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-}
-
-/* 「＋ 新增人物」：一行安靜的文字按鈕，接在最後一位底下。 */
+/* 「＋ 新增人物」：一行安靜的文字按鈕，接在最後一位底下；快捷鍵跟在後面。 */
 .character-sheet__add {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
   margin-block-start: var(--space-4);
   padding: 0;
   border: 0;
@@ -404,6 +375,11 @@
 
 .character-sheet__add:hover {
   color: var(--text-primary);
+}
+
+.character-sheet__add kbd {
+  color: var(--text-faint);
+  font-family: inherit;
 }
 
 /* 按下去長出來的那一列：名字欄跟表上每一位的名字同一個位置、同一個字級。 */
@@ -419,9 +395,62 @@
   line-height: var(--leading-sm);
 }
 
-.character-entry__note {
-  margin: var(--space-1) 0 0;
-  color: var(--text-secondary);
+/* 新增的按鈕捲出畫面時，右下角那一顆。 */
+.character-sheet__jump {
+  position: fixed;
+  inset-block-end: var(--space-5);
+  inset-inline-end: var(--space-5);
+  z-index: 20;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-3);
+  background: var(--surface-page);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.character-sheet__jump:hover {
+  background: var(--surface-raised);
+}
+
+/* 改名途中一定要回答的對話框：沒有取消、點背景不關（同「這一下會合併場次」的長相）。 */
+.sheet-dialog__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: color-mix(in srgb, var(--surface-page) 72%, transparent);
+}
+
+.sheet-dialog {
+  inline-size: min(28rem, 100%);
+  padding: var(--space-5);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-3);
+  background: var(--surface-page);
+  box-shadow: var(--shadow-popover);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+}
+
+.sheet-dialog__body {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.sheet-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.sheet-dialog__actions button:focus-visible {
+  outline: 2px solid var(--focus-ring);
 }

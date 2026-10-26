@@ -14,7 +14,6 @@ import { saveDocumentAction } from "../documents/actions";
 import {
   createCharacterAction,
   renameCharacterAction,
-  saveCharacterDescriptionAction,
   scenesShowingCharacterNameAction,
 } from "./actions";
 
@@ -27,7 +26,7 @@ export const dynamic = "force-dynamic";
  *
  * 網址沒有文件 id，理由同故事大綱。路徑叫 `characters` 而不是文件的 kind：編劇在這裡做的事是整理人物。
  *
- * 劇本的場數在這裡算好帶過去：存在＝被引用要跨文件算（ADR-0005）—— 劇本裡用到的人物在「＋ 加入人物」
+ * 劇本的場數在這裡算好帶過去：存在＝被引用要跨文件算（ADR-0005）—— 劇本裡用到的人物在「＋ 新增人物」
  * 裡找得到、印出場數，回頭補表時命中的就是那一位。
  */
 export default async function CharactersPage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -49,10 +48,9 @@ export default async function CharactersPage({ params }: { params: Promise<{ pro
         initialBody={document.body}
         initialToken={document.token}
         save={saveDocumentAction.bind(null, { projectId: project.projectId }, document.documentId)}
-        characters={entities.characters}
+        characters={entities.characters.map(({ id, name }) => ({ id, name }))}
         scenes={scenes}
         createCharacter={createCharacterAction.bind(null, project.projectId)}
-        saveDescription={saveCharacterDescriptionAction.bind(null, project.projectId)}
         rename={{
           count: scenesShowingCharacterNameAction.bind(null, project.projectId),
           run: renameCharacterAction.bind(null, project.projectId),

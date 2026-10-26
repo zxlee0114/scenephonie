@@ -6,12 +6,15 @@
  *
  * 分隔線不在選單裡：它不依附一段選取，打 `---` 就有。
  *
+ * 選單只跟著**反白的字**出現：點把手選起一整位人物（人物介紹）不是在挑字的格式。
+ *
  * 按鈕的 `mousedown` 取消預設行為：預設會把焦點從編輯區拿走、選取跟著不見。動作本身照常掛在 `click`，
  * 鍵盤（Tab 進選單、Enter）也按得動。
  */
 "use client";
 
 import type { Editor } from "@tiptap/core";
+import { TextSelection } from "@tiptap/pm/state";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { useMemo, useRef } from "react";
@@ -53,7 +56,17 @@ const GROUPS: FormatButton[][] = [
   ],
 ];
 
-export function FormatMenu({ editor }: { editor: Editor }) {
+/**
+ * `unavailable`：這份文件用不到、但要讓人看得到「這裡沒有」的那幾顆，灰掉不拿掉 —— 人物介紹的第二層標題是人物
+ * 的名字（使用者裁決 2026-10-26），`reason` 寫在 tooltip 裡。
+ */
+export function FormatMenu({
+  editor,
+  unavailable = {},
+}: {
+  editor: Editor;
+  unavailable?: Partial<Record<keyof FormatState, string>>;
+}) {
   const active = useEditorState({
     editor,
     selector: ({ editor: e }): FormatState => ({
@@ -82,6 +95,12 @@ export function FormatMenu({ editor }: { editor: Editor }) {
     }),
     [],
   );
+  const shouldShow = useMemo(
+    () =>
+      ({ editor: e, from, to }: { editor: Editor; from: number; to: number }) =>
+        e.isFocused && e.isEditable && from !== to && e.state.selection instanceof TextSelection,
+    [],
+  );
   return (
     <BubbleMenu
       ref={menu}
@@ -90,6 +109,7 @@ export function FormatMenu({ editor }: { editor: Editor }) {
       role="toolbar"
       aria-label="格式"
       options={options}
+      shouldShow={shouldShow}
     >
       {GROUPS.map((group, index) => (
         <div key={index} className="format-menu__group">
@@ -99,7 +119,8 @@ export function FormatMenu({ editor }: { editor: Editor }) {
               type="button"
               className={`format-menu__button format-menu__button--${button.key}`}
               aria-label={button.name}
-              title={button.name}
+              title={unavailable[button.key] ?? button.name}
+              disabled={button.key in unavailable}
               aria-pressed={active[button.key]}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => button.run(editor)}

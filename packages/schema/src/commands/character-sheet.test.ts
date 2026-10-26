@@ -14,13 +14,22 @@ const directory = entityDirectory({ characterIds: [ruoqing, xiaoming] });
 const sheet = (...ids: string[]) =>
   documentFromJSON("角色設定表", {
     type: "doc",
-    content: ids.map((characterId) => ({ type: "characterEntry", attrs: { characterId } })),
+    content: ids.map((characterId) => ({ type: "characterEntry", attrs: { characterId }, content: [{ type: "paragraph" }] })),
   });
 
 describe("addCharacterEntry", () => {
   it("收錄一位既有人物，排在最後", () => {
     const result = addCharacterEntry(sheet(ruoqing), { characterId: xiaoming, directory });
     expect(result.ok && characterSheetIds(result.value.toJSON())).toEqual([ruoqing, xiaoming]);
+  });
+
+  it("新收錄的那一位底下是一段空的介紹內文，等著寫", () => {
+    const result = addCharacterEntry(sheet(), { characterId: ruoqing, directory });
+    expect(result.ok && result.value.child(0).toJSON()).toEqual({
+      type: "characterEntry",
+      attrs: { characterId: ruoqing },
+      content: [{ type: "paragraph" }],
+    });
   });
 
   it("不存在的人物不能收錄 —— 先建立實體、再寫入 doc（不變式 ⑧）", () => {
