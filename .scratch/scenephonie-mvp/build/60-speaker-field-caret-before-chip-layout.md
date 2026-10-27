@@ -11,7 +11,7 @@ CONTEXT.md「chip 之間那道縫」一段定的是：游標插進去、還沒�
 （一格游標寬、左右負邊距還回去，後面那道縫收成零）—— 連第一顆 chip 左邊也成立。對白人物欄
 沒有照這一條走。
 
-**Status:** open
+**Status:** done
 
 ## 從哪來的
 
@@ -25,3 +25,11 @@ CONTEXT.md「chip 之間那道縫」一段定的是：游標插進去、還沒�
 
 - [ ] 對白人物欄游標在 chip 前面（沒打字）時，chip 位置與游標在隊尾時一致
 - [ ] 打了字之後照常把 chip 擠開
+
+## Comments
+
+**2026-10-27 — 隨票 62 修掉。** 線索裡的根因是對的：`.block--dialogue .block__speaker` 的 `flex: 1 1 6ch` 與
+`.entity-field__input--caret`／`--inline` 同權重又排在後面，把「縫」的版面蓋掉了。票 62 驗收時在「游標插進兩顆 chip
+之間」撈到同一件事，改成 `flex` 只給不夾在 chip 中間的那個輸入框（`styles/editor.css`）。
+
+**待瀏覽器驗**：只有一顆 chip 的對白人物欄，從隊尾按兩下 ← 走到 chip 前面 —— chip 不動；打字之後照常被擠開。

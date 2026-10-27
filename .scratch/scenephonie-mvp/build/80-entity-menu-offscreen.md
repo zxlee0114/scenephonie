@@ -6,7 +6,7 @@
 
 **Blocked by:** 無
 
-**Status:** needs-triage
+**Status:** closed —— 與 [33](./33-entity-field-ui-polish.md) 第一條重複，已併進去（2026-10-27）
 
 ## 從哪來的
 
