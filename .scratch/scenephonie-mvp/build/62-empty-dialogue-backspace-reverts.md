@@ -12,7 +12,7 @@
 也要確認 Backspace 是在**哪一格**按的：台詞空的內文裡，還是人物欄的空輸入框裡（後者的 Backspace
 現在歸欄位 —— 拿游標左邊那一顆 chip，見 CONTEXT.md「chip 之間那道縫」）。兩處可能都要接。
 
-**Status:** done
+**Status:** verified
 
 ## 從哪來的
 
@@ -99,7 +99,7 @@
 
 - **游標插進人物欄兩顆 chip 之間，後半排被推到行尾**：在這張票修。`.block--dialogue .block__speaker` 的 `flex: 1 1 6ch`
   與票 39 的 `--inline`／`--caret` 同權重又排在後面，把「夾在中間不佔版面」蓋掉了 —— 對白人物欄從來沒被那兩條管到；
-  Q5 的「拿起 chip」讓這個狀態變常見。改成 `flex` 只給不夾在 chip 中間的那個輸入框。**待重驗**：點兩顆 chip 中間、
+  Q5 的「拿起 chip」讓這個狀態變常見。改成 `flex` 只給不夾在 chip 中間的那個輸入框。重驗通過（2026-10-27）：點兩顆 chip 中間、
   台詞開頭 ⌫ 拿起 chip，後半排都不位移。
 - 選單在視窗下緣被切掉 → 開票 [80](./80-entity-menu-offscreen.md)。
 - 寫作中的打字餘裕（提議）→ 開票 [81](./81-typewriter-scroll-while-writing.md)。

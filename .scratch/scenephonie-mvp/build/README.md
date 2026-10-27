@@ -102,7 +102,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [59](./59-voice-style-entry.md) | 發聲方式（V.O./O.S.）的輸入入口 —— `voiceStyle` 在 schema 裡，但沒有 UI 設得到。規格 §4.6：併進對白人物欄的自動補全。**從票券 10 切出來**（提示的判準已經在讀這個 attr）。blocked by 10。 | `open` |
 | [60](./60-speaker-field-caret-before-chip-layout.md) | bug：對白人物欄游標走到 chip 前面時，輸入框撐開、把 chip 推到欄位中間 —— 違反「縫」的版面（不佔版面）。**從票券 10 驗收撈到**，與 10 無關。 | `open` |
 | [61](./61-speaker-field-left-exits-to-previous-block.md) | 對白人物欄最前面按 ← 走不回上一個區塊。落點與場次第一個區塊的情況開工前問。**從票券 10 驗收撈到**。 | `open` |
-| [62](./62-empty-dialogue-backspace-reverts.md) | 對白之間的 Enter／Backspace 不對稱：空對白按 Backspace 收不回；台詞開頭 Enter 切出第二句對白後回不去，而且 Backspace 會**刪掉上一句有人物的對白（資料遺失）**。**從票券 10、21 驗收撈到**。 | ✅ done（chip 縫重驗中） |
+| [62](./62-empty-dialogue-backspace-reverts.md) | 對白之間的 Enter／Backspace 不對稱：空對白按 Backspace 收不回；台詞開頭 Enter 切出第二句對白後回不去，而且 Backspace 會**刪掉上一句有人物的對白（資料遺失）**。**從票券 10、21 驗收撈到**。 | ✅ verified |
 | [63](./63-canonical-host-redirect.md) | 非正式網域一律 308 轉到 `BETTER_AUTH_URL` 的 host —— 從 deployment 網址登入時 `state` cookie 跨網域，Google 登入偶爾失敗。無 blocker。 | `open` |
 | [64](./64-login-error-code-swallowed.md) | bug：登入頁讀不到 Better Auth 的錯誤碼（`error` 被接成兩個 query），「不在受邀清單上」永遠顯示不出來。無 blocker。 | ✅ verified |
 | [65](./65-autosave-retry-backoff.md) | 存檔失敗後退避重試（2.5 秒起跳加倍、封頂 60 秒、持續再試）；狀態列倒數、「立刻重試」與 ⌘S、離開前提醒。無 blocker。 | ✅ verified |
