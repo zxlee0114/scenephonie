@@ -55,11 +55,13 @@ afterEach(() => {
 });
 
 describe("多組「描述 x 人數」", () => {
-  it("頓號分隔，一次打好幾組", async () => {
+  it("頓號分隔，一次打好幾組 —— 打字時不切，Enter 才整串解析（票券 82）", async () => {
     const { container } = render(<Host />);
     const input = container.querySelector("input")!;
 
-    fireEvent.change(input, { target: { value: "咖啡廳客人 x8、服務生 x2、" } });
+    fireEvent.change(input, { target: { value: "咖啡廳客人 x8、服務生 x2" } });
+    expect(chipTexts(container)).toEqual([]);
+    fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳客人（8）", "服務生（2）"]));
     expect(input.value).toBe("");
@@ -87,6 +89,7 @@ describe("多組「描述 x 人數」", () => {
     const input = container.querySelector("input")!;
 
     fireEvent.change(input, { target: { value: "咖啡廳 客人 x8、" } });
+    fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳 客人（8）"]));
   });
@@ -188,6 +191,8 @@ describe("注音組字期間選單完全不動作（§7.6）", () => {
 
     fireEvent.change(input, { target: { value: "咖啡廳客人 x8、" } });
     fireEvent.compositionEnd(input);
+    expect(chipTexts(container)).toEqual([]); // 組字結束也不切 —— 等 Enter（票券 82）
+    fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(chipTexts(container)).toEqual(["咖啡廳客人（8）"]));
   });
 });
@@ -292,6 +297,7 @@ describe("群演欄吃的是同一套 chip 手感（票券 39 收票）", () => 
 
     const input = container.querySelector("input")!;
     fireEvent.change(input, { target: { value: "警察 x3、" } });
+    fireEvent.keyDown(input, { key: "Enter" });
 
     expect(chipTexts(container)).toEqual(["客人（8）", "警察（3）", "服務生（2）"]);
   });

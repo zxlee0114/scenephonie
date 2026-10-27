@@ -13,7 +13,7 @@
  * 人」，而群演正是因為沒有那種身分連續性才不是人物。所以這裡**只補字串** —— 選一列只是把
  * 那串字填進輸入框，什麼都還沒定案。
  *
- * 共用的是**規則**不是程式碼：多值分隔（`splitNamesLive`）、注音組字期間不動作、Backspace
+ * 共用的是**規則**不是程式碼：多值分隔（`parseNameDraft`，Enter 才解析 —— 票券 82）、注音組字期間不動作、Backspace
  * 把最後一筆還原成可編輯文字 —— 三者與實體欄位逐字同一套，因為編劇在這一排四個欄位裡按的
  * 是同一批鍵。
  *
@@ -100,8 +100,9 @@ import {
   formatExtra,
   mintExtraId,
   parseExtra,
+  parseNameDraft,
   resolveCountInput,
-  splitNamesLive,
+  splitNames,
   statesCount,
   type CountValue,
   type ExtraRef,
@@ -296,8 +297,7 @@ export function ExtrasField({
     return { extraId: held?.extraId ?? mintExtraId(), ...content };
   };
 
-  const add = (segments: string[]) => {
-    const added = segments.map(toExtra).filter((e): e is ExtraRef => e !== null);
+  const add = (added: ExtraRef[]) => {
     if (added.length === 0) return;
     // 放在**游標停的地方**，定案之後游標停在這一串之後（同實體欄位的 `merge`）。
     const at = caret.current;
@@ -341,15 +341,25 @@ export function ExtrasField({
     redraw();
   };
 
+  /**
+   * 定案（Enter、選單第一列、離開欄位）—— **整串一次解析**（票券 82）：打字時分隔符只是字。
+   *
+   * 最後一個名字讀的是 `readText`（手上那一批、待定人數都屬於它 —— 選單說的就是它）；前面幾個
+   * 各自是新的一批，照 `parseExtra` 讀尾綴。以分隔符收尾（`路人、`）時最後一個名字就是 `路人`，
+   * 手上那一批才不會因為一個頓號被當成新的一批、掉了 id 與人數。
+   */
   const commitText = () => {
     if (!text.trim()) return;
-    // 讀不出一筆群演（例：只打了 `x8`）就什麼都不做。這**只發生在沒握著的那一側** ——
+    const segments = splitNames(text);
+    const lastSegment = segments.pop() ?? "";
+    // 讀不出一筆群演（例：只打了 `x8`）就略過那一段。這**只發生在沒握著的那一側** ——
     // 握著時框裡的每一串非空白字都是合法名稱（票券 47），所以手上那一批掉不了。
-    if (!readText(text)) {
-      reset();
-      return;
-    }
-    add([text]);
+    const tail = toExtra(lastSegment);
+    const heads = segments
+      .map(parseExtra)
+      .filter((c): c is Omit<ExtraRef, "extraId"> => c !== null)
+      .map((c) => ({ extraId: mintExtraId(), ...c }));
+    add([...heads, ...(tail ? [tail] : [])]);
     reset();
   };
 
@@ -384,7 +394,7 @@ export function ExtrasField({
    */
   const addAnother = () => {
     const held = editing.current;
-    const content = readText(text);
+    const content = readText(draft.last);
     if (!held || !content) return;
     const at = Math.min(caret.current ?? extras.length, extras.length);
     const minted: ExtraRef = { extraId: mintExtraId(), ...content };
@@ -427,8 +437,8 @@ export function ExtrasField({
     !editing.current &&
     !pendingCount.current &&
     stage.current !== "count" &&
-    readText(text) !== null &&
-    !statesCount(text);
+    readText(draft.last) !== null &&
+    !statesCount(draft.last);
 
   /**
    * 新增那一側的 Enter 與第一列：**沒說人數就問一次**（票券 49）。
@@ -543,8 +553,13 @@ export function ExtrasField({
     redraw();
   };
 
-  const query = text.trim();
-  const parsed = readText(text);
+  /**
+   * 框裡那串字拆成兩半（票券 82，同實體欄位）：選單、預覽、人數那一問只看正在打的最後一段，
+   * 前面幾段等 Enter 才一起定案。
+   */
+  const draft = parseNameDraft(text);
+  const query = draft.last.trim();
+  const parsed = readText(draft.last);
   /**
    * 選單開著嗎 —— 框裡有字，**或**手上握著一批。
    *
@@ -715,7 +730,8 @@ export function ExtrasField({
         // **只補字串**：選它只是把描述填進輸入框，還沒有任何一筆被建立，人數也還沒決定。
         label: `${EXTRA_MARK} ${description}`,
         run: () => {
-          setText(description);
+          // 只換掉最後一段 —— 前面幾段是編劇已經打好、等著 Enter 的名字。
+          setText(text.slice(0, text.length - draft.last.length) + description);
           setActive(0);
           input.current?.focus();
         },
@@ -908,7 +924,8 @@ export function ExtrasField({
       return;
     }
 
-    if (event.key === "Enter" && query) {
+    // 看整串字：`路人、` 的最後一段是空的，Enter 照樣把路人定案（同實體欄位）。
+    if (event.key === "Enter" && text.trim()) {
       event.preventDefault();
       event.stopPropagation();
       // 選單被 Esc 收起來時走這裡 —— 規則一步都不退：**沒說人數就問一次**（票券 49）。
@@ -943,11 +960,7 @@ export function ExtrasField({
     setText(value);
     setDismissed(false);
     setActive(0);
-    if (composing.current) return; // 組字中不切 chip
-    const { names, rest } = splitNamesLive(value);
-    if (names.length === 0) return;
-    setText(rest);
-    add(names);
+    // 打字時不切 chip（票券 82）：分隔符在 Enter 之前只是字，切開等 `commitText`。
   };
 
   // 手上那一批 —— 算抬頭時已經取過（同一次 render 裡 ref 不會自己變），這裡沿用同一個值。

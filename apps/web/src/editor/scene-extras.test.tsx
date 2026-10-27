@@ -77,6 +77,7 @@ describe("簡表的群演欄", () => {
     const input = await inputIn(container, ".scene__chip--extras");
 
     fireEvent.change(input, { target: { value: "咖啡廳客人 x8、服務生 x2、" } });
+    fireEvent.keyDown(input, { key: "Enter" }); // Enter 才解析（票券 82）
 
     await waitFor(() => expect(extrasChips(container)).toEqual(["咖啡廳客人（8）", "服務生（2）"]));
     expect(extrasOf(editor).map((e) => [e.description, e.countValue])).toEqual([
@@ -342,6 +343,7 @@ describe("對白人物欄跟著同一場的群演欄走（票券 56）", () => {
 
     const extrasBox = await inputIn(container, ".scene__chip--extras");
     fireEvent.change(extrasBox, { target: { value: "保全 x8、" } });
+    fireEvent.keyDown(extrasBox, { key: "Enter" }); // Enter 才解析（票券 82）
     await waitFor(() => expect(extrasChips(container)).toEqual(["保全（8）"]));
 
     const speaker = await inputIn(container, ".block__speaker-field");

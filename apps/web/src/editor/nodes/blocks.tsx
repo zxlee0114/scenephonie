@@ -12,7 +12,8 @@
 "use client";
 
 import type { NodeViewRenderer } from "@tiptap/core";
-import { TextSelection } from "@tiptap/pm/state";
+import { closeHistory, isHistoryTransaction } from "@tiptap/pm/history";
+import { TextSelection, type Transaction } from "@tiptap/pm/state";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
@@ -189,6 +190,68 @@ function DialogueView(props: NodeViewProps) {
   };
 
   /**
+   * 人物欄**最近一次寫入之前**這一句的樣子 —— `onCommit`／`onMoveToBody` 寫下去之前記的。
+   *
+   * 它只是一份候補：定案那一下（Enter 進台詞）才把它交給 `takeBackFrom`。別的寫入（拿起一顆 chip、
+   * 點 ×、離開欄位的定案）也會更新它，同時把 `takeBackFrom` 解除 —— 那之後等的就不是那一步了。
+   */
+  const beforeWrite = useRef<PMNode | null>(null);
+  /**
+   * Enter 定案、游標進了台詞之後，**⌘Z 退到哪個樣子就算撤掉了那一下**（票券 82）。
+   *
+   * 那一下 ⌘Z 打在 ProseMirror 上，人物欄自己收不到（它的 `handleKeyDown` 只管焦點還在欄位裡那一格，
+   * 票券 37）。所以由這一層看：一次 history transaction 之後這一句**正好回到定案之前的樣子**，就是撤到了
+   * 那一步 —— 整串字交還人物欄、焦點跟著回去。先撤掉的是之後打的台詞時，這一句還沒回到那個樣子，
+   * 就繼續等。判準與票券 37 的 `whenFieldBecomes` 同一個：看文件退成什麼樣子，不猜那一下撤了什麼。
+   */
+  const takeBackFrom = useRef<PMNode | null>(null);
+  useEffect(() => {
+    const onTransaction = ({ transaction }: { transaction: Transaction }) => {
+      const before = takeBackFrom.current;
+      if (!before || !isHistoryTransaction(transaction)) return;
+      const here = locateBlock(props);
+      const now = here && blockNow(here);
+      if (!now?.eq(before)) return;
+      takeBackFrom.current = null;
+      fieldRef.current?.takeBack();
+    };
+    editor.on("transaction", onTransaction);
+    return () => {
+      editor.off("transaction", onTransaction);
+    };
+    // 每次都重新定位（`locateBlock`／`blockNow` 讀的是當下的 doc），不吃過期座標 —— 同上面那個 effect。
+  }, [editor]);
+
+  /**
+   * 「↓ 移到台詞」（票券 82）：人物欄裡那串字其實是台詞 —— 插到**台詞開頭**。
+   *
+   * `focus` ＝ Enter 那一下：游標停在插入那串字的尾端（接著打就接在句子後面），⌘Z 也接得回來。
+   * 離開欄位時字照樣搬過去，但游標已經在別處了，不拉回來。
+   */
+  const moveToBody = (text: string, { focus }: { focus: boolean }) => {
+    const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
+    if (pos == null || !text) return;
+    const here = locateBlock(props);
+    const before = here && blockNow(here);
+    const at = pos + 1;
+    const chain = editor.chain().command(({ tr }) => {
+      tr.insertText(text, at);
+      return true;
+    });
+    if (focus) chain.focus().setTextSelection(at + text.length);
+    takeBackFrom.current = chain.run() && focus ? before : null;
+    if (focus) sealHistory();
+  };
+
+  /**
+   * 定案那一步自成一個 undo 事件 —— 不讓接著打的台詞在 500ms 內併進來（prosemirror-history 的
+   * newGroupDelay）。併進來的話，台詞裡第一下 ⌘Z 會連剛打的句子一起撤掉。
+   */
+  const sealHistory = () => {
+    editor.view.dispatch(closeHistory(editor.state.tr));
+  };
+
+  /**
    * 登場人物提示（票券 10）—— 編劇寫完**這一句**按 Enter 時，說話者不在登場人物欄就在這裡問一聲。
    *
    * 時機在 `extensions/appearing-prompt` 的 plugin state，這個 view 只讀「問的是不是我」。
@@ -338,11 +401,22 @@ function DialogueView(props: NodeViewProps) {
           const kept = pendingPromotions.current.filter((p) => p.characterId !== characterId);
           pendingPromotions.current = [...kept, { extraId, characterId }];
         }}
-        // 齊聲：多個具名角色說同一句。頓號分隔，同地點欄與登場人物欄那一套規則。
+        // 齊聲：多個具名角色說同一句。頓號分隔，同地點欄與登場人物欄那一套規則（Enter 才解析，票券 82）。
         multiple
+        // Enter 定案名字之後，游標直接進同一句的台詞（票券 82）—— 選完人還留在人物欄的話，接著打的
+        // 台詞會落進人物欄，被當成下一個人名。離開欄位的定案不走這裡（游標已經在別處了）。
+        onSettled={() => {
+          takeBackFrom.current = beforeWrite.current;
+          sealHistory();
+          enterDialogueBody();
+        }}
+        onMoveToBody={moveToBody}
         onCommit={(refs) => {
           const here = locateBlock(props);
           if (!here) return;
+          beforeWrite.current = blockNow(here);
+          // 又寫了一次 ＝ 之前等的那一步不再是 ⌘Z 的下一站。這一次是 Enter 進台詞的話，`onSettled` 會重新接上。
+          takeBackFrom.current = null;
           // 過渡引用（沒有 id）寫不回去 —— 它指不到任何實體。
           const placed = refs.filter((r): r is EntityRef & { id: string } => r.id !== null);
           // 剛在這一欄新建、而且真的被留在欄位裡的那幾筆群演（打了又刪掉的不寫進去）。
@@ -404,8 +478,8 @@ function DialogueView(props: NodeViewProps) {
           if (e.nativeEvent.isComposing) return;
           // ⌘Z 在這個 input 裡到不了 ProseMirror（Tiptap 的 stopEvent）—— 見 `history-keys.ts`。
           if (forwardHistoryKey(editor, e)) return;
-          // 人物欄打完按 Enter：直接進台詞（不要「按了沒反應」的錯愕）——與正向 Tab 同終點。
-          // 移動焦點會 blur 這個 input，CjkField 的 onBlur 負責回寫人物名（使用者回饋 2026-09-03）。
+          // 空的人物欄（或只剩 chip）上按 Enter：直接進台詞 —— 與正向 Tab 同終點。框裡還有字時這顆鍵
+          // 到不了這裡：欄位自己定案，定案完由 `onSettled` 進台詞（票券 82）。
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             e.stopPropagation();

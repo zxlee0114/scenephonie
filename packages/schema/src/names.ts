@@ -1,5 +1,5 @@
 /**
- * 多值欄位的輸入規則（§4.7）—— **同時適用地點欄與登場人物欄**，貼上走同一份解析。
+ * 多值欄位的輸入規則（§4.7）—— **地點欄、登場人物欄、對白人物欄與群演欄同一份**，貼上走同一份解析。
  *
  * > **標點（`、` `，` `,` `；` `;`）是分隔符；全形半形空白一律視為名字的一部分。**
  *
@@ -32,16 +32,35 @@ export function splitNames(text: string): string[] {
 }
 
 /**
- * 即時切 chip 用的解析：**分隔符之前的都定案，最後一段還在打**。
+ * Enter（或離開欄位）那一下的解析：**分隔符之前的各段是名字，最後一段交給選單**（票券 82）。
  *
- * 地點是實體，編劇必須立刻看到是命中既有實體還是新建 —— 所以 chip 化發生在打下分隔符的當下，
- * 不等離開欄位。`rest` 原封不動留在 input 裡（**刻意不 trim**：還在打的字，尾端空白可能是
- * 下一個字的一部分）。
+ * 打字過程中分隔符只是字 —— 不切 chip、不建實體，要等 Enter 才整串一次解析。即時切會讓同一串
+ * 名字分成兩種待遇（「小八、吉伊」打到頓號時小八已經悄悄建好，吉伊還要等 Enter），而「立刻
+ * 看到命中還是新建」對注音使用者本來就不成立：組字中 Enter 屬於 IME，字送出之前這一欄什麼都
+ * 還沒發生。所以結果仍在 Enter 那一下當場看得到。
+ *
+ * 選單（以及組字中的唯讀預覽）只看 `last` —— 最後一個分隔符之後正在打的那段。`last`
+ * **刻意不 trim**：還在打的字，尾端空白可能是下一個字的一部分。
  */
-export function splitNamesLive(text: string): { names: string[]; rest: string } {
+export function parseNameDraft(text: string): { names: string[]; last: string } {
   const segments = text.split(SEPARATOR);
-  const rest = segments.pop() ?? "";
-  return { names: segments.map(clean).filter((name) => name.length > 0), rest };
+  const last = segments.pop() ?? "";
+  return { names: segments.map(clean).filter((name) => name.length > 0), last };
+}
+
+/**
+ * 分隔符**以外**的台詞標點（票券 82）。清單就是票上那一行，不多不少。
+ *
+ * 對白人物欄裡出現它們，那串字多半是台詞而不是人名（「你不說話，我就當你答應了。」）——
+ * 選單第一列換成「↓ 移到台詞」。`，` 不在這裡：它是分隔符，「阿盈，建鳴」在三欄都是兩個人。
+ */
+export const DIALOGUE_MARKS = ["。", "？", "！", "…", "—", "「", "」", "："] as const;
+
+const DIALOGUE_MARK = new RegExp(`[${DIALOGUE_MARKS.join("")}]`);
+
+/** 這段文字裡有台詞標點嗎。 */
+export function hasDialogueMark(text: string): boolean {
+  return DIALOGUE_MARK.test(text);
 }
 
 /** 這段文字裡有分隔符嗎（貼上時決定要不要走多值解析）。 */

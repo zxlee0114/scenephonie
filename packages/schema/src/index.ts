@@ -40,7 +40,7 @@ export { unlistedSpeakers } from "./appearing-prompt";
 // ⚠️ 只出去有呼叫端的東西。`referenceLabel`（`實體名（這一場的顯示名）`）除了同套件的
 // `labelSceneTable`（票券 15），場次導覽 sidebar 的篩選（票券 16）也要拼同一串字 —— 同一個詞在
 // 場次表找得到、在 sidebar 找不到，會讓人以為其中一邊壞了。`isCharacterId`／`isLocationId`、
-// `splitNames`／`hasSeparator` 都還沒有消費者，留在模組裡 —— 第一個呼叫端會是票券 18，那天
+// `hasSeparator` 還沒有消費者，留在模組裡 —— 第一個呼叫端會是票券 18，那天
 // 再開一行。沒有讀者的公開介面與沒有讀者的欄位是同一種債。
 export {
   CHARACTER_ID_PREFIX,
@@ -90,8 +90,8 @@ export {
 } from "./count";
 export type { CountInputResult, CountValue } from "./count";
 
-// 多值欄位的輸入規則（地點欄與登場人物欄共用同一份；貼上走同一條路）。
-export { splitNamesLive } from "./names";
+// 多值欄位的輸入規則（實體欄位與群演欄共用同一份；貼上走同一條路）—— Enter 才解析（票券 82）。
+export { hasDialogueMark, parseNameDraft, splitNames } from "./names";
 
 // 子場次的推導值（票券 11）：折返標記（編輯器 decoration，日後 PDF 同一支）。
 //
