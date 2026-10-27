@@ -20,3 +20,6 @@ coverage/
 
 # 個人 permission 設定，不共用
 .claude/settings.local.json
+
+# Codex 的本機設定（npx impeccable update 會在 repo 根裝 hooks），不共用
+.codex/
