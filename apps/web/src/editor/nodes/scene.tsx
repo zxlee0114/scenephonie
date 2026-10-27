@@ -180,8 +180,10 @@ function SceneEntityChip({
           elsewhere={kind === "character" ? catalog.charactersElsewhere : undefined}
           multiple={multiple}
           confirmReplace={confirmReplace}
+          // keepCaret：定案常發生在焦點離開的那一刻（blur）—— ↓／⌘↑ 走出這一排時文件游標已經放好了，
+          // 整份 replace 會把它沖到 doc 尾端（驗收回饋 2026-10-27，票券 61 撈到）。只動 attr，座標不變。
           onCommit={(next) =>
-            runKernelCommand(editor, write(placed(next)), { keepFocus: true })
+            runKernelCommand(editor, write(placed(next)), { keepFocus: true, keepCaret: true })
           }
           onCreate={(name) => catalog.create(kind, name)}
           onRenameEntity={(id, name) => catalog.rename(kind, id, name)}
@@ -631,9 +633,11 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
               extras={extras}
               // 別場用過的描述。走一遍整份 doc，所以傳函式（同 usage）。
               suggestions={() => extraDescriptions(editor.state.doc)}
+              // keepCaret：同實體欄位 —— 走出這一排時的 blur 定案不能把文件游標沖走。
               onCommit={(next: ExtraRef[]) =>
                 runKernelCommand(editor, (doc) => setSceneExtras(doc, { sceneId, extras: next }), {
                   keepFocus: true,
+                  keepCaret: true,
                 })
               }
               // chip row 最後一格。往下／往右就出界進場次內文開始撰寫（不是跳到腳部按鈕，

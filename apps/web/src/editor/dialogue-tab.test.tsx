@@ -373,6 +373,8 @@ describe("人物欄最前面按 ← 走出這一格（票券 61）", () => {
         ),
       ).toEqual(["小華"]),
     );
+    // 定案是整份 replace —— 游標要留在上一個區塊，不能被沖到文件尾端（台詞）。驗收回饋 2026-10-27。
+    expect(atActionEnd(editor())).toBe(true);
   });
 
   it("字中間的 ← 屬於那串字，不走出去", async () => {
@@ -418,5 +420,6 @@ describe("人物欄最前面按 ← 走出這一格（票券 61）", () => {
         ),
       ).toEqual(["小明"]),
     );
+    expect(atActionEnd(editor())).toBe(true);
   });
 });

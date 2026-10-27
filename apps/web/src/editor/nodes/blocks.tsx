@@ -381,7 +381,10 @@ function DialogueView(props: NodeViewProps) {
                 directory: catalog.directory,
               });
             },
-            { keepFocus: true },
+            // keepCaret：定案常常發生在**焦點已經離開**的那一刻（blur）—— 例如人物欄 ← 走去上一個區塊
+            // （票券 61），文件游標已經放好了。整份 replace 會把它沖到 doc 尾端，游標就這樣被拉進最後
+            // 一句台詞（驗收回饋 2026-10-27）。這三支 command 只動 attr，座標不變，原樣放回去就對。
+            { keepFocus: true, keepCaret: true },
           );
           // 寫失敗就把手上那幾筆**留著** —— 清掉的話那一筆群演沒進 doc、引用卻還在欄位裡，
           // 下一次寫入會被不變式擋下，編劇的說話者就這樣沒了。
