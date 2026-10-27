@@ -482,3 +482,66 @@ describe("片段第一句對白的人物欄往上／往左（票券 61）", () =
     },
   );
 });
+
+// 成員的 chip row 全疊在片段之前（截圖：成員 1、成員 2 兩排，下面才是「以下對剪」）。方向鍵照**畫面上下**
+// 走，不照「這一排歸誰的片段」—— 驗收回饋 2026-10-27（票券 61）：成員 2 群演欄按 ↓ 跳過了第 1 段片段。
+describe("成員的 chip row 照畫面上下走", () => {
+  const extrasOf = (container: HTMLElement, i: number) =>
+    container.querySelectorAll<HTMLInputElement>(".scene__chip--extras input")[i]!;
+  const intExtOf = (container: HTMLElement, i: number) =>
+    container.querySelectorAll<HTMLElement>('.scene__chips [aria-label="內外"]')[i]!;
+
+  async function mountPair() {
+    const a = member({ ...when, location: room });
+    const b = member({ ...when, location: dock });
+    return mount(
+      docOf(group([a, b], [fragment(a, [action("我是敘述。")]), fragment(b, [action("另一段。")])])),
+    );
+  }
+
+  const caretAtStartOf = (editor: Editor, text: string) => {
+    const { $from, empty } = editor.state.selection;
+    return empty && $from.parent.textContent === text && $from.parentOffset === 0;
+  };
+
+  it.each(["ArrowDown", "ArrowRight", "Enter"])(
+    "最後一個成員的群演欄按 %s → 第 1 段片段的開頭（緊貼在下面那一段，不管它歸誰）",
+    async (key) => {
+      const { editor, container } = await mountPair();
+      const extras = extrasOf(container, 1);
+      extras.focus();
+      fireEvent.keyDown(extras, { key });
+      await waitFor(() => expect(caretAtStartOf(editor, "我是敘述。")).toBe(true));
+    },
+  );
+
+  it.each(["ArrowDown", "ArrowRight", "Enter"])(
+    "前面成員的群演欄按 %s → 下一個成員那一排的第一格（內外）",
+    async (key) => {
+      const { container } = await mountPair();
+      const extras = extrasOf(container, 0);
+      extras.focus();
+      fireEvent.keyDown(extras, { key });
+      await waitFor(() => expect(document.activeElement).toBe(intExtOf(container, 1)));
+    },
+  );
+
+  it.each(["ArrowUp", "ArrowLeft"])(
+    "反向：第二個成員的內外格按 %s → 上一個成員的群演欄（不是跳出群組）",
+    async (key) => {
+      const { container } = await mountPair();
+      const intExt = intExtOf(container, 1);
+      intExt.focus();
+      fireEvent.keyDown(intExt, { key });
+      await waitFor(() => expect(document.activeElement).toBe(extrasOf(container, 0)));
+    },
+  );
+
+  it("⌘↓ 從任一個成員都是直接進內文 —— 第 1 段片段的開頭", async () => {
+    const { editor, container } = await mountPair();
+    const extras = extrasOf(container, 0);
+    extras.focus();
+    fireEvent.keyDown(extras, { key: "ArrowDown", ...mod });
+    await waitFor(() => expect(caretAtStartOf(editor, "我是敘述。")).toBe(true));
+  });
+});

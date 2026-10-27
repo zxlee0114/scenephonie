@@ -123,3 +123,5 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [80](./80-entity-menu-offscreen.md) | 人物欄、地點欄等實體欄位的選單在視窗下緣被切掉：下方塞不下就翻到上方（接票 29 的 `slashMenuPosition`）。**從票券 62 驗收撈到**，無 blocker。 | closed —— 併進 33 |
 | [81](./81-typewriter-scroll-while-writing.md) | 寫作中的打字餘裕：場次內的區塊寫完時，游標太低就捲回舒服的高度（票 27 只管新增場次）。先記想法，觸發時機與干擾待拷問。**從票券 62 驗收提出**，無 blocker。 | `needs-triage` |
 | [89](./89-enter-dialogue-from-above-lands-on-speaker.md) | 從上面走進對白（→／↓、chip row 的 Enter／Tab）一律落台詞、跳過人物欄 —— 要不要先停人物欄。**從票券 61 grilling 拆出來**，blocked by 61。 | `needs-triage` |
+| [90](./90-empty-first-block-backspace-stuck.md) | 場次第一個區塊（描述）清空之後 Backspace 卡在行首，空區塊收不掉。游標落點與 62 的併回規則怎麼延伸開工前問。**從票券 61 驗收撈到**，無 blocker。 | `needs-triage` |
+| [91](./91-insert-action-before-first-dialogue.md) | 第一句是對白時前面插不進描述：人物欄 Enter 進台詞、台詞開頭 Enter 切出另一句對白。哪個手勢是「在前面插一行」開工前問。**從票券 61 驗收提出**，無 blocker。 | `needs-triage` |
