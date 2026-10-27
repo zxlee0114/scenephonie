@@ -11,8 +11,9 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import type { Node as PMNode } from "@tiptap/pm/model";
+import { mintCharacterId, mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -131,5 +132,157 @@ describe("isBlankBlock 與人物欄的形狀", () => {
       { id: "ch_2", displayName: "小華" },
     ];
     expect(isBlankBlock(dialogueWith(both, ""))).toBe(false);
+  });
+});
+
+/**
+ * 票券 62：空的人物欄與台詞開頭是**同一個位置**。Backspace 從人物欄這一側按，結果與台詞開頭
+ * 按的一樣（文件那一半的規則與測試在 `keyboard-feedback.test.ts`、`extensions/block-join`）。
+ */
+describe("人物欄與台詞開頭的 Backspace（票券 62）", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  const xiaoming = mintCharacterId();
+  const xiaohua = mintCharacterId();
+
+  function BlocksHarness({ blocks, onEditor }: { blocks: PMNode[]; onEditor: (e: Editor) => void }) {
+    const editor = useScreenplayEditor(
+      kernelSchema.node("doc", null, [kernelSchema.node("scene", { sceneId: mintSceneId() }, blocks)]).toJSON() as object,
+    );
+    useEffect(() => {
+      if (editor) onEditor(editor);
+    }, [editor, onEditor]);
+    return (
+      <EntityCatalogProvider
+        initial={{
+          characters: [
+            { id: xiaoming, name: "小明" },
+            { id: xiaohua, name: "小華" },
+          ],
+          locations: [],
+        }}
+      >
+        <EditorContent editor={editor} />
+      </EntityCatalogProvider>
+    );
+  }
+
+  async function mount(blocks: PMNode[]) {
+    let editor: Editor | null = null;
+    const view = render(<BlocksHarness blocks={blocks} onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(editor).not.toBeNull());
+    await waitFor(() => expect(view.container.querySelector(".block__speaker-field input")).not.toBeNull());
+    return { ...view, editor: editor! };
+  }
+
+  const blockTypes = (editor: Editor) => {
+    const types: string[] = [];
+    editor.state.doc.child(0).forEach((b) => types.push(b.type.name));
+    return types;
+  };
+
+  it("空對白：人物欄空輸入框按 ⌫ → 整句拿掉，游標回上一個區塊的文字尾端", async () => {
+    const { container, editor } = await mount([
+      kernelSchema.node("action", null, [kernelSchema.text("門開了")]),
+      kernelSchema.node("dialogue"),
+    ]);
+    const input = container.querySelector<HTMLInputElement>(".block__speaker-field input")!;
+    input.focus();
+
+    act(() => {
+      fireEvent.keyDown(input, { key: "Backspace" });
+    });
+
+    expect(blockTypes(editor)).toEqual(["action"]);
+    const { $from } = editor.state.selection;
+    expect([$from.parent.textContent, $from.parentOffset]).toEqual(["門開了", 3]);
+    expect(document.activeElement).toBe(editor.view.dom);
+  });
+
+  const speakerInputOf = (container: HTMLElement) =>
+    container.querySelector<HTMLInputElement>(".block__speaker-field input")!;
+
+  /** 游標放進第 `blockIndex` 個區塊的台詞開頭，焦點在文件上，按一顆鍵。 */
+  function pressAtLineStart(editor: Editor, blockIndex: number, key: string) {
+    act(() => {
+      let pos = 2;
+      for (let i = 0; i < blockIndex; i++) pos += editor.state.doc.child(0).child(i).nodeSize;
+      editor.commands.setTextSelection(pos);
+      editor.view.focus();
+      fireEvent.keyDown(editor.view.dom, { key });
+    });
+  }
+
+  it("有人物的對白在台詞開頭按 ⌫ → 走進人物欄、拿起最後一顆（整串反白），台詞不動", async () => {
+    const { container, editor } = await mount([
+      kernelSchema.node("action", null, [kernelSchema.text("門開了")]),
+      kernelSchema.node("dialogue", { character: { id: xiaoming, displayName: "小明" } }, [kernelSchema.text("我是龍")]),
+    ]);
+
+    pressAtLineStart(editor, 1, "Backspace");
+
+    const input = speakerInputOf(container);
+    await waitFor(() => expect(input.value).toBe("小明"));
+    expect(document.activeElement).toBe(input);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 2]);
+    expect(speakers(container)).toEqual([]);
+    expect(blockTypes(editor)).toEqual(["action", "dialogue"]);
+    expect(editor.state.doc.child(0).child(1).textContent).toBe("我是龍");
+  });
+
+  it("齊聲：一顆一顆拆 —— 拿起、清空、放手，再拿下一顆；拆光之後才併回上一個區塊", async () => {
+    const { container, editor } = await mount([
+      kernelSchema.node("action", null, [kernelSchema.text("門開了")]),
+      kernelSchema.node(
+        "dialogue",
+        {
+          character: [
+            { id: xiaoming, displayName: "小明" },
+            { id: xiaohua, displayName: "小華" },
+          ],
+        },
+        [kernelSchema.text("走吧")],
+      ),
+    ]);
+    const input = () => speakerInputOf(container);
+    const backspace = () => act(() => void fireEvent.keyDown(input(), { key: "Backspace" }));
+    const clear = () => act(() => void fireEvent.change(input(), { target: { value: "" } }));
+
+    pressAtLineStart(editor, 1, "Backspace");
+    await waitFor(() => expect(input().value).toBe("小華"));
+    expect(speakers(container)).toEqual(["小明"]);
+
+    clear();
+    backspace(); // 放手
+    await waitFor(() => expect(input().value).toBe(""));
+    expect(speakers(container)).toEqual(["小明"]);
+    backspace(); // 拿起小明
+    await waitFor(() => expect(input().value).toBe("小明"));
+    clear();
+    backspace(); // 放手 —— 人物欄空了
+    await waitFor(() => expect(speakers(container)).toEqual([]));
+    expect(blockTypes(editor)).toEqual(["action", "dialogue"]);
+
+    backspace(); // 沒人物、有台詞 → 併回上一個區塊
+
+    expect(blockTypes(editor)).toEqual(["action"]);
+    expect(editor.state.doc.child(0).child(0).textContent).toBe("門開了走吧");
+  });
+
+  it("台詞開頭按 Enter → 上方插一句空對白，焦點在它的人物欄；原句的人物 chip 留在原句", async () => {
+    const { container, editor } = await mount([
+      kernelSchema.node("action", null, [kernelSchema.text("門開了")]),
+      kernelSchema.node("dialogue", { character: { id: xiaoming, displayName: "小明" } }, [kernelSchema.text("我是龍")]),
+    ]);
+
+    pressAtLineStart(editor, 1, "Enter");
+
+    await waitFor(() => expect(container.querySelectorAll(".block--dialogue")).toHaveLength(2));
+    const [upper, lower] = [...container.querySelectorAll<HTMLElement>(".block--dialogue")];
+    await waitFor(() => expect(document.activeElement).toBe(upper!.querySelector(".block__speaker-field input")));
+    expect(speakers(upper!)).toEqual([]);
+    expect(speakers(lower!)).toEqual(["小明"]);
   });
 });

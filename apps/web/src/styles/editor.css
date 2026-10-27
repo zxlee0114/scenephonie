@@ -1356,12 +1356,19 @@
 
 .block--dialogue .block__speaker {
   /* input 只是那一格裡還能打字的一段 —— 外觀全部由容器負責。 */
-  flex: 1 1 6ch;
   font: inherit;
   color: inherit;
   background: transparent;
   border: 0;
   padding: 0;
+}
+
+/* 只有排在最後的那個輸入框吃掉剩下的空間（欄位尾端的可點區）。夾在 chip 中間的
+ * （`--inline`／`--caret`）不能碰 `flex`：這一條與它們同樣是 0-2-0、又排在後面，寫在上面那條
+ * 的話會把它們蓋掉，游標一插進兩顆 chip 之間就把後半排推到行尾（票券 62 驗收回饋 2026-10-27）。 */
+.block--dialogue
+  .block__speaker:not(.entity-field__input--inline, .entity-field__input--caret) {
+  flex: 1 1 6ch;
 }
 
 .block--dialogue .block__speaker:focus-visible {

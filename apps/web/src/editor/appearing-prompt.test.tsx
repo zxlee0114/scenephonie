@@ -168,6 +168,19 @@ describe("什麼時候問", () => {
     expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]);
   });
 
+  it("台詞開頭按 Enter 不問 —— 那是「在上面插一句」，不是寫完了（票券 62）", async () => {
+    const { sceneId, doc } = sceneDoc();
+    const { container, editor } = await mount(doc);
+
+    caretInto(editor, sceneId, 0, "start");
+    press(editor, "Enter");
+
+    await act(async () => {});
+    expect(prompt(container)).toBeNull();
+    expect(blockTypes(editor)).toEqual(["dialogue", "dialogue", "action"]);
+    expect(scene(editor).child(1).textContent).toBe("生日快樂");
+  });
+
   it("只有 Enter 會問：游標從那一句走出去不問", async () => {
     const { sceneId, doc } = sceneDoc();
     const { container, editor } = await mount(doc);

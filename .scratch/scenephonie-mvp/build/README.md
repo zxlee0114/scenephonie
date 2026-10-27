@@ -102,7 +102,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [59](./59-voice-style-entry.md) | 發聲方式（V.O./O.S.）的輸入入口 —— `voiceStyle` 在 schema 裡，但沒有 UI 設得到。規格 §4.6：併進對白人物欄的自動補全。**從票券 10 切出來**（提示的判準已經在讀這個 attr）。blocked by 10。 | `open` |
 | [60](./60-speaker-field-caret-before-chip-layout.md) | bug：對白人物欄游標走到 chip 前面時，輸入框撐開、把 chip 推到欄位中間 —— 違反「縫」的版面（不佔版面）。**從票券 10 驗收撈到**，與 10 無關。 | `open` |
 | [61](./61-speaker-field-left-exits-to-previous-block.md) | 對白人物欄最前面按 ← 走不回上一個區塊。落點與場次第一個區塊的情況開工前問。**從票券 10 驗收撈到**。 | `open` |
-| [62](./62-empty-dialogue-backspace-reverts.md) | 對白之間的 Enter／Backspace 不對稱：空對白按 Backspace 收不回；台詞開頭 Enter 切出第二句對白後回不去，而且 Backspace 會**刪掉上一句有人物的對白（資料遺失）**。**從票券 10、21 驗收撈到**。 | `open` |
+| [62](./62-empty-dialogue-backspace-reverts.md) | 對白之間的 Enter／Backspace 不對稱：空對白按 Backspace 收不回；台詞開頭 Enter 切出第二句對白後回不去，而且 Backspace 會**刪掉上一句有人物的對白（資料遺失）**。**從票券 10、21 驗收撈到**。 | ✅ verified |
 | [63](./63-canonical-host-redirect.md) | 非正式網域一律 308 轉到 `BETTER_AUTH_URL` 的 host —— 從 deployment 網址登入時 `state` cookie 跨網域，Google 登入偶爾失敗。無 blocker。 | `open` |
 | [64](./64-login-error-code-swallowed.md) | bug：登入頁讀不到 Better Auth 的錯誤碼（`error` 被接成兩個 query），「不在受邀清單上」永遠顯示不出來。無 blocker。 | ✅ verified |
 | [65](./65-autosave-retry-backoff.md) | 存檔失敗後退避重試（2.5 秒起跳加倍、封頂 60 秒、持續再試）；狀態列倒數、「立刻重試」與 ⌘S、離開前提醒。無 blocker。 | ✅ verified |
@@ -120,3 +120,5 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [77](./77-nodejs-version-auto-tracking.md) | 自動追蹤 Node.js 安全更新（Renovate 傾向；只追 22.x minor／patch，`.nvmrc` 與 `engines.node` 要同步）。blocked by 76。 | ✅ verified |
 | [78](./78-character-sheet-in-creation-wizard.md) | 建立精靈第 2 步多一個「人物介紹」頁籤：草稿存名字與內文，建立專案的交易裡才鑄人物、寫角色設定表。**從票券 21 第 ② 片 grilling 拆出來**，blocked by 21、71。 | `needs-triage` |
 | [79](./79-autocomplete-hits-aliases.md) | 自動補全認得別場用過的叫法：打的名字是別場的顯示名（別名）時命中那筆實體，不再只給「建立新實體」、冒出第二個同名人物。**從票券 21 驗收撈到**，無 blocker。 | `needs-triage` |
+| [80](./80-entity-menu-offscreen.md) | 人物欄、地點欄等實體欄位的選單在視窗下緣被切掉：下方塞不下就翻到上方（接票 29 的 `slashMenuPosition`）。**從票券 62 驗收撈到**，無 blocker。 | `needs-triage` |
+| [81](./81-typewriter-scroll-while-writing.md) | 寫作中的打字餘裕：場次內的區塊寫完時，游標太低就捲回舒服的高度（票 27 只管新增場次）。先記想法，觸發時機與干擾待拷問。**從票券 62 驗收提出**，無 blocker。 | `needs-triage` |
