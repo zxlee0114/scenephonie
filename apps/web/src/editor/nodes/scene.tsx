@@ -53,7 +53,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 
 import { ChipSelect } from "../chip-select";
 import { chipNavHandler, type ChipNav } from "../chip-nav";
-import { firstFragmentText } from "../address";
+import { memberNeighbours } from "../address";
 import { runKernelCommand } from "../command-bridge";
 import { forwardHistoryKey } from "../history-keys";
 import { useEntityCatalog, type EntityCatalog } from "../entity-catalog";
@@ -63,7 +63,7 @@ import { ExtrasField } from "../extras-field";
 import { FieldInfo } from "../field-info";
 import { entityUsage } from "../entity-usage";
 import { retitleOthersIn } from "../retitle-others";
-import { claimFocus, handOffFocus, subscribeFocusRequest } from "../focus";
+import { claimFocus, handOffFocus, requestFocus, subscribeFocusRequest } from "../focus";
 import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
 import { scrollToWritingPosition } from "../typewriter-scroll";
 import { requestNextScene } from "../extensions/next-scene";
@@ -180,8 +180,10 @@ function SceneEntityChip({
           elsewhere={kind === "character" ? catalog.charactersElsewhere : undefined}
           multiple={multiple}
           confirmReplace={confirmReplace}
+          // keepCaret：定案常發生在焦點離開的那一刻（blur）—— ↓／⌘↑ 走出這一排時文件游標已經放好了，
+          // 整份 replace 會把它沖到 doc 尾端（驗收回饋 2026-10-27，票券 61 撈到）。只動 attr，座標不變。
           onCommit={(next) =>
-            runKernelCommand(editor, write(placed(next)), { keepFocus: true })
+            runKernelCommand(editor, write(placed(next)), { keepFocus: true, keepCaret: true })
           }
           onCreate={(name) => catalog.create(kind, name)}
           onRenameEntity={(id, name) => catalog.rename(kind, id, name)}
@@ -291,21 +293,44 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
     return (editor.state.doc.resolve(pos).parent.attrs.groupId as string | undefined) ?? null;
   };
 
+  /** 成員在畫面上的上下鄰居（見 `memberNeighbours`）；不是成員時回 `null`。 */
+  const neighbours = () => {
+    const pos = typeof getPos === "function" ? getPos() : undefined;
+    if (!isMember || pos == null) return null;
+    return memberNeighbours(editor.state.doc.resolve(pos));
+  };
+
   /**
    * 把游標送進本場第一個區塊的內文開頭（getPos → 場次前；+1 進場次、+1 進首區塊）。
-   * 群組成員沒有內文 —— 去它的第一個片段。
+   * 群組成員沒有自己的內文 —— 去**第 1 段片段**：它疊在所有成員那幾排的正下方，不管那一段歸誰
+   * （驗收回饋 2026-10-27：原本去「自己的」第一段，成員 2 按 ↓ 就跳過了第 1 段）。
    */
   const enterBody = () => {
     const pos = typeof getPos === "function" ? getPos() : undefined;
     if (pos == null) return false;
     if (isMember) {
-      const at = firstFragmentText(editor.state.doc, sceneId);
+      const at = neighbours()?.bodyStart;
       if (at == null) return false;
       editor.chain().focus().setTextSelection(at).run();
       return true;
     }
     editor.chain().focus().setTextSelection(pos + 2).run();
     return true;
+  };
+
+  /**
+   * 群演欄再往下／往右（含 Enter、Tab）—— 這一排的**正下方**。成員下面若還疊著別的成員，那就是下一排的
+   * 第一格（內外）；最後一排才輪到內文。`⌘↓` 不走這裡：它是「一路走到底」，直接進內文。
+   */
+  const leaveRowDown = () => {
+    const next = neighbours()?.next;
+    return next ? requestFocus({ kind: "sceneMeta", sceneId: next }) : enterBody();
+  };
+
+  /** 第一排再往上／往左 —— 反向：上面若疊著別的成員就是它的群演欄，否則才是上一場內文末端。 */
+  const leaveRowUp = () => {
+    const previous = neighbours()?.previous;
+    return previous ? requestFocus({ kind: "sceneChipsEnd", sceneId: previous }) : enterPreviousSceneEnd();
   };
 
   /**
@@ -502,8 +527,8 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
             // 這一排的左上角：↑ 與 ← 都出界，去上一場。↓ 歸選單（見 chip-select 檔頭）。
             nav={{
               ...exits,
-              left: enterPreviousSceneEnd,
-              up: enterPreviousSceneEnd,
+              left: leaveRowUp,
+              up: leaveRowUp,
               right: () => timeField.current?.focus() ?? true,
             }}
             // 走 command 而不是 updateAttributes —— 「地點欄能有幾個值」是內外的函式
@@ -538,7 +563,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
                 ...exits,
                 left: () => firstField.current?.focus() ?? true,
                 right: () => locationField.current?.focus() ?? true,
-                up: enterPreviousSceneEnd,
+                up: leaveRowUp,
               }}
               onChange={(v) => updateAttributes({ time: v || null })}
             />
@@ -585,7 +610,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
             ...exits,
             left: () => timeField.current?.focus() ?? true,
             right: () => charactersField.current?.focus() ?? true,
-            up: enterPreviousSceneEnd,
+            up: leaveRowUp,
             down: () => charactersField.current?.focus() ?? true,
           }}
         />
@@ -631,9 +656,11 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
               extras={extras}
               // 別場用過的描述。走一遍整份 doc，所以傳函式（同 usage）。
               suggestions={() => extraDescriptions(editor.state.doc)}
+              // keepCaret：同實體欄位 —— 走出這一排時的 blur 定案不能把文件游標沖走。
               onCommit={(next: ExtraRef[]) =>
                 runKernelCommand(editor, (doc) => setSceneExtras(doc, { sceneId, extras: next }), {
                   keepFocus: true,
+                  keepCaret: true,
                 })
               }
               // chip row 最後一格。往下／往右就出界進場次內文開始撰寫（不是跳到腳部按鈕，
@@ -642,9 +669,9 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
               onKeyDown={chipNavHandler({
                 ...exits,
                 left: () => charactersField.current?.focus() ?? true,
-                right: enterBody,
+                right: leaveRowDown,
                 up: () => charactersField.current?.focus() ?? true,
-                down: enterBody,
+                down: leaveRowDown,
               })}
             />
           )}

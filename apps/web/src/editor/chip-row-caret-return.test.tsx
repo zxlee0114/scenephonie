@@ -383,6 +383,26 @@ describe("chip row ↔ 本場內文", () => {
     await waitFor(() => expect(document.activeElement).toBe(extrasInput(sceneAt(container, 1))));
   });
 
+  it("第一個區塊是對白時：人物欄 ← 與 ↑ 同一個落點 —— 本場群演欄（票券 61）", async () => {
+    const { container } = await mount(
+      docJSON(scene([action("第一場")]), scene([dialogue("還有位子嗎？")])),
+    );
+
+    const speaker = sceneAt(container, 1).querySelector<HTMLInputElement>(".block__speaker")!;
+    speaker.focus();
+    fireEvent.keyDown(speaker, { key: "ArrowLeft" });
+    await waitFor(() => expect(document.activeElement).toBe(extrasInput(sceneAt(container, 1))));
+  });
+
+  it("全劇第一個區塊是對白：人物欄 ← 也是進本場群演欄，不是按了沒反應", async () => {
+    const { container } = await mount(docJSON(scene([dialogue("還有位子嗎？")])));
+
+    const speaker = container.querySelector<HTMLInputElement>(".block__speaker")!;
+    speaker.focus();
+    expect(fireEvent.keyDown(speaker, { key: "ArrowLeft" })).toBe(false);
+    await waitFor(() => expect(document.activeElement).toBe(extrasInput(sceneAt(container, 0))));
+  });
+
   it("第二場的群演欄按 ↓ → 進的是第二場的內文", async () => {
     const { container, editor } = await mount(
       docJSON(scene([action("第一場")]), scene([action("第二場")])),
@@ -506,6 +526,43 @@ describe("離開欄位不吃掉打到一半的字", () => {
         "咖啡廳客人",
       ),
     );
+  });
+
+  // 定案是整份 replace —— 游標已經放進內文了，不能被沖到文件尾端（下一場）。驗收回饋 2026-10-27
+  // 在對白人物欄撈到同一件事（票券 61）。
+  it("群演欄打到一半按 ↓：字定案之後，游標仍在本場內文，不被沖到下一場", async () => {
+    const { container, editor } = await mount(
+      docJSON(scene([action("第一場")]), scene([action("第二場")])),
+    );
+
+    const input = extrasInput(sceneAt(container, 0));
+    input.focus();
+    fireEvent.change(input, { target: { value: "咖啡廳客人 x8" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+
+    await waitFor(() =>
+      expect(sceneAt(container, 0).querySelector(".scene__chip--extras .entity-chip")).not.toBeNull(),
+    );
+    expect(caretInBodyOf(editor(), "第一場")).toBe(true);
+  });
+
+  it("登場人物欄打到一半按 ↑：字定案之後，游標仍在上一場內文末端", async () => {
+    const { container, editor } = await mount(
+      docJSON(scene([action("第一場")]), scene([action("第二場")]), scene([action("第三場")])),
+    );
+
+    const input = sceneAt(container, 1).querySelector<HTMLInputElement>(".scene__chip--character input")!;
+    input.focus();
+    fireEvent.change(input, { target: { value: "小明" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    // 登場人物欄 ↑ 是地點欄；要離開整排得用 ⌘↑（回上一場內文末端）。
+    fireEvent.keyDown(input, { key: "ArrowUp", metaKey: true });
+
+    await waitFor(() =>
+      expect(sceneAt(container, 1).querySelector(".scene__chip--character .entity-chip")).not.toBeNull(),
+    );
+    expect(caretInBodyOf(editor(), "第一場")).toBe(true);
   });
 });
 

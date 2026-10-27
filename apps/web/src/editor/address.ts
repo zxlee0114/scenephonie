@@ -84,6 +84,23 @@ export function sceneContext($pos: ResolvedPos): SceneContext | null {
   return null;
 }
 
+/**
+ * 這個區塊**正上方**是不是一排 chip row —— 是的話回那一排屬於哪一場，上面接的是別的區塊就是 null。
+ *
+ * 區塊往上出界時（台詞第一行 ↑、人物欄 ←／↑）要問的就是這一句，兩邊共用才只有一個答案（票券 61）：
+ *
+ * - 本場第一個區塊 → 本場的 chip row（子場次就是子場次自己那一排）。
+ * - 片段（票券 12）：只有**第一段**上面是 chip row，而且是群組**最後一個成員**的那一排（成員的
+ *   chip row 全疊在片段之前）—— 不管這一段歸誰。其餘片段上面是前一段片段。
+ */
+export function sceneChipsAbove($pos: ResolvedPos, ctx: SceneContext): string | null {
+  if (ctx.blockIndex !== 0) return null;
+  if (ctx.fragmentIndex == null) return ctx.sceneId;
+  if (ctx.fragmentIndex > 0) return null;
+  const members = groupMembersOf($pos.node(ctx.sceneDepth - 1));
+  return (members[members.length - 1]?.attrs.sceneId as string | undefined) ?? null;
+}
+
 /** 從 `SceneContext` 取出傳給 command 的那一份定址（不帶 depth）。 */
 export function blockAddressOf(ctx: SceneContext): BlockAddress {
   return ctx.fragmentIndex == null
@@ -174,4 +191,34 @@ export function firstFragmentText(doc: PMNode, sceneId: string): number | null {
     }
   });
   return at;
+}
+
+/**
+ * 成員在畫面上的上下鄰居（`$member` ＝ 成員節點之前的位置）。
+ *
+ * 成員的 chip row 全疊在片段之前，所以方向鍵照**畫面上下**走，不照「這一排歸誰的片段」（驗收回饋
+ * 2026-10-27，票券 61）：
+ *
+ * - `previous`／`next` —— 上一個／下一個成員的 sceneId（那一排 chip row）；到頭了是 `null`。
+ * - `bodyStart` —— 第 1 段片段的內文起點：疊在最下面那一排的正下方，不管那一段歸誰。與
+ *   `sceneChipsAbove` 互為反向（第 1 段片段往上 → 最後一個成員那一排）。
+ */
+export function memberNeighbours($member: ResolvedPos): {
+  previous: string | null;
+  next: string | null;
+  bodyStart: number | null;
+} {
+  const group = $member.parent;
+  const index = $member.index();
+  const sceneIdAt = (i: number) => {
+    const node = group.maybeChild(i);
+    return node?.type.name === "groupMember" ? (node.attrs.sceneId as string) : null;
+  };
+  let bodyStart: number | null = null;
+  group.forEach((child, offset) => {
+    if (bodyStart == null && child.type.name === "groupFragment") {
+      bodyStart = $member.start() + offset + 2; // 進片段、進首區塊（片段不以子場次開頭）
+    }
+  });
+  return { previous: index > 0 ? sceneIdAt(index - 1) : null, next: sceneIdAt(index + 1), bodyStart };
 }
