@@ -434,3 +434,51 @@ describe("「對剪到…」第二步", () => {
     expect(editor.state.doc.textContent).not.toContain("港邊");
   });
 });
+
+describe("片段第一句對白的人物欄往上／往左（票券 61）", () => {
+  const dialogue = (text: string) => k.node("dialogue", { character: null }, [k.text(text)]);
+  const speakerIn = (container: HTMLElement) =>
+    container.querySelector<HTMLInputElement>(".block__speaker")!;
+  const extrasInputs = (container: HTMLElement) => [
+    ...container.querySelectorAll<HTMLInputElement>(".scene__chip--extras input"),
+  ];
+
+  it.each(["ArrowLeft", "ArrowUp"])(
+    "第二段片段：%s 回**上一段片段的末端**，不是飛到 chip row 那幾排",
+    async (key) => {
+      const a = member({ ...when, location: room });
+      const b = member({ ...when, location: dock });
+      const { editor, container } = await mount(
+        docOf(group([a, b], [fragment(a, [action("偵訊室。")]), fragment(b, [dialogue("你在哪？")])])),
+      );
+
+      const speaker = speakerIn(container);
+      speaker.focus();
+      fireEvent.keyDown(speaker, { key });
+
+      await waitFor(() => {
+        const { $from, empty } = editor.state.selection;
+        expect(empty).toBe(true);
+        expect($from.parent.textContent).toBe("偵訊室。");
+        expect($from.parentOffset).toBe("偵訊室。".length);
+      });
+    },
+  );
+
+  it.each(["ArrowLeft", "ArrowUp"])(
+    "第一段片段：%s 進**最後一個成員**的群演欄（緊貼在片段上面那一排），不管這段歸誰",
+    async (key) => {
+      const a = member({ ...when, location: room });
+      const b = member({ ...when, location: dock });
+      const { container } = await mount(docOf(group([a, b], [fragment(a, [dialogue("說吧。")])])));
+
+      const speaker = speakerIn(container);
+      speaker.focus();
+      fireEvent.keyDown(speaker, { key });
+
+      const extras = extrasInputs(container);
+      expect(extras).toHaveLength(2);
+      await waitFor(() => expect(document.activeElement).toBe(extras[1]));
+    },
+  );
+});

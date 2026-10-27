@@ -84,6 +84,23 @@ export function sceneContext($pos: ResolvedPos): SceneContext | null {
   return null;
 }
 
+/**
+ * 這個區塊**正上方**是不是一排 chip row —— 是的話回那一排屬於哪一場，上面接的是別的區塊就是 null。
+ *
+ * 區塊往上出界時（台詞第一行 ↑、人物欄 ←／↑）要問的就是這一句，兩邊共用才只有一個答案（票券 61）：
+ *
+ * - 本場第一個區塊 → 本場的 chip row（子場次就是子場次自己那一排）。
+ * - 片段（票券 12）：只有**第一段**上面是 chip row，而且是群組**最後一個成員**的那一排（成員的
+ *   chip row 全疊在片段之前）—— 不管這一段歸誰。其餘片段上面是前一段片段。
+ */
+export function sceneChipsAbove($pos: ResolvedPos, ctx: SceneContext): string | null {
+  if (ctx.blockIndex !== 0) return null;
+  if (ctx.fragmentIndex == null) return ctx.sceneId;
+  if (ctx.fragmentIndex > 0) return null;
+  const members = groupMembersOf($pos.node(ctx.sceneDepth - 1));
+  return (members[members.length - 1]?.attrs.sceneId as string | undefined) ?? null;
+}
+
 /** 從 `SceneContext` 取出傳給 command 的那一份定址（不帶 depth）。 */
 export function blockAddressOf(ctx: SceneContext): BlockAddress {
   return ctx.fragmentIndex == null

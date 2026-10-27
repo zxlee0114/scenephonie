@@ -28,7 +28,7 @@ import { Extension } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
 import type { Node as PMNode, ResolvedPos } from "@tiptap/pm/model";
 
-import { blockAddressOf, groupMembersOf, sceneContext, type SceneContext } from "../address";
+import { blockAddressOf, sceneChipsAbove, sceneContext, type SceneContext } from "../address";
 import { requestFocus } from "../focus";
 
 /**
@@ -112,21 +112,10 @@ export const VerticalNav = Extension.create({
       }
 
       // 場次開頭再往上就是本場的 metadata。**不是上一場的內文** —— chip row 在畫面上就
-      // 夾在兩者之間，跳過它等於「看得到卻到不了」（票券 34）。
-      if (ctx.blockIndex === 0) {
-        // 片段（票券 12）：只有第一段的上面是 chip row（群組最後一個成員的那一排）；其餘片段
-        // 上面是前一段片段，交給原生的行間移動。
-        if (ctx.fragmentIndex != null) {
-          if (ctx.fragmentIndex > 0) return false;
-          const group = $from.node(ctx.sceneDepth - 1);
-          const members = groupMembersOf(group);
-          const last = members[members.length - 1];
-          return !!last && requestFocus({ kind: "sceneChipsEnd", sceneId: last.attrs.sceneId as string });
-        }
-        return requestFocus({ kind: "sceneChipsEnd", sceneId: ctx.sceneId });
-      }
-
-      return false;
+      // 夾在兩者之間，跳過它等於「看得到卻到不了」（票券 34）。上面接的是別的區塊（含前一段
+      // 片段）就交給原生的行間移動。
+      const above = sceneChipsAbove($from, ctx);
+      return above != null && requestFocus({ kind: "sceneChipsEnd", sceneId: above });
     };
 
     /** 往下出界：正下方那一場（下一場或子場次）的 chip row 第一格。沒有就把鍵還回去。 */

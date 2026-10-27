@@ -383,6 +383,26 @@ describe("chip row ↔ 本場內文", () => {
     await waitFor(() => expect(document.activeElement).toBe(extrasInput(sceneAt(container, 1))));
   });
 
+  it("第一個區塊是對白時：人物欄 ← 與 ↑ 同一個落點 —— 本場群演欄（票券 61）", async () => {
+    const { container } = await mount(
+      docJSON(scene([action("第一場")]), scene([dialogue("還有位子嗎？")])),
+    );
+
+    const speaker = sceneAt(container, 1).querySelector<HTMLInputElement>(".block__speaker")!;
+    speaker.focus();
+    fireEvent.keyDown(speaker, { key: "ArrowLeft" });
+    await waitFor(() => expect(document.activeElement).toBe(extrasInput(sceneAt(container, 1))));
+  });
+
+  it("全劇第一個區塊是對白：人物欄 ← 也是進本場群演欄，不是按了沒反應", async () => {
+    const { container } = await mount(docJSON(scene([dialogue("還有位子嗎？")])));
+
+    const speaker = container.querySelector<HTMLInputElement>(".block__speaker")!;
+    speaker.focus();
+    expect(fireEvent.keyDown(speaker, { key: "ArrowLeft" })).toBe(false);
+    await waitFor(() => expect(document.activeElement).toBe(extrasInput(sceneAt(container, 0))));
+  });
+
   it("第二場的群演欄按 ↓ → 進的是第二場的內文", async () => {
     const { container, editor } = await mount(
       docJSON(scene([action("第一場")]), scene([action("第二場")])),

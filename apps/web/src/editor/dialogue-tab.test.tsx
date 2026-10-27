@@ -11,10 +11,11 @@ import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
+import { mintCharacterId, mintSceneId, schema as kernelSchema } from "@scenephonie/schema";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { EntityCatalogProvider } from "./entity-catalog";
 import { ScreenplayEditor } from "./ScreenplayEditor";
 import { useScreenplayEditor } from "./use-screenplay-editor";
 
@@ -40,12 +41,16 @@ function docActionThenDialogue() {
     .toJSON() as object;
 }
 
-function Harness({ onEditor }: { onEditor: (e: Editor) => void }) {
-  const editor = useScreenplayEditor(docActionThenDialogue());
+function Harness({ onEditor, doc }: { onEditor: (e: Editor) => void; doc?: object }) {
+  const editor = useScreenplayEditor(doc ?? docActionThenDialogue());
   useEffect(() => {
     if (editor) onEditor(editor);
   }, [editor, onEditor]);
-  return <EditorContent editor={editor} />;
+  return (
+    <EntityCatalogProvider>
+      <EditorContent editor={editor} />
+    </EntityCatalogProvider>
+  );
 }
 
 describe("人物欄的 Tab 不冒泡到 BlockCycle", () => {
@@ -176,6 +181,25 @@ describe("人物欄與台詞之間的上下導航", () => {
     });
   });
 
+  // ← 是 ↑ 的水平對應（票券 61）：在人物欄最前面再往左，就是走出這一格去上一個區塊 ——
+  // 與 chip row 第一排 ←／↑ 共用出口同一條規則。
+  it("空的人物欄按 ←：到上一個區塊（動作）的文字末端，與 ↑ 同一個落點", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(container.querySelector(".block__speaker")).not.toBeNull());
+
+    const speaker = container.querySelector<HTMLInputElement>(".block__speaker")!;
+    speaker.focus();
+    expect(fireEvent.keyDown(speaker, { key: "ArrowLeft" })).toBe(false); // 攔下來了
+
+    await waitFor(() => {
+      const { $from, empty } = editor.state.selection;
+      expect(empty).toBe(true);
+      expect($from.parent.type.name).toBe("action");
+      expect($from.parentOffset).toBe("門開了".length);
+    });
+  });
+
   // ← 那一半早就有了（台詞第一個字之前 ← 回人物欄，見下一條）。→ 是它的反向 ——
   // 缺了就是「過得去回不來」（§7.3 的環不變式）。使用者回饋 2026-09-10 第三輪。
   it("人物欄按 →（游標貼著字尾）：進台詞的**開頭**", async () => {
@@ -264,5 +288,135 @@ describe("空的對白在人物欄按 Enter：取消區塊，變回描述", () =
     await waitFor(() => expect(container.querySelectorAll(".block--dialogue").length).toBe(1));
     const after = editor.state.doc.child(0);
     expect([after.child(1).type.name, after.child(2).type.name]).toEqual(["dialogue", "action"]);
+  });
+});
+
+describe("人物欄最前面按 ← 走出這一格（票券 61）", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  /** 動作在前、對白在後，對白已經有一個人物 —— 人物欄裡有一顆 chip 可以走。 */
+  function docWithSpeaker() {
+    return kernelSchema
+      .node("doc", null, [
+        kernelSchema.node("scene", { sceneId: mintSceneId() }, [
+          kernelSchema.node("action", null, [kernelSchema.text("門開了")]),
+          kernelSchema.node("dialogue", { character: { id: mintCharacterId(), displayName: "小明" } }, [
+            kernelSchema.text("還有位子嗎？"),
+          ]),
+        ]),
+      ])
+      .toJSON() as object;
+  }
+
+  async function mount(doc: object) {
+    let editor!: Editor;
+    const { container } = render(<Harness doc={doc} onEditor={(e) => (editor = e)} />);
+    const speaker = await waitFor(() => {
+      const el = container.querySelector<HTMLInputElement>(".block__speaker");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    return { container, speaker, editor: () => editor };
+  }
+
+  const atActionEnd = (editor: Editor) => {
+    const { $from, empty } = editor.state.selection;
+    return empty && $from.parent.type.name === "action" && $from.parentOffset === "門開了".length;
+  };
+
+  it("有 chip 時：← 先走完 chip 與它左邊那道縫，再一下才去上一個區塊的文字末端", async () => {
+    const { container, speaker, editor } = await mount(docWithSpeaker());
+    const chip = container.querySelector<HTMLElement>(".block__speaker-field .entity-chip")!;
+
+    speaker.focus();
+    fireEvent.keyDown(speaker, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(chip);
+
+    fireEvent.keyDown(chip, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(speaker); // 游標插進第一顆左邊那道縫
+
+    fireEvent.keyDown(speaker, { key: "ArrowLeft" });
+    await waitFor(() => expect(atActionEnd(editor())).toBe(true));
+  });
+
+  it("站在第一顆 chip 上、左邊那道縫已經走過：← 直接去上一個區塊", async () => {
+    const { container, speaker, editor } = await mount(docWithSpeaker());
+    const chip = container.querySelector<HTMLElement>(".block__speaker-field .entity-chip")!;
+
+    // 走到縫上（`| 小明`），再 → 回到那一顆 —— 輸入框留在它左邊，那道縫算是走過了。
+    speaker.focus();
+    fireEvent.keyDown(speaker, { key: "ArrowLeft" });
+    fireEvent.keyDown(chip, { key: "ArrowLeft" });
+    fireEvent.keyDown(speaker, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(chip);
+
+    fireEvent.keyDown(chip, { key: "ArrowLeft" });
+    await waitFor(() => expect(atActionEnd(editor())).toBe(true));
+  });
+
+  // 用空欄位：已經有一位時打的第二個名字要先問過（齊聲確認），離開欄位不是答案、不定案 ——
+  // 那是 entity-field 自己的規則，不歸這張票。
+  it("打到一半的字、游標在字首：← 照樣走出去，那串字定案成 chip", async () => {
+    const { container, speaker, editor } = await mount(docActionThenDialogue());
+    speaker.focus();
+    fireEvent.change(speaker, { target: { value: "小華" } });
+    speaker.setSelectionRange(0, 0);
+
+    fireEvent.keyDown(speaker, { key: "ArrowLeft" });
+    await waitFor(() => expect(atActionEnd(editor())).toBe(true));
+    await waitFor(() =>
+      expect(
+        [...container.querySelectorAll(".block__speaker-field .entity-chip")].map((c) =>
+          c.textContent?.replace(/[×＋📍👤👥]/gu, "").trim(),
+        ),
+      ).toEqual(["小華"]),
+    );
+  });
+
+  it("字中間的 ← 屬於那串字，不走出去", async () => {
+    const { speaker } = await mount(docWithSpeaker());
+    speaker.focus();
+    fireEvent.change(speaker, { target: { value: "小華" } });
+    speaker.setSelectionRange(1, 1);
+
+    expect(fireEvent.keyDown(speaker, { key: "ArrowLeft" })).toBe(true); // 沒被攔
+    expect(document.activeElement).toBe(speaker);
+  });
+
+  // ⌘← 是「走到這一格最前面」（`chip-caret`），⇧← 是延伸反白、⌥← 是逐詞 —— 都不是走出去。
+  // chip row 那幾格的 ⌘ ＋ 左右同樣不跳格（`chip-nav`）。
+  it.each([{ metaKey: true }, { ctrlKey: true }, { altKey: true }, { shiftKey: true }])(
+    "空的人物欄按 %o ＋ ←：不走出去",
+    async (modifier) => {
+      const { speaker } = await mount(docActionThenDialogue());
+      speaker.focus();
+
+      expect(fireEvent.keyDown(speaker, { key: "ArrowLeft", ...modifier })).toBe(true); // 沒被攔
+      expect(document.activeElement).toBe(speaker);
+    },
+  );
+
+  it("手上握著一筆在改、游標在字首：← 走出去，那一筆放回原位", async () => {
+    const { container, speaker, editor } = await mount(docWithSpeaker());
+    const chip = container.querySelector<HTMLElement>(".block__speaker-field .entity-chip")!;
+
+    // chip 上按 Enter ＝ 拿起來改（字回到框裡、整串反白），再把游標收到字首。
+    speaker.focus();
+    fireEvent.keyDown(speaker, { key: "ArrowLeft" });
+    fireEvent.keyDown(chip, { key: "Enter" });
+    await waitFor(() => expect(speaker.value).toBe("小明"));
+    speaker.setSelectionRange(0, 0);
+
+    fireEvent.keyDown(speaker, { key: "ArrowLeft" });
+    await waitFor(() => expect(atActionEnd(editor())).toBe(true));
+    await waitFor(() =>
+      expect(
+        [...container.querySelectorAll(".block__speaker-field .entity-chip")].map((c) =>
+          c.textContent?.replace(/[×＋📍👤👥]/gu, "").trim(),
+        ),
+      ).toEqual(["小明"]),
+    );
   });
 });

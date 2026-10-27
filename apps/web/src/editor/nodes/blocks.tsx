@@ -36,6 +36,7 @@ import {
   findContainerNode,
   findSceneNode,
   sameBlock,
+  sceneChipsAbove,
   sceneContext,
   type BlockAddress,
 } from "../address";
@@ -280,23 +281,24 @@ function DialogueView(props: NodeViewProps) {
   };
 
   /**
-   * 人物欄按 ↑：跳到**上一個**可放游標的區塊的文字末端（使用者回饋 2026-09-04）。
-   * 用 `TextSelection.near(…, -1)` 往回找，所以同場次的前一個區塊、或前一場的最後一個區塊
-   * 都自然涵蓋。前面什麼都沒有（全劇第一個區塊）時回 `false`，把這顆鍵還給瀏覽器。
+   * 人物欄按 ↑／←：跳到**上一個**可放游標的區塊的文字末端（使用者回饋 2026-09-04；← 是票券 61）。
+   * 用 `TextSelection.near(…, -1)` 往回找，所以同場次的前一個區塊、前一段片段、或前一場的最後一個
+   * 區塊都自然涵蓋。往回找不到時回 `false`，把這顆鍵還給瀏覽器。
    *
-   * 例外是**本場第一個區塊**：再往上是本場的 chip row，不是上一場的內文（票券 34）。
-   * 少了這一條，第一個區塊是對白的場次會從人物欄直接跨出去，把自己的 metadata 跳過。
+   * 例外是**正上方就是一排 chip row** 的時候（本場第一個區塊、群組第一段片段的第一個區塊）：
+   * 再往上是那一排，不是上一場的內文（票券 34）。哪一排由 `sceneChipsAbove` 答 —— 與台詞第一行
+   * 按 ↑（`extensions/vertical-nav`）同一支，片段該去最後一個成員那一排、第二段以後該回前一段，
+   * 都只有一個答案。
    */
   const focusPreviousBlockEnd = (): boolean => {
-    const here = locateBlock(props);
-    if (here?.blockIndex === 0) {
-      requestFocus({ kind: "sceneChipsEnd", sceneId: here.sceneId });
-      return true;
-    }
-
     const pos = typeof props.getPos === "function" ? props.getPos() : undefined;
     if (pos == null) return false;
-    const before = TextSelection.near(editor.state.doc.resolve(pos), -1);
+    const $pos = editor.state.doc.resolve(pos);
+    const ctx = sceneContext($pos);
+    const above = ctx && sceneChipsAbove($pos, ctx);
+    if (above != null) return requestFocus({ kind: "sceneChipsEnd", sceneId: above });
+
+    const before = TextSelection.near($pos, -1);
     if (before.from >= pos) return false; // 往回找不到，near 折回自己身上
     editor.chain().focus().setTextSelection(before.from).run();
     return true;
@@ -436,7 +438,13 @@ function DialogueView(props: NodeViewProps) {
             enterDialogueBody("end");
             return;
           }
-          if (e.key === "ArrowUp") {
+          // ← 是 ↑ 的水平對應（票券 61）：游標已經在這一格最前面 —— 空欄位、第一顆 chip 前面那道縫、
+          // 第一顆 chip 本身（`chip-caret` 走完了才轉交過來）—— 再往左就是同一個出口。chip row
+          // 第一排的 ←／↑ 也是共用一個出口（`nodes/scene`）。打到一半的字照樣走得出去：移開焦點
+          // 的 blur 把它定案成 chip，與 → 從字尾進台詞同一條線。
+          // 帶修飾鍵的 ← 不是走出去：⌘← 是走到這一格最前面（`chip-caret`）、⇧← 延伸反白、⌥← 逐詞。
+          const plainLeft = e.key === "ArrowLeft" && !(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey);
+          if (e.key === "ArrowUp" || (plainLeft && fieldEdge(e.currentTarget).atStart)) {
             e.stopPropagation();
             if (focusPreviousBlockEnd()) e.preventDefault();
             return;
