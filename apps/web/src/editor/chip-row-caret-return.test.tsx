@@ -600,6 +600,21 @@ describe("從上面走進對白：先停人物欄", () => {
     expect(blockTexts(editor())).toEqual([["action", ""], ["dialogue", "還有位子嗎？"]]);
   });
 
+  it("場次以子場次開頭：描述插在子場次前面（主場次這一層的最上方），不進子場次裡", async () => {
+    const sub = kernelSchema.node("subscene", { sceneId: mintSceneId(), kind: "插入" }, [action("閃回")]);
+    const { container, editor } = await mount(docJSON(scene([sub, action("回到現在")])));
+
+    const input = extrasInput(sceneAt(container, 0));
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(editor().state.doc.firstChild!.firstChild!.type.name).toBe("action"));
+    const top = editor().state.doc.firstChild!;
+    expect(top.child(0).textContent).toBe("");
+    expect(top.child(1).type.name).toBe("subscene");
+    expect(caretInBodyOf(editor(), "")).toBe(true);
+  });
+
   it("插進來的那一段，⌘Z 一下收回", async () => {
     const { container, editor } = await mount(docJSON(scene([dialogue("還有位子嗎？")])));
 

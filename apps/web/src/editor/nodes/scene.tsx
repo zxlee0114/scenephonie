@@ -355,13 +355,15 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   const insertBodyTop = () => {
     const at = bodyStart();
     if (at == null) return false;
+    // 內容的起點（第一個孩子之前）。第一個孩子可能是子場次（`(sceneBlock | subscene)+`）——
+    // 那時 `at` 落在子場次裡，描述照樣插在它前面、這一層的最上方。
+    const before = at - 1;
     const { state } = editor;
-    const first = state.doc.resolve(at).parent;
-    if (first.type.name === "action" && first.content.size === 0) {
-      editor.chain().focus().setTextSelection(at).run();
+    const first = state.doc.resolve(before).nodeAfter;
+    if (first?.type.name === "action" && first.content.size === 0) {
+      editor.chain().focus().setTextSelection(before + 1).run();
       return true;
     }
-    const before = at - 1; // 第一個區塊之前
     const tr = state.tr.insert(before, state.schema.nodes.action!.create());
     editor.view.dispatch(tr.setSelection(TextSelection.create(tr.doc, before + 1)).scrollIntoView());
     editor.view.focus();
