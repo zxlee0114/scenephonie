@@ -12,7 +12,7 @@
 
 **Blocked by:** 無
 
-**Status:** done
+**Status:** verified
 
 ## 定案（使用者 2026-10-28）
 
@@ -49,3 +49,5 @@
 - ⌘Z 還字（`Committed.away`）照舊放回原位：快照的 `at` 是定案那一刻存的，與歸位無關。人物欄、群演欄各一條測試釘住（`undo-history.test.tsx`）。
 - 待瀏覽器驗收：開票那三條路（群演欄 ↑↓ 來回、人物欄 → 進群演欄、Tab 進群演欄）一律落在最後面；
   另外試一下切到別的視窗再回來（`relatedTarget` 是 null，也算離開）焦點有沒有掉。
+
+**人工驗收（2026-10-28）** —— 通過，Status → verified。
