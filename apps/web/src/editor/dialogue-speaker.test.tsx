@@ -460,6 +460,9 @@ describe("對白人物欄：Enter 定案就進台詞（票券 82）", () => {
     input.blur();
     await waitFor(() => expect(speakers(container)).toEqual(["阿盈", "小八"]));
     editor.commands.focus();
+    // `focus()` 要等下一個 animation frame 才真的交出焦點 —— 不等的話那一 frame 會在 ⌘Z 把焦點還給
+    // 人物欄之後才到，把它搶走，人物欄一失焦就把還回來的字再定案一次。
+    await waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
 
     act(() => {
       editor.commands.undo();

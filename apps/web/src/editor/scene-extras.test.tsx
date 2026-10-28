@@ -186,6 +186,9 @@ describe("對白人物欄：一人說話落人物、一群齊聲落群演", () =
     expect(editor.state.doc.firstChild!.attrs.appearingCharacters).toBeNull();
 
     // 編劇眼中那是一個動作 —— ⌘Z 一次就回到原狀。
+    // 先等定案之後進台詞的那一下真的到了（Tiptap 的 `focus()` 排在下一個 animation frame）：⌘Z 會把
+    // 字還給人物欄（票券 82 驗收），晚到的那一 frame 再搶走焦點的話，人物欄會把字又定案一次。
+    await waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
     editor.commands.undo();
     await waitFor(() => expect(extrasOf(editor)).toHaveLength(0));
     expect(editor.state.doc.firstChild!.child(0).attrs.character).toBeNull();

@@ -483,6 +483,9 @@ describe("點走那一下的定案，⌘Z 把整串字還給那一欄（票券 8
       expect(container.querySelectorAll(`${selector} .entity-chip`)).toHaveLength(chips),
     );
     editor.commands.focus("end");
+    // Tiptap 的 `focus()` 要等下一個 animation frame 才真的交出焦點。不等的話，⌘Z 把焦點還給欄位
+    // 之後那一 frame 才到，又把焦點搶回內文 —— 欄位一失焦就把還回來的字再定案一次（CI 撈到的時序）。
+    await waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
     return input;
   }
 
@@ -587,6 +590,7 @@ describe("點走那一下的定案，⌘Z 把整串字還給那一欄（票券 8
     );
     input.blur();
     editor.commands.focus("end");
+    await waitFor(() => expect(document.activeElement).toBe(editor.view.dom)); // 見 `typeAndLeave`
 
     undo(editor);
 
