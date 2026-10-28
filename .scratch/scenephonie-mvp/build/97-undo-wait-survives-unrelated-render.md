@@ -10,7 +10,7 @@ CI 在票 86 merge 後的 main 上撈到（`entity-field.test.tsx`「⌘Z 一次
 
 **Blocked by:** 無
 
-**Status:** done
+**Status:** verified
 
 ## 定案（使用者 2026-10-28）
 
