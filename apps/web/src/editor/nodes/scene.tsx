@@ -69,6 +69,7 @@ import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
 import { scrollToWritingPosition } from "../typewriter-scroll";
 import { requestNextScene } from "../extensions/next-scene";
 import { DRAFT_MARK, sceneNumberOf, type SceneNumberSpec } from "../extensions/scene-numbers";
+import { enterBlockFromAbove } from "../extensions/vertical-nav";
 import { closePointMenu, isMenuAnchor, pointMenus } from "../point-menu";
 import { deleteSceneLabel, type MenuRow } from "../scene-menu";
 import { GroupMember, Scene, Subscene } from "../schema";
@@ -319,30 +320,37 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
   };
 
   /**
-   * 把游標送進本場第一個區塊的內文開頭（getPos → 場次前；+1 進場次、+1 進首區塊）。
-   * 群組成員沒有自己的內文 —— 去**第 1 段片段**：它疊在所有成員那幾排的正下方，不管那一段歸誰
+   * 本場第一個區塊的內文起點（getPos → 場次前；+1 進場次、+1 進首區塊）。
+   * 群組成員沒有自己的內文 —— 是**第 1 段片段**：它疊在所有成員那幾排的正下方，不管那一段歸誰
    * （驗收回饋 2026-10-27：原本去「自己的」第一段，成員 2 按 ↓ 就跳過了第 1 段）。
    */
-  const enterBody = () => {
+  const bodyStart = (): number | null => {
     const pos = typeof getPos === "function" ? getPos() : undefined;
-    if (pos == null) return false;
-    if (isMember) {
-      const at = neighbours()?.bodyStart;
-      if (at == null) return false;
-      editor.chain().focus().setTextSelection(at).run();
-      return true;
-    }
-    editor.chain().focus().setTextSelection(pos + 2).run();
+    if (pos == null) return null;
+    return isMember ? (neighbours()?.bodyStart ?? null) : pos + 2;
+  };
+
+  /** 走進本場內文 —— 第一個區塊是對白就先停它的人物欄（票券 89，同內文裡的 →／↓）。 */
+  const enterBody = () => {
+    const at = bodyStart();
+    return at != null && enterBlockFromAbove(editor, at);
+  };
+
+  /** 游標直接放進第一個區塊的內文開頭，對白也跳過人物欄 —— 只剩群演欄的 Enter 走這條（票券 91 會改它）。 */
+  const enterBodyText = () => {
+    const at = bodyStart();
+    if (at == null) return false;
+    editor.chain().focus().setTextSelection(at).run();
     return true;
   };
 
   /**
    * 群演欄再往下／往右（含 Enter、Tab）—— 這一排的**正下方**。成員下面若還疊著別的成員，那就是下一排的
-   * 第一格（內外）；最後一排才輪到內文。`⌘↓` 不走這裡：它是「一路走到底」，直接進內文。
+   * 第一格（內外）；最後一排才輪到內文，由 `enter` 決定落點。`⌘↓` 不走這裡：它是「一路走到底」，直接進內文。
    */
-  const leaveRowDown = () => {
+  const leaveRowDown = (enter: () => boolean = enterBody) => {
     const next = neighbours()?.next;
-    return next ? requestFocus({ kind: "sceneMeta", sceneId: next }) : enterBody();
+    return next ? requestFocus({ kind: "sceneMeta", sceneId: next }) : enter();
   };
 
   /** 第一排再往上／往左 —— 反向：上面若疊著別的成員就是它的群演欄，否則才是上一場內文末端。 */
@@ -702,9 +710,10 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
               onKeyDown={chipNavHandler({
                 ...exits,
                 left: () => charactersField.current?.focus() ?? true,
-                right: leaveRowDown,
+                right: () => leaveRowDown(),
                 up: () => charactersField.current?.focus() ?? true,
-                down: leaveRowDown,
+                down: () => leaveRowDown(),
+                enter: () => leaveRowDown(enterBodyText),
               })}
             />
           )}

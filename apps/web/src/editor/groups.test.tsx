@@ -33,6 +33,7 @@ const dock = { locationId: mintLocationId(), displayName: "港邊倉庫" };
 const when = { time: "夜", intExt: "內景" };
 const elsewhere = () => ({ ...when, location: { locationId: mintLocationId(), displayName: "走廊" } });
 const action = (text = "") => k.node("action", null, text ? [k.text(text)] : []);
+const dialogue = (text: string) => k.node("dialogue", { character: null }, [k.text(text)]);
 const scene = (blocks: PMNode[], attrs: Record<string, unknown> = {}) =>
   k.node("scene", { sceneId: mintSceneId(), ...attrs }, blocks);
 const member = (attrs: Record<string, unknown> = {}) =>
@@ -536,6 +537,35 @@ describe("成員的 chip row 照畫面上下走", () => {
       await waitFor(() => expect(document.activeElement).toBe(extrasOf(container, 0)));
     },
   );
+
+  // 票券 89：第 1 段片段第一句是對白 → 先停它的人物欄（不管那一段歸誰）。
+  it("最後一個成員的群演欄按 ↓，第 1 段片段第一句是對白 → 它的人物欄", async () => {
+    const a = member({ ...when, location: room });
+    const b = member({ ...when, location: dock });
+    const { container } = await mount(
+      docOf(group([a, b], [fragment(a, [dialogue("你來了。")]), fragment(b, [action("另一段。")])])),
+    );
+    const extras = extrasOf(container, 1);
+    extras.focus();
+    fireEvent.keyDown(extras, { key: "ArrowDown" });
+    await waitFor(() =>
+      expect(document.activeElement).toBe(container.querySelector(".block__speaker")),
+    );
+  });
+
+  it("片段末端按 →，下一段片段第一句是對白 → 它的人物欄", async () => {
+    const a = member({ ...when, location: room });
+    const b = member({ ...when, location: dock });
+    const { editor, container } = await mount(
+      docOf(group([a, b], [fragment(a, [action("我是敘述。")]), fragment(b, [dialogue("你來了。")])])),
+    );
+    caretAtEndOfBlock(editor, 0);
+    editor.view.dom.focus();
+    await press(editor, "ArrowRight");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(container.querySelector(".block__speaker")),
+    );
+  });
 
   it("⌘↓ 從任一個成員都是直接進內文 —— 第 1 段片段的開頭", async () => {
     const { editor, container } = await mountPair();
