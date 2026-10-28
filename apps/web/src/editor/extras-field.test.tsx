@@ -1318,3 +1318,78 @@ describe("新增：沒說人數就問一次（票券 49）", () => {
     expect(chipTexts(container)).toEqual(["保全（8）"]);
   });
 });
+
+describe("離開欄位就歸位：輸入框回到隊尾（票券 95）", () => {
+  const three = () =>
+    render(
+      <Host
+        initial={[
+          { extraId: mintExtraId(), description: "客人", countValue: { kind: "exact", count: 8 } },
+          { extraId: mintExtraId(), description: "服務生", countValue: { kind: "exact", count: 2 } },
+          { extraId: mintExtraId(), description: "警察", countValue: { kind: "exact", count: 3 } },
+        ]}
+      />,
+    );
+
+  const layout = (root: HTMLElement) =>
+    [...root.querySelectorAll(".entity-chip, input:not(.entity-field__count-input)")].map((el) =>
+      el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×👥]/gu, "").trim() ?? ""),
+    );
+
+  it("游標停在第二、三批之間時離開欄位 —— 輸入框回到最後面", () => {
+    const { container } = three();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[1]!);
+    expect(layout(container)).toEqual(["客人（8）", "服務生（2）", "|", "警察（3）"]);
+
+    fireEvent.blur(container.querySelector("input")!, { relatedTarget: document.body });
+
+    expect(layout(container)).toEqual(["客人（8）", "服務生（2）", "警察（3）", "|"]);
+  });
+
+  it("握著一批改了名字就走 —— 那一批照舊放回原位，輸入框才歸位", () => {
+    const { container } = three();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-chip")[1]!); // 拿起「服務生」
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "店員" } });
+
+    fireEvent.blur(input, { relatedTarget: document.body });
+
+    expect(layout(container)).toEqual(["客人（8）", "店員（2）", "警察（3）", "|"]);
+  });
+
+  it("插在中間打一批、進人數格不算離開；從人數格走出去才定案、歸位", async () => {
+    const { container } = three();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[1]!);
+    const input = container.querySelector("input")!;
+    input.focus();
+    fireEvent.change(input, { target: { value: "路人" } });
+    fireEvent.keyDown(input, { key: "Enter" }); // 沒說人數 —— 先進人數格（票券 49）
+    const box = await waitFor(() => {
+      const el = container.querySelector<HTMLInputElement>(".entity-field__count-input");
+      expect(document.activeElement).toBe(el);
+      return el!;
+    });
+    expect(layout(container)).toEqual(["客人（8）", "服務生（2）", "|", "警察（3）"]);
+
+    fireEvent.blur(box, { relatedTarget: document.body });
+
+    expect(layout(container)).toEqual([
+      "客人（8）",
+      "服務生（2）",
+      "路人（若干）",
+      "警察（3）",
+      "|",
+    ]);
+  });
+
+  it("組字中握著一批就走（blur 不定案）—— 那一批還在手上，留在原位", () => {
+    const { container } = three();
+    fireEvent.mouseDown(container.querySelectorAll(".entity-chip")[1]!); // 拿起「服務生」
+    const input = container.querySelector("input")!;
+    fireEvent.compositionStart(input);
+
+    fireEvent.blur(input, { relatedTarget: document.body });
+
+    expect(layout(container)).toEqual(["客人（8）", "|", "警察（3）"]);
+  });
+});

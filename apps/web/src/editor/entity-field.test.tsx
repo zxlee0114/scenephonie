@@ -1787,3 +1787,127 @@ describe("只在別份文件裡被引用的實體也存在（票券 21：角色�
     expect(onCreate).not.toHaveBeenCalled();
   });
 });
+
+describe("離開欄位就歸位：輸入框回到隊尾（票券 95）", () => {
+  const three = () =>
+    render(
+      <Host
+        initial={[
+          { id: "ch_a", displayName: "阿盈" },
+          { id: "ch_b", displayName: "建鳴" },
+          { id: "ch_c", displayName: "小華" },
+        ]}
+        options={[
+          { id: "ch_a", name: "阿盈" },
+          { id: "ch_b", name: "建鳴" },
+          { id: "ch_c", name: "小華" },
+        ]}
+      />,
+    );
+
+  const layout = (root: HTMLElement) =>
+    [...root.querySelectorAll(".entity-chip, input")].map((el) =>
+      el.tagName === "INPUT" ? "|" : (el.textContent?.replace(/[×＋📍👤]/gu, "") ?? ""),
+    );
+
+  /** 輸入框插進「建鳴｜小華」那道縫（第二、三顆之間）。 */
+  const intoGap = (root: HTMLElement) => {
+    fireEvent.mouseDown(root.querySelectorAll(".entity-field__gap--pick")[1]!);
+    expect(layout(root)).toEqual(["阿盈", "建鳴", "|", "小華"]);
+  };
+
+  it("游標停在中間時焦點離開欄位 —— 輸入框回到最後面", () => {
+    const { container } = three();
+    intoGap(container);
+
+    fireEvent.blur(container.querySelector("input")!, { relatedTarget: document.body });
+
+    expect(layout(container)).toEqual(["阿盈", "建鳴", "小華", "|"]);
+  });
+
+  it("焦點走到同一格裡的 chip 不算離開 —— 輸入框留在原位", () => {
+    const { container } = three();
+    intoGap(container);
+    const input = container.querySelector("input")!;
+
+    fireEvent.blur(input, { relatedTarget: chips(container)[1] }); // ← 退進「建鳴」
+
+    expect(layout(container)).toEqual(["阿盈", "建鳴", "|", "小華"]);
+  });
+
+  it("站在 chip 上離開欄位也歸位", () => {
+    const { container } = three();
+    intoGap(container);
+    const chip = chips(container)[1]!;
+
+    fireEvent.blur(container.querySelector("input")!, { relatedTarget: chip });
+    fireEvent.blur(chip, { relatedTarget: document.body }); // 從 chip 上 ↑ 出去
+
+    expect(layout(container)).toEqual(["阿盈", "建鳴", "小華", "|"]);
+  });
+
+  it("握著一筆改成新名字就走 —— 那一筆照舊放回原位，輸入框才歸位", async () => {
+    let finish: (created: EntityOption) => void = () => {};
+    const { container } = render(
+      <Host
+        initial={[
+          { id: "ch_a", displayName: "阿盈" },
+          { id: "ch_b", displayName: "建鳴" },
+          { id: "ch_c", displayName: "小華" },
+        ]}
+        options={[
+          { id: "ch_a", name: "阿盈" },
+          { id: "ch_b", name: "建鳴" },
+          { id: "ch_c", name: "小華" },
+        ]}
+        // 建實體要等伺服器 —— 歸位那一下得排在放回原位**之後**。
+        onCreate={(name) => new Promise((done) => (finish = () => done({ id: "ch_new", name })))}
+      />,
+    );
+    fireEvent.mouseDown(chips(container)[1]!); // 拿起「建鳴」
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "建明" } });
+
+    fireEvent.blur(input, { relatedTarget: document.body });
+    finish({ id: "ch_new", name: "建明" });
+
+    await waitFor(() => expect(layout(container)).toEqual(["阿盈", "建明", "小華", "|"]));
+  });
+
+  it("Enter 定案途中（建實體要等伺服器）就點走 —— 定案完一樣歸位", async () => {
+    let finish: (created: EntityOption) => void = () => {};
+    const { container } = render(
+      <Host
+        initial={[
+          { id: "ch_a", displayName: "阿盈" },
+          { id: "ch_b", displayName: "建鳴" },
+        ]}
+        options={[
+          { id: "ch_a", name: "阿盈" },
+          { id: "ch_b", name: "建鳴" },
+        ]}
+        onCreate={(name) => new Promise((done) => (finish = () => done({ id: "ch_new", name })))}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelectorAll(".entity-field__gap--pick")[0]!);
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "小華" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    fireEvent.blur(input, { relatedTarget: document.body });
+    finish({ id: "ch_new", name: "小華" });
+
+    await waitFor(() => expect(layout(container)).toEqual(["阿盈", "小華", "建鳴", "|"]));
+  });
+
+  it("組字中握著一筆就走（blur 不定案）—— 那一筆還在手上，留在原位", () => {
+    const { container } = three();
+    fireEvent.mouseDown(chips(container)[1]!); // 拿起「建鳴」
+    const input = container.querySelector("input")!;
+    fireEvent.compositionStart(input);
+
+    fireEvent.blur(input, { relatedTarget: document.body });
+
+    expect(layout(container)).toEqual(["阿盈", "|", "小華"]);
+  });
+});

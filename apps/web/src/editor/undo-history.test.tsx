@@ -538,6 +538,47 @@ describe("點走那一下的定案，⌘Z 把整串字還給那一欄（票券 8
     await waitFor(() => expect(input.value).toBe("河堤"));
   });
 
+  it("插在中間定案、點走 —— 輸入框歸位到隊尾，⌘Z 還字照舊還回原位（票券 95）", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    await typeAndLeave(container, editor, CHARACTERS, "阿盈、建鳴", 2);
+    // 等過歷史的分組窗，第二次定案才自成一步（見上面「退掉的是別的動作」）。
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const layout = () =>
+      [...container.querySelectorAll(`${CHARACTERS} .entity-chip, ${CHARACTERS} input`)].map(
+        (el) => (el.tagName === "INPUT" ? `|${(el as HTMLInputElement).value}` : el.textContent?.replace(/[×＋👤]/gu, "")),
+      );
+    fireEvent.mouseDown(container.querySelector(`${CHARACTERS} .entity-field__gap--pick`)!);
+    await typeAndLeave(container, editor, CHARACTERS, "小華", 3);
+
+    expect(layout()).toEqual(["阿盈", "小華", "建鳴", "|"]);
+
+    undo(editor);
+
+    await waitFor(() => expect(layout()).toEqual(["阿盈", "|小華", "建鳴"]));
+  });
+
+  it("群演欄同一套：插在中間點走、輸入框歸位，⌘Z 還字還回原位（票券 95）", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    await typeAndLeave(container, editor, EXTRAS, "客人（8）、警察（3）", 2);
+    await new Promise((resolve) => setTimeout(resolve, 600)); // 歷史的分組窗（同上）
+    const layout = () =>
+      [...container.querySelectorAll(`${EXTRAS} .entity-chip, ${EXTRAS} input`)].map((el) =>
+        el.tagName === "INPUT" ? `|${(el as HTMLInputElement).value}` : el.textContent?.replace(/[×👥]/gu, "").trim(),
+      );
+    fireEvent.mouseDown(container.querySelector(`${EXTRAS} .entity-field__gap--pick`)!);
+    await typeAndLeave(container, editor, EXTRAS, "路人（2）", 3);
+
+    expect(layout()).toEqual(["客人（8）", "路人（2）", "警察（3）", "|"]);
+
+    undo(editor);
+
+    await waitFor(() => expect(layout()).toEqual(["客人（8）", "|路人（2）", "警察（3）"]));
+  });
+
   it("群演欄：「路人」回到框裡；⌘⇧Z 把那一批做回去、框跟著清空", async () => {
     let editor!: Editor;
     const { container } = render(<Harness onEditor={(e) => (editor = e)} />);

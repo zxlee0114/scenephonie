@@ -135,4 +135,4 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [92](./92-name-draft-full-preview.md) | 組字預覽與 Enter 前把整串字的結果都列出來（「甲（3 場）；新增人物：『乙』、『丙』」），不只最後一段。擺在哪、措辭、齊聲混群演怎麼寫開工前定。**從票券 82 驗收提出**，blocked by 82。 | `needs-triage` |
 | [93](./93-convert-extra-and-character.md) | 群演與人物互相轉換（齊聲混著人物與群演時，事後改得過來）。與升格（35）的分界、人物 → 群演轉的是哪一層開工前定。**從票券 82 驗收提出**，無 blocker。 | `needs-triage` |
 | [94](./94-select-scene-content-highlight.md) | ⌘A 第二層（本場內文）的反白看起來亂：第一句的人物欄不在範圍裡，後面幾句整塊變藍。**從票券 82 驗收撈到**，與 82 無關，無 blocker。 | `needs-triage` |
-| [95](./95-field-entry-caret-at-end.md) | 走進一格實體欄位時，輸入框停在上次離開的那道縫（↑↓、←→、Tab 都是）。已定案：**離開欄位就歸位，回來一律落在最後一顆 chip 之後**；⌘Z 還字照舊放回原位。**從票券 89 驗收撈到**，無 blocker。 | `ready-for-agent` |
+| [95](./95-field-entry-caret-at-end.md) | 走進一格實體欄位時，輸入框停在上次離開的那道縫（↑↓、←→、Tab 都是）。已定案：**離開欄位就歸位，回來一律落在最後一顆 chip 之後**；⌘Z 還字照舊放回原位。**從票券 89 驗收撈到**，無 blocker。 | `done` |
