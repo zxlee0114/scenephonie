@@ -37,6 +37,13 @@ neutral-500 兩個底都不過 4.5，沒有中間值可用。
 - [x] **hub 卡片摘要保留淡字（不改）**：它是 `aria-hidden` 的縮圖，卡片的身分由下面的名字承擔；WCAG 1.4.3 不要求
   incidental text。把這條裁決寫進 repo 根目錄的 `.impeccable/config.json`（與 blockquote side-tab 同一處），下次掃描不再報。
 
+## 驗收撈到（2026-10-28）
+
+- [x] **空欄位裡打的字比 placeholder 淺**：`.scene__chip--empty .entity-field` 把整格設成 faint，input 是
+  `color: inherit` 就跟著淡。打的字改用與已填值同色（`--control-fg`）。
+- [x] **空的「內外」「時間」觸發鈕 2.4:1**（使用者裁決併進本票）：同一條 `.scene__chip--empty` 規則，弱化從
+  faint 改成 `--text-secondary`；「還沒填」主要靠虛線框說。
+
 ## 從哪來的
 
 impeccable critique（2026-10-27）Assessment B 的 overlay 掃描。同一輪判為 false positive 的：flat-type-hierarchy（標題靠字重分層）、

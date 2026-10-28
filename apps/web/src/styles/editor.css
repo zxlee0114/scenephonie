@@ -743,9 +743,17 @@
 
 .scene__chip--empty .scene__chip-control,
 .scene__chip--empty .entity-field {
-  /* 缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）—— 但不上 error 色，只是弱化。 */
+  /* 缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）—— 但不上 error 色，只是弱化。
+   * 弱化只降到 secondary：觸發鈕上的「內外」「時間」是這一欄唯一的名字，而且是一顆鈕，
+   * faint 讀不到（票券 86 驗收）。「還沒填」主要靠虛線框說。 */
   border-style: dashed;
-  color: var(--text-faint);
+  color: var(--text-secondary);
+}
+
+/* 弱化的是「這一格還空著」，不是編劇正在打的字 —— input 是 `color: inherit`，不攔的話打出來的字
+ * 會吃到上面的 faint，比 placeholder 還淺（票券 86 驗收）。與已填的值同一個顏色。 */
+.scene__chip--empty .entity-field input {
+  color: var(--control-fg);
 }
 
 /* ── 欄位說明（ⓘ）—— 常駐、事前，不是被拒絕之後才冒出來的補救（使用者回饋 2026-09-10）── */
