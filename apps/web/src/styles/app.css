@@ -283,7 +283,8 @@ a.hub-card__name:focus-visible {
     background: none;
   }
 
-  /* 上半是預覽（最多三行，淡字），名字與日期壓在下緣。 */
+  /* 上半是預覽（最多三行，淡字），名字與日期壓在下緣。
+     淡字是刻意的（票券 86 裁決）：它是 aria-hidden 的縮圖，卡片的身分由下面的名字承擔。 */
   .hub-card__preview {
     display: -webkit-box;
     overflow: hidden;

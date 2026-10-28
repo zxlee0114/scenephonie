@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-10-26T07:39:23.277Z",
         "reason": "agent judgement: the flagged rule is the prose blockquote quote bar (neutral --rule-strong grey, not a coloured card accent), added in slice ① commit 673f5a7, predates this session"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "apps/web/src/styles/app.css"
+        ],
+        "createdAt": "2026-10-28T05:02:26.000Z",
+        "reason": "ticket 86 user decision 2026-10-28: .hub-card__preview is an aria-hidden thumbnail of the screenplay opening (incidental text, WCAG 1.4.3 exempt); the card's identity is carried by the name below. Kept at --text-faint on purpose."
       }
     ]
   }

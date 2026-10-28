@@ -12,7 +12,7 @@
 
 **Blocked by:** 無（83 只動 placeholder 的出現時機，不動顏色，互不擋）
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## 定案（使用者 2026-10-28）
 
@@ -27,15 +27,15 @@
 
 neutral-500 兩個底都不過 4.5，沒有中間值可用。
 
-- [ ] **範圍只修點名的這幾處**，不動 neutral-400 的值（調深會連場次號這類真 decoration 一起變重）。
+- [x] **範圍只修點名的這幾處**，不動 neutral-400 的值（調深會連場次號這類真 decoration 一起變重）。
   其餘 `--text-faint` 的用處另開 [96](./96-text-faint-audit.md) 盤點。
-- [ ] **場次開關三態同一套規則**：寬版、drawer 收著、drawer 開著（「收回去」）—— 靜止 `--text-secondary`，
+- [x] **場次開關三態同一套規則**：寬版、drawer 收著、drawer 開著（「收回去」）—— 靜止 `--text-secondary`，
   hover 字變 `--text-primary`、底 `--surface-raised`。
-- [ ] **實體欄 placeholder 用 `--text-secondary`**：`.entity-field input::placeholder` 新增，
+- [x] **實體欄 placeholder 用 `--text-secondary`**：`.entity-field input::placeholder` 新增，
   `.entity-field__count-input::placeholder` 從 faint 改過來。不新立 token —— 已填的值是帶框 chip（人物、群演）
   或 `--text-primary`（數量格），不會被讀成「已經填了」。
-- [ ] **hub 卡片摘要保留淡字（不改）**：它是 `aria-hidden` 的縮圖，卡片的身分由下面的名字承擔；WCAG 1.4.3 不要求
-  incidental text。把這條裁決寫進 `apps/web/.impeccable/config.json`（與 blockquote side-tab 同一處），下次掃描不再報。
+- [x] **hub 卡片摘要保留淡字（不改）**：它是 `aria-hidden` 的縮圖，卡片的身分由下面的名字承擔；WCAG 1.4.3 不要求
+  incidental text。把這條裁決寫進 repo 根目錄的 `.impeccable/config.json`（與 blockquote side-tab 同一處），下次掃描不再報。
 
 ## 從哪來的
 
