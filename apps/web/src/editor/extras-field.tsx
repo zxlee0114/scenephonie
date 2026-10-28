@@ -1194,7 +1194,21 @@ export function ExtrasField({
   });
 
   return (
-    <div ref={field} className="entity-field extras-field">
+    <div
+      ref={field}
+      className="entity-field extras-field"
+      onBlur={(event) => {
+        // 焦點還在這一格裡（chip、人數格、選單）不算離開。
+        if (event.relatedTarget instanceof Node && field.current?.contains(event.relatedTarget))
+          return;
+        // **離開就歸位**（票券 95，同實體欄位的 `home`）。React 的 onBlur 會冒泡、子層先跑：
+        // 框裡那串字已經在名稱框／人數格自己的 blur 定案過了，那一筆放回原位之後才輪到這裡。
+        // 手上還握著一批（組字中離開，blur 沒定案）就不動 —— 輸入框站的是那一批的位置。
+        if (editing.current) return;
+        caret.current = null;
+        redraw();
+      }}
+    >
       {row}
 
       {preview.length > 0 && (

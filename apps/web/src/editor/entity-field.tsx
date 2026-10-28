@@ -715,6 +715,11 @@ export function EntityField({
       if (wrote && advance) onSettled?.();
     } finally {
       committing.current = false;
+      // 那一筆已經照 `caret` 放回原位了，輸入框才歸位（票券 95）。
+      if (leftWhileCommitting.current) {
+        leftWhileCommitting.current = false;
+        home();
+      }
     }
   };
 
@@ -1289,6 +1294,21 @@ export function EntityField({
    * 一按 Enter 冒出兩個巴巴（票券 21 驗收回饋 2026-10-26）。所以一次只做一個。
    */
   const committing = useRef(false);
+  /** 定案還在路上時焦點就離開了這一格 —— 等 `settle` 做完再歸位（見 `home`）。 */
+  const leftWhileCommitting = useRef(false);
+
+  /**
+   * **離開就歸位**（票券 95）：輸入框回到隊尾。之後不管從哪個方向、用哪顆鍵走回來，落點都是
+   * 最後面 —— 不該看「很久以前在這裡做過什麼」（§7.3，`focus.ts` 的 `sceneChipsEnd`）。
+   *
+   * 手上還握著一筆（組字中離開，blur 沒定案）就不動：輸入框站的是那一筆的位置，挪走它，
+   * 之後定案就把那一筆放到隊尾去了。
+   */
+  const home = () => {
+    if (editing.current) return;
+    caret.current = null;
+    redraw();
+  };
 
   /**
    * 把還沒 chip 化的字定案（Enter、離開欄位、選單的「建立新實體」都走這裡）。
@@ -1764,6 +1784,15 @@ export function EntityField({
     <div
       className={`entity-field${className ? ` ${className}` : ""}`}
       ref={field}
+      onBlur={(event) => {
+        // 焦點還在這一格裡（chip、確認列）不算離開。
+        if (event.relatedTarget instanceof Node && field.current?.contains(event.relatedTarget))
+          return;
+        // React 的 onBlur 會冒泡、子層先跑：輸入框自己的 blur 已經開始定案了。定案還在路上
+        // （建實體要等伺服器）時不在這裡清 —— 那一筆得先照 `caret` 放回原位，`settle` 收尾。
+        if (committing.current) leftWhileCommitting.current = true;
+        else home();
+      }}
     >
       {row}
 
