@@ -138,5 +138,5 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [95](./95-field-entry-caret-at-end.md) | 走進一格實體欄位時，輸入框停在上次離開的那道縫（↑↓、←→、Tab 都是）。已定案：**離開欄位就歸位，回來一律落在最後一顆 chip 之後**；⌘Z 還字照舊放回原位。**從票券 89 驗收撈到**，無 blocker。 | ✅ verified |
 | [96](./96-text-faint-audit.md) | `--text-faint` 盤點：tokens.css 定義它只給 decoration，全站約 45 處逐處判，可操作與正文改 `--text-secondary` 以上。**從票券 86 grilling 拆出來**，blocked by 86。 | `needs-triage` |
 | [97](./97-undo-wait-survives-unrelated-render.md) | bug：⌘Z 撤掉剛定案的那一筆時，等的那一次重繪被無關的重繪吃掉，chip 撤了字沒回框裡（CI flaky）。修：refs 沒變的重繪不算裁決；編劇再動這一欄就作廢等待。**從票券 86 merge 後的 CI 撈到**，無 blocker。 | ✅ verified |
-| [98](./98-undo-in-field-scrolls-page.md) | 實體欄位按 ⌘Z，頁面有時捲走：疑似 undo 的 `scrollIntoView` 捲到 doc 游標（定案時 `keepCaret` 沒動它）。**從票券 97 驗收撈到**，無 blocker。 | `needs-triage` |
+| [98](./98-undo-in-field-scrolls-page.md) | 實體欄位按 ⌘Z，頁面捲到文件游標（定案時 `keepCaret` 沒動它，可能在好幾場外）。定案：**欄位裡的 ⌘Z／⌘⇧Z 改用 `undoNoScroll`／`redoNoScroll`**。**從票券 97 驗收撈到**，無 blocker。 | done |
 | [99](./99-multiple-locations-outside-mixed.md) | 非雜景（含內外未填）的地點欄打好幾個地點會變成一個地點：要不要當成訊號（提示改雜景、拆群組）開工前問。**從票券 97 驗收提出**，無 blocker。 | `needs-triage` |

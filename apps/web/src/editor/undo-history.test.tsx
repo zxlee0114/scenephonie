@@ -154,6 +154,24 @@ describe("chip row 上的 ⌘Z", () => {
     );
   });
 
+  it("欄位裡的 ⌘Z／⌘⇧Z 不捲動頁面 —— 文件游標可能停在很遠的另一場（票券 98）", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    const input = await newLocationChip(container);
+    // undo 若帶 `scrollIntoView`，ProseMirror 會把視窗捲到撤銷後的文件游標 —— 欄位定案時
+    // 刻意不動那個游標（`keepCaret`），所以它停在編劇上次打字的地方。
+    const scrolled: boolean[] = [];
+    editor.on("transaction", ({ transaction }) => scrolled.push(transaction.scrolledIntoView));
+
+    fireEvent.keyDown(input, undoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).toBeNull());
+    fireEvent.keyDown(input, redoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull());
+
+    expect(scrolled.length).toBeGreaterThanOrEqual(2);
+    expect(scrolled).not.toContain(true);
+  });
+
   it("框裡還有沒定案的字時不接手 —— 那一下的 ⌘Z 是「撤銷我剛打的字」", async () => {
     let editor!: Editor;
     const { container } = render(<Harness onEditor={(e) => (editor = e)} />);

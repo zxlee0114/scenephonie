@@ -30,6 +30,7 @@
  * `ScreenplayEditor` 的零場次面板，它為了同一個理由也掛在 window）。
  */
 import { Extension, type Editor } from "@tiptap/core";
+import { redoNoScroll, undoNoScroll } from "@tiptap/pm/history";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 /**
@@ -166,8 +167,12 @@ export function forwardHistoryKey(
 
   event.preventDefault();
   event.stopPropagation();
-  if (which === "redo") editor.commands.redo();
-  else editor.commands.undo();
+  // **不捲動**（票券 98）：`commands.undo()` 會把視窗捲到撤銷後的文件游標，而欄位定案時刻意
+  // 不動那個游標（`keepCaret`）—— 它停在編劇上次在內文打字的地方，可能是好幾場之外。在欄位裡
+  // 按的這一下，編劇看的是這一欄；撤的若是別場的字，回到內文再按就照常捲過去。
+  const { state, dispatch } = editor.view;
+  if (which === "redo") redoNoScroll(state, dispatch);
+  else undoNoScroll(state, dispatch);
   // 撤掉的若正是這一格所在的區塊（剛開出來的新對白、它的人物欄還握著焦點），輸入框跟著被拆掉，
   // 焦點就掉到 `body` —— 編劇接下來打的字無處可去。還給內文：undo 已經把 selection 放回撤銷前
   // 的位置（使用者回饋 2026-09-29，票券 10 驗收）。
