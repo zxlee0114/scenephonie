@@ -3,16 +3,17 @@
  *
  * 三件事在這裡並存：
  *
- * **① 多值輸入規則**（`@scenephonie/schema` 的 `splitNamesLive`）：標點是分隔符、空白是名字的
- * 一部分，即時切成 chip，Backspace 還原成可編輯文字，貼上走同一份解析。規則本身住在 kernel，
- * 這裡只負責把它接到鍵盤上 —— 「頓號怎麼切」在伺服器端與這裡必須是同一個答案。
+ * **① 多值輸入規則**（`@scenephonie/schema` 的 `parseNameDraft`）：標點是分隔符、空白是名字的
+ * 一部分。**打字時不切，Enter（或離開欄位）才整串一次解析**（票券 82）—— 選單只看最後一段，
+ * 前面各段照 `resolve` 命中或新建。Backspace 還原成可編輯文字，貼上走同一份解析（同樣等 Enter）。
+ * 規則本身住在 kernel，這裡只負責把它接到鍵盤上 —— 「頓號怎麼切」在伺服器端與這裡必須是同一個答案。
  *
  * **② 自動補全三列**：命中既有（`📍`／`👤`）／建立新實體（`＋`）／作為既有實體的另一個名字
  * （`🔗`）。**打字當下不問任何問題** —— 系統不可能懷疑「海豚公寓房間」就是「未知大樓房間」，
  * 積極合併相似名會把兩套陳設併成一套。第三列是留給編劇**主動說出口**的地方，他寫的當下就知道。
  *
- * **③ 注音組字期間選單完全不動作**（§7.6）：組字中不切 chip、不接手任何一顆鍵、不回寫外部
- * 狀態。**看得見不等於動得了** —— 組字中會浮出一份唯讀的預覽（命中哪幾筆），但它接不到鍵盤
+ * **③ 注音組字期間選單完全不動作**（§7.6）：組字中不接手任何一顆鍵、不回寫外部狀態（切 chip
+ * 本來就只發生在 Enter，而組字中的 Enter 屬於 IME）。**看得見不等於動得了** —— 組字中會浮出一份唯讀的預覽（命中哪幾筆），但它接不到鍵盤
  * 也接不到滑鼠；要選什麼，等 `compositionend` 之後才算數。
  * 這是票券 03 那個 bug 家族的同一條防線 —— 注音的空白鍵是選字鍵、Enter 是送出鍵，把任何
  * 語意綁在那兩顆鍵上都會在組字期間被 IME 吃掉。
@@ -35,9 +36,12 @@ import {
 import {
   formatExtra,
   isExtraId,
+  hasDialogueMark,
   parseExtra,
+  parseNameDraft,
+  readsLikeSpeech,
   remainingExtraText,
-  splitNamesLive,
+  splitNames,
   type CountValue,
 } from "@scenephonie/schema";
 
@@ -116,8 +120,24 @@ type Props = {
    * 是值不是函式：它是進站時伺服器端算好的，這一頁開著的期間不會變。
    */
   elsewhere?: ReadonlyMap<string, string>;
-  /** 多值欄（地點／登場人物）；對白人物欄是單值。 */
+  /** 多值欄（地點欄在雜景、登場人物欄、對白人物欄 —— 齊聲）。分隔符只在多值欄裡切名字。 */
   multiple?: boolean;
+  /**
+   * Enter（或選單選中一列）定案之後要去哪裡（票券 82）—— 對白人物欄給它：名字定案就進台詞。
+   *
+   * **離開欄位的定案不呼叫它**：那一刻焦點已經走了，游標不該被拉回台詞。升格、確認取代也不呼叫
+   * （問完還有下一件事）；別名、改名要先問完第二步才算定案。建立群演照樣呼叫（票券 82 驗收）。
+   * 什麼都沒寫進去（建立失敗）時也不呼叫。
+   */
+  onSettled?: () => void;
+  /**
+   * 把框裡那串字**搬到台詞開頭**（票券 82 的「↓ 移到台詞」）。只有對白人物欄給。
+   *
+   * 有它、而且字串裡出現分隔符以外的台詞標點（`hasDialogueMark`）時，選單第一列就是這一列：
+   * 那串字多半是台詞而不是人名。已有的 chip 保留、不建任何實體。真有人名帶這些標點，按 ↓
+   * 選「建立新實體」。`focus` ＝ 游標跟著去（Enter）；離開欄位時字照樣搬過去，游標不跟。
+   */
+  onMoveToBody?: (text: string, how: { focus: boolean }) => void;
   /**
    * 單值欄已經有一筆時，第二筆**先問過編劇**，不直接覆蓋。
    *
@@ -215,6 +235,21 @@ type Props = {
 export type EntityFieldHandle = {
   /** 拿起**最後一顆** chip 重編輯（整串反白）—— 與「游標在隊尾、空欄位上按 Backspace」同一條路。 */
   pickUpLast: () => void;
+  /**
+   * 文件剛把這一欄**最近那一下定案**撤掉了 —— 整串字回到框裡、焦點回到欄位（票券 82）。
+   *
+   * 給「↓ 移到台詞」那一下用（`docOnly`）：引用沒變，欄位認不出它被撤掉，要看得到台詞的呼叫端
+   * 判斷。這裡只負責把字接回來 —— 終點與欄位內 ⌘Z 那條路是同一個（`returnToSuggest`）。
+   */
+  takeBack: () => void;
+  /**
+   * 文件剛走過一步歷史（⌘Z／⌘⇧Z），這一欄在 doc 裡**現在**是 `now`（票券 82 驗收）。
+   *
+   * 焦點已經離開時定案的那一下（點走、對白人物欄 Enter 進台詞，見 `Committed.away`），⌘Z 打在
+   * 別處，欄位自己的 `handleKeyDown` 收不到；而 `refs` 要等下一次重繪才換新。所以由看得到 doc 的
+   * 宿主在交易當下讀一次交過來：正好退回那一下之前的樣子，就是撤到了它 —— 整串字回到框裡。
+   */
+  afterHistory: (now: readonly EntityRef[]) => void;
 };
 
 /**
@@ -235,16 +270,34 @@ type Row = {
 };
 
 /**
- * 剛剛定案的那一筆 —— **⌘Z 要把它還回來的東西**（票券 37）。
+ * 剛剛定案的那一下 —— **⌘Z 要把它還回來的東西**（票券 37）。
  *
  * 那串字從來不在 doc 裡：定案的最後一步 `reset()` 把 `text` 清成 `""`，⌘Z 之後 ProseMirror
  * 退得回 chip，退不回那串字 —— 沒有人替欄位留過它。這就是那個人。
+ *
+ * 留的是**打的那整串字**，不是某一筆引用（票券 82）：Enter 一下可能定案好幾個名字（`巷口、警局`），
+ * ⌘Z 一次全部撤回、整串字回到框裡。只留其中一個名字的話，其餘幾筆會無聲消失。
  *
  * 它同時是那一步的**形狀**：這一欄從 `before` 變成 `after`。欄位靠它認出「⌘Z 撤掉的正好
  * 是我那一步」—— 見 `whenFieldBecomes`。
  */
 type Committed = {
-  ref: EntityRef;
+  /** 定案之前框裡那整串字（原封，含分隔符）。 */
+  text: string;
+  /**
+   * 定案的那一刻**焦點跟著走了**（點走、對白人物欄 Enter 進台詞）—— 撤掉它的 ⌘Z 打在別處，
+   * 由宿主經 `afterHistory` 交回（票券 82 驗收）。欄位內 ⌘Z 那條路不接它：編劇回到欄位再按，
+   * 那一下照樣送進文件，宿主那條路接得到。
+   *
+   * Enter 定案、焦點留在欄位裡的那一下不算：之後點走再按 ⌘Z，欄位照票券 37 不插手。
+   */
+  away?: boolean;
+  /**
+   * 這一步**欄位自己認不出來被撤掉了**（「↓ 移到台詞」：引用沒變，`before` ＝ `after`）。
+   * 形狀永遠對得上，任何一下 ⌘Z 都會被誤認成撤掉了它，所以 `afterHistory` 也不接 —— 只有看得到
+   * 台詞的呼叫端認得出來，經 `takeBack` 交回。
+   */
+  docOnly?: boolean;
   /** 它站在第幾格（`caret` 的值，`null` ＝ 隊尾／單值欄）。放回去要回原位，不是跳到隊尾。 */
   at: number | null;
   /** 定案之前這一欄的樣子（⌘Z 要退回的那一個）。 */
@@ -269,6 +322,8 @@ export function EntityField({
   onCreateExtra,
   onPromoteFromExtra,
   multiple = false,
+  onSettled,
+  onMoveToBody,
   confirmReplace,
   aliasing = true,
   onCommit,
@@ -350,6 +405,7 @@ export function EntityField({
    *
    * **只記一筆，而且只記在這個元件裡**：⌘Z 是全域的，但「把字接回來」只有還站在這一欄的
    * 編劇要得起 —— 焦點一離開，這一顆鍵根本到不了 `handleKeyDown`，欄位也就不插手（票券 37）。
+   * 例外是定案那一刻焦點就跟著走了的那一下（`Committed.away`）：由宿主經 `afterHistory` 交回。
    *
    * 它**不必有人負責作廢**：這一筆算不算數，是按下 ⌘Z 之後看文件退成什麼樣子當場判的
    * （見 `whenFieldBecomes`）—— 不是靠在每一條會動到 `refs` 的路上記得清掉它。
@@ -534,23 +590,19 @@ export function EntityField({
     return `${mark} ${option.name}${note ? `（${note}）` : ""}`;
   };
 
-  /** 把幾筆引用併進現有的（單值欄就是取代成最後一筆）。 */
-  const merge = (added: EntityRef[]) => {
-    if (added.length === 0) return;
+  /**
+   * 把幾筆引用併進現有的（單值欄就是取代成最後一筆）。回傳寫了沒有。
+   *
+   * `typed` ＝ 定案之前框裡那整串字 —— ⌘Z 要還回來的就是它（見 `Committed`）。`away` 見同處。
+   */
+  const merge = (added: EntityRef[], typed: string, away = false): boolean => {
+    if (added.length === 0) return false;
     // 定案是 ⌘Z 撤得掉的一步，而它的反面是**字回來**（票券 37）—— 所以寫下去的同時留一份
-    // 那一步的形狀（這一欄從 `refs` 變成 `next`）。⚠️ 一次切出好幾筆（貼上、連打頓號）不留：
-    // 那一下 ⌘Z 退掉的是一整串，把其中一個名字塞回框裡會讓其餘幾筆無聲消失。
-    const only = added.length === 1 ? added[0]! : null;
+    // 那一步的形狀（這一欄從 `refs` 變成 `next`）。一次定案好幾筆也留：還回來的是整串字，
+    // 不是其中一個名字（票券 82）。
     const commit = (next: EntityRef[], at: number | null) => {
       undoneCommit.current = null; // 又定案了一筆 —— 上一次撤銷的不再是 ⌘⇧Z 的目標
-      lastCommit.current = only
-        ? {
-            ref: only,
-            at,
-            before: refs,
-            after: next,
-          }
-        : null;
+      lastCommit.current = { text: typed, at, before: refs, after: next, away };
       onCommit(next);
     };
     if (!multiple) {
@@ -559,7 +611,7 @@ export function EntityField({
       // 之後輸入框就卡在 chip **前面**（使用者回報 2026-09-24）。
       caret.current = null;
       commit([added[added.length - 1]!], null);
-      return;
+      return true;
     }
     const kept = refs.filter((r) => !added.some((a) => a.id === r.id));
     // 放在**游標停的地方**（2026-09-11 驗收回饋）：拿起來改的那一筆回到它原本的位置，點縫隙
@@ -569,10 +621,11 @@ export function EntityField({
     if (at != null && at <= kept.length) {
       caret.current = at + added.length; // 定案之後游標停在**這一串之後**
       commit([...kept.slice(0, at), ...added, ...kept.slice(at)], at);
-      return;
+      return true;
     }
     caret.current = null;
     commit([...kept, ...added], kept.length);
+    return true;
   };
 
   /**
@@ -581,10 +634,13 @@ export function EntityField({
    * 這就是「打字當下不問任何問題」—— 不問「這是不是你上次那個？」，也不積極合併相似名。
    * 要說兩個名字指同一筆實體，走第三列。
    *
-   * ⚠️ 這支只解析、**不寫回**：一次貼上多個名字時要等全部解析完才寫一次，否則第二筆會
+   * ⚠️ 這支只解析、**不寫回**：一次定案多個名字時要等全部解析完才寫一次，否則第二筆會
    * 覆蓋掉第一筆（`refs` 是 prop，中途還沒重繪過）。
+   *
+   * `head` ＝ 這是最後一個分隔符**之前**的那幾段（見 `settle`）。手上那一筆屬於最後一段 ——
+   * 選單、抬頭說的都是那一段 —— 所以前面幾段不走「群演改顯示名」那條捷徑。
    */
-  const resolve = async (name: string): Promise<EntityRef | null> => {
+  const resolve = async (name: string, { head = false } = {}): Promise<EntityRef | null> => {
     const held = editing.current;
     // 剛拿下來的那一筆是**群演**：改字改的是「這一場顯示的名字」，不是換一個目標。
     // （CONTEXT.md：群演欄寫「咖啡廳客人（8）」，對白顯示「眾人」—— 兩者本來就可以不同。）
@@ -594,7 +650,11 @@ export function EntityField({
     // 只限**這一場還找得到**的那一筆。對白從別場帶過來、群演沒跟上的懸空引用（票券 13 驗收）不算：
     // 那時選單給的是「建立新實體」，按下去就該照字面建一筆 —— 硬塞回那個指不到東西的 id 會被
     // kernel 拒絕，說話者就整個不見了。
-    if (isExtraId(held?.id) && (readSceneExtras?.() ?? []).some((e) => e.id === held!.id)) {
+    if (
+      !head &&
+      isExtraId(held?.id) &&
+      (readSceneExtras?.() ?? []).some((e) => e.id === held!.id)
+    ) {
       return { id: held!.id, displayName: name };
     }
     // 一般實體：名字沒改就是原封放回，用回它自己的 id（見 `editing`）。
@@ -612,19 +672,77 @@ export function EntityField({
     return { id: created.id, displayName: name };
   };
 
-  /** 一次解析多個名字（貼上、連打頓號），解析完寫一次。 */
-  const resolveAll = async (names: string[]) => {
-    const resolved: EntityRef[] = [];
-    for (const name of names) {
-      const ref = await resolve(name);
-      if (ref) resolved.push(ref);
+  /**
+   * **定案**（票券 82）—— Enter、選單選中一列、離開欄位都走這裡：整串一次解析、一次寫回。
+   *
+   * `last` 決定最後一段（選單選中的那一列怎麼處理它）；前面各段照 `resolve` 的規則（命中既有，
+   * 否則建立新的）。回傳 `false` ＝ 這一下整個不做（例：改名被 command 拒絕），字留在框裡。
+   *
+   * **最後一段先解析**：手上那一筆屬於它（選單與抬頭說的都是那一段），它沒用上手上那一筆時，
+   * 前面某一段原封打出那個名字才輪得到（`editingMatch`）。手上那一筆只放回一次。
+   *
+   * 寫回之後 `advance` 才去 `onSettled`（對白人物欄 ＝ 進台詞）。`leaving` ＝ 這是離開欄位那一下
+   * —— 兩者都是焦點跟著走了（`Committed.away`）。`committing` 擋的是**解析期間**
+   * （建實體要等伺服器）同步發生的 `blur` —— 呼叫端在 `onCommit` 裡移走焦點時，框裡還是同一串字。
+   * 之後才到的 `blur`（Tiptap 的 `focus()` 排在下一個 frame）看到的已經是 `reset()` 清空的框。
+   */
+  const settle = async (
+    resolveTail: () => EntityRef | null | false | Promise<EntityRef | null | false>,
+    { advance, leaving = false }: { advance: boolean; leaving?: boolean },
+  ) => {
+    if (committing.current) return;
+    committing.current = true;
+    const typed = text;
+    /** 解析到手上那一筆 ＝ 它放回去了（只放回一次）。 */
+    const release = (ref: EntityRef | null) => {
+      if (ref?.id != null && ref.id === editing.current?.id) editing.current = null;
+    };
+    try {
+      const tail = await resolveTail();
+      if (tail === false) return;
+      release(tail);
+      const added: EntityRef[] = [];
+      for (const name of draft.names) {
+        const ref = await resolve(name, { head: true });
+        if (!ref) continue;
+        release(ref);
+        // 同一筆只留一次（`小明、小明`，或前面一段命中了最後一段選中的那一位）。
+        if (!added.some((a) => a.id === ref.id) && ref.id !== tail?.id) added.push(ref);
+      }
+      if (tail) added.push(tail);
+      const wrote = merge(added, typed, leaving || (advance && !!onSettled));
+      reset();
+      if (wrote && advance) onSettled?.();
+    } finally {
+      committing.current = false;
     }
-    merge(resolved);
-    // 那串字已經變成 chip 了 —— 手上不再握著任何一筆。Enter／離開欄位那條路走的是
-    // `reset`，打頓號切出 chip 這條路少了這一句，手會一直握著一筆放不下來。
-    editing.current = null;
-    heldScenes.current = null;
-    redraw();
+  };
+
+  /**
+   * 把那串字**搬到台詞開頭**（「↓ 移到台詞」，票券 82）—— 已有的 chip 保留，不建任何實體。
+   *
+   * 這也是 ⌘Z 撤得掉的一步（Enter 與點走都是，票券 82 驗收），所以留一份快照 —— 但只有呼叫端
+   * 認得出它被撤掉（`docOnly`）。
+   */
+  const moveToBody = (focus: boolean) => {
+    if (!onMoveToBody || committing.current) return;
+    const typed = text;
+    undoneCommit.current = null;
+    lastCommit.current = {
+      text: typed,
+      at: caret.current,
+      before: refs,
+      after: refs,
+      away: true,
+      docOnly: true,
+    };
+    committing.current = true; // `onMoveToBody` 同步移走焦點時的 `blur` 不能再搬一次（見 `settle`）
+    try {
+      reset();
+      onMoveToBody(typed.trim(), { focus });
+    } finally {
+      committing.current = false;
+    }
   };
 
   /**
@@ -658,10 +776,28 @@ export function EntityField({
     input.current?.focus();
   };
 
+  /** 那一下定案被撤掉了：整串字回到框裡、焦點回到欄位（見 `EntityFieldHandle.takeBack`）。 */
+  const takeBack = () => {
+    const snapshot = lastCommit.current;
+    // 框裡已經有編劇在打的字就不蓋過去 —— 那幾個字不在任何堆疊裡，蓋掉就沒了。
+    if (!snapshot || text !== "") return;
+    lastCommit.current = null;
+    undoneCommit.current = snapshot;
+    returnToSuggest(snapshot.text, snapshot.at);
+    input.current?.focus();
+  };
+
   useImperativeHandle(handleRef, () => ({
     pickUpLast: () => {
       const last = refs[refs.length - 1];
       if (last) editRef(last);
+    },
+    takeBack,
+    afterHistory: (now) => {
+      const snapshot = lastCommit.current;
+      // 欄位內 ⌘Z 那條路正在等它自己的那一次重繪（`whenFieldBecomes`）—— 那一下歸它。
+      if (awaiting.current || !snapshot?.away || snapshot.docOnly) return;
+      if (sameRefs(now, snapshot.before)) takeBack();
     },
   }));
 
@@ -815,7 +951,30 @@ export function EntityField({
     setDismissed(false);
   };
 
-  const query = text.trim();
+  /**
+   * 框裡那串字拆成兩半（票券 82）：分隔符之前的各段（Enter 時照 `resolve`）與正在打的最後一段
+   * （選單與組字預覽只看它）。單值欄沒有分隔符 —— 標點在那裡是名字裡的普通字元，整串就是最後一段。
+   */
+  const draft = multiple ? parseNameDraft(text) : { names: [], last: text };
+  const query = draft.last.trim();
+  /**
+   * 這串字讀起來是台詞嗎 —— 是的話選單第一列是「↓ 移到台詞」（見 `onMoveToBody`）。
+   *
+   * 有台詞標點就是；沒有的話，看有沒有哪一段**不認得**、又讀起來像句子（`readsLikeSpeech`，
+   * 票券 82 驗收）。認得的名字不拿去猜：既有人物、本場群演、手上那一筆叫什麼就是什麼。
+   * 群演的人數尾綴（`眾人 x20`）不算進名字的長度。
+   */
+  const looksLikeLine =
+    !!onMoveToBody &&
+    (hasDialogueMark(text) ||
+      (text.trim() !== "" &&
+        (multiple ? splitNames(text) : [text.trim()]).some(
+          (segment) =>
+            readsLikeSpeech(parseExtra(segment)?.description ?? segment) &&
+            !byName(segment) &&
+            !editingMatch(segment) &&
+            !(readSceneExtras?.() ?? []).some((e) => e.name === segment),
+        )));
   /** 這一筆會覆蓋掉已經在的那一筆嗎 —— 是的話就先問過（見 `confirmReplace`）。 */
   const needsConfirm = !multiple && !!confirmReplace && refs.length > 0;
   // 組字期間選單完全不動作（§7.6）；Esc 之後也不再自己彈回來，直到下一次打字。
@@ -848,6 +1007,13 @@ export function EntityField({
       },
     });
   } else if (menuOpen) {
+    if (stage.name === "suggest" && looksLikeLine) {
+      rows.push({
+        key: "move",
+        label: "↓ 移到台詞",
+        run: () => moveToBody(true),
+      });
+    }
     // **孤兒不出現在自動補全**（ADR-0005）—— 「存在＝被引用」不是一句口號，選單是它唯一
     // 看得見的地方。目錄是 append-only 的，裡面一定會累積 ⌘Z 留下的孤兒；「v1 永不清理」
     // 指的是**不刪資料列**，不是「照樣顯示」。
@@ -879,13 +1045,11 @@ export function EntityField({
             // ⚠️ 手上那一筆從 `hits` 進榜時（清空重打前綴，票券 52）走的是**實體名** ——
             // 那時框裡是編劇剛打的半截字，不是這一場的叫法，把 `L` 當顯示名寫回去才是竄改。
             // 分界因此是 `exact`：原封放回才保別名，字改過了就按他選的那一筆的名字走。
-            merge([
-              {
-                id: option.id,
-                displayName: option === exact ? query : option.name,
-              },
-            ]);
-            reset();
+            const ref = {
+              id: option.id,
+              displayName: option === exact ? query : option.name,
+            };
+            void settle(() => ref, { advance: true });
           },
         });
       }
@@ -896,8 +1060,9 @@ export function EntityField({
           key: `extra:${extra.id}`,
           label: `${EXTRA_MARK} ${extra.name}`,
           run: () => {
-            merge([{ id: extra.id, displayName: extra.name }]);
-            reset();
+            void settle(() => ({ id: extra.id, displayName: extra.name }), {
+              advance: true,
+            });
           },
         });
       }
@@ -939,8 +1104,9 @@ export function EntityField({
         rows.push({
           key: "create",
           label: `${NEW_MARK} 建立新實體「${query}」`,
+          // 照字面建一筆 —— 不再問「是不是台詞」：走到這一列（↓ 越過「移到台詞」）就是他說了是人名。
           run: () => {
-            void commitText();
+            void commitText({ advance: true, asName: true });
           },
         });
       }
@@ -1040,8 +1206,9 @@ export function EntityField({
         key: "alias-scene-only",
         label: `只當這一場的名字（${target.name}）`,
         run: () => {
-          merge([{ id: target.id, displayName: query }]);
-          reset();
+          void settle(() => ({ id: target.id, displayName: query }), {
+            advance: true,
+          });
         },
       });
       if (onRenameEntity) {
@@ -1049,10 +1216,14 @@ export function EntityField({
           key: "alias-rename",
           label: `同時把實體改名為「${query}」`,
           run: () => {
-            // 改實體的名字**不代換全文**：別場的顯示名與正文一個字都不動。
-            onRenameEntity(target.id, query);
-            merge([{ id: target.id, displayName: query }]);
-            reset();
+            void settle(
+              () => {
+                // 改實體的名字**不代換全文**：別場的顯示名與正文一個字都不動。
+                onRenameEntity(target.id, query);
+                return { id: target.id, displayName: query };
+              },
+              { advance: true },
+            );
           },
         });
       }
@@ -1119,9 +1290,26 @@ export function EntityField({
    */
   const committing = useRef(false);
 
-  /** 把還沒 chip 化的字定案（Enter、離開欄位、選單的「建立新實體」都走這裡）。 */
-  const commitText = async () => {
-    if (!query || committing.current) return;
+  /**
+   * 把還沒 chip 化的字定案（Enter、離開欄位、選單的「建立新實體」都走這裡）。
+   *
+   * `advance` ＝ 定案之後去 `onSettled`（離開欄位不去）。`asName` ＝ 編劇已經說了這串字是名字
+   * （「建立新實體」那一列）—— 不再照台詞標點把它搬去台詞。`leaving` ＝ 這是離開欄位那一下。
+   */
+  const commitText = async ({
+    advance,
+    asName = false,
+    leaving = false,
+  }: {
+    advance: boolean;
+    asName?: boolean;
+    leaving?: boolean;
+  }) => {
+    if (!text.trim() || committing.current) return;
+    if (looksLikeLine && !asName) {
+      moveToBody(advance);
+      return;
+    }
     // 第二個值先問過 —— **不 resolve、不建實體**，只把字留在框裡反白起來。
     if (needsConfirm) {
       setPending(query);
@@ -1130,14 +1318,7 @@ export function EntityField({
       selectNext.current = true;
       return;
     }
-    committing.current = true;
-    try {
-      const ref = await resolve(query);
-      if (ref) merge([ref]);
-      reset();
-    } finally {
-      committing.current = false;
-    }
+    await settle(() => (query ? resolve(query) : null), { advance, leaving });
   };
 
   /**
@@ -1149,10 +1330,15 @@ export function EntityField({
   const createExtra = () => {
     const parsed = parseExtra(query);
     if (!parsed || !onCreateExtra) return;
-    const created = onCreateExtra(query);
-    if (!created) return;
-    merge([{ id: created.id, displayName: created.name }]);
-    reset();
+    void settle(
+      () => {
+        const created = onCreateExtra(query);
+        return created ? { id: created.id, displayName: created.name } : false;
+      },
+      // 與其他列一樣進台詞（票券 82 驗收）：票上把它列進「留在欄位裡」的例外，但在人物欄裡
+      // 它其實沒有下一個問題要問 —— 留著只是要編劇在空欄位上多按一次 Enter。
+      { advance: true },
+    );
   };
 
   /**
@@ -1166,16 +1352,23 @@ export function EntityField({
    */
   const promote = async (extra: SceneExtraOption) => {
     if (!onPromoteFromExtra) return;
-    // 升格是一個**新的宣告**，不是把剛拿下來那一筆原封放回去 —— 手上若正握著一筆群演引用，
-    // `resolve` 會用回那個 `ex_` id，於是「升格」產出的會是一筆群演，正好相反。
-    editing.current = null;
-    caret.current = null; // 升格是新的一筆，排在隊尾（不是把誰放回原位）。
-    const ref = await resolve(query);
-    if (!ref?.id) return;
-    onPromoteFromExtra(extra.id, ref.id);
-    merge([ref]);
-    setShowNamingHint(true);
-    reset();
+    // 升格之後**留在欄位裡**（不 `advance`）：命名提示就掛在這一欄底下，焦點一走它就收了。
+    await settle(
+      async () => {
+        // 升格是一個**新的宣告**，不是把剛拿下來那一筆原封放回去 —— 手上若正握著一筆群演引用，
+        // `resolve` 會用回那個 `ex_` id，於是「升格」產出的會是一筆群演，正好相反。
+        editing.current = null;
+        caret.current = null; // 升格是新的一筆，排在隊尾（不是把誰放回原位）。
+        const ref = await resolve(query);
+        if (!ref?.id) return false;
+        onPromoteFromExtra(extra.id, ref.id);
+        // ⚠️ 與寫入同一批重繪，不等 `settle` 回來才設：多出來的那一次重繪會先吃掉 ⌘Z 在等的
+        // 那一次（`whenFieldBecomes`），升格就撤不回框裡了。
+        setShowNamingHint(true);
+        return ref;
+      },
+      { advance: false },
+    );
   };
 
   /**
@@ -1194,15 +1387,19 @@ export function EntityField({
    * 這是票券 37 那個接縫，那張票落地前先別假設它會自己好。
    */
   const renameEntity = (target: EntityOption, alsoOthers: boolean) => {
-    if (
-      alsoOthers &&
-      retitleOthers &&
-      !retitleOthers.run(target.id, target.name, query)
-    )
-      return;
-    onRenameEntity?.(target.id, query);
-    merge([{ id: target.id, displayName: query }]);
-    reset();
+    void settle(
+      () => {
+        if (
+          alsoOthers &&
+          retitleOthers &&
+          !retitleOthers.run(target.id, target.name, query)
+        )
+          return false;
+        onRenameEntity?.(target.id, query);
+        return { id: target.id, displayName: query };
+      },
+      { advance: true },
+    );
   };
 
   /** 取代原本那一筆（編劇明確說了「就是要換掉」）。 */
@@ -1268,10 +1465,11 @@ export function EntityField({
 
     // Enter 只有在「還有字沒定案」時屬於這個欄位。空欄位上的 Enter 是呼叫端的（對白的人物欄
     // 按 Enter 是進台詞、空對白則是變回動作）—— 攔下來會變成「按了沒反應」。
-    if (event.key === "Enter" && query) {
+    // 看的是整串字不是最後一段：`巷口、` 選單沒開（最後一段是空的），Enter 照樣把巷口定案。
+    if (event.key === "Enter" && text.trim()) {
       event.preventDefault();
       event.stopPropagation();
-      void commitText();
+      void commitText({ advance: true });
       return;
     }
 
@@ -1320,12 +1518,12 @@ export function EntityField({
       keepHistoryInBox(event, heldHistory);
       return;
     }
-    if (history === "undo" && text === "" && lastCommit.current) {
+    if (history === "undo" && text === "" && lastCommit.current && !lastCommit.current.away) {
       const snapshot = lastCommit.current;
       whenFieldBecomes(snapshot.before, () => {
         lastCommit.current = null;
         undoneCommit.current = snapshot;
-        returnToSuggest(snapshot.ref.displayName, snapshot.at);
+        returnToSuggest(snapshot.text, snapshot.at);
       });
       onKeyDown?.(event); // 文件那一半（見上）—— 對白人物欄靠的就是這一句
       return;
@@ -1346,7 +1544,7 @@ export function EntityField({
       history === "redo" &&
       undoneCommit.current &&
       // 字被改過就作廢 —— 編劇已經在做別的事，那一刻的 ⌘⇧Z 是他自己那幾個字的。
-      text === undoneCommit.current.ref.displayName
+      text === undoneCommit.current.text
     ) {
       const snapshot = undoneCommit.current;
       // 框裡這串字是欄位剛塞回去的，不是「沒定案的字」（見 `claimHistoryKey`）。
@@ -1374,16 +1572,7 @@ export function EntityField({
     setActive(0);
     // 又動了那串字 ＝ 他正在改它，不是在回答面板的問題。
     if (pending !== null) setPending(null);
-    if (composing.current) return; // 組字中不切 chip
-    // 多值輸入規則的適用範圍就是 §4.7 標題那一行：**地點欄與登場人物欄**。對白人物欄是單值，
-    // 標點在那裡就是名字裡的普通字元 —— 在那裡切開會建出第二筆實體卻只留下最後一筆，
-    // 憑空多一個孤兒。
-    if (!multiple) return;
-
-    const { names, rest } = splitNamesLive(value);
-    if (names.length === 0) return;
-    setText(rest);
-    void resolveAll(names);
+    // 打字時**不切 chip**（票券 82）：分隔符在 Enter 之前只是字，切開與建實體都等 `commitText`。
   };
 
   const held = editing.current;
@@ -1527,10 +1716,11 @@ export function EntityField({
           // 離開欄位時把還沒 chip 化的字定案（與 CjkField 的 blur 回寫同一個理由：
           // 打完就走是常態，不該把字吃掉）。
           // 待確認的字**不在 blur 時定案** —— 它正等著編劇回答，離開欄位不是答案。
-          if (!composing.current && !needsConfirm) void commitText();
+          // 走的是與 Enter 同一份解析，只是游標不跟著去台詞（票券 82）。
+          if (!composing.current && !needsConfirm) void commitText({ advance: false, leaving: true });
           // 空著離開 ＝ 放手。`commitText` 沒字時直接 return，不清任何東西 —— 少了這一句，
           // 抬頭會跟著欄位一路掛在畫面上（2026-09-11 驗收回饋）。
-          if (query === "") letGo();
+          if (text.trim() === "") letGo();
           setStage({ name: "suggest" });
           setShowNamingHint(false); // 他移開就是決定了（見 `showNamingHint`）
         }}

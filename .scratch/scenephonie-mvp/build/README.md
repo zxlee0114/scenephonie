@@ -122,7 +122,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [79](./79-autocomplete-hits-aliases.md) | 自動補全認得別場用過的叫法：打的名字是別場的顯示名（別名）時命中那筆實體，不再只給「建立新實體」、冒出第二個同名人物。**從票券 21 驗收撈到**，無 blocker。 | `needs-triage` |
 | [80](./80-entity-menu-offscreen.md) | 人物欄、地點欄等實體欄位的選單在視窗下緣被切掉：下方塞不下就翻到上方（接票 29 的 `slashMenuPosition`）。**從票券 62 驗收撈到**，無 blocker。 | closed —— 併進 33 |
 | [81](./81-typewriter-scroll-while-writing.md) | 寫作中的打字餘裕：場次內的區塊寫完時，游標太低就捲回舒服的高度（票 27 只管新增場次）。先記想法，觸發時機與干擾待拷問。**從票券 62 驗收提出**，無 blocker。 | `needs-triage` |
-| [82](./82-speaker-field-eats-dialogue.md) | bug：選完說話者直接打台詞，全形標點把台詞即時切成人物 chip、前半句遺失（**資料遺失**）。grilling 定案：三個實體欄位改成**打字時不切、Enter 才整串解析**；人物欄定案名字就進台詞，帶台詞標點時選單第一列是「↓ 移到台詞」；一次 ⌘Z 退回。**從 impeccable critique（2026-10-27）撈到**，無 blocker。**排在 89、91 之前**。 | `ready-for-agent` |
+| [82](./82-speaker-field-eats-dialogue.md) | bug：選完說話者直接打台詞，全形標點把台詞即時切成人物 chip、前半句遺失（**資料遺失**）。grilling 定案：三個實體欄位改成**打字時不切、Enter 才整串解析**；人物欄定案名字就進台詞，帶台詞標點時選單第一列是「↓ 移到台詞」；一次 ⌘Z 退回。**從 impeccable critique（2026-10-27）撈到**，無 blocker。**排在 89、91 之前**。 | ✅ verified |
 | [83](./83-collapse-unfocused-scene-heading.md) | 沒有焦點的場次，抬頭收成一行（「1　外景・夜・河堤」），有值才顯示登場人物與群演，ⓘ 只在焦點／hover 出現。與 33 協調。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
 | [84](./84-where-am-i-titles-and-tabs.md) | 看得出自己在哪：劇本頁頂列印專案名 › 劇本名、分享頁印片名、編輯器切換列加分場大綱。**從 impeccable critique 撈到**，無 blocker（21、75 相關）。 | `needs-triage` |
 | [85](./85-demo-screenplay-shows-the-ideal.md) | 示範劇本填好登場人物與人物介紹，不再一匯出就被警告。要不要刻意留一場給引導教提示開工前問。**從 impeccable critique 撈到**，無 blocker（73、78 相關）。 | `needs-triage` |
@@ -132,3 +132,6 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [89](./89-enter-dialogue-from-above-lands-on-speaker.md) | 從上面走進對白（→／↓、chip row 的 Enter／Tab）一律落台詞、跳過人物欄 —— 要不要先停人物欄。grilling 定案（與 82、91 一起）：方向鍵與 chip row 的 Tab **一律先停人物欄**，與回程同一條路；chip row 的 Enter 歸 91。**從票券 61 grilling 拆出來**，blocked by 61。排在 82 之後。 | `ready-for-agent` |
 | [90](./90-empty-first-block-backspace-stuck.md) | 場次第一個區塊（描述）清空之後 Backspace 卡在行首，空區塊收不掉。游標落點與 62 的併回規則怎麼延伸開工前問。**從票券 61 驗收撈到**，無 blocker。 | `needs-triage` |
 | [91](./91-insert-action-before-first-dialogue.md) | 第一句是對白時前面插不進描述：人物欄 Enter 進台詞、台詞開頭 Enter 切出另一句對白。grilling 定案：**chip row 的 Enter 在內文最上方插一個描述**（第一個區塊是空的就直接落進去）；Tab 照順序走（89）。**從票券 61 驗收提出**，無 blocker。排在 82、89 之後。 | `ready-for-agent` |
+| [92](./92-name-draft-full-preview.md) | 組字預覽與 Enter 前把整串字的結果都列出來（「甲（3 場）；新增人物：『乙』、『丙』」），不只最後一段。擺在哪、措辭、齊聲混群演怎麼寫開工前定。**從票券 82 驗收提出**，blocked by 82。 | `needs-triage` |
+| [93](./93-convert-extra-and-character.md) | 群演與人物互相轉換（齊聲混著人物與群演時，事後改得過來）。與升格（35）的分界、人物 → 群演轉的是哪一層開工前定。**從票券 82 驗收提出**，無 blocker。 | `needs-triage` |
+| [94](./94-select-scene-content-highlight.md) | ⌘A 第二層（本場內文）的反白看起來亂：第一句的人物欄不在範圍裡，後面幾句整塊變藍。**從票券 82 驗收撈到**，與 82 無關，無 blocker。 | `needs-triage` |

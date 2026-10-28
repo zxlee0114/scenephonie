@@ -76,7 +76,7 @@ export const SHORTCUTS: readonly ShortcutGroup[] = [
   {
     title: "地點／登場人物／群演",
     rows: [
-      { keys: ["、"], what: "分隔多個名字（地點欄只有雜景收得下多個）" },
+      { keys: ["、"], what: "分隔多個名字，按 Enter 才切開（地點欄只有雜景收得下多個）" },
       { keys: ["←"], what: "退進最後一個已定案的名字", when: "輸入框空著時" },
       { keys: ["←", "→"], what: "在已定案的名字之間走；最前面再往左才離開這一格" },
       { keys: ["⌘", "←"], what: "到這一格的最前面" },
@@ -88,7 +88,7 @@ export const SHORTCUTS: readonly ShortcutGroup[] = [
   {
     title: "對白",
     rows: [
-      { keys: ["Enter"], what: "人物欄打完 → 進台詞（人名與台詞都空著時 → 變回動作）" },
+      { keys: ["Enter"], what: "人物欄定案名字 → 直接進台詞（人名與台詞都空著時 → 變回動作）" },
       { keys: ["→"], what: "人物欄 → 台詞的開頭", when: "游標貼著人物欄字尾" },
       { keys: ["↓"], what: "人物欄 → 台詞的末端" },
       { keys: ["↑"], what: "台詞第一行 → 人物欄；人物欄再按一次 → 本場簡表" },

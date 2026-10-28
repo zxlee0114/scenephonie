@@ -77,6 +77,7 @@ describe("簡表的群演欄", () => {
     const input = await inputIn(container, ".scene__chip--extras");
 
     fireEvent.change(input, { target: { value: "咖啡廳客人 x8、服務生 x2、" } });
+    fireEvent.keyDown(input, { key: "Enter" }); // Enter 才解析（票券 82）
 
     await waitFor(() => expect(extrasChips(container)).toEqual(["咖啡廳客人（8）", "服務生（2）"]));
     expect(extrasOf(editor).map((e) => [e.description, e.countValue])).toEqual([
@@ -185,6 +186,9 @@ describe("對白人物欄：一人說話落人物、一群齊聲落群演", () =
     expect(editor.state.doc.firstChild!.attrs.appearingCharacters).toBeNull();
 
     // 編劇眼中那是一個動作 —— ⌘Z 一次就回到原狀。
+    // 先等定案之後進台詞的那一下真的到了（Tiptap 的 `focus()` 排在下一個 animation frame）：⌘Z 會把
+    // 字還給人物欄（票券 82 驗收），晚到的那一 frame 再搶走焦點的話，人物欄會把字又定案一次。
+    await waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
     editor.commands.undo();
     await waitFor(() => expect(extrasOf(editor)).toHaveLength(0));
     expect(editor.state.doc.firstChild!.child(0).attrs.character).toBeNull();
@@ -342,6 +346,7 @@ describe("對白人物欄跟著同一場的群演欄走（票券 56）", () => {
 
     const extrasBox = await inputIn(container, ".scene__chip--extras");
     fireEvent.change(extrasBox, { target: { value: "保全 x8、" } });
+    fireEvent.keyDown(extrasBox, { key: "Enter" }); // Enter 才解析（票券 82）
     await waitFor(() => expect(extrasChips(container)).toEqual(["保全（8）"]));
 
     const speaker = await inputIn(container, ".block__speaker-field");

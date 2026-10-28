@@ -52,25 +52,14 @@ function locationChips(container: HTMLElement): string[] {
   });
 }
 
-/**
- * 在某一欄打一串字然後按 Enter 定案。
- *
- * `splitsInto` ＝ 打字當下就會被頓號切出去的 chip 數。**要等它們真的寫回 doc 才按 Enter**：
- * 切出來的每一個都要先建實體（async），而 Enter 定案的那一筆是拿當下的 `refs` prop 去併的
- * —— 不等就會用一份還沒收到前一筆的清單覆蓋回去。真人打字中間隔著幾十毫秒，測試沒有。
- */
-async function typeInto(container: HTMLElement, selector: string, value: string, splitsInto = 0) {
+/** 在某一欄打一串字然後按 Enter 定案 —— 分隔符要等 Enter 才切（票券 82）。 */
+async function typeInto(container: HTMLElement, selector: string, value: string) {
   const input = await waitFor(() => {
     const el = container.querySelector<HTMLInputElement>(`${selector} input`);
     expect(el).not.toBeNull();
     return el!;
   });
   fireEvent.change(input, { target: { value } });
-  if (splitsInto > 0) {
-    await waitFor(() =>
-      expect(container.querySelectorAll(`${selector} .entity-chip`).length).toBe(splitsInto),
-    );
-  }
   fireEvent.keyDown(input, { key: "Enter" });
   return input;
 }
@@ -89,14 +78,14 @@ describe("地點欄能收幾個值", () => {
 
   it("雜景場次：同樣的字切成兩個地點", async () => {
     const { container } = render(<Harness intExt="雜景" />);
-    await typeInto(container, ".scene__chip--location", "派出所、警局", 1);
+    await typeInto(container, ".scene__chip--location", "派出所、警局");
 
     await waitFor(() => expect(locationChips(container)).toEqual(["派出所", "警局"]));
   });
 
   it("登場人物欄不受內外影響 —— 它本來就是多值", async () => {
     const { container } = render(<Harness intExt="內景" />);
-    await typeInto(container, ".scene__chip--character", "小明、小華", 1);
+    await typeInto(container, ".scene__chip--character", "小明、小華");
 
     await waitFor(() =>
       expect(
@@ -191,7 +180,7 @@ describe("離開雜景時，多出來的地點要有人說一聲", () => {
   async function twoLocations() {
     let editor!: Editor;
     const { container } = render(<Harness intExt="雜景" onEditor={(e) => (editor = e)} />);
-    await typeInto(container, ".scene__chip--location", "派出所、警局", 1);
+    await typeInto(container, ".scene__chip--location", "派出所、警局");
     await waitFor(() => expect(locationChips(container)).toEqual(["派出所", "警局"]));
     return { container, editor: () => editor };
   }

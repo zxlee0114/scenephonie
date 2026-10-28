@@ -11,6 +11,8 @@ import { EntityField, type EntityOption, type EntityRef } from "./entity-field";
 
 const dolphinApartment = { id: "lo_1", name: "海豚公寓房間" };
 const policeStation = { id: "lo_2", name: "派出所" };
+/** Host 鑄過幾個 id（見 `onCreate`）。 */
+let minted = 0;
 
 function Host({
   initial = [],
@@ -53,7 +55,8 @@ function Host({
         onCreate ??
         (async (name) => {
           // 預設的建立能力：**先落地**（目錄多一筆），才回傳給欄位去寫引用。
-          const created = { id: `lo_new_${catalog.length}`, name };
+          // id 不能取 render 當下的 `catalog.length`：Enter 一下可能連建好幾筆（票券 82），中間沒有重繪。
+          const created = { id: `lo_new_${catalog.length}_${(minted += 1)}`, name };
           setCatalog((list) => [...list, created]);
           return created;
         })
@@ -85,15 +88,50 @@ afterEach(() => {
   cleanup();
 });
 
-describe("多值欄位：頓號分隔、空白留在名字裡", () => {
-  it("打到頓號的那一刻切成 chip，最後一段留在欄位裡", async () => {
-    const { container } = render(<Host />);
+describe("多值欄位：打字時不切，Enter 才整串解析（票券 82）", () => {
+  it("打到頓號不切 chip、不建實體 —— 分隔符在 Enter 之前只是字", async () => {
+    const created: string[] = [];
+    const { container } = render(
+      <Host
+        onCreate={async (name) => {
+          created.push(name);
+          return { id: `lo_${created.length}`, name };
+        }}
+      />,
+    );
     const input = container.querySelector("input")!;
 
     fireEvent.change(input, { target: { value: "海豚公寓房間、小" } });
+    await Promise.resolve();
 
-    await waitFor(() => expect(chipTexts(container)).toEqual(["海豚公寓房間"]));
-    expect(input.value).toBe("小");
+    expect(chips(container)).toHaveLength(0);
+    expect(created).toEqual([]);
+    expect(input.value).toBe("海豚公寓房間、小");
+  });
+
+  it("選單只看最後一段（最後一個分隔符之後正在打的那段）", () => {
+    const { container } = render(<Host />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.change(input, { target: { value: "巷口、派出" } });
+
+    expect(rows(container)[0]).toBe("📍 派出所");
+  });
+
+  it("Enter：前面各段照命中／新建，最後一段照選單選中的那一列，一次定案", async () => {
+    const { container } = render(<Host />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.change(input, { target: { value: "巷口、派出" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["巷口", "派出所"]));
+    expect(input.value).toBe("");
+    // 巷口是新建的（帶 ＋），派出所是命中既有的。
+    expect(chips(container).map((c) => c.classList.contains("entity-chip--new"))).toEqual([
+      true,
+      false,
+    ]);
   });
 
   it("空白不切開名字 —— 它是名字的一部分", async () => {
@@ -101,18 +139,64 @@ describe("多值欄位：頓號分隔、空白留在名字裡", () => {
     const input = container.querySelector("input")!;
 
     fireEvent.change(input, { target: { value: "海豚 公寓房間、" } });
+    fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["海豚 公寓房間"]));
   });
 
-  it("貼上一整串走同一份規則", async () => {
+  it("貼上一整串走同一份規則（同樣等 Enter）", async () => {
     const { container } = render(<Host options={[]} />);
     const input = container.querySelector("input")!;
 
     // 貼上等於一次把整串塞進欄位 —— 分隔規則只有一份，不另做貼上路徑。
-    fireEvent.change(input, { target: { value: "巷口，警局;商圈、" } });
+    fireEvent.change(input, { target: { value: "巷口，警局;商圈" } });
+    expect(chips(container)).toHaveLength(0);
+    fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["巷口", "警局", "商圈"]));
+  });
+
+  it("離開欄位走同一份解析 —— 一個字都不掉", async () => {
+    const { container } = render(<Host options={[]} />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.change(input, { target: { value: "巷口、警局" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["巷口", "警局"]));
+  });
+
+  it("⌘Z 一次退回 Enter 之前的樣子：整串字回到輸入框，chip 一起撤", async () => {
+    // 欄位外的文件歷史由呼叫端接（`onKeyDown`）—— 這裡用一個記得上一步的 Host 代替。
+    function UndoHost() {
+      const [history, setHistory] = useState<EntityRef[][]>([[]]);
+      const refs = history[history.length - 1]!;
+      return (
+        <EntityField
+          kind="location"
+          placeholder="地點"
+          refs={refs}
+          options={[]}
+          multiple
+          onCommit={(next) => setHistory((h) => [...h, next])}
+          onCreate={async (name) => ({ id: `lo_${name}`, name })}
+          onKeyDown={(e) => {
+            if (e.key === "z" && e.metaKey) setHistory((h) => (h.length > 1 ? h.slice(0, -1) : h));
+          }}
+        />
+      );
+    }
+    const { container } = render(<UndoHost />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.change(input, { target: { value: "巷口、警局" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(chipTexts(container)).toEqual(["巷口", "警局"]));
+
+    fireEvent.keyDown(input, { key: "z", metaKey: true });
+
+    await waitFor(() => expect(chips(container)).toHaveLength(0));
+    expect(input.value).toBe("巷口、警局");
   });
 
   it("Backspace 把最後一個 chip 還原成可編輯文字（不是直接刪掉）", async () => {
@@ -128,8 +212,8 @@ describe("多值欄位：頓號分隔、空白留在名字裡", () => {
   });
 });
 
-describe("多值規則的適用範圍：只有地點欄與登場人物欄", () => {
-  it("單值欄（對白人物欄）不切 chip —— 標點在那裡是名字裡的普通字元", async () => {
+describe("多值規則的適用範圍：只有多值欄", () => {
+  it("單值欄（非雜景的地點欄）不切 chip —— 標點在那裡是名字裡的普通字元", async () => {
     const created: string[] = [];
     const { container } = render(
       <Host
@@ -144,11 +228,11 @@ describe("多值規則的適用範圍：只有地點欄與登場人物欄", () =
     const input = container.querySelector("input")!;
 
     fireEvent.change(input, { target: { value: "小明、小華" } });
+    fireEvent.keyDown(input, { key: "Enter" });
 
     // 在這裡切開會建出兩筆實體卻只留最後一筆 —— 憑空多一個孤兒。
-    expect(created).toEqual([]);
-    expect(chips(container)).toHaveLength(0);
-    expect(input.value).toBe("小明、小華");
+    await waitFor(() => expect(chipTexts(container)).toEqual(["小明、小華"]));
+    expect(created).toEqual(["小明、小華"]);
   });
 });
 
@@ -216,14 +300,16 @@ describe("注音組字期間，選單與分隔符完全不動作（§7.6）", ()
     expect(rows(container)).toEqual([]);
   });
 
-  it("組字結束才輪到我們：這一刻起選單與分隔符開始作用", async () => {
+  it("組字結束也不切 —— 分隔符要等 Enter（票券 82）", async () => {
     const { container } = render(<Host />);
     const input = container.querySelector("input")!;
 
     fireEvent.compositionStart(input);
     fireEvent.change(input, { target: { value: "海豚公寓房間、" } });
     fireEvent.compositionEnd(input, { target: { value: "海豚公寓房間、" } });
+    expect(chips(container)).toHaveLength(0);
 
+    fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(chipTexts(container)).toEqual(["海豚公寓房間"]));
   });
 
@@ -256,6 +342,16 @@ describe("組字中的預覽：看得見，但按不到（使用者裁決 2026-0
     expect(previewRows(container)).toEqual(["📍 海豚公寓房間"]);
     // 但**可以操作的那份**仍然是空的：這一刻每一顆鍵都屬於 IME。
     expect(rows(container)).toEqual([]);
+  });
+
+  it("預覽只看最後一段 —— 頓號之後打的名字也看得到命中（票券 82）", () => {
+    const { container } = render(<Host />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "海豚公寓房間、派出" } });
+
+    expect(previewRows(container)).toEqual(["📍 派出所"]);
   });
 
   it("預覽不接手鍵盤：組字中的 Enter 仍然是 IME 的送出鍵，不會選走任何一列", () => {
@@ -323,6 +419,7 @@ describe("chip 住在輸入框裡", () => {
     const input = container.querySelector("input")!;
 
     fireEvent.change(input, { target: { value: "派出所、" } });
+    fireEvent.keyDown(input, { key: "Enter" }); // Enter 才解析（票券 82）
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["海豚公寓房間", "派出所"]));
   });
@@ -426,6 +523,7 @@ describe("自動補全三列", () => {
     fireEvent.change(container.querySelector("input")!, {
       target: { value: "海豚公寓房間、" },
     });
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" }); // Enter 才解析（票券 82）
 
     await waitFor(() => expect(order).toEqual(["create:start"]));
     release!();
@@ -443,6 +541,7 @@ describe("新建 chip 與命中 chip 視覺可辨", () => {
     fireEvent.change(input, {
       target: { value: "海豚公寓房間、未知大樓房間、" },
     });
+    fireEvent.keyDown(input, { key: "Enter" }); // Enter 才解析（票券 82）
 
     await waitFor(() => expect(chips(container)).toHaveLength(2));
     expect(chips(container)[0]!.className).toContain("entity-chip--hit");
@@ -1175,6 +1274,7 @@ describe("拿起來改的那一筆放回原位（票券 39 收票）", () => {
     fireEvent.change(container.querySelector("input")!, {
       target: { value: "小華、阿姨、" },
     });
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" }); // Enter 才解析（票券 82）
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "小華", "阿姨", "小明"]));
   });
@@ -1184,6 +1284,7 @@ describe("拿起來改的那一筆放回原位（票券 39 收票）", () => {
     fireEvent.change(container.querySelector("input")!, {
       target: { value: "小華、" },
     });
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" }); // Enter 才解析（票券 82）
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "建鳴", "小明", "小華"]));
   });
@@ -1237,6 +1338,7 @@ describe("編輯中的那一筆也留在原位（票券 39 收票）", () => {
     fireEvent.change(container.querySelector("input")!, {
       target: { value: "建鳴、" },
     });
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" }); // Enter 才解析（票券 82）
 
     await waitFor(() => expect(layout(container)).toEqual(["阿盈", "建鳴", "|", "小明"]));
   });
@@ -1255,6 +1357,7 @@ describe("編輯中的那一筆也留在原位（票券 39 收票）", () => {
     fireEvent.mouseDown(chips(container)[2]!); // 拿起最後那一筆
     const input = container.querySelector("input")!;
     fireEvent.change(input, { target: { value: "小明、" } });
+    fireEvent.keyDown(input, { key: "Enter" }); // Enter 才解析（票券 82）
 
     await waitFor(() => expect(input.className).not.toContain("entity-field__input--inline"));
   });
@@ -1416,6 +1519,7 @@ describe("點 chip 之間那道縫，下一筆就插在那裡（票券 39 收票
     fireEvent.change(container.querySelector("input")!, {
       target: { value: "小華、" },
     });
+    fireEvent.keyDown(container.querySelector("input")!, { key: "Enter" }); // Enter 才解析（票券 82）
 
     await waitFor(() => expect(chipTexts(container)).toEqual(["阿盈", "小華", "建鳴"]));
   });
