@@ -743,9 +743,17 @@
 
 .scene__chip--empty .scene__chip-control,
 .scene__chip--empty .entity-field {
-  /* 缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）—— 但不上 error 色，只是弱化。 */
+  /* 缺漏要看得出來（空 metadata → 自動草稿 → 匯出前被攔）—— 但不上 error 色，只是弱化。
+   * 弱化只降到 secondary：觸發鈕上的「內外」「時間」是這一欄唯一的名字，而且是一顆鈕，
+   * faint 讀不到（票券 86 驗收）。「還沒填」主要靠虛線框說。 */
   border-style: dashed;
-  color: var(--text-faint);
+  color: var(--text-secondary);
+}
+
+/* 弱化的是「這一格還空著」，不是編劇正在打的字 —— input 是 `color: inherit`，不攔的話打出來的字
+ * 會吃到上面的 faint，比 placeholder 還淺（票券 86 驗收）。與已填的值同一個顏色。 */
+.scene__chip--empty .entity-field input {
+  color: var(--control-fg);
 }
 
 /* ── 欄位說明（ⓘ）—— 常駐、事前，不是被拒絕之後才冒出來的補救（使用者回饋 2026-09-10）── */
@@ -999,6 +1007,11 @@
   background: transparent;
   border: 0;
   padding: 0;
+}
+
+.entity-field input::placeholder {
+  /* 瀏覽器預設灰在 `.entity-field` 的底上不到 4.5:1（票券 86）。已填的值是帶框的 chip，不會混。 */
+  color: var(--text-secondary);
 }
 
 .entity-field input:focus {
@@ -1285,8 +1298,8 @@
 /* 反白蓋住**整格**（輸入框連同底下那一行提示）—— 那一行講的就是這一格，一起亮起來讀得出
    是同一件事（編劇裁決 2026-09-12，第三輪只亮一行的版本被推翻）。 */
 
-.entity-field__count-input::placeholder {
-  color: var(--text-faint);
+.entity-field .entity-field__count-input::placeholder {
+  color: var(--text-secondary);
 }
 
 /* 反白已經說完「停在這裡」了，瀏覽器預設的 focus ring 再畫一圈只是噪音 —— 而它不會在
@@ -2188,14 +2201,10 @@
   border: 0;
   border-radius: var(--space-1);
   background: none;
-  color: var(--text-faint);
+  /* 這是一顆鈕，不是 decoration：靜止就要讀得到（AA 4.5:1，票券 86）。hover 再深一階。 */
+  color: var(--text-secondary);
   font: inherit;
   cursor: pointer;
-}
-
-.scene-nav__toggle:hover {
-  color: var(--text-secondary);
-  background: var(--surface-raised);
 }
 
 .scene-nav__toggle:focus-visible,
@@ -2371,7 +2380,6 @@
   padding: 0 var(--space-3);
   border: 1px solid var(--rule-strong);
   background: var(--surface-page);
-  color: var(--text-secondary);
   box-shadow: var(--shadow-popover);
 }
 
@@ -2383,8 +2391,16 @@
   padding: 0 var(--space-2);
   border-color: transparent;
   background: none;
-  color: var(--text-faint);
   box-shadow: none;
+}
+
+/* 開關三態（寬版、抽屜收著、抽屜開著）的 hover 同一套（票券 86）。抽屜兩態改寫了 background，
+ * 所以這條要帶上 `.scene-nav--drawer >` 才壓得過；⚠️ 它與「抽屜開著」那條同權重，靠寫在後面才贏，
+ * 不要往前搬。 */
+.scene-nav__toggle:hover,
+.scene-nav--drawer > .scene-nav__toggle:hover {
+  color: var(--text-primary);
+  background: var(--surface-raised);
 }
 
 .scene-nav__scrim {
