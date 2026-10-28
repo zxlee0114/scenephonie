@@ -336,14 +336,35 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
     return at != null && enterBlockFromAbove(editor, at);
   };
 
-  /**
-   * 游標直接放進第一個區塊的內文開頭，對白也跳過人物欄 —— `⌘↓`（「一路走到底」）與群演欄的 Enter
-   * （票券 91 會改它）走這條。
-   */
+  /** 游標直接放進第一個區塊的內文開頭，對白也跳過人物欄 —— `⌘↓`（「一路走到底」）走這條。 */
   const enterBodyText = () => {
     const at = bodyStart();
     if (at == null) return false;
     editor.chain().focus().setTextSelection(at).run();
+    return true;
+  };
+
+  /**
+   * 群演欄的 Enter ＝ **在內文最上方生出一行**：插一段空描述，游標進去（票券 91）。
+   *
+   * 第一句是對白時，這是唯一一條「在它前面插描述」的路：人物欄的 Enter 是進台詞、台詞開頭的 Enter 切出
+   * 另一句對白（票券 62），都不動。一律是描述，不照 `continue-block` 延續第一個區塊的型別 —— 要的正是
+   * 在對白前面插描述；要寫對白就 Tab 轉型。第一個區塊本來就是空描述就直接落進去，不再多生一個。
+   * 一般的 transaction（同 `continue-block` 插一句），⌘Z 一下收回。
+   */
+  const insertBodyTop = () => {
+    const at = bodyStart();
+    if (at == null) return false;
+    const { state } = editor;
+    const first = state.doc.resolve(at).parent;
+    if (first.type.name === "action" && first.content.size === 0) {
+      editor.chain().focus().setTextSelection(at).run();
+      return true;
+    }
+    const before = at - 1; // 第一個區塊之前
+    const tr = state.tr.insert(before, state.schema.nodes.action!.create());
+    editor.view.dispatch(tr.setSelection(TextSelection.create(tr.doc, before + 1)).scrollIntoView());
+    editor.view.focus();
     return true;
   };
 
@@ -716,7 +737,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
                 right: () => leaveRowDown(),
                 up: () => charactersField.current?.focus() ?? true,
                 down: () => leaveRowDown(),
-                enter: () => leaveRowDown(enterBodyText),
+                enter: () => leaveRowDown(insertBodyTop),
               })}
             />
           )}

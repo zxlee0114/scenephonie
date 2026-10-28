@@ -39,8 +39,8 @@ export type ChipNav = {
   readonly up?: () => boolean;
   readonly down?: () => boolean;
   /**
-   * `Enter` —— 沒填就與 Tab 同一個終點（`right`）。只有群演欄填：進內文時 Tab 先停對白的人物欄
-   * （票券 89），Enter 照舊進台詞（票券 91 會把它改成在最上方插一段描述）。
+   * `Enter` —— 沒填就與 Tab 同一個終點（`right`）。只有群演欄填：Tab 照順序走進內文（對白先停人物欄，
+   * 票券 89），Enter 是在內文最上方插一段描述（票券 91）。
    */
   readonly enter?: () => boolean;
   /** `⌘↓` —— 從任一格直接進本場內文。 */

@@ -505,7 +505,7 @@ describe("成員的 chip row 照畫面上下走", () => {
     return empty && $from.parent.textContent === text && $from.parentOffset === 0;
   };
 
-  it.each(["ArrowDown", "ArrowRight", "Enter"])(
+  it.each(["ArrowDown", "ArrowRight"])(
     "最後一個成員的群演欄按 %s → 第 1 段片段的開頭（緊貼在下面那一段，不管它歸誰）",
     async (key) => {
       const { editor, container } = await mountPair();
@@ -515,6 +515,24 @@ describe("成員的 chip row 照畫面上下走", () => {
       await waitFor(() => expect(caretAtStartOf(editor, "我是敘述。")).toBe(true));
     },
   );
+
+  // 票券 91：Enter 是「在內文最上方插一段描述」—— 內文最上方就是第 1 段片段的開頭。
+  it("最後一個成員的群演欄按 Enter → 第 1 段片段最上方插一段描述，片段歸屬不動", async () => {
+    const { editor, container } = await mountPair();
+    const extras = extrasOf(container, 1);
+    extras.focus();
+    fireEvent.keyDown(extras, { key: "Enter" });
+    await waitFor(() => expect(caretAtStartOf(editor, "")).toBe(true));
+    const fragments: string[][] = [];
+    editor.state.doc.descendants((node) => {
+      if (node.type.name !== "groupFragment") return true;
+      const texts: string[] = [];
+      node.forEach((block) => texts.push(block.textContent));
+      fragments.push(texts);
+      return false;
+    });
+    expect(fragments).toEqual([["", "我是敘述。"], ["另一段。"]]);
+  });
 
   it.each(["ArrowDown", "ArrowRight", "Enter"])(
     "前面成員的群演欄按 %s → 下一個成員那一排的第一格（內外）",
