@@ -577,6 +577,22 @@ describe("從上面走進對白：先停人物欄", () => {
     expect(document.activeElement).not.toBe(speakerOf(container));
   });
 
+  it("⌘↓ 是「一路走到底」：第一個區塊是對白也直接進台詞", async () => {
+    const { container, editor } = await mount(docJSON(scene([dialogue("還有位子嗎？")])));
+
+    editor().commands.setTextSelection(editor().state.doc.content.size - 2);
+    const input = extrasInput(container);
+    input.focus();
+    fireEvent.keyDown(input, { key: "ArrowDown", metaKey: true });
+
+    await waitFor(() => {
+      const { $from } = editor().state.selection;
+      expect($from.parent.textContent).toBe("還有位子嗎？");
+      expect($from.parentOffset).toBe(0);
+    });
+    expect(document.activeElement).not.toBe(speakerOf(container));
+  });
+
   it("來回同一條路：人物欄 ← 上一段末端，再 → 回到同一個人物欄", async () => {
     const { container, editor } = await mount(
       docJSON(scene([action("門開了"), dialogue("還有位子嗎？")])),

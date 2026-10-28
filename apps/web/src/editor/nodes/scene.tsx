@@ -336,7 +336,10 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
     return at != null && enterBlockFromAbove(editor, at);
   };
 
-  /** 游標直接放進第一個區塊的內文開頭，對白也跳過人物欄 —— 只剩群演欄的 Enter 走這條（票券 91 會改它）。 */
+  /**
+   * 游標直接放進第一個區塊的內文開頭，對白也跳過人物欄 —— `⌘↓`（「一路走到底」）與群演欄的 Enter
+   * （票券 91 會改它）走這條。
+   */
   const enterBodyText = () => {
     const at = bodyStart();
     if (at == null) return false;
@@ -385,7 +388,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
    */
   const exits: Pick<ChipNav, "exitUp" | "exitDown"> = {
     exitUp: enterPreviousSceneEnd,
-    exitDown: enterBody,
+    exitDown: enterBodyText,
   };
 
   // 焦點串接（§7.7）是一次性的：建場 → requestFocus → 新 node view 消費掉。掛載時試領一次

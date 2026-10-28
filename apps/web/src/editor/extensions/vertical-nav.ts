@@ -56,8 +56,13 @@ function sceneBelow($from: ResolvedPos, ctx: SceneContext): PMNode | null {
   if (container.type.name !== "subscene") return firstSceneOf(sibling);
   if (sibling) return sibling.type.name === "subscene" ? sibling : null;
 
-  // 子場次的主場次可能是片段（成員的子場次）—— 往上一層是群組，不是 doc。
-  if (parent.type.name === "groupFragment") return null;
+  // 子場次的主場次可能是片段（成員的子場次）—— 往上一層是群組，不是 doc。下一段片段是一般的行間移動；
+  // 最後一段下面是群組之後的那一場（同上面片段的區塊）。少了這條，↓ 會越過那一場的 chip row（票券 89）。
+  if (parent.type.name === "groupFragment") {
+    const group = $from.node(ctx.sceneDepth - 2);
+    if (group.maybeChild($from.index(ctx.sceneDepth - 2) + 1)) return null;
+    return firstSceneOf($from.node(ctx.sceneDepth - 3).maybeChild($from.index(ctx.sceneDepth - 3) + 1));
+  }
   const doc = $from.node(ctx.sceneDepth - 2);
   const nextTop = doc.maybeChild($from.index(ctx.sceneDepth - 2) + 1);
   return firstSceneOf(nextTop);

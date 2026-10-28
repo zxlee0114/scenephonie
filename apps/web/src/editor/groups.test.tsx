@@ -567,6 +567,22 @@ describe("成員的 chip row 照畫面上下走", () => {
     );
   });
 
+  // 成員的子場次是最後一段片段的最後一個孩子：下面是群組之後那一場的 chip row，不是它的內文。
+  it("最後一段片段裡的子場次末端按 ↓ → 下一場 chip row 的第一格，不越過它進對白", async () => {
+    const a = member({ ...when, location: room });
+    const sub = k.node("subscene", { sceneId: mintSceneId(), kind: "插入" }, [action("閃回")]);
+    const { editor, container } = await mount(
+      docOf(group([a], [fragment(a, [action("我是敘述。"), sub])]), scene([dialogue("你來了。")])),
+    );
+    caretAtEndOfBlock(editor, 1);
+    editor.view.dom.focus();
+    await press(editor, "ArrowDown");
+    const nextScene = [...container.querySelectorAll<HTMLElement>(".scene")].at(-1)!;
+    await waitFor(() =>
+      expect(document.activeElement).toBe(nextScene.querySelector('.scene__chips [aria-label="內外"]')),
+    );
+  });
+
   it("⌘↓ 從任一個成員都是直接進內文 —— 第 1 段片段的開頭", async () => {
     const { editor, container } = await mountPair();
     const extras = extrasOf(container, 0);
