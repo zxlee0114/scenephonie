@@ -41,6 +41,19 @@ const action = (text: string) => kernelSchema.node("action", null, [kernelSchema
 const dialogue = (text: string) =>
   kernelSchema.node("dialogue", { character: null }, [kernelSchema.text(text)]);
 
+const emptyAction = () => kernelSchema.node("action", null, []);
+
+/** 文件裡每個 textblock 的型別與字（依順序）。 */
+const blockTexts = (editor: Editor) => {
+  const out: [string, string][] = [];
+  editor.state.doc.descendants((node) => {
+    if (!node.isTextblock) return true;
+    out.push([node.type.name, node.textContent]);
+    return false;
+  });
+  return out;
+};
+
 const docJSON = (...scenes: unknown[]) =>
   kernelSchema.node("doc", null, scenes as never).toJSON() as object;
 
@@ -253,15 +266,16 @@ describe("Enter 換下一格，⌘↑↓ 直接離開整排", () => {
     expect(container.querySelector(".chip-select__menu")).not.toBeNull();
   });
 
-  it("群演欄按 Enter → 進本場內文（這一排到此為止）", async () => {
+  it("群演欄按 Enter → 在本場內文最上方插一段描述，游標進去（票券 91）", async () => {
     const { container, editor } = await mount(docJSON(scene([action("門開了")])));
-    editor().commands.setTextSelection(1);
+    editor().commands.setTextSelection(editor().state.doc.content.size - 2);
 
     const input = extrasInput(container);
     input.focus();
     fireEvent.keyDown(input, { key: "Enter" });
 
-    await waitFor(() => expect(caretInBodyOf(editor(), "門開了")).toBe(true));
+    await waitFor(() => expect(blockTexts(editor())).toEqual([["action", ""], ["action", "門開了"]]));
+    expect(caretInBodyOf(editor(), "")).toBe(true);
   });
 
   it("還有字沒定案時，第一次 Enter 是把字切成 chip；再一次才換格", async () => {
@@ -506,6 +520,154 @@ describe("跨場次：chip row 第一排 ↔ 上一場內文末端", () => {
     pressInBody(editor(), "ArrowDown");
 
     expect(editor().state.selection.from).toBe(before);
+  });
+});
+
+// 票券 89：從上面走進對白，先停人物欄 —— 與台詞 ↑／← 回程（台詞 → 人物欄 → 上面）同一條路。
+// 不論人物欄空不空都停：照畫面上下走，人物欄就在台詞正上方。
+describe("從上面走進對白：先停人物欄", () => {
+  const speakerOf = (root: HTMLElement, i = 0) =>
+    root.querySelectorAll<HTMLInputElement>(".block__speaker")[i]!;
+
+  it.each(["ArrowDown", "ArrowRight"])(
+    "上一個區塊末端按 %s → 下一句對白的人物欄，不是台詞",
+    async (key) => {
+      const { container, editor } = await mount(
+        docJSON(scene([action("門開了"), dialogue("還有位子嗎？")])),
+      );
+
+      editor().view.dispatch(
+        editor().state.tr.setSelection(TextSelection.create(editor().state.doc, 2 + "門開了".length)),
+      );
+      pressInBody(editor(), key);
+
+      await waitFor(() => expect(document.activeElement).toBe(speakerOf(container)));
+    },
+  );
+
+  it.each(["ArrowDown", "ArrowRight", "Tab"])(
+    "第一個區塊是對白：群演欄按 %s → 它的人物欄（Tab 依序經過每一格，人物欄是台詞前一格）",
+    async (key) => {
+      const { container } = await mount(docJSON(scene([dialogue("還有位子嗎？")])));
+
+      const input = extrasInput(container);
+      input.focus();
+      fireEvent.keyDown(input, { key });
+
+      await waitFor(() => expect(document.activeElement).toBe(speakerOf(container)));
+    },
+  );
+
+  // 定案是整份 replace（票券 61 的 B1 同一類）—— 焦點已經交給人物欄了，不能被沖回內文。
+  it("群演欄打到一半按 ↓：字定案成 chip，焦點仍停在人物欄", async () => {
+    const { container } = await mount(docJSON(scene([dialogue("還有位子嗎？")])));
+
+    const input = extrasInput(container);
+    input.focus();
+    fireEvent.change(input, { target: { value: "咖啡廳客人 x8" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+
+    await waitFor(() =>
+      expect(container.querySelector(".scene__chip--extras .entity-chip")).not.toBeNull(),
+    );
+    expect(document.activeElement).toBe(speakerOf(container));
+  });
+
+  // 票券 91：Enter 與 Tab 從此分家 —— Tab 照順序走到人物欄（上一條），Enter 是「在上面生出一行」。
+  it("第一句是對白：群演欄按 Enter → 前面插一段描述，對白原封不動", async () => {
+    const { container, editor } = await mount(docJSON(scene([dialogue("還有位子嗎？")])));
+
+    const input = extrasInput(container);
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(blockTexts(editor())).toEqual([["action", ""], ["dialogue", "還有位子嗎？"]]),
+    );
+    expect(caretInBodyOf(editor(), "")).toBe(true);
+    expect(editor().state.selection.$from.parent.type.name).toBe("action");
+  });
+
+  it("第一個區塊本來就是空描述：Enter 直接落進去，不再多生一個", async () => {
+    const { container, editor } = await mount(docJSON(scene([emptyAction(), dialogue("還有位子嗎？")])));
+
+    const input = extrasInput(container);
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(caretInBodyOf(editor(), "")).toBe(true));
+    expect(blockTexts(editor())).toEqual([["action", ""], ["dialogue", "還有位子嗎？"]]);
+  });
+
+  it("場次以子場次開頭：描述插在子場次前面（主場次這一層的最上方），不進子場次裡", async () => {
+    const sub = kernelSchema.node("subscene", { sceneId: mintSceneId(), kind: "插入" }, [action("閃回")]);
+    const { container, editor } = await mount(docJSON(scene([sub, action("回到現在")])));
+
+    const input = extrasInput(sceneAt(container, 0));
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(editor().state.doc.firstChild!.firstChild!.type.name).toBe("action"));
+    const top = editor().state.doc.firstChild!;
+    expect(top.child(0).textContent).toBe("");
+    expect(top.child(1).type.name).toBe("subscene");
+    expect(caretInBodyOf(editor(), "")).toBe(true);
+  });
+
+  it("插進來的那一段，⌘Z 一下收回", async () => {
+    const { container, editor } = await mount(docJSON(scene([dialogue("還有位子嗎？")])));
+
+    const input = extrasInput(container);
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(blockTexts(editor())).toHaveLength(2));
+
+    editor().commands.undo();
+    expect(blockTexts(editor())).toEqual([["dialogue", "還有位子嗎？"]]);
+  });
+
+  it("⌘↓ 是「一路走到底」：第一個區塊是對白也直接進台詞", async () => {
+    const { container, editor } = await mount(docJSON(scene([dialogue("還有位子嗎？")])));
+
+    editor().commands.setTextSelection(editor().state.doc.content.size - 2);
+    const input = extrasInput(container);
+    input.focus();
+    fireEvent.keyDown(input, { key: "ArrowDown", metaKey: true });
+
+    await waitFor(() => {
+      const { $from } = editor().state.selection;
+      expect($from.parent.textContent).toBe("還有位子嗎？");
+      expect($from.parentOffset).toBe(0);
+    });
+    expect(document.activeElement).not.toBe(speakerOf(container));
+  });
+
+  it("來回同一條路：人物欄 ← 上一段末端，再 → 回到同一個人物欄", async () => {
+    const { container, editor } = await mount(
+      docJSON(scene([action("門開了"), dialogue("還有位子嗎？")])),
+    );
+
+    const speaker = speakerOf(container);
+    speaker.focus();
+    fireEvent.keyDown(speaker, { key: "ArrowLeft" });
+    await waitFor(() => expect(caretInBodyOf(editor(), "門開了")).toBe(true));
+
+    pressInBody(editor(), "ArrowRight");
+    await waitFor(() => expect(document.activeElement).toBe(speakerOf(container)));
+  });
+
+  it("下一個區塊不是對白：→ 照舊是原生的游標移動", async () => {
+    const { editor } = await mount(docJSON(scene([action("門開了"), action("他走進來。")])));
+
+    editor().view.dispatch(
+      editor().state.tr.setSelection(TextSelection.create(editor().state.doc, 2 + "門開了".length)),
+    );
+    editor().view.dom.focus();
+    const notPrevented = editor().view.dom.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }),
+    );
+    expect(notPrevented).toBe(true);
   });
 });
 

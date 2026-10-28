@@ -9,6 +9,7 @@
  * - 同上，第一個字之前 ← → 同一個地方
  * - 場次**最後一個區塊**的最後一行 ↓ → **下一場** chip row 的第一格（內外）
  * - 同上，最後一個字之後 → → 同一個地方
+ * - 下一個區塊是**對白**時，最後一行 ↓／最後一個字之後 → → 它的**人物欄**，不是台詞（票券 89）
  *
  * 後兩條是前兩條的反向：chip row 第一排的 ↑／← 會離開場次去上一場內文末端（`nodes/scene`
  * 的 `enterPreviousSceneEnd`），那條路必須走得回來 —— §7.3 的環不變式（「按下去總能再按
@@ -24,8 +25,8 @@
  * ⚠️ **這條路一個字都不改 doc。** 使用者要的是「回去」，Shift+Tab 那條（`block-cycle`）付出的
  * 代價是區塊被轉成對白留在原地 —— 所以環不動，改由方向鍵回答（票券 34）。
  */
-import { Extension } from "@tiptap/core";
-import { TextSelection } from "@tiptap/pm/state";
+import { Extension, type Editor } from "@tiptap/core";
+import { Selection, TextSelection } from "@tiptap/pm/state";
 import type { Node as PMNode, ResolvedPos } from "@tiptap/pm/model";
 
 import { blockAddressOf, sceneChipsAbove, sceneContext, type SceneContext } from "../address";
@@ -55,8 +56,13 @@ function sceneBelow($from: ResolvedPos, ctx: SceneContext): PMNode | null {
   if (container.type.name !== "subscene") return firstSceneOf(sibling);
   if (sibling) return sibling.type.name === "subscene" ? sibling : null;
 
-  // 子場次的主場次可能是片段（成員的子場次）—— 往上一層是群組，不是 doc。
-  if (parent.type.name === "groupFragment") return null;
+  // 子場次的主場次可能是片段（成員的子場次）—— 往上一層是群組，不是 doc。下一段片段是一般的行間移動；
+  // 最後一段下面是群組之後的那一場（同上面片段的區塊）。少了這條，↓ 會越過那一場的 chip row（票券 89）。
+  if (parent.type.name === "groupFragment") {
+    const group = $from.node(ctx.sceneDepth - 2);
+    if (group.maybeChild($from.index(ctx.sceneDepth - 2) + 1)) return null;
+    return firstSceneOf($from.node(ctx.sceneDepth - 3).maybeChild($from.index(ctx.sceneDepth - 3) + 1));
+  }
   const doc = $from.node(ctx.sceneDepth - 2);
   const nextTop = doc.maybeChild($from.index(ctx.sceneDepth - 2) + 1);
   return firstSceneOf(nextTop);
@@ -67,6 +73,27 @@ function firstSceneOf(top: PMNode | null | undefined): PMNode | null {
   if (top?.type.name === "scene") return top;
   if (top?.type.name === "sceneGroup") return top.firstChild;
   return null;
+}
+
+/**
+ * 從上面走進 `at`（某個區塊的內文起點）—— 是對白就**先停它的人物欄**，否則游標放進內文開頭。
+ *
+ * 人物欄在畫面上就在台詞正上方，回程（台詞 ↑／← → 人物欄 → 上面）本來就先經過它；去程跳過它，
+ * 來回就不是同一條路（票券 89）。不論人物欄空不空都停：已經有人時多付的只是一下 Enter（票券 82）。
+ * 上一個區塊的 →／↓ 與 chip row 的 ↓／→／Tab（`nodes/scene` 的 `enterBody`）共用這一支。
+ *
+ * 進人物欄之前先把 doc 游標擺進這一句 —— 與台詞 ↑ 進人物欄時同一個狀態（焦點在欄位、游標在這一句）。
+ */
+export function enterBlockFromAbove(editor: Editor, at: number): boolean {
+  const { state } = editor;
+  const $at = state.doc.resolve(at);
+  const ctx = $at.parent.type.name === "dialogue" ? sceneContext($at) : null;
+  if (ctx) {
+    editor.view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, at)));
+    if (requestFocus({ kind: "speaker", ...blockAddressOf(ctx) })) return true;
+  }
+  editor.chain().focus().setTextSelection(at).run();
+  return true;
 }
 
 export const VerticalNav = Extension.create({
@@ -118,11 +145,17 @@ export const VerticalNav = Extension.create({
       return above != null && requestFocus({ kind: "sceneChipsEnd", sceneId: above });
     };
 
-    /** 往下出界：正下方那一場（下一場或子場次）的 chip row 第一格。沒有就把鍵還回去。 */
+    /**
+     * 往下出界：正下方那一場（下一場或子場次）的 chip row 第一格。下面接的是區塊（同場、下一段片段、
+     * 子場次折返之後）就交給原生的行間移動 —— 除非那是一句對白：先停它的人物欄（票券 89）。
+     */
     const goDown = ($from: ResolvedPos, ctx: SceneContext): boolean => {
       const below = sceneBelow($from, ctx);
-      if (!below) return false;
-      return requestFocus({ kind: "sceneMeta", sceneId: below.attrs.sceneId as string });
+      if (below) return requestFocus({ kind: "sceneMeta", sceneId: below.attrs.sceneId as string });
+
+      const next = Selection.findFrom(this.editor.state.doc.resolve($from.after()), 1, true);
+      if (next?.$from.parent.type.name !== "dialogue") return false;
+      return enterBlockFromAbove(this.editor, next.from);
     };
 
     /**

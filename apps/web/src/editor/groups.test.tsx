@@ -33,6 +33,7 @@ const dock = { locationId: mintLocationId(), displayName: "港邊倉庫" };
 const when = { time: "夜", intExt: "內景" };
 const elsewhere = () => ({ ...when, location: { locationId: mintLocationId(), displayName: "走廊" } });
 const action = (text = "") => k.node("action", null, text ? [k.text(text)] : []);
+const dialogue = (text: string) => k.node("dialogue", { character: null }, [k.text(text)]);
 const scene = (blocks: PMNode[], attrs: Record<string, unknown> = {}) =>
   k.node("scene", { sceneId: mintSceneId(), ...attrs }, blocks);
 const member = (attrs: Record<string, unknown> = {}) =>
@@ -504,7 +505,7 @@ describe("成員的 chip row 照畫面上下走", () => {
     return empty && $from.parent.textContent === text && $from.parentOffset === 0;
   };
 
-  it.each(["ArrowDown", "ArrowRight", "Enter"])(
+  it.each(["ArrowDown", "ArrowRight"])(
     "最後一個成員的群演欄按 %s → 第 1 段片段的開頭（緊貼在下面那一段，不管它歸誰）",
     async (key) => {
       const { editor, container } = await mountPair();
@@ -514,6 +515,24 @@ describe("成員的 chip row 照畫面上下走", () => {
       await waitFor(() => expect(caretAtStartOf(editor, "我是敘述。")).toBe(true));
     },
   );
+
+  // 票券 91：Enter 是「在內文最上方插一段描述」—— 內文最上方就是第 1 段片段的開頭。
+  it("最後一個成員的群演欄按 Enter → 第 1 段片段最上方插一段描述，片段歸屬不動", async () => {
+    const { editor, container } = await mountPair();
+    const extras = extrasOf(container, 1);
+    extras.focus();
+    fireEvent.keyDown(extras, { key: "Enter" });
+    await waitFor(() => expect(caretAtStartOf(editor, "")).toBe(true));
+    const fragments: string[][] = [];
+    editor.state.doc.descendants((node) => {
+      if (node.type.name !== "groupFragment") return true;
+      const texts: string[] = [];
+      node.forEach((block) => texts.push(block.textContent));
+      fragments.push(texts);
+      return false;
+    });
+    expect(fragments).toEqual([["", "我是敘述。"], ["另一段。"]]);
+  });
 
   it.each(["ArrowDown", "ArrowRight", "Enter"])(
     "前面成員的群演欄按 %s → 下一個成員那一排的第一格（內外）",
@@ -536,6 +555,51 @@ describe("成員的 chip row 照畫面上下走", () => {
       await waitFor(() => expect(document.activeElement).toBe(extrasOf(container, 0)));
     },
   );
+
+  // 票券 89：第 1 段片段第一句是對白 → 先停它的人物欄（不管那一段歸誰）。
+  it("最後一個成員的群演欄按 ↓，第 1 段片段第一句是對白 → 它的人物欄", async () => {
+    const a = member({ ...when, location: room });
+    const b = member({ ...when, location: dock });
+    const { container } = await mount(
+      docOf(group([a, b], [fragment(a, [dialogue("你來了。")]), fragment(b, [action("另一段。")])])),
+    );
+    const extras = extrasOf(container, 1);
+    extras.focus();
+    fireEvent.keyDown(extras, { key: "ArrowDown" });
+    await waitFor(() =>
+      expect(document.activeElement).toBe(container.querySelector(".block__speaker")),
+    );
+  });
+
+  it("片段末端按 →，下一段片段第一句是對白 → 它的人物欄", async () => {
+    const a = member({ ...when, location: room });
+    const b = member({ ...when, location: dock });
+    const { editor, container } = await mount(
+      docOf(group([a, b], [fragment(a, [action("我是敘述。")]), fragment(b, [dialogue("你來了。")])])),
+    );
+    caretAtEndOfBlock(editor, 0);
+    editor.view.dom.focus();
+    await press(editor, "ArrowRight");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(container.querySelector(".block__speaker")),
+    );
+  });
+
+  // 成員的子場次是最後一段片段的最後一個孩子：下面是群組之後那一場的 chip row，不是它的內文。
+  it("最後一段片段裡的子場次末端按 ↓ → 下一場 chip row 的第一格，不越過它進對白", async () => {
+    const a = member({ ...when, location: room });
+    const sub = k.node("subscene", { sceneId: mintSceneId(), kind: "插入" }, [action("閃回")]);
+    const { editor, container } = await mount(
+      docOf(group([a], [fragment(a, [action("我是敘述。"), sub])]), scene([dialogue("你來了。")])),
+    );
+    caretAtEndOfBlock(editor, 1);
+    editor.view.dom.focus();
+    await press(editor, "ArrowDown");
+    const nextScene = [...container.querySelectorAll<HTMLElement>(".scene")].at(-1)!;
+    await waitFor(() =>
+      expect(document.activeElement).toBe(nextScene.querySelector('.scene__chips [aria-label="內外"]')),
+    );
+  });
 
   it("⌘↓ 從任一個成員都是直接進內文 —— 第 1 段片段的開頭", async () => {
     const { editor, container } = await mountPair();

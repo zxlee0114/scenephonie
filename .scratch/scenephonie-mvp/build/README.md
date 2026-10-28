@@ -129,9 +129,10 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [86](./86-low-contrast-controls.md) | 對比不足：場次 sidebar 開關 2.4:1、實體欄 placeholder 4.3:1、hub 卡片摘要 2.2:1（最後一條動不動驗收定）。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
 | [87](./87-ui-wording-no-engineering-terms.md) | 介面用語：選單不露「實體」這類工程詞；「景／光」「內外／時間」「時間」與「S1」「1」各統一成一種說法。改字前先對 36／40／42／49 的定案。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
 | [88](./88-ui-critique-small-fixes.md) | 介面小修一批（slash 選單順序、刪除本場的危險樣式、主按鈕一致、儀表板空封面等十餘條），逐條勾。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
-| [89](./89-enter-dialogue-from-above-lands-on-speaker.md) | 從上面走進對白（→／↓、chip row 的 Enter／Tab）一律落台詞、跳過人物欄 —— 要不要先停人物欄。grilling 定案（與 82、91 一起）：方向鍵與 chip row 的 Tab **一律先停人物欄**，與回程同一條路；chip row 的 Enter 歸 91。**從票券 61 grilling 拆出來**，blocked by 61。排在 82 之後。 | `ready-for-agent` |
+| [89](./89-enter-dialogue-from-above-lands-on-speaker.md) | 從上面走進對白（→／↓、chip row 的 Enter／Tab）一律落台詞、跳過人物欄 —— 要不要先停人物欄。grilling 定案（與 82、91 一起）：方向鍵與 chip row 的 Tab **一律先停人物欄**，與回程同一條路；chip row 的 Enter 歸 91。**從票券 61 grilling 拆出來**，blocked by 61。排在 82 之後。 | ✅ verified |
 | [90](./90-empty-first-block-backspace-stuck.md) | 場次第一個區塊（描述）清空之後 Backspace 卡在行首，空區塊收不掉。游標落點與 62 的併回規則怎麼延伸開工前問。**從票券 61 驗收撈到**，無 blocker。 | `needs-triage` |
-| [91](./91-insert-action-before-first-dialogue.md) | 第一句是對白時前面插不進描述：人物欄 Enter 進台詞、台詞開頭 Enter 切出另一句對白。grilling 定案：**chip row 的 Enter 在內文最上方插一個描述**（第一個區塊是空的就直接落進去）；Tab 照順序走（89）。**從票券 61 驗收提出**，無 blocker。排在 82、89 之後。 | `ready-for-agent` |
+| [91](./91-insert-action-before-first-dialogue.md) | 第一句是對白時前面插不進描述：人物欄 Enter 進台詞、台詞開頭 Enter 切出另一句對白。grilling 定案：**chip row 的 Enter 在內文最上方插一個描述**（第一個區塊是空的就直接落進去）；Tab 照順序走（89）。**從票券 61 驗收提出**，無 blocker。排在 82、89 之後。 | ✅ verified |
 | [92](./92-name-draft-full-preview.md) | 組字預覽與 Enter 前把整串字的結果都列出來（「甲（3 場）；新增人物：『乙』、『丙』」），不只最後一段。擺在哪、措辭、齊聲混群演怎麼寫開工前定。**從票券 82 驗收提出**，blocked by 82。 | `needs-triage` |
 | [93](./93-convert-extra-and-character.md) | 群演與人物互相轉換（齊聲混著人物與群演時，事後改得過來）。與升格（35）的分界、人物 → 群演轉的是哪一層開工前定。**從票券 82 驗收提出**，無 blocker。 | `needs-triage` |
 | [94](./94-select-scene-content-highlight.md) | ⌘A 第二層（本場內文）的反白看起來亂：第一句的人物欄不在範圍裡，後面幾句整塊變藍。**從票券 82 驗收撈到**，與 82 無關，無 blocker。 | `needs-triage` |
+| [95](./95-field-entry-caret-at-end.md) | 走進一格實體欄位時，輸入框停在上次離開的那道縫（↑↓、←→、Tab 都是）。已定案：**離開欄位就歸位，回來一律落在最後一顆 chip 之後**；⌘Z 還字照舊放回原位。**從票券 89 驗收撈到**，無 blocker。 | `ready-for-agent` |

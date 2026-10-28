@@ -38,6 +38,11 @@ export type ChipNav = {
   readonly right?: () => boolean;
   readonly up?: () => boolean;
   readonly down?: () => boolean;
+  /**
+   * `Enter` —— 沒填就與 Tab 同一個終點（`right`）。只有群演欄填：Tab 照順序走進內文（對白先停人物欄，
+   * 票券 89），Enter 是在內文最上方插一段描述（票券 91）。
+   */
+  readonly enter?: () => boolean;
   /** `⌘↓` —— 從任一格直接進本場內文。 */
   readonly exitDown?: () => boolean;
   /** `⌘↑` —— 從任一格直接回上一場內文末端。 */
@@ -77,9 +82,10 @@ export const chipNavHandler =
       return;
     }
 
-    // Tab 與 Enter 同一個終點，差別只在它們不看游標在哪 —— 兩顆本來就是「這一格結束了」。
+    // Tab 與 Enter 預設同一個終點，差別只在它們不看游標在哪 —— 兩顆本來就是「這一格結束了」。
     if ((e.key === "Tab" && !e.shiftKey) || e.key === "Enter") {
-      if (to.right) fire(to.right);
+      const go = e.key === "Enter" ? (to.enter ?? to.right) : to.right;
+      if (go) fire(go);
       return;
     }
 
