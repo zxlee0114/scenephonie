@@ -126,7 +126,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [83](./83-collapse-unfocused-scene-heading.md) | 沒有焦點的場次，抬頭收成一行（「1　外景・夜・河堤」），有值才顯示登場人物與群演，ⓘ 只在焦點／hover 出現。與 33 協調。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
 | [84](./84-where-am-i-titles-and-tabs.md) | 看得出自己在哪：劇本頁頂列印專案名 › 劇本名、分享頁印片名、編輯器切換列加分場大綱。**從 impeccable critique 撈到**，無 blocker（21、75 相關）。 | `needs-triage` |
 | [85](./85-demo-screenplay-shows-the-ideal.md) | 示範劇本填好登場人物與人物介紹，不再一匯出就被警告。要不要刻意留一場給引導教提示開工前問。**從 impeccable critique 撈到**，無 blocker（73、78 相關）。 | `needs-triage` |
-| [86](./86-low-contrast-controls.md) | 對比不足：場次 sidebar 開關 2.4:1、實體欄 placeholder 4.3:1、hub 卡片摘要 2.2:1（最後一條動不動驗收定）。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
+| [86](./86-low-contrast-controls.md) | 對比不足：場次 sidebar 開關 2.4:1、實體欄 placeholder 4.3:1、hub 卡片摘要 2.2:1。grilling 定案：**開關三態與 placeholder 改 `--text-secondary`**（含原票漏的「收回去」），hub 摘要保留淡字並記進 impeccable 裁決；其餘 faint 拆到 96。**從 impeccable critique 撈到**，無 blocker。 | `ready-for-agent` |
 | [87](./87-ui-wording-no-engineering-terms.md) | 介面用語：選單不露「實體」這類工程詞；「景／光」「內外／時間」「時間」與「S1」「1」各統一成一種說法。改字前先對 36／40／42／49 的定案。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
 | [88](./88-ui-critique-small-fixes.md) | 介面小修一批（slash 選單順序、刪除本場的危險樣式、主按鈕一致、儀表板空封面等十餘條），逐條勾。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
 | [89](./89-enter-dialogue-from-above-lands-on-speaker.md) | 從上面走進對白（→／↓、chip row 的 Enter／Tab）一律落台詞、跳過人物欄 —— 要不要先停人物欄。grilling 定案（與 82、91 一起）：方向鍵與 chip row 的 Tab **一律先停人物欄**，與回程同一條路；chip row 的 Enter 歸 91。**從票券 61 grilling 拆出來**，blocked by 61。排在 82 之後。 | ✅ verified |
@@ -136,3 +136,4 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [93](./93-convert-extra-and-character.md) | 群演與人物互相轉換（齊聲混著人物與群演時，事後改得過來）。與升格（35）的分界、人物 → 群演轉的是哪一層開工前定。**從票券 82 驗收提出**，無 blocker。 | `needs-triage` |
 | [94](./94-select-scene-content-highlight.md) | ⌘A 第二層（本場內文）的反白看起來亂：第一句的人物欄不在範圍裡，後面幾句整塊變藍。**從票券 82 驗收撈到**，與 82 無關，無 blocker。 | `needs-triage` |
 | [95](./95-field-entry-caret-at-end.md) | 走進一格實體欄位時，輸入框停在上次離開的那道縫（↑↓、←→、Tab 都是）。已定案：**離開欄位就歸位，回來一律落在最後一顆 chip 之後**；⌘Z 還字照舊放回原位。**從票券 89 驗收撈到**，無 blocker。 | ✅ verified |
+| [96](./96-text-faint-audit.md) | `--text-faint` 盤點：tokens.css 定義它只給 decoration，全站約 45 處逐處判，可操作與正文改 `--text-secondary` 以上。**從票券 86 grilling 拆出來**，blocked by 86。 | `needs-triage` |
