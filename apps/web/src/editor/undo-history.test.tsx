@@ -12,7 +12,7 @@
  */
 import { EditorContent } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import {
   mintExtraId,
   mintLocationId,
@@ -458,6 +458,141 @@ describe("⌘Z 撤銷一筆定案 → 那串字回到輸入框（票券 37）", 
     fireEvent.keyDown(input, { ...undoKey, isComposing: true });
 
     expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull();
+    expect(input.value).toBe("");
+  });
+});
+
+/**
+ * 點走那一下的定案（票券 82 驗收）。
+ *
+ * 離開欄位時框裡的字照樣定案（一個字都不掉），但編劇可能根本沒看到那一下 —— 回到內文按 ⌘Z，
+ * chip 消失、字也沒了。所以這一下與 37 不同：撤到它的 ⌘Z 不論打在哪裡，整串字都回到那一欄、
+ * 焦點跟著回去。Enter 定案、焦點留在欄位裡的那一下仍照 37（見上面「焦點已經離開這一欄時」）。
+ */
+describe("點走那一下的定案，⌘Z 把整串字還給那一欄（票券 82 驗收）", () => {
+  const CHARACTERS = ".scene__chip--character";
+  const EXTRAS = ".scene__chip--extras";
+
+  /** 打字、點走（真的把焦點交出去）、等 chip 出來，游標回內文。 */
+  async function typeAndLeave(container: HTMLElement, editor: Editor, selector: string, value: string, chips: number) {
+    const input = await fieldInput(container, selector);
+    input.focus();
+    fireEvent.change(input, { target: { value } });
+    input.blur();
+    await waitFor(() =>
+      expect(container.querySelectorAll(`${selector} .entity-chip`)).toHaveLength(chips),
+    );
+    editor.commands.focus("end");
+    return input;
+  }
+
+  const undo = (editor: Editor) =>
+    act(() => {
+      editor.commands.undo();
+    });
+
+  it("地點欄：chip 撤掉、「河堤」回到框裡、焦點回到欄位", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    const input = await typeAndLeave(container, editor, LOCATION, "河堤", 1);
+
+    undo(editor);
+
+    await waitFor(() => expect(input.value).toBe("河堤"));
+    expect(editor.state.doc.firstChild!.attrs.location).toBeNull();
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("登場人物欄：一次定案好幾個，⌘Z 一次全部撤回、整串字回來", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    const input = await typeAndLeave(container, editor, CHARACTERS, "小李、小華", 2);
+
+    undo(editor);
+
+    await waitFor(() => expect(input.value).toBe("小李、小華"));
+    expect(editor.state.doc.firstChild!.attrs.appearingCharacters).toBeNull();
+  });
+
+  it("先撤掉的是之後打的內文時，欄位不動；再一下撤到定案才回來", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    const input = await typeAndLeave(container, editor, LOCATION, "河堤", 1);
+    // 等過歷史的分組窗，內文那一筆才自成一步（見上面「退掉的是別的動作」）。
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    act(() => {
+      editor.commands.insertContent("後來打的");
+    });
+
+    undo(editor);
+    expect(input.value).toBe("");
+    expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull();
+
+    undo(editor);
+    await waitFor(() => expect(input.value).toBe("河堤"));
+  });
+
+  it("群演欄：「路人」回到框裡；⌘⇧Z 把那一批做回去、框跟著清空", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    const input = await typeAndLeave(container, editor, EXTRAS, "路人", 1);
+    const extraId = sceneExtras(editor.state.doc.firstChild!.attrs.extras)[0]!.extraId;
+
+    undo(editor);
+
+    await waitFor(() => expect(input.value).toBe("路人"));
+    expect(sceneExtras(editor.state.doc.firstChild!.attrs.extras)).toHaveLength(0);
+    expect(document.activeElement).toBe(input);
+
+    fireEvent.keyDown(input, redoKey);
+
+    await waitFor(() => expect(input.value).toBe(""));
+    // 做回去的是**那一批**（同一個 `extraId`），不是照框裡的字重新鑄一批。
+    expect(sceneExtras(editor.state.doc.firstChild!.attrs.extras).map((e) => e.extraId)).toEqual([
+      extraId,
+    ]);
+  });
+
+  it("群演欄：字回來之後再按一次 ⌘Z，收掉那串字，文件不再退（同 37 的第二下）", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    const input = await typeAndLeave(container, editor, EXTRAS, "路人", 1);
+    undo(editor);
+    await waitFor(() => expect(input.value).toBe("路人"));
+    const docBefore = editor.state.doc;
+
+    const second = fireEvent.keyDown(input, undoKey);
+
+    expect(second).toBe(false); // preventDefault —— 不交給原生 undo
+    await waitFor(() => expect(input.value).toBe(""));
+    expect(editor.state.doc.eq(docBefore)).toBe(true);
+  });
+
+  it("群演欄：Enter 定案、焦點留在欄位裡的那一下，點走之後的 ⌘Z 照 37 不插手", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    const input = await fieldInput(container, EXTRAS);
+    input.focus();
+    // 帶人數的才一下 Enter 就定案（沒帶的話 Enter 先進人數子選單，票券 48）。
+    fireEvent.change(input, { target: { value: "路人（8）" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() =>
+      expect(container.querySelectorAll(`${EXTRAS} .entity-chip`)).toHaveLength(1),
+    );
+    input.blur();
+    editor.commands.focus("end");
+
+    undo(editor);
+
+    await waitFor(() =>
+      expect(sceneExtras(editor.state.doc.firstChild!.attrs.extras)).toHaveLength(0),
+    );
     expect(input.value).toBe("");
   });
 });

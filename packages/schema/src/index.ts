@@ -91,7 +91,7 @@ export {
 export type { CountInputResult, CountValue } from "./count";
 
 // 多值欄位的輸入規則（實體欄位與群演欄共用同一份；貼上走同一條路）—— Enter 才解析（票券 82）。
-export { hasDialogueMark, parseNameDraft, splitNames } from "./names";
+export { hasDialogueMark, parseNameDraft, readsLikeSpeech, splitNames } from "./names";
 
 // 子場次的推導值（票券 11）：折返標記（編輯器 decoration，日後 PDF 同一支）。
 //

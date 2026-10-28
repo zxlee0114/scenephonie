@@ -300,6 +300,7 @@ describe("對白人物欄：Enter 定案就進台詞（票券 82）", () => {
 
   const aying = mintCharacterId();
   const jianming = mintCharacterId();
+  const uncle = mintCharacterId();
 
   function SpeakerHarness({ line, onEditor }: { line: string; onEditor: (e: Editor) => void }) {
     const editor = useScreenplayEditor(docWithDialogue(line));
@@ -312,10 +313,15 @@ describe("對白人物欄：Enter 定案就進台詞（票券 82）", () => {
           characters: [
             { id: aying, name: "阿盈" },
             { id: jianming, name: "建鳴" },
+            { id: uncle, name: "王大明叔叔" },
           ],
           locations: [],
           // 這份 doc 裡一場都沒用到 —— 讓他們在角色設定表上存在（否則是孤兒，不進自動補全）。
-          charactersElsewhere: { [aying]: "角色設定表", [jianming]: "角色設定表" },
+          charactersElsewhere: {
+            [aying]: "角色設定表",
+            [jianming]: "角色設定表",
+            [uncle]: "角色設定表",
+          },
         }}
       >
         <EditorContent editor={editor} />
@@ -416,18 +422,96 @@ describe("對白人物欄：Enter 定案就進台詞（票券 82）", () => {
     expect(speakers(container)).toEqual([]);
   });
 
-  it("點走時搬進台詞的那一下，之後的 ⌘Z 不把字塞回人物欄（焦點離開就不插手，票券 37）", async () => {
+  it("點走時搬進台詞的那一下也撤得回來：⌘Z 之後台詞的字撤掉，整串回到人物欄（票券 82 驗收）", async () => {
     const { editor, input } = await mount();
 
     fireEvent.change(input, { target: { value: "你不說話。" } });
     fireEvent.blur(input);
     await waitFor(() => expect(lineText(editor)).toBe("你不說話。"));
 
+    act(() => {
+      editor.commands.undo();
+    });
+
+    await waitFor(() => expect(lineText(editor)).toBe(""));
+    expect(input.value).toBe("你不說話。");
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("點走之後回到人物欄裡按 ⌘Z 也一樣（那一下照樣送進文件，由同一條路接回來）", async () => {
+    const { container, editor, input } = await mount();
+
+    fireEvent.change(input, { target: { value: "阿盈、小八" } });
+    input.blur();
+    await waitFor(() => expect(speakers(container)).toEqual(["阿盈", "小八"]));
+
     input.focus();
     fireEvent.keyDown(input, { key: "z", metaKey: true });
 
-    await waitFor(() => expect(lineText(editor)).toBe(""));
-    expect(input.value).toBe("");
+    await waitFor(() => expect(speakers(container)).toEqual([]));
+    expect(input.value).toBe("阿盈、小八");
+    expect(editor.state.doc.firstChild!.child(0).attrs.character).toBeNull();
+  });
+
+  it("點走那一下定案的人物，台詞裡 ⌘Z 撤掉它：整串字回到人物欄、焦點跟著回去（票券 82 驗收）", async () => {
+    const { container, editor, input } = await mount();
+
+    fireEvent.change(input, { target: { value: "阿盈、小八" } });
+    input.blur();
+    await waitFor(() => expect(speakers(container)).toEqual(["阿盈", "小八"]));
+    editor.commands.focus();
+
+    act(() => {
+      editor.commands.undo();
+    });
+
+    await waitFor(() => expect(speakers(container)).toEqual([]));
+    expect(input.value).toBe("阿盈、小八");
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("沒有句末標點、但讀起來像句子：第一列照樣是「↓ 移到台詞」（票券 82 驗收）", async () => {
+    const { container, editor, input } = await mount();
+
+    fireEvent.change(input, { target: { value: "你不說話，我就當你答應了" } });
+    expect(menuRows(container)[0]).toBe("↓ 移到台詞");
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(lineText(editor)).toBe("你不說話，我就當你答應了"));
+    expect(speakers(container)).toEqual([]);
+  });
+
+  it("兩個新的短名字仍是兩個人 —— 「小八，吉伊」不像句子", async () => {
+    const { container, input } = await mount();
+
+    fireEvent.change(input, { target: { value: "小八，吉伊" } });
+    expect(menuRows(container)[0]).not.toBe("↓ 移到台詞");
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(speakers(container)).toEqual(["小八", "吉伊"]));
+  });
+
+  it("既有人物不拿來猜：名字超過四個字也照樣是人（「王大明叔叔」）", async () => {
+    const { container, input } = await mount();
+
+    fireEvent.change(input, { target: { value: "王大明叔叔" } });
+    expect(menuRows(container)[0]).not.toBe("↓ 移到台詞");
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(speakers(container)).toEqual(["王大明叔叔"]));
+  });
+
+  it("新增群演之後也直接進台詞（票券 82 驗收：不必再按一次 Enter）", async () => {
+    const { container, editor, input } = await mount();
+
+    fireEvent.change(input, { target: { value: "眾人" } });
+    const at = menuRows(container).findIndex((row) => row.includes("新增群演"));
+    expect(at).toBeGreaterThan(0);
+    for (let i = 0; i < at; i += 1) fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(speakers(container)).toEqual(["眾人"]));
+    await waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
+    expect(caretInLine(editor)).toBe(0);
   });
 
   it("台詞裡一次 ⌘Z 退回 Enter 之前：chip 撤掉，整串字回到人物欄、焦點跟著回去", async () => {

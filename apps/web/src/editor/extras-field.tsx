@@ -87,6 +87,7 @@
 
 import {
   useEffect,
+  useImperativeHandle,
   useReducer,
   useRef,
   useState,
@@ -121,7 +122,7 @@ import {
   RENAME_MARK,
 } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
-import { historyKey, keepHistoryInBox, ownHistory } from "./history-keys";
+import { claimHistoryKey, historyKey, keepHistoryInBox, ownHistory } from "./history-keys";
 
 type Props = {
   /** 這一場的群演，依欄位裡的順序。 */
@@ -139,7 +140,44 @@ type Props = {
   inputRef?: React.Ref<HTMLInputElement>;
   /** 這一格自己用不到的鍵（chip row 的格線導航）。焦點在 chip 上時 target 是那個 chip。 */
   onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
+  handleRef?: React.Ref<ExtrasFieldHandle>;
 };
+
+export type ExtrasFieldHandle = {
+  /**
+   * 文件剛走過一步歷史（⌘Z／⌘⇧Z），這一欄在 doc 裡**現在**是 `now`（票券 82 驗收）——
+   * 同 `EntityFieldHandle.afterHistory`：點走那一下的定案被撤掉時，整串字回到框裡、焦點回來；
+   * 字還原封擺在框裡時被做回去（⌘⇧Z），框跟著清空。
+   */
+  afterHistory: (now: readonly ExtraRef[]) => void;
+};
+
+/**
+ * 點走那一下的定案（票券 82 驗收）—— ⌘Z 撤掉它時要還回框裡的那串字，與那一步的形狀。
+ *
+ * 只記點走的那一下：Enter 定案時焦點還在欄位裡，那一下的 ⌘Z 照票券 37 只退文件（群演欄從來
+ * 沒有「⌘Z 還字」，這裡只補焦點走了、編劇可能根本沒看到定案的那一格）。手上握著一批時也不記：
+ * 撤回去的樣子是「握著那一批」，不是一串新字。
+ */
+type Committed = {
+  text: string;
+  /** 定案之前輸入框站在第幾格（`caret`）。 */
+  at: number | null;
+  /** 定案之後輸入框站在第幾格 —— 做回去時游標回到那裡。 */
+  atAfter: number | null;
+  before: readonly ExtraRef[];
+  after: readonly ExtraRef[];
+};
+
+/** 兩排群演是不是同一個樣子（同一批、同樣的描述與人數、同樣的次序）。 */
+const sameExtras = (a: readonly ExtraRef[], b: readonly ExtraRef[]) =>
+  a.length === b.length &&
+  a.every(
+    (e, i) =>
+      e.extraId === b[i]!.extraId &&
+      e.description === b[i]!.description &&
+      JSON.stringify(e.countValue) === JSON.stringify(b[i]!.countValue),
+  );
 
 /**
  * 選單上的一格。多數是**一列可以按的字**；人數那一層另外有一格是**輸入框**（票券 48）。
@@ -159,6 +197,7 @@ export function ExtrasField({
   describedBy,
   inputRef,
   onKeyDown,
+  handleRef,
 }: Props) {
   const [text, setText] = useState("");
   const [active, setActive] = useState(0);
@@ -209,6 +248,15 @@ export function ExtrasField({
    * 堆疊上，回到名稱框時頂端是人數格的。
    */
   const nameHistory = useRef(ownHistory()).current;
+  /** 點走那一下的定案（見 `Committed`）—— 撤掉它的 ⌘Z 把字還回來。 */
+  const lastCommit = useRef<Committed | null>(null);
+  /** 剛被 ⌘Z 撤回來、還原封擺在框裡的那一筆 —— ⌘⇧Z 要做回去的東西（同實體欄位）。 */
+  const undoneCommit = useRef<Committed | null>(null);
+  /**
+   * 框裡這串字是**欄位塞回去的**（⌘Z），不在原生堆疊裡 —— 下一顆 ⌘Z 歸欄位，把框清空。
+   * 理由同實體欄位的 `restored`：原生 undo 會翻出這個框先前別筆留下的字。
+   */
+  const restored = useRef(false);
   const countHistory = useRef(ownHistory()).current;
   /** 這一欄的外框 —— 只為了問一個問題：焦點離開人數格之後，人還在這一欄裡嗎。 */
   const field = useRef<HTMLDivElement>(null);
@@ -243,6 +291,7 @@ export function ExtrasField({
 
   const reset = () => {
     editing.current = null;
+    restored.current = false;
     // `caret` 不清 —— `add` 剛把它挪到新 chip 之後，那就是游標該在的地方。
     setText("");
     setActive(0);
@@ -297,19 +346,51 @@ export function ExtrasField({
     return { extraId: held?.extraId ?? mintExtraId(), ...content };
   };
 
-  const add = (added: ExtraRef[]) => {
+  /** `away` ＝ 點走那一下的定案：留一份快照給 ⌘Z（見 `Committed`）。 */
+  const add = (added: ExtraRef[], away: { typed: string } | null = null) => {
     if (added.length === 0) return;
     // 放在**游標停的地方**，定案之後游標停在這一串之後（同實體欄位的 `merge`）。
     const at = caret.current;
-    if (at != null && at <= extras.length) {
-      caret.current = at + added.length;
-      onCommit([...extras.slice(0, at), ...added, ...extras.slice(at)]);
-    } else {
-      caret.current = null;
-      onCommit([...extras, ...added]);
-    }
+    const next =
+      at != null && at <= extras.length
+        ? [...extras.slice(0, at), ...added, ...extras.slice(at)]
+        : [...extras, ...added];
+    caret.current = at != null && at <= extras.length ? at + added.length : null;
+    undoneCommit.current = null;
+    lastCommit.current = away && {
+      text: away.typed,
+      at,
+      atAfter: caret.current,
+      before: extras,
+      after: next,
+    };
+    onCommit(next);
     redraw(); // `toExtra` 把手上那一筆放下了 —— 那是 ref，要自己說一聲
   };
+
+  useImperativeHandle(handleRef, () => ({
+    afterHistory: (now) => {
+      const done = lastCommit.current;
+      if (done && text === "" && sameExtras(now, done.before)) {
+        lastCommit.current = null;
+        undoneCommit.current = done;
+        caret.current = done.at;
+        restored.current = true;
+        setText(done.text);
+        setActive(0);
+        setDismissed(false);
+        input.current?.focus();
+        return;
+      }
+      const undone = undoneCommit.current;
+      if (undone && text === undone.text && sameExtras(now, undone.after)) {
+        undoneCommit.current = null;
+        lastCommit.current = undone;
+        caret.current = undone.atAfter;
+        reset();
+      }
+    },
+  }));
 
   /**
    * 把一筆 chip 還原成可編輯的文字（點它、空欄位上 Backspace、焦點在它身上按 Enter）——
@@ -348,8 +429,10 @@ export function ExtrasField({
    * 各自是新的一批，照 `parseExtra` 讀尾綴。以分隔符收尾（`路人、`）時最後一個名字就是 `路人`，
    * 手上那一批才不會因為一個頓號被當成新的一批、掉了 id 與人數。
    */
-  const commitText = () => {
+  /** `leaving` ＝ 這是離開欄位那一下（見 `Committed`）。 */
+  const commitText = ({ leaving = false } = {}) => {
     if (!text.trim()) return;
+    const holding = editing.current !== null;
     const segments = splitNames(text);
     const lastSegment = segments.pop() ?? "";
     // 讀不出一筆群演（例：只打了 `x8`）就略過那一段。這**只發生在沒握著的那一側** ——
@@ -359,7 +442,7 @@ export function ExtrasField({
       .map(parseExtra)
       .filter((c): c is Omit<ExtraRef, "extraId"> => c !== null)
       .map((c) => ({ extraId: mintExtraId(), ...c }));
-    add([...heads, ...(tail ? [tail] : [])]);
+    add([...heads, ...(tail ? [tail] : [])], leaving && !holding ? { typed: text } : null);
     reset();
   };
 
@@ -547,7 +630,7 @@ export function ExtrasField({
     const inside = next instanceof Node && field.current?.contains(next);
     if (inside) nameHistory.start(text);
     if (!inside) {
-      if (!composing.current) commitText();
+      if (!composing.current) commitText({ leaving: true });
       if (!text.trim()) letGo();
     }
     redraw();
@@ -897,6 +980,21 @@ export function ExtrasField({
       keepHistoryInBox(event, nameHistory);
       return;
     }
+    // 點走那一下撤回來的字（票券 82 驗收）：第二下 ⌘Z 把它收掉，**不交給原生 undo**（見
+    // `restored`）；⌘⇧Z 歸文件 —— 框裡這串字是欄位塞回去的，不是「沒定案的字」。
+    if (historyKey(event) === "undo" && restored.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      restored.current = false;
+      undoneCommit.current = null;
+      setText("");
+      setActive(0);
+      setDismissed(false);
+      return;
+    }
+    if (historyKey(event) === "redo" && undoneCommit.current?.text === text) {
+      claimHistoryKey(event);
+    }
 
     if (rows.length > 0) {
       if (event.key === "ArrowDown") {
@@ -1057,7 +1155,7 @@ export function ExtrasField({
           // `修改數量…`」會被名稱框自己的 blur 當成「打完就走」而當場定案收工。
           if (stage.current === "count") return;
           // 打完就走是常態，不該把字吃掉（同實體欄位的 blur 回寫）。
-          if (!composing.current) commitText();
+          if (!composing.current) commitText({ leaving: true });
           // 空著離開 ＝ 放手（`commitText` 沒字時直接 return，不清任何東西）。
           if (!text.trim()) letGo();
         }}

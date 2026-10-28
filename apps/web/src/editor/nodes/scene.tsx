@@ -55,11 +55,12 @@ import { ChipSelect } from "../chip-select";
 import { chipNavHandler, type ChipNav } from "../chip-nav";
 import { memberNeighbours } from "../address";
 import { runKernelCommand } from "../command-bridge";
+import { useAfterHistory } from "../after-history";
 import { forwardHistoryKey } from "../history-keys";
 import { useEntityCatalog, type EntityCatalog } from "../entity-catalog";
-import { EntityField, type EntityKind, type EntityRef } from "../entity-field";
+import { EntityField, type EntityFieldHandle, type EntityKind, type EntityRef } from "../entity-field";
 import { extraDescriptions } from "../extras-catalog";
-import { ExtrasField } from "../extras-field";
+import { ExtrasField, type ExtrasFieldHandle } from "../extras-field";
 import { FieldInfo } from "../field-info";
 import { entityUsage } from "../entity-usage";
 import { retitleOthersIn } from "../retitle-others";
@@ -123,6 +124,13 @@ const toFieldRef = (id: unknown, displayName: string): EntityRef => ({
   displayName,
 });
 
+const locationRefsOf = (scene: PMNode): EntityRef[] =>
+  sceneLocations(scene.attrs.location).map((r) => toFieldRef(r.locationId, r.displayName));
+const characterRefsOf = (scene: PMNode): EntityRef[] =>
+  sceneAppearingCharacters(scene.attrs.appearingCharacters).map((r) =>
+    toFieldRef(r.characterId, r.displayName),
+  );
+
 /** 真的指得到實體的那些引用 —— 只有它們進得了 command。 */
 type PlacedRef = EntityRef & { id: string };
 const placed = (refs: readonly EntityRef[]): PlacedRef[] =>
@@ -145,6 +153,7 @@ function SceneEntityChip({
   confirmReplace,
   inputRef,
   write,
+  read,
   nav,
 }: {
   editor: NodeViewProps["editor"];
@@ -160,9 +169,17 @@ function SceneEntityChip({
   inputRef?: React.Ref<HTMLInputElement>;
   /** 這一欄怎麼寫回 doc。吃已經濾掉過渡引用的清單，吐一支 kernel command。 */
   write: (refs: PlacedRef[]) => (doc: PMNode) => CommandResult;
+  /** 這一欄在 doc 裡**現在**的樣子（`null` ＝ 這一場已經不在了）—— ⌘Z 之後交給欄位比對。 */
+  read: () => EntityRef[] | null;
   /** 這一格在 chip row 版面上的四個鄰居（§7.1 焦點串接、票券 34）。 */
   nav: ChipNav;
 }) {
+  const field = useRef<EntityFieldHandle>(null);
+  // 點走那一下的定案被 ⌘Z 撤掉時，整串字回到這一欄（票券 82 驗收，見 `EntityFieldHandle.afterHistory`）。
+  useAfterHistory(editor, () => {
+    const now = read();
+    if (now) field.current?.afterHistory(now);
+  });
   return (
     <FieldInfo
       info={kind}
@@ -171,6 +188,7 @@ function SceneEntityChip({
       {(describedBy) => (
         <EntityField
           inputRef={inputRef}
+          handleRef={field}
           kind={kind}
           placeholder={placeholder}
           describedBy={describedBy}
@@ -399,13 +417,19 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
     isSubscene ? ((spec?.parentTime ?? null) as SceneTime | null) : null,
   );
 
-  const locationRefs = sceneLocations(node.attrs.location).map((r) =>
-    toFieldRef(r.locationId, r.displayName),
-  );
-  const characterRefs = sceneAppearingCharacters(node.attrs.appearingCharacters).map((r) =>
-    toFieldRef(r.characterId, r.displayName),
-  );
+  const locationRefs = locationRefsOf(node);
+  const characterRefs = characterRefsOf(node);
   const extras = sceneExtras(node.attrs.extras);
+  /** 這一場**當下**在 doc 裡的節點（不是這次 render 拿到的那一份）—— ⌘Z 的交易當下讀它。 */
+  const sceneNow = (): PMNode | null => {
+    const pos = typeof getPos === "function" ? getPos() : undefined;
+    return pos == null ? null : editor.state.doc.nodeAt(pos);
+  };
+  const extrasHandle = useRef<ExtrasFieldHandle>(null);
+  useAfterHistory(editor, () => {
+    const now = sceneNow();
+    if (now) extrasHandle.current?.afterHistory(sceneExtras(now.attrs.extras));
+  });
   // 「（12 場）」要走一遍整份 doc —— 傳函式而不是值，只有選單真的要畫時才算（§7.7）。
   const usage = () => entityUsage(editor.state.doc);
 
@@ -605,6 +629,10 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
             })
           }
           inputRef={locationField}
+          read={() => {
+            const now = sceneNow();
+            return now && locationRefsOf(now);
+          }}
           // 第一排最右邊：↓ 落到正下方那一排（登場人物），→ 也是它 —— 第一排到此為止。
           nav={{
             ...exits,
@@ -626,6 +654,10 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           usage={usage}
           multiple
           inputRef={charactersField}
+          read={() => {
+            const now = sceneNow();
+            return now && characterRefsOf(now);
+          }}
           write={(refs) => (doc) =>
             setAppearingCharacters(doc, {
               sceneId,
@@ -652,6 +684,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           {(describedBy) => (
             <ExtrasField
               inputRef={extrasField}
+              handleRef={extrasHandle}
               describedBy={describedBy}
               extras={extras}
               // 別場用過的描述。走一遍整份 doc，所以傳函式（同 usage）。

@@ -12,8 +12,8 @@
 "use client";
 
 import type { NodeViewRenderer } from "@tiptap/core";
-import { closeHistory, isHistoryTransaction } from "@tiptap/pm/history";
-import { TextSelection, type Transaction } from "@tiptap/pm/state";
+import { closeHistory } from "@tiptap/pm/history";
+import { TextSelection } from "@tiptap/pm/state";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
@@ -46,6 +46,7 @@ import { isBlankBlock, setBlockTypeAt } from "../block-types";
 import { fieldEdge } from "../chip-nav";
 import { backspaceFromSpeakerField } from "../extensions/block-join";
 import { runKernelCommand } from "../command-bridge";
+import { useAfterHistory } from "../after-history";
 import { forwardHistoryKey } from "../history-keys";
 import {
   appearingPrompt,
@@ -105,6 +106,18 @@ function insertShotTag(): HTMLElement {
   return tag;
 }
 
+/**
+ * 人物欄的引用。**多值** —— 多個具名角色可以同時說一句台詞（齊聲）。
+ *
+ * id 為 null 的是票券 04／07 的過渡形狀 —— 讀取照印顯示名，但寫不回去（沒有實體可指），
+ * 編劇一動這一欄就會被真的引用取代。
+ */
+const speakersOf = (dialogue: PMNode): EntityRef[] =>
+  dialogueCharacters(dialogue.attrs.character).map((r) => ({
+    id: typeof (r as { id?: unknown }).id === "string" ? r.id : null,
+    displayName: r.displayName,
+  }));
+
 function DialogueView(props: NodeViewProps) {
   const { node, editor } = props;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -130,16 +143,7 @@ function DialogueView(props: NodeViewProps) {
    * 做等於系統在編劇背後改他的群演欄 —— 與票券 09「拿掉一筆群演不回頭改對白」同一條線。
    */
   const pendingPromotions = useRef<{ extraId: string; characterId: string }[]>([]);
-  /**
-   * 人物欄的引用。**多值** —— 多個具名角色可以同時說一句台詞（齊聲）。
-   *
-   * id 為 null 的是票券 04／07 的過渡形狀 —— 讀取照印顯示名，但寫不回去（沒有實體可指），
-   * 編劇一動這一欄就會被真的引用取代。
-   */
-  const speaker: EntityRef[] = dialogueCharacters(node.attrs.character).map((r) => ({
-    id: typeof (r as { id?: unknown }).id === "string" ? r.id : null,
-    displayName: r.displayName,
-  }));
+  const speaker = speakersOf(node);
 
   // Tab 把區塊轉成對白後，這個 node view 消費掉待決焦點請求。掛載時試領一次（轉型當下這個
   // view 才剛生出來），並**訂閱**後續請求 —— 台詞裡按 ↑ 回人物欄時 view 早就掛好了，只靠掛載
@@ -190,37 +194,29 @@ function DialogueView(props: NodeViewProps) {
   };
 
   /**
-   * 人物欄**最近一次寫入之前**這一句的樣子 —— `onCommit`／`onMoveToBody` 寫下去之前記的。
+   * 「↓ 移到台詞」之後，**⌘Z 退到哪個樣子就算撤掉了那一下**（票券 82）。
    *
-   * 它只是一份候補：定案那一下（Enter 進台詞）才把它交給 `takeBackFrom`。別的寫入（拿起一顆 chip、
-   * 點 ×、離開欄位的定案）也會更新它，同時把 `takeBackFrom` 解除 —— 那之後等的就不是那一步了。
-   */
-  const beforeWrite = useRef<PMNode | null>(null);
-  /**
-   * Enter 定案、游標進了台詞之後，**⌘Z 退到哪個樣子就算撤掉了那一下**（票券 82）。
+   * 那一下引用沒變，人物欄自己認不出它被撤掉（`Committed.docOnly`）—— 要看得到台詞的這一層看：
+   * 一次 history transaction 之後這一句**正好回到搬之前的樣子**，就是撤到了那一步，整串字交還人物欄、
+   * 焦點跟著回去。先撤掉的是之後打的台詞時，這一句還沒回到那個樣子，就繼續等。人物欄又寫了一次
+   * （`onCommit`）就解除 —— 那之後等的就不是那一步了。
    *
-   * 那一下 ⌘Z 打在 ProseMirror 上，人物欄自己收不到（它的 `handleKeyDown` 只管焦點還在欄位裡那一格，
-   * 票券 37）。所以由這一層看：一次 history transaction 之後這一句**正好回到定案之前的樣子**，就是撤到了
-   * 那一步 —— 整串字交還人物欄、焦點跟著回去。先撤掉的是之後打的台詞時，這一句還沒回到那個樣子，
-   * 就繼續等。判準與票券 37 的 `whenFieldBecomes` 同一個：看文件退成什麼樣子，不猜那一下撤了什麼。
+   * 其餘焦點跟著走了的定案（Enter 進台詞、點走）引用有變，人物欄自己比得出來 —— 交給 `afterHistory`。
    */
   const takeBackFrom = useRef<PMNode | null>(null);
-  useEffect(() => {
-    const onTransaction = ({ transaction }: { transaction: Transaction }) => {
-      const before = takeBackFrom.current;
-      if (!before || !isHistoryTransaction(transaction)) return;
-      const here = locateBlock(props);
-      const now = here && blockNow(here);
-      if (!now?.eq(before)) return;
+  useAfterHistory(editor, () => {
+    const here = locateBlock(props);
+    const now = here && blockNow(here);
+    if (!now) return;
+    const before = takeBackFrom.current;
+    if (before) {
+      if (!now.eq(before)) return;
       takeBackFrom.current = null;
       fieldRef.current?.takeBack();
-    };
-    editor.on("transaction", onTransaction);
-    return () => {
-      editor.off("transaction", onTransaction);
-    };
-    // 每次都重新定位（`locateBlock`／`blockNow` 讀的是當下的 doc），不吃過期座標 —— 同上面那個 effect。
-  }, [editor]);
+      return;
+    }
+    fieldRef.current?.afterHistory(speakersOf(now));
+  });
 
   /**
    * 「↓ 移到台詞」（票券 82）：人物欄裡那串字其實是台詞 —— 插到**台詞開頭**。
@@ -239,7 +235,7 @@ function DialogueView(props: NodeViewProps) {
       return true;
     });
     if (focus) chain.focus().setTextSelection(at + text.length);
-    takeBackFrom.current = chain.run() && focus ? before : null;
+    takeBackFrom.current = chain.run() ? before : null;
     if (focus) sealHistory();
   };
 
@@ -406,7 +402,6 @@ function DialogueView(props: NodeViewProps) {
         // Enter 定案名字之後，游標直接進同一句的台詞（票券 82）—— 選完人還留在人物欄的話，接著打的
         // 台詞會落進人物欄，被當成下一個人名。離開欄位的定案不走這裡（游標已經在別處了）。
         onSettled={() => {
-          takeBackFrom.current = beforeWrite.current;
           sealHistory();
           enterDialogueBody();
         }}
@@ -414,8 +409,7 @@ function DialogueView(props: NodeViewProps) {
         onCommit={(refs) => {
           const here = locateBlock(props);
           if (!here) return;
-          beforeWrite.current = blockNow(here);
-          // 又寫了一次 ＝ 之前等的那一步不再是 ⌘Z 的下一站。這一次是 Enter 進台詞的話，`onSettled` 會重新接上。
+          // 又寫了一次 ＝ 「↓ 移到台詞」那一步不再是 ⌘Z 的下一站。
           takeBackFrom.current = null;
           // 過渡引用（沒有 id）寫不回去 —— 它指不到任何實體。
           const placed = refs.filter((r): r is EntityRef & { id: string } => r.id !== null);

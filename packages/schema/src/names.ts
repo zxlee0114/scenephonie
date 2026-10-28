@@ -63,6 +63,23 @@ export function hasDialogueMark(text: string): boolean {
   return DIALOGUE_MARK.test(text);
 }
 
+/** 人名裡幾乎不出現、句子裡到處都是的字：第一、二人稱。 */
+const SPEECH_WORD = /[我你妳您]/;
+
+/** 再長就不像人名了（`王大明叔` 四個字還是）。 */
+const NAME_MAX_LENGTH = 4;
+
+/**
+ * 沒有台詞標點的一段，**讀起來像句子嗎**（票券 82 驗收）—— 超過四個字，或帶第一、二人稱。
+ *
+ * 補的是 `hasDialogueMark` 抓不到的那一種：「你不說話，我就當你答應了」沒有句末標點，`，` 又是
+ * 分隔符，整串會被讀成兩個新人物。它只是**猜**，所以只決定選單第一列（「↓ 移到台詞」還是建立
+ * 新人物），猜錯按 ↓ 就換過來。已經是既有人物的名字不該拿來問它 —— 那是呼叫端的事（它認得目錄）。
+ */
+export function readsLikeSpeech(segment: string): boolean {
+  return [...segment.trim()].length > NAME_MAX_LENGTH || SPEECH_WORD.test(segment);
+}
+
 /** 這段文字裡有分隔符嗎（貼上時決定要不要走多值解析）。 */
 export function hasSeparator(text: string): boolean {
   return SEPARATOR.test(text);

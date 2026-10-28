@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { hasDialogueMark, hasSeparator, parseNameDraft, splitNames } from "./names";
+import { hasDialogueMark, hasSeparator, parseNameDraft, readsLikeSpeech, splitNames } from "./names";
 
 describe("splitNames：標點是分隔符，空白不是", () => {
   it.each(["、", "，", ",", "；", ";"])("「%s」切開名字", (sep) => {
@@ -65,6 +65,20 @@ describe("hasDialogueMark：分隔符以外的台詞標點（票券 82）", () =
 
   it("沒有標點的人名", () => {
     expect(hasDialogueMark("海豚 公寓房間")).toBe(false);
+  });
+});
+
+describe("readsLikeSpeech：沒有台詞標點的一段讀起來像句子嗎（票券 82 驗收）", () => {
+  it.each(["我就當你答應了", "你不說話", "妳先走", "您請坐", "這件事情不能說"])("「%s」像句子", (segment) => {
+    expect(readsLikeSpeech(segment)).toBe(true);
+  });
+
+  it.each(["阿盈", "建鳴", "小八", "老闆娘", "王大明叔"])("「%s」像人名", (segment) => {
+    expect(readsLikeSpeech(segment)).toBe(false);
+  });
+
+  it("長度數的是字，不是 UTF-16 單位（罕用字不會讓四個字的名字變成五個）", () => {
+    expect(readsLikeSpeech("𠀋𠀋𠀋𠀋")).toBe(false);
   });
 });
 
