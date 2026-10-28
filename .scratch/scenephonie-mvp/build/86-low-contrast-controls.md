@@ -12,7 +12,7 @@
 
 **Blocked by:** 無（83 只動 placeholder 的出現時機，不動顏色，互不擋）
 
-**Status:** done
+**Status:** verified
 
 ## 定案（使用者 2026-10-28）
 
