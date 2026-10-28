@@ -6,7 +6,7 @@
 
 **Blocked by:** 無
 
-**Status:** in-review
+**Status:** verified
 
 ## 重現（修之前）
 
