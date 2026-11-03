@@ -195,8 +195,10 @@ describe("多值欄位：打字時不切，Enter 才整串解析（票券 82）"
 
     fireEvent.keyDown(input, { key: "z", metaKey: true });
 
-    await waitFor(() => expect(chips(container)).toHaveLength(0));
-    expect(input.value).toBe("巷口、警局");
+    await waitFor(() => {
+      expect(chips(container)).toHaveLength(0);
+      expect(input.value).toBe("巷口、警局");
+    });
   });
 
   it("Backspace 把最後一個 chip 還原成可編輯文字（不是直接刪掉）", async () => {
@@ -209,6 +211,80 @@ describe("多值欄位：打字時不切，Enter 才整串解析（票券 82）"
 
     await waitFor(() => expect(chips(container)).toHaveLength(0));
     expect(input.value).toBe("未知大樓房間");
+  });
+});
+
+describe("⌘Z 在等的那一次重繪不被無關的重繪吃掉（票券 97）", () => {
+  /**
+   * 記得上一步的 Host（同票券 82 那條）。`onUndo` 決定 ⌘Z 打到文件時發生什麼 ——
+   * 真實環境裡那一下與欄位的重繪之間，可能夾著別的 state 更新。
+   */
+  function UndoHost({
+    multiple = true,
+    onUndo,
+  }: {
+    multiple?: boolean;
+    onUndo: (undo: () => void, rerender: () => void) => void;
+  }) {
+    const [history, setHistory] = useState<EntityRef[][]>([[]]);
+    const [, setTick] = useState(0);
+    const refs = history[history.length - 1]!;
+    return (
+      <EntityField
+        kind="location"
+        placeholder="地點"
+        refs={refs}
+        options={[]}
+        multiple={multiple}
+        onCommit={(next) => setHistory((h) => [...h, next])}
+        onCreate={async (name) => ({ id: `lo_${name}`, name })}
+        onKeyDown={(e) => {
+          if (e.key === "z" && e.metaKey)
+            onUndo(
+              () => setHistory((h) => (h.length > 1 ? h.slice(0, -1) : h)),
+              () => setTick((t) => t + 1),
+            );
+        }}
+      />
+    );
+  }
+
+  it("⌘Z 與文件退回之間夾了一次無關的重繪 —— 字照樣回到框裡", async () => {
+    const { container } = render(
+      <UndoHost
+        onUndo={(undo, rerender) => {
+          rerender(); // 先來一次與這一步無關的重繪（refs 還沒變）
+          setTimeout(undo, 0); // 文件晚一拍才退回來
+        }}
+      />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.change(input, { target: { value: "巷口、警局" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(chipTexts(container)).toEqual(["巷口", "警局"]));
+
+    fireEvent.keyDown(input, { key: "z", metaKey: true });
+
+    await waitFor(() => {
+      expect(chips(container)).toHaveLength(0);
+      expect(input.value).toBe("巷口、警局");
+    });
+  });
+
+  it("⌘Z 撤的是別的步驟（這一欄沒變）—— 之後手動 × 到同一個形狀，字不會憑空回來", async () => {
+    const { container } = render(<UndoHost multiple={false} onUndo={() => {}} />);
+    const input = container.querySelector("input")!;
+
+    fireEvent.change(input, { target: { value: "巷口" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(chipTexts(container)).toEqual(["巷口"]));
+
+    fireEvent.keyDown(input, { key: "z", metaKey: true });
+    fireEvent.mouseDown(container.querySelector(".entity-chip__remove")!);
+
+    await waitFor(() => expect(chips(container)).toHaveLength(0));
+    expect(input.value).toBe("");
   });
 });
 

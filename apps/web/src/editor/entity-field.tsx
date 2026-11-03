@@ -398,6 +398,8 @@ export function EntityField({
    */
   const awaiting = useRef<{
     shape: readonly EntityRef[];
+    /** 按下去那一刻的 `refs` —— 重繪時還是它，就不是那一步送達（票券 97）。 */
+    from: readonly EntityRef[];
     run: () => void;
   } | null>(null);
   /**
@@ -471,8 +473,14 @@ export function EntityField({
   useEffect(() => {
     const wait = awaiting.current;
     if (!wait) return;
+    if (sameRefs(refs, wait.shape)) {
+      awaiting.current = null;
+      wait.run();
+      return;
+    }
+    // 這一欄還沒動 —— 是夾在中間的別次重繪（定案還沒落地的 state、別處的更新），不是答案。
+    if (sameRefs(refs, wait.from)) return;
     awaiting.current = null;
-    if (sameRefs(refs, wait.shape)) wait.run();
   });
 
   /**
@@ -767,6 +775,7 @@ export function EntityField({
    */
   const editRef = (ref: EntityRef) => {
     if (editing.current) return;
+    dropWait();
     // ⚠️ 在 `onCommit` 之前問 —— 引用一從 doc 上拿掉，這一場就從場次數裡消失了。而要的是
     // **扣掉這一場之後**還剩幾場（見 `heldScenes`），所以是「拿起來那一刻的總數減一」，
     // 不是「拿掉之後再數一次」：同一場的別欄也指著它時，後者會把這一場留在數字裡。
@@ -932,12 +941,21 @@ export function EntityField({
    *   無聲消失」；
    * - 歷史裡根本沒東西可退，文件一動也不動。
    *
-   * **下一次重繪就是裁決**，對不上就丟掉（不留著等下一次）—— 那一下要嘛撤到了、要嘛沒有，
-   * 沒有「等一等再看」這回事。不接手的代價只是回到這張票之前的樣子（文件照退、欄位不插手），
-   * 所以**寧可少接一次**。
+   * **這一欄一動就是裁決**，對不上就丟掉（不留著等下一次）—— 那一下要嘛撤到了、要嘛沒有。
+   * 不接手的代價只是回到這張票之前的樣子（文件照退、欄位不插手），所以**寧可少接一次**。
+   *
+   * ⚠️ 裁決看的是 `refs` **變了**的那一次重繪，不是「下一次重繪」（票券 97）：按鍵與文件退回之間
+   * 可能夾著無關的重繪（Enter 定案還沒落地的 state 更新），那一次 `refs` 還是按下去時的樣子，
+   * 拿它來判會把等待丟掉，字就回不來了。代價是文件一動也不動時等待會一直掛著 —— 所以編劇在
+   * 這一欄再做任何事（`dropWait`）就作廢它，免得之後手動按 × 到同一個形狀，字憑空回來。
    */
   const whenFieldBecomes = (shape: readonly EntityRef[], run: () => void) => {
-    awaiting.current = { shape, run };
+    awaiting.current = { shape, from: refs, run };
+  };
+
+  /** 編劇在這一欄又做了事 —— 還沒等到的那一下 ⌘Z 不再算數（見 `whenFieldBecomes`）。 */
+  const dropWait = () => {
+    awaiting.current = null;
   };
 
   const closeMenu = () => {
@@ -1448,6 +1466,7 @@ export function EntityField({
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     // 組字中把每一顆鍵都還給 IME —— 選字用的方向鍵與 Enter 都不是我們的。
     if (event.nativeEvent.isComposing || composing.current) return;
+    dropWait(); // 這一顆若又是 ⌘Z／⌘⇧Z，底下會重新掛上
 
     if (rows.length > 0) {
       if (event.key === "ArrowDown") {
@@ -1587,6 +1606,7 @@ export function EntityField({
   };
 
   const onChange = (value: string) => {
+    dropWait();
     setText(value);
     setDismissed(false);
     setActive(0);
@@ -1662,6 +1682,7 @@ export function EntityField({
             e.preventDefault();
             e.stopPropagation(); // × 是刪除，不是編輯 —— 別讓它冒泡成點了 chip
             if (held) return; // 動不得的時候連 × 也動不得（游標也是一般的，見 CSS）
+            dropWait();
             onCommit(refs.filter((r) => r !== ref));
             input.current?.focus();
           }}
