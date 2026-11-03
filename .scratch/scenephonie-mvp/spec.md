@@ -983,7 +983,7 @@ Final Draft／WriterDuet 的價值主張是「保證你的格式沒錯」，與�
 |---|---|---|
 | **accent** | 可點擊、選取、focus | **依自身語意獨立設計，不從 brand color 衍生**（依賴方向反轉，票券 28）。accent 色值歸票券 26 |
 | **draft** | 草稿場次標籤 | **document state** —— 常駐、大量、判準是**不疲勞** |
-| **error** | 匯出前防呆的錯誤態 | **action consequence** —— 只在匯出彈窗出現，**可以刺眼** |
+| **error** | 匯出前防呆與表單驗證的錯誤態；危險動作（刪除、停用連結） | **action consequence** —— 只在動作後果處出現，**可以刺眼**。危險動作用 error 字＋框、永不實心（2026-11-03 改寫，見 [`apps/web/DESIGN.md`](../../apps/web/DESIGN.md)） |
 | **neutral** | 文字與介面層次（主色調） | 判準是**不搶戲** |
 
 - **暫不建立 `success` semantic role** —— 交付狀態用文字說。

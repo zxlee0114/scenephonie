@@ -27,3 +27,8 @@
 impeccable critique（2026-10-27，`apps/web/.impeccable/critique/2026-10-27T00-56-47Z__apps-web-src-app.md`）P1：
 Nielsen #8（美學與極簡）2 分、認知負荷「單一焦點」不及格。檔案：`apps/web/src/styles/editor.css`、`editor/nodes/`、
 `editor/field-info.tsx`。
+
+## Comments
+
+**2026-11-03**：[`apps/web/DESIGN.md`](../../../apps/web/DESIGN.md) 把「場次抬頭與 chip 的長相」標為**待定**、刻意不先定（Components → Scene Heading & Chips）。這張票定出「一行的長相」後，回頭把結果寫進 DESIGN.md 那一節，並與 59、55 的決定放在一起。
+已知約束只有兩條：metadata 預設可見、缺漏不可被預設 UI 隱藏（§7.11）；空欄「還沒填」靠虛線框、字用 `--text-secondary`（票 86）。

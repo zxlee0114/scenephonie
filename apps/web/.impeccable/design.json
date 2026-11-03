@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-03T00:00:00Z",
+  "title": "Design System: Scenephonie",
+  "extensions": {
+    "colorMeta": {
+      "neutral-0": { "role": "neutral", "displayName": "White", "canonical": "#ffffff", "tonalRamp": ["#23241f", "#333430", "#474840", "#61635a", "#7d7f75", "#a6a89f", "#e2e3df", "#ffffff"] },
+      "neutral-50": { "role": "neutral", "displayName": "Fog", "canonical": "#f7f7f5", "tonalRamp": ["#23241f", "#333430", "#474840", "#61635a", "#7d7f75", "#a6a89f", "#e2e3df", "#f7f7f5"] },
+      "neutral-100": { "role": "neutral", "displayName": "Lime Wash", "canonical": "#eeeeeb", "tonalRamp": ["#23241f", "#333430", "#474840", "#61635a", "#7d7f75", "#a6a89f", "#e2e3df", "#eeeeeb"] },
+      "neutral-200": { "role": "neutral", "displayName": "Hairline", "canonical": "#e2e3df", "tonalRamp": ["#23241f", "#333430", "#474840", "#61635a", "#7d7f75", "#a6a89f", "#cdcec8", "#e2e3df"] },
+      "neutral-300": { "role": "neutral", "displayName": "Frame", "canonical": "#cdcec8", "tonalRamp": ["#23241f", "#333430", "#474840", "#61635a", "#7d7f75", "#a6a89f", "#cdcec8", "#f7f7f5"] },
+      "neutral-400": { "role": "neutral", "displayName": "Faint (decoration only)", "canonical": "#a6a89f", "tonalRamp": ["#23241f", "#333430", "#474840", "#61635a", "#7d7f75", "#a6a89f", "#cdcec8", "#f7f7f5"] },
+      "neutral-500": { "role": "neutral", "displayName": "Unassigned 500", "canonical": "#7d7f75", "tonalRamp": ["#23241f", "#333430", "#474840", "#61635a", "#7d7f75", "#a6a89f", "#cdcec8", "#f7f7f5"] },
+      "neutral-600": { "role": "neutral", "displayName": "Graphite", "canonical": "#61635a", "tonalRamp": ["#23241f", "#333430", "#474840", "#61635a", "#7d7f75", "#a6a89f", "#cdcec8", "#f7f7f5"] },
+      "neutral-700": { "role": "neutral", "displayName": "Control", "canonical": "#474840", "tonalRamp": ["#23241f", "#333430", "#474840", "#61635a", "#7d7f75", "#a6a89f", "#cdcec8", "#f7f7f5"] },
+      "neutral-800": { "role": "neutral", "displayName": "Unassigned 800", "canonical": "#333430", "tonalRamp": ["#23241f", "#333430", "#474840", "#61635a", "#7d7f75", "#a6a89f", "#cdcec8", "#f7f7f5"] },
+      "neutral-900": { "role": "neutral", "displayName": "Ink", "canonical": "#23241f", "tonalRamp": ["#23241f", "#333430", "#474840", "#61635a", "#7d7f75", "#a6a89f", "#cdcec8", "#f7f7f5"] },
+      "accent": { "role": "primary", "displayName": "Quiet Ink Blue", "canonical": "#2f6087", "tonalRamp": ["oklch(25% 0.04 245)", "oklch(33% 0.06 245)", "oklch(40% 0.07 245)", "oklch(47% 0.08 245)", "oklch(58% 0.07 245)", "oklch(70% 0.05 245)", "oklch(84% 0.03 245)", "oklch(94% 0.015 245)"] },
+      "accent-hover": { "role": "primary", "displayName": "Deep Ink Blue", "canonical": "#244d6d" },
+      "accent-weak": { "role": "primary", "displayName": "Blue Mist", "canonical": "#e3edf4" },
+      "draft": { "role": "secondary", "displayName": "Muted Ochre", "canonical": "#8a6a20", "tonalRamp": ["oklch(25% 0.04 80)", "oklch(33% 0.06 80)", "oklch(42% 0.08 80)", "oklch(52% 0.09 80)", "oklch(62% 0.09 80)", "oklch(73% 0.07 80)", "oklch(85% 0.04 80)", "oklch(94% 0.025 85)"] },
+      "draft-weak": { "role": "secondary", "displayName": "Ochre Wash", "canonical": "#f3ecd7" },
+      "error": { "role": "tertiary", "displayName": "Plain Signal Red", "canonical": "#b23a2c", "tonalRamp": ["oklch(25% 0.06 30)", "oklch(33% 0.09 30)", "oklch(42% 0.12 30)", "oklch(51% 0.15 30)", "oklch(62% 0.13 30)", "oklch(73% 0.09 30)", "oklch(85% 0.05 30)", "oklch(94% 0.02 30)"] },
+      "error-weak": { "role": "tertiary", "displayName": "Signal Wash", "canonical": "#f6e3e0" }
+    },
+    "typographyMeta": {
+      "screenplay-body": { "displayName": "劇本正文", "purpose": "動作、對白、插入畫面。只載 Regular 400；行長 36ic（對白 26ic）。17px／1.85 是工作值。" },
+      "doc-title": { "displayName": "文件標題", "purpose": "散文文件頁的文件名稱（第一層標題）。700 只由文件頁掛上。" },
+      "doc-heading": { "displayName": "文件 H2", "purpose": "散文文件內作者寫的第二層標題。" },
+      "doc-subheading": { "displayName": "文件 H3", "purpose": "散文文件內作者寫的第三層標題。" },
+      "ui-title": { "displayName": "介面標題", "purpose": "對話框與精靈標題。system-ui 600。" },
+      "ui-label": { "displayName": "介面標籤", "purpose": "按鈕、選單、chip row、sidebar、場次表、說明文字（--text-sm）。" }
+    },
+    "shadows": [
+      { "name": "shadow-popover", "value": "0 4px 16px #23241f14", "purpose": "唯一的陰影：選單、浮層、對話框、toast、drawer 等暫時出現的東西，永遠搭配 1px --rule-strong 框線。" }
+    ],
+    "motion": [
+      { "name": "fade-quick", "value": "opacity 120ms ease", "purpose": "hover 才浮現的 affordance（拖曳把手、insertion zone）。" },
+      { "name": "scene-just-added", "value": "900ms ease-out", "purpose": "剛新增的場次以 --selection-bg 閃一下後淡出。" },
+      { "name": "reduced-motion", "value": "prefers-reduced-motion: reduce", "purpose": "一律關掉過渡與動畫。" }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "wide", "value": "64rem" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "唯一的主要按鈕樣式；一個畫面或對話框至多一顆。",
+      "html": "<button class=\"ds-btn-primary\">建立專案</button>",
+      "css": ".ds-btn-primary { padding: var(--space-2, 8px) var(--space-4, 16px); border: 0; border-radius: var(--space-2, 8px); background: var(--color-accent, #2f6087); color: var(--text-on-accent, #fff); font-family: var(--font-ui, system-ui); font-size: var(--text-sm, 0.8125rem); font-weight: 600; cursor: pointer; } .ds-btn-primary:hover { background: var(--color-accent-hover, #244d6d); } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus-ring, #2f6087); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "關閉、取消、返回與其他非主要動作。",
+      "html": "<button class=\"ds-btn-secondary\">關閉</button>",
+      "css": ".ds-btn-secondary { padding: var(--space-2, 8px) var(--space-4, 16px); border: 1px solid var(--control-border, #cdcec8); border-radius: var(--space-2, 8px); background: var(--surface-page, #fff); color: var(--control-fg, #474840); font-family: var(--font-ui, system-ui); font-size: var(--text-sm, 0.8125rem); cursor: pointer; } .ds-btn-secondary:hover { border-color: var(--rule-strong, #cdcec8); color: var(--text-primary, #23241f); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--focus-ring, #2f6087); outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "會讓東西消失或讓連結失效的動作；error 字＋框，永不實心，與常用動作隔開。",
+      "html": "<button class=\"ds-btn-danger\">停用連結</button>",
+      "css": ".ds-btn-danger { padding: var(--space-2, 8px) var(--space-4, 16px); border: 1px solid var(--error-fg, #b23a2c); border-radius: var(--space-2, 8px); background: var(--surface-page, #fff); color: var(--error-fg, #b23a2c); font-family: var(--font-ui, system-ui); font-size: var(--text-sm, 0.8125rem); cursor: pointer; } .ds-btn-danger:hover { background: var(--error-bg, #f6e3e0); } .ds-btn-danger:focus-visible { outline: 2px solid var(--focus-ring, #2f6087); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "表單欄位；placeholder 用 --text-secondary。",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field__label\">片名</span><input class=\"ds-input\" placeholder=\"還沒取名也可以先略過\"></label>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: var(--space-1, 4px); font-family: var(--font-ui, system-ui); } .ds-field__label { font-size: var(--text-sm, 0.8125rem); font-weight: 600; color: var(--text-primary, #23241f); } .ds-input { padding: var(--space-2, 8px) var(--space-3, 12px); border: 1px solid var(--control-border, #cdcec8); border-radius: var(--space-1, 4px); background: var(--surface-page, #fff); color: var(--text-primary, #23241f); font: inherit; } .ds-input::placeholder { color: var(--text-secondary, #61635a); } .ds-input:focus-visible { outline: 2px solid var(--focus-ring, #2f6087); outline-offset: 2px; }"
+    },
+    {
+      "name": "Menu",
+      "kind": "custom",
+      "refersTo": "menu",
+      "description": "場次選單、slash 選單等錨定浮層；危險列放最後一區、上方分隔。",
+      "html": "<div class=\"ds-menu\" role=\"menu\"><button class=\"ds-menu__item is-active\" role=\"menuitem\">搬移到…</button><button class=\"ds-menu__item\" role=\"menuitem\">標記為草稿</button><hr class=\"ds-menu__sep\"><button class=\"ds-menu__item ds-menu__item--danger\" role=\"menuitem\">刪除本場</button></div>",
+      "css": ".ds-menu { min-inline-size: 12rem; padding: var(--space-1, 4px); background: var(--surface-page, #fff); border: 1px solid var(--rule-strong, #cdcec8); border-radius: var(--space-2, 8px); box-shadow: var(--shadow-popover, 0 4px 16px #23241f14); font-family: var(--font-ui, system-ui); font-size: var(--text-sm, 0.8125rem); } .ds-menu__item { display: block; inline-size: 100%; text-align: start; padding: var(--space-2, 8px) var(--space-3, 12px); border: 0; border-radius: var(--space-1, 4px); background: transparent; color: var(--text-primary, #23241f); font: inherit; cursor: pointer; } .ds-menu__item:hover, .ds-menu__item.is-active, .ds-menu__item:focus-visible { background: var(--selection-bg, #e3edf4); outline: none; } .ds-menu__item--danger { color: var(--error-fg, #b23a2c); } .ds-menu__sep { margin: var(--space-1, 4px) 0; border: 0; border-block-start: 1px solid var(--rule, #e2e3df); }"
+    },
+    {
+      "name": "Dialog",
+      "kind": "card",
+      "refersTo": "dialog",
+      "description": "模態對話框：靠上對齊 header 下方，一顆主要按鈕、其餘次要。",
+      "html": "<div class=\"ds-dialog\" role=\"dialog\" aria-labelledby=\"ds-dialog-t\"><h2 id=\"ds-dialog-t\" class=\"ds-dialog__title\">匯出 PDF</h2><p class=\"ds-dialog__hint\">這份 PDF 會建立一筆交付。</p><div class=\"ds-dialog__actions\"><button class=\"ds-dialog__secondary\">關閉</button><button class=\"ds-dialog__primary\">匯出</button></div></div>",
+      "css": ".ds-dialog { inline-size: min(28rem, 100%); padding: var(--space-5, 24px); background: var(--surface-page, #fff); border: 1px solid var(--rule-strong, #cdcec8); border-radius: var(--space-3, 12px); box-shadow: var(--shadow-popover, 0 4px 16px #23241f14); font-family: var(--font-ui, system-ui); font-size: var(--text-sm, 0.8125rem); color: var(--text-primary, #23241f); } .ds-dialog__title { margin: 0 0 var(--space-1, 4px); font-size: 1rem; font-weight: 600; } .ds-dialog__hint { margin: 0; color: var(--text-secondary, #61635a); } .ds-dialog__actions { display: flex; justify-content: flex-end; gap: var(--space-3, 12px); margin-block-start: var(--space-4, 16px); } .ds-dialog__actions button { padding: var(--space-2, 8px) var(--space-4, 16px); border-radius: var(--space-2, 8px); font: inherit; cursor: pointer; } .ds-dialog__secondary { border: 1px solid var(--control-border, #cdcec8); background: var(--surface-page, #fff); color: var(--control-fg, #474840); } .ds-dialog__primary { border: 0; background: var(--color-accent, #2f6087); color: var(--text-on-accent, #fff); font-weight: 600; } .ds-dialog__primary:hover { background: var(--color-accent-hover, #244d6d); } .ds-dialog__actions button:focus-visible { outline: 2px solid var(--focus-ring, #2f6087); outline-offset: 2px; }"
+    },
+    {
+      "name": "View Switch",
+      "kind": "nav",
+      "refersTo": "header-bar",
+      "description": "header 裡的「劇本／場次表」切換：文字連結＋底線，不畫框。",
+      "html": "<nav class=\"ds-bar\"><span class=\"ds-bar__crumb\">海豚公寓</span><span class=\"ds-switch\"><a class=\"ds-switch__item\" aria-current=\"page\" href=\"#\">劇本</a><a class=\"ds-switch__item\" href=\"#\">場次表</a></span></nav>",
+      "css": ".ds-bar { display: flex; align-items: center; gap: var(--space-3, 12px); block-size: var(--bar-height, 48px); padding-inline: var(--space-5, 24px); background: var(--surface-page, #fff); border-block-end: 1px solid var(--rule, #e2e3df); font-family: var(--font-ui, system-ui); font-size: var(--text-sm, 0.8125rem); } .ds-bar__crumb { color: var(--text-secondary, #61635a); } .ds-switch { display: flex; gap: var(--space-3, 12px); } .ds-switch::before { content: \"/\"; color: var(--text-faint, #a6a89f); } .ds-switch__item { color: var(--text-secondary, #61635a); text-decoration: none; } .ds-switch__item:hover { color: var(--text-primary, #23241f); } .ds-switch__item[aria-current=\"page\"] { color: var(--text-primary, #23241f); font-weight: 600; text-decoration: underline; text-underline-offset: 0.3em; } .ds-switch__item:focus-visible { outline: 2px solid var(--focus-ring, #2f6087); outline-offset: 2px; }"
+    },
+    {
+      "name": "Scene Nav Row",
+      "kind": "nav",
+      "refersTo": "scene-nav-row-current",
+      "description": "場次導覽 sidebar 的一列：四格固定欄寬，目前場次用選取底，草稿只換場次號字色。",
+      "html": "<div class=\"ds-scene-nav\"><button class=\"ds-scene-nav__row\"><span class=\"ds-scene-nav__no\">S1</span><span>內</span><span>日</span><span>廚房</span></button><button class=\"ds-scene-nav__row\" aria-current=\"location\"><span class=\"ds-scene-nav__no\">S2</span><span>外</span><span>夜</span><span>海豚公寓陽台</span></button><button class=\"ds-scene-nav__row\"><span class=\"ds-scene-nav__no ds-scene-nav__no--draft\">草稿</span><span>內</span><span>昏</span><span>未知大樓房間</span></button></div>",
+      "css": ".ds-scene-nav { inline-size: 16rem; font-family: var(--font-ui, system-ui); font-size: var(--text-sm, 0.8125rem); color: var(--text-secondary, #61635a); } .ds-scene-nav__row { display: grid; grid-template-columns: 4.5em 2em 1em minmax(0, 1fr); column-gap: var(--space-2, 8px); align-items: baseline; inline-size: 100%; padding: var(--space-1, 4px) var(--space-3, 12px); border: 0; background: none; color: inherit; font: inherit; line-height: 1.75; text-align: start; cursor: pointer; } .ds-scene-nav__row > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-scene-nav__row:hover { background: var(--surface-raised, #f7f7f5); color: var(--text-primary, #23241f); } .ds-scene-nav__row[aria-current=\"location\"] { background: var(--selection-bg, #e3edf4); color: var(--text-primary, #23241f); } .ds-scene-nav__row:focus-visible { outline: 2px solid var(--focus-ring, #2f6087); outline-offset: -2px; } .ds-scene-nav__no { font-variant-numeric: tabular-nums; } .ds-scene-nav__no--draft { color: var(--draft-fg, #8a6a20); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "第八個小時",
+    "overview": "每一個視覺決定都先問同一句話：編劇連續寫到第八個小時，這個東西還受得了嗎？這把尺不量一屏塞了多少，量的是疲勞度。它跟不變式 G 一樣可否證 —— 一塊常駐的淡底、一顆搶眼的按鈕、一個每場都在的框，都可以拿這句話判對錯。Surface mode 是 Operate：熟悉的介面慣例有它的位置，表現力只出現在精準的細節裡。\n\n這套系統有兩種 typographic role，而且刻意分開：介面像作業系統，內容像稿子。按鈕、選單、場次表、decoration 用 system-ui，小、輕、退到邊上；劇本與散文文件用 Noto Sans TC，大一級、行距鬆、行長收在 30–40 個全形字。畫面以近白的中性色為主調，只有四個色彩角色（accent、draft、error、neutral），每一個都有它自己的判準。結構邊界靠位置與間距建立，不靠描繪：場次不畫框，decoration 住在左側 gutter、不進 content flow。\n\n參照 Ulysses 的沉靜，借 Notion 的區塊語意，刻意不像 Final Draft 的版面權威（A4 紙感、分頁線、標楷體、12 級字）與 Scrivener 的窗格密度。編輯器不是 PDF 預覽 —— PDF 匯出版面是另一套模板，不在這份檔案的範圍內。",
+    "keyCharacteristics": [
+      "近白中性底、微偏冷的低彩度灰；色彩只在有語意的地方出現。",
+      "兩套字體各司其職：內容 Noto Sans TC 400（17px／1.85），介面 system-ui。",
+      "偏鬆的密度與 4px 為底的間距節奏；劇本左側固定 4rem gutter。",
+      "平面為主，只有一種陰影，留給浮在稿子上的東西。",
+      "一個畫面至多一顆主要按鈕；危險動作用 error 色但永不實心。",
+      "繁體中文介面，劇組語言。"
+    ],
+    "rules": [
+      { "name": "The Semantic Token Rule", "body": "原始碼裡不得出現 hex；色彩的原始值只住在 tokens.css 的 primitive 層，其他一切用 semantic token。v1 只有 Light theme；深色是換 primitive 的值，semantic 層不動。", "section": "colors" },
+      { "name": "The Faint Is Decoration Rule", "body": "--text-faint 只給裝飾性文字：不可編輯、不可選取、靠位置說話的東西。可操作的元件與 placeholder 一律 --text-secondary 以上；要人讀的說明與正文也是。唯一經過裁決的例外是 hub 卡片摘要（票 86、.impeccable/config.json）。其餘既有用法由票 96 逐處判。不要為了救對比去調深 neutral-400。", "section": "colors" },
+      { "name": "The Two Reds Are Not One Rule", "body": "draft 與 error 不同色是因為語意不在同一層：draft 是文件狀態（不疲勞），error 是動作後果（可以刺眼）。v1 沒有 warning 與 success 角色。", "section": "colors" },
+      { "name": "The Error Has Two Consumers Rule", "body": "error 色只有兩個合法消費者：匯出前防呆與表單驗證錯誤；危險動作。規格 §7.11 已於 2026-11-03 隨此改寫。必填星號不是錯誤。", "section": "colors" },
+      { "name": "The No Color for Content Rule", "body": "三種區塊型別是內容，不上色；用縮排、欄寬、間距與閱讀節奏區分。", "section": "colors" },
+      { "name": "The Regular Only Rule", "body": "劇本頁只載 Noto Sans TC Regular 400。字重不得表達劇本的內容語意；700 只給散文文件。", "section": "typography" },
+      { "name": "The No Output Typography Rule", "body": "楷體、明體、12 級字、TNUA 的 12pt／16pt 都屬 PDF 那一套，不進螢幕。", "section": "typography" },
+      { "name": "The Unitless Leading Rule", "body": "內容的行高一律寫無單位比值，不寫 normal、不用 ascent-override 或 size-adjust。", "section": "typography" },
+      { "name": "The One Shadow Rule", "body": "只有 --shadow-popover。靜止的內容沒有陰影；有陰影就代表它是暫時的、會關掉的。", "section": "elevation" },
+      { "name": "The Scrim Rule", "body": "模態對話框的遮罩是 --surface-page 72% 混透明，讓稿子淡下去而不是變暗。", "section": "elevation" },
+      { "name": "The No Frame Rule", "body": "場次、區塊、對白都不畫邊框，也不畫三角形或框框；結構提示只能是線段、位置與間距。", "section": "elevation" },
+      { "name": "The One Primary Rule", "body": "主要按鈕只有一種樣式（實心 accent），一個畫面或一個對話框至多一顆；關閉、取消、返回永遠是 secondary。", "section": "elevation" },
+      { "name": "The Danger Is Set Apart Rule", "body": "危險動作用 error 字＋框、永不實心；選單裡放最後一區並加分隔線；不與主要按鈕並排同重；不可逆的第二步要確認。", "section": "elevation" },
+      { "name": "The One Placement Rule", "body": "所有錨定浮層走同一支定位函式（slash-menu-position.ts）：下方優先、貼齊起始邊、放不下翻上方、夾進視窗 8px、不得捲頁或移動游標。", "section": "elevation" },
+      { "name": "The Dialog Placement Rule", "body": "模態對話框水平置中、靠上對齊 header 下緣再空 24px，內容超高在對話框裡捲、動作列永遠看得到。", "section": "elevation" }
+    ],
+    "dos": [
+      "Do 每個視覺決定先問「第八個小時受得了嗎」。",
+      "Do 一律用 semantic token（--text-*、--surface-*、--rule*、--control-*、--draft-*、--error-*）；新增角色前先證明既有的四個角色裝不下。",
+      "Do 可操作元件與 placeholder 用 --text-secondary 以上；文字對比守 WCAG 2.2 AA（4.5:1，非文字元件 3:1）。",
+      "Do 每個畫面至多一顆實心 accent 主要按鈕。",
+      "Do 危險動作用 error 字＋框、放最後、與常用動作隔開。",
+      "Do 所有錨定浮層走同一支定位函式：下方優先、可翻上方、夾進視窗 8px、不捲頁。",
+      "Do 劇本與文件的行長用 ic 表達、em 作 fallback；行高寫無單位比值。",
+      "Do 動畫只用 opacity 這類短的狀態轉換（現況 120ms），並尊重 prefers-reduced-motion。"
+    ],
+    "donts": [
+      "Don't 模擬任何輸出格式：A4 紙感、分頁線、標楷體／明體、12 級字、三角形、框框（不變式 G）。",
+      "Don't 給場次、區塊或對白畫邊框；不要用顏色區分動作／對白／插入畫面。",
+      "Don't 在劇本頁用粗體或載入 400 以外的 Noto Sans TC 字重。",
+      "Don't 把 --text-faint 用在按鈕、開關、觸發鈕、placeholder 或要人讀的說明上；也不要為了救對比調深 neutral-400。",
+      "Don't 讓第二種主要按鈕樣式出現（深色框＋600、實心灰、實心紅都不行）。",
+      "Don't 用實心紅做危險按鈕；不要用 error 色標必填或「還沒填」。",
+      "Don't 加第二種陰影或 hover 浮起；不要用黑色半透明遮罩。",
+      "Don't 在原始碼寫 hex，也不要發明 z-index 中間值。",
+      "Don't 用 emoji 當介面記號或語氣（票 55 會換成 SVG）。",
+      "Don't 在 v1 加 brand color、獨立 mark 或行銷式的視覺；wordmark 只改 SVG 資產、不在 CSS 調。"
+    ]
+  }
+}

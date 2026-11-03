@@ -38,3 +38,17 @@
 
 impeccable critique（2026-10-27，`apps/web/.impeccable/critique/2026-10-27T00-56-47Z__apps-web-src-app.md`）的 minor observations。
 已有票的項目不在這裡：存檔狀態（74）、emoji 記號（55）、chip 全選（57）、選單切邊（33）、游標沉底（81）、人物介紹（78）。
+
+## Comments
+
+**2026-11-03，DESIGN.md 定案（使用者裁決）**：下列幾條的「要定成什麼」已有答案，見 [`apps/web/DESIGN.md`](../../../apps/web/DESIGN.md)；這張票只剩實作。
+
+- **主要按鈕樣式**（對話框與面板第 1 條）→ **The One Primary Rule**：實心 accent（`--color-accent` 底、`--text-on-accent`、600、8px 圓角、padding 8×16，hover `accent-hover`），一個畫面或對話框**至多一顆**；關閉／取消／返回一律 secondary（白底、`--control-border` 框）。要改的是匯出對話框（`.export-pdf__actions button:last-child` 的深色框）與分享面板。
+- **分享面板「停用」**（對話框與面板第 2 條）與**場次選單「刪除本場」**（編輯器第 2 條，可交給 68）→ **The Danger Is Set Apart Rule**：`--error-fg` 字＋框、永不實心；選單裡放最後一區加分隔；按鈕列裡與其他動作拉開。
+- **必填星號用錯誤紅**（頁面第 4 條）→ **The Error Has Two Consumers Rule**：必填不是錯誤，不用 error 色。
+- **快捷鍵總覽貼頂**（編輯器第 5 條）→ **The Dialog Placement Rule**：水平置中、靠上對齊在 header 下緣再空 24px。
+
+新增兩條（DESIGN.md 撈到）：
+
+- [ ] **合併確認窗垂直置中**（`.merge-confirm__scrim` 的 `align-items: center`），與 Dialog Placement Rule 不符，改成跟匯出對話框一樣靠上。
+- [ ] **`tokens.css` 檔頭的 error 註解**還寫「只在匯出彈窗出現」；規格 §7.11 已於 2026-11-03 改寫（error 的消費者＝匯出防呆／表單驗證＋危險動作），下次動檔時同步。順帶看要不要替 `--color-accent` 的直接引用（主按鈕底、tab 底線）立 semantic token，深色模式換值時才不會漏。

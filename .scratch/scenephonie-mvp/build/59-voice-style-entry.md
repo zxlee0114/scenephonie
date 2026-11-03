@@ -30,3 +30,5 @@
 沒有任何標記（編輯器程式碼完全沒渲染 `voiceStyle`）。會印進 PDF 的資訊在寫作時看不見。
 「chip 上怎麼標」那一題因此不只是入口的附帶問題：建議 chip 後掛一個 `--text-secondary` 的小標籤「O.S.」「V.O.」，
 並與 83（抬頭收合）一起設計，因為兩者都在改 chip 與抬頭的長相。
+
+**2026-11-03**：chip 上 V.O./O.S. 怎麼標，在 [`apps/web/DESIGN.md`](../../../apps/web/DESIGN.md) 標為**待定**（Components → Scene Heading & Chips），與 83、55 一起設計。定案後回寫 DESIGN.md。
