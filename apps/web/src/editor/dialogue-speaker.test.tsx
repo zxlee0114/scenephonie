@@ -433,8 +433,11 @@ describe("對白人物欄：Enter 定案就進台詞（票券 82）", () => {
       editor.commands.undo();
     });
 
-    await waitFor(() => expect(lineText(editor)).toBe(""));
-    expect(input.value).toBe("你不說話。");
+    // 文件同步退回，字要等欄位重繪才放回框裡 —— 兩個一起等（同票券 97 那條）。
+    await waitFor(() => {
+      expect(lineText(editor)).toBe("");
+      expect(input.value).toBe("你不說話。");
+    });
     expect(document.activeElement).toBe(input);
   });
 
@@ -539,13 +542,19 @@ describe("對白人物欄：Enter 定案就進台詞（票券 82）", () => {
     fireEvent.change(input, { target: { value: "你不說話。" } });
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(lineText(editor)).toBe("你不說話。"));
+    // Enter 的 `focus()` 延到下一個 animation frame 才落地 —— 等它到了再撤，否則它會在撤銷把焦點
+    // 交還人物欄之後才到、又把焦點拉回內文（CI 撈到的，真人按不出這麼快的 ⌘Z）。
+    await waitFor(() => expect(document.activeElement).toBe(editor.view.dom));
 
     act(() => {
       editor.commands.undo();
     });
 
-    await waitFor(() => expect(lineText(editor)).toBe(""));
-    expect(input.value).toBe("你不說話。");
+    // 文件同步退回，字要等欄位重繪才放回框裡 —— 兩個一起等（同票券 97 那條）。
+    await waitFor(() => {
+      expect(lineText(editor)).toBe("");
+      expect(input.value).toBe("你不說話。");
+    });
     expect(document.activeElement).toBe(input);
   });
 });
