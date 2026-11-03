@@ -16,12 +16,18 @@
 
 **Status:** done
 
-## 定案（使用者 2026-10-28）
+## 定案（使用者 2026-11-03，改寫 2026-10-28 那一版）
 
-- [x] **欄位裡的 ⌘Z／⌘⇧Z 不捲動**：`forwardHistoryKey` 改用 prosemirror-history 的 `undoNoScroll`／`redoNoScroll`。
-  在欄位裡按的這一下，編劇看的是這一欄；撤的若是別場的字，畫面不會跟過去 —— 回到內文再按 ⌘Z 就照常捲。
-  不做「撤銷落在別場才捲」：要先判斷那一步改到哪裡，複雜度不值得。
-- `strayHistoryKey`（焦點掉到 body 那一格）不在這張票：那一下不是從欄位裡按的。
+第一版是「欄位裡的 ⌘Z 不捲」。驗收時撈到同一個根因的另一個入口：撤掉第 1 場的 chip、把第 1 場捲出畫面、
+點空白處（焦點掉到 body，走 `strayHistoryKey`）再按 ⌘Z —— 畫面捲動了，卻捲到文件游標，不是改動的位置。
+使用者也改要「撤到別場時畫面要跟過去」。
+
+- [x] **畫面跟著那一步走，不跟著文件游標走**：撤銷／重做都不帶 `scrollIntoView`，改拿前後兩份文件比
+  （`findDiffStart`）出改到哪裡 —— 已經在畫面上就不動；不在，就捲過去、停在畫面中段（`anchor: 0.5`）。
+- [x] **三個入口一條規則**：欄位裡（`forwardHistoryKey`）、焦點掉到 body（`strayHistoryKey`）、內文
+  （接手 StarterKit `undoRedo` 的 `Mod-z`／`Shift-Mod-z`／`Mod-y` 與俄文鍵盤那兩格）都走 `runHistory`。
+- 沒接的：瀏覽器選單「編輯 → 還原」（`beforeinput` 的 `historyUndo`）仍走 prosemirror-history 自己那條、會捲到游標。
+  沒人回報，先不動。
 
 ## 從哪來的
 

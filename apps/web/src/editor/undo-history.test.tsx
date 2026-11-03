@@ -154,24 +154,6 @@ describe("chip row 上的 ⌘Z", () => {
     );
   });
 
-  it("欄位裡的 ⌘Z／⌘⇧Z 不捲動頁面 —— 文件游標可能停在很遠的另一場（票券 98）", async () => {
-    let editor!: Editor;
-    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
-    const input = await newLocationChip(container);
-    // undo 若帶 `scrollIntoView`，ProseMirror 會把視窗捲到撤銷後的文件游標 —— 欄位定案時
-    // 刻意不動那個游標（`keepCaret`），所以它停在編劇上次打字的地方。
-    const scrolled: boolean[] = [];
-    editor.on("transaction", ({ transaction }) => scrolled.push(transaction.scrolledIntoView));
-
-    fireEvent.keyDown(input, undoKey);
-    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).toBeNull());
-    fireEvent.keyDown(input, redoKey);
-    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull());
-
-    expect(scrolled.length).toBeGreaterThanOrEqual(2);
-    expect(scrolled).not.toContain(true);
-  });
-
   it("框裡還有沒定案的字時不接手 —— 那一下的 ⌘Z 是「撤銷我剛打的字」", async () => {
     let editor!: Editor;
     const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
@@ -182,6 +164,86 @@ describe("chip row 上的 ⌘Z", () => {
 
     // 文件沒有被動到：地點還在。原生 undo 去處理那幾個字，那是它的事。
     expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull();
+  });
+});
+
+describe("⌘Z 捲到撤掉的那一步，不捲到文件游標（票券 98）", () => {
+  // 欄位定案時刻意不動文件游標（`keepCaret`）—— 它停在編劇上次在內文打字的地方，可能是好幾場
+  // 之外。undo 自帶的 `scrollIntoView` 捲的正是那個游標，所以三個入口都不能讓它帶著。
+  function scrollLog(editor: Editor) {
+    const scrolled: boolean[] = [];
+    editor.on("transaction", ({ transaction }) => scrolled.push(transaction.scrolledIntoView));
+    return scrolled;
+  }
+
+  /** 讓那一步落在畫面之外（jsdom 沒有版面，`coordsAtPos` 一律是零矩形 ＝ 在畫面上）。 */
+  function offscreen(editor: Editor) {
+    vi.spyOn(editor.view, "coordsAtPos").mockReturnValue({ top: 3000, bottom: 3020, left: 0, right: 0 });
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("欄位裡：那一步就在眼前 → 不捲", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    const input = await newLocationChip(container);
+    const scrolled = scrollLog(editor);
+    const scrollTo = vi.spyOn(window, "scrollTo");
+
+    fireEvent.keyDown(input, undoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).toBeNull());
+    fireEvent.keyDown(input, redoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull());
+
+    expect(scrolled.length).toBeGreaterThanOrEqual(2);
+    expect(scrolled).not.toContain(true);
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("欄位裡：那一步在畫面外 → 捲過去", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    const input = await newLocationChip(container);
+    offscreen(editor);
+    const scrollTo = vi.spyOn(window, "scrollTo");
+
+    fireEvent.keyDown(input, undoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).toBeNull());
+
+    expect(scrollTo).toHaveBeenCalled();
+  });
+
+  it("焦點掉到 body：不捲到文件游標，那一步在畫面外才捲過去", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    const input = await newLocationChip(container);
+    input.blur();
+    const scrolled = scrollLog(editor);
+    offscreen(editor);
+    const scrollTo = vi.spyOn(window, "scrollTo");
+
+    fireEvent.keyDown(document.body, undoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).toBeNull());
+
+    expect(scrolled).not.toContain(true);
+    expect(scrollTo).toHaveBeenCalled();
+  });
+
+  it("內文裡：同一條規則", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await newLocationChip(container);
+    const scrolled = scrollLog(editor);
+    offscreen(editor);
+    const scrollTo = vi.spyOn(window, "scrollTo");
+
+    fireEvent.keyDown(editor.view.dom, undoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).toBeNull());
+    fireEvent.keyDown(editor.view.dom, redoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull());
+
+    expect(scrolled).not.toContain(true);
+    expect(scrollTo).toHaveBeenCalledTimes(2);
   });
 });
 

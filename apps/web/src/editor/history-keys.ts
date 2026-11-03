@@ -31,7 +31,50 @@
  */
 import { Extension, type Editor } from "@tiptap/core";
 import { redoNoScroll, undoNoScroll } from "@tiptap/pm/history";
+import type { EditorView } from "@tiptap/pm/view";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+
+import { scrollToWritingPosition } from "./typewriter-scroll";
+
+/**
+ * 撤銷／重做一步，**畫面跟著那一步走，不跟著文件游標走**（票券 98）—— 三個入口（內文、欄位、
+ * 焦點掉到 body）都走這裡。
+ *
+ * prosemirror-history 的 `undo` 會 `scrollIntoView`，捲到撤銷後的文件游標。可是欄位定案時刻意
+ * 不動那個游標（`keepCaret`）—— 它停在編劇上次在內文打字的地方，可能是好幾場之外：撤一個
+ * chip，畫面卻跳到一段不相干的內文（使用者回報 2026-10-28、2026-11-03）。
+ *
+ * 所以改成：不帶捲動地撤，再拿前後兩份文件比出**改到哪裡**。那裡已經在畫面上就不動（編劇正
+ * 看著它）；不在，就捲過去、停在畫面中段 —— 撤的是別場的字時，編劇要看得到被撤掉的是什麼。
+ */
+export function runHistory(editor: Editor, which: "undo" | "redo"): boolean {
+  const { view } = editor;
+  const before = view.state.doc;
+  const step = which === "redo" ? redoNoScroll : undoNoScroll;
+  if (!step(view.state, view.dispatch)) return false;
+  const at = before.content.findDiffStart(view.state.doc.content);
+  if (at != null) revealChange(view, at);
+  return true;
+}
+
+/** 改動的起點不在畫面上就捲過去。整份 replace（kernel command）也比得出來：比的是內容，不是 step。 */
+function revealChange(view: EditorView, pos: number): void {
+  if (typeof window === "undefined") return;
+  let coords: { top: number; bottom: number };
+  try {
+    coords = view.coordsAtPos(pos);
+  } catch {
+    return; // 落在 DOM 對不上的地方（例如剛被整段拿掉的尾端）—— 不知道在哪就不捲
+  }
+  if (coords.top >= 0 && coords.bottom <= window.innerHeight) return;
+
+  // 捲的目標是一個元素：改的是某個節點本身（chip ＝ 場次的屬性）就是那個節點，改的是字就是字所在的區塊。
+  const own = view.nodeDOM(pos);
+  const dom = own instanceof Element ? own : view.domAtPos(pos).node;
+  const target = dom instanceof Element ? dom : dom.parentElement;
+  if (!target || target === view.dom || !view.dom.contains(target)) return;
+  scrollToWritingPosition(target, { anchor: 0.5 });
+}
 
 /**
  * 欄位說「這一下歸文件，別看框裡有沒有字」的那些事件（票券 37）。
@@ -167,12 +210,7 @@ export function forwardHistoryKey(
 
   event.preventDefault();
   event.stopPropagation();
-  // **不捲動**（票券 98）：`commands.undo()` 會把視窗捲到撤銷後的文件游標，而欄位定案時刻意
-  // 不動那個游標（`keepCaret`）—— 它停在編劇上次在內文打字的地方，可能是好幾場之外。在欄位裡
-  // 按的這一下，編劇看的是這一欄；撤的若是別場的字，回到內文再按就照常捲過去。
-  const { state, dispatch } = editor.view;
-  if (which === "redo") redoNoScroll(state, dispatch);
-  else undoNoScroll(state, dispatch);
+  runHistory(editor, which);
   // 撤掉的若正是這一格所在的區塊（剛開出來的新對白、它的人物欄還握著焦點），輸入框跟著被拆掉，
   // 焦點就掉到 `body` —— 編劇接下來打的字無處可去。還給內文：undo 已經把 selection 放回撤銷前
   // 的位置（使用者回饋 2026-09-29，票券 10 驗收）。
@@ -217,14 +255,28 @@ export function strayHistoryKey(editor: Editor, event: KeyboardEvent): boolean {
   // `preventDefault` 同時是這張票的另一半：擋掉瀏覽器對那個空輸入框的原生 undo，
   // 不然那串裸字還是會被塞回框裡。
   event.preventDefault();
-  if (which === "redo") editor.commands.redo();
-  else editor.commands.undo();
+  runHistory(editor, which);
   return true;
 }
 
-/** 把 `strayHistoryKey` 掛上 window，活得跟 editor 一樣久。 */
+/**
+ * 把 `strayHistoryKey` 掛上 window，活得跟 editor 一樣久；內文的 ⌘Z 也從 StarterKit `undoRedo`
+ * 的 keymap 手上接過來，改走 `runHistory`（票券 98）—— 三個入口一條捲動規則。
+ * priority 壓過 `undoRedo`（預設 100）。
+ */
 export const StrayHistoryKey = Extension.create({
   name: "strayHistoryKey",
+  priority: 1000,
+  addKeyboardShortcuts() {
+    return {
+      "Mod-z": () => runHistory(this.editor, "undo"),
+      "Shift-Mod-z": () => runHistory(this.editor, "redo"),
+      "Mod-y": () => runHistory(this.editor, "redo"),
+      // `undoRedo` 也綁了俄文鍵盤那一格；不一起接，那一格就還走會捲到游標的舊路。
+      "Mod-я": () => runHistory(this.editor, "undo"),
+      "Shift-Mod-я": () => runHistory(this.editor, "redo"),
+    };
+  },
   onCreate() {
     const editor = this.editor;
     const listener = (event: KeyboardEvent) => strayHistoryKey(editor, event);
