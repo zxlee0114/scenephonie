@@ -167,6 +167,86 @@ describe("chip row 上的 ⌘Z", () => {
   });
 });
 
+describe("⌘Z 捲到撤掉的那一步，不捲到文件游標（票券 98）", () => {
+  // 欄位定案時刻意不動文件游標（`keepCaret`）—— 它停在編劇上次在內文打字的地方，可能是好幾場
+  // 之外。undo 自帶的 `scrollIntoView` 捲的正是那個游標，所以三個入口都不能讓它帶著。
+  function scrollLog(editor: Editor) {
+    const scrolled: boolean[] = [];
+    editor.on("transaction", ({ transaction }) => scrolled.push(transaction.scrolledIntoView));
+    return scrolled;
+  }
+
+  /** 讓那一步落在畫面之外（jsdom 沒有版面，`coordsAtPos` 一律是零矩形 ＝ 在畫面上）。 */
+  function offscreen(editor: Editor) {
+    vi.spyOn(editor.view, "coordsAtPos").mockReturnValue({ top: 3000, bottom: 3020, left: 0, right: 0 });
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("欄位裡：那一步就在眼前 → 不捲", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    const input = await newLocationChip(container);
+    const scrolled = scrollLog(editor);
+    const scrollTo = vi.spyOn(window, "scrollTo");
+
+    fireEvent.keyDown(input, undoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).toBeNull());
+    fireEvent.keyDown(input, redoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull());
+
+    expect(scrolled.length).toBeGreaterThanOrEqual(2);
+    expect(scrolled).not.toContain(true);
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("欄位裡：那一步在畫面外 → 捲過去", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    const input = await newLocationChip(container);
+    offscreen(editor);
+    const scrollTo = vi.spyOn(window, "scrollTo");
+
+    fireEvent.keyDown(input, undoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).toBeNull());
+
+    expect(scrollTo).toHaveBeenCalled();
+  });
+
+  it("焦點掉到 body：不捲到文件游標，那一步在畫面外才捲過去", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    const input = await newLocationChip(container);
+    input.blur();
+    const scrolled = scrollLog(editor);
+    offscreen(editor);
+    const scrollTo = vi.spyOn(window, "scrollTo");
+
+    fireEvent.keyDown(document.body, undoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).toBeNull());
+
+    expect(scrolled).not.toContain(true);
+    expect(scrollTo).toHaveBeenCalled();
+  });
+
+  it("內文裡：同一條規則", async () => {
+    let editor!: Editor;
+    const { container } = render(<Harness onEditor={(e) => (editor = e)} />);
+    await newLocationChip(container);
+    const scrolled = scrollLog(editor);
+    offscreen(editor);
+    const scrollTo = vi.spyOn(window, "scrollTo");
+
+    fireEvent.keyDown(editor.view.dom, undoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).toBeNull());
+    fireEvent.keyDown(editor.view.dom, redoKey);
+    await waitFor(() => expect(editor.state.doc.firstChild!.attrs.location).not.toBeNull());
+
+    expect(scrolled).not.toContain(true);
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("⌘Z 撤銷一筆定案 → 那串字回到輸入框（票券 37）", () => {
   it("打字新建那條路：chip 消失、「河堤」回到框裡、選單停在待選", async () => {
     let editor!: Editor;
