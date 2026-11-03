@@ -35,7 +35,7 @@ import {
 import { runKernelCommand } from "../command-bridge";
 import { BLOCK_META, setBlockTypeAt } from "../block-types";
 import { dismissOnOutsidePointer } from "../dismiss-on-outside-pointer";
-import { slashMenuPosition } from "../slash-menu-position";
+import { anchoredPosition } from "../anchored-position";
 import { currentSceneId, requestNextScene } from "./next-scene";
 import { editorSceneNumbers } from "./scene-numbers";
 import { returnMarkerText } from "./return-markers";
@@ -423,7 +423,7 @@ export function SlashMenu() {
         setPos(null);
         return;
       }
-      const next = slashMenuPosition(rect, el.getBoundingClientRect(), {
+      const next = anchoredPosition(rect, el.getBoundingClientRect(), {
         // `documentElement.clientWidth/Height` 才是扣掉捲軸的可視區；`innerWidth` 會讓
         // 靠右夾限的選單躲到捲軸底下，吃掉留的那 8px。
         width: document.documentElement.clientWidth,

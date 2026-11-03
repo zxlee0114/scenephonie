@@ -1987,3 +1987,37 @@ describe("離開欄位就歸位：輸入框回到隊尾（票券 95）", () => {
     expect(layout(container)).toEqual(["阿盈", "|", "小華"]);
   });
 });
+
+describe("浮層不被視窗邊緣裁掉（票券 33，DESIGN.md 的 The One Placement Rule）", () => {
+  it("欄位貼近視窗下緣時，選單翻到欄位上方", () => {
+    const root = document.documentElement;
+    Object.defineProperty(root, "clientWidth", { configurable: true, value: 1200 });
+    Object.defineProperty(root, "clientHeight", { configurable: true, value: 800 });
+    // jsdom 不排版：欄位放在視窗底部、選單給一個量得到的高度。
+    const rect = (top: number, left: number, width: number, height: number) =>
+      () =>
+        ({ top, left, width, height, bottom: top + height, right: left + width, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+    const fieldRect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains("entity-field")) return rect(740, 100, 300, 30)();
+        if (this.classList.contains("entity-field__menu")) return rect(0, 0, 300, 120)();
+        return rect(0, 0, 0, 0)();
+      });
+    try {
+      const { container } = render(<Host />);
+      const input = container.querySelector("input")!;
+      input.focus();
+      fireEvent.change(input, { target: { value: "派" } });
+
+      const menu = container.querySelector<HTMLElement>(".entity-field__menu")!;
+      // 欄位頂 740，往上 6 的間隔、再扣掉選單 120 高。
+      expect(menu.style.top).toBe("614px");
+      expect(menu.style.left).toBe("100px");
+    } finally {
+      fieldRect.mockRestore();
+      delete (root as { clientWidth?: number }).clientWidth;
+      delete (root as { clientHeight?: number }).clientHeight;
+    }
+  });
+});

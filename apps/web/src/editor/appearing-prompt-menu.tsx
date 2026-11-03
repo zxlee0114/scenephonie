@@ -7,7 +7,7 @@
  * 選單就是編劇眼前唯一要回答的事。↑↓ 走列、Enter 選、Esc 跳過。**仍然沒有預選**：打開它的
  * 正是一顆 Enter，連按兩下（或按住）不該等於在不知情下做了決定 —— 第一次 ↑↓ 才亮起一列。
  *
- * **不佔版面**：絕對定位浮在台詞底下（同日回饋）。下一段要等選完才開，那一格沒有人在寫字。
+ * **不佔版面**：浮在台詞底下（同日回饋）；下方塞不下就翻到上方（票券 33）。下一段要等選完才開，那一格沒有人在寫字。
  */
 "use client";
 
@@ -15,6 +15,7 @@ import type { DialogueCharacterRef } from "@scenephonie/schema";
 import { useEffect, useRef, useState } from "react";
 
 import { dismissOnOutsidePointer } from "./dismiss-on-outside-pointer";
+import { useAnchoredPosition } from "./use-anchored-position";
 
 interface Row {
   readonly speaker: DialogueCharacterRef;
@@ -39,6 +40,9 @@ export function AppearingPromptMenu({
   onClose: () => void;
 }) {
   const root = useRef<HTMLDivElement>(null);
+  // 錨在整個對白區塊（人物欄＋台詞）上，開在台詞底下；台詞已經寫到視窗下緣時翻到上方、蓋住上一句
+  // （DESIGN.md 的 The One Placement Rule，票券 33）。
+  useAnchoredPosition(root, () => root.current?.parentElement, { active: true });
 
   const rows: Row[] = speakers.flatMap((speaker) => [
     { speaker, choice: "add" as const },

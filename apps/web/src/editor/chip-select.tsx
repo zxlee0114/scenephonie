@@ -59,6 +59,7 @@ import {
 
 import type { ChipNav } from "./chip-nav";
 import { HELP_KEY_HINT } from "./field-info";
+import { useAnchoredPosition } from "./use-anchored-position";
 
 /**
  * 「這個值現在寫不進去」的說明面板 —— 一句話講清楚情況，加上幾條出路。
@@ -295,6 +296,11 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
     }
   };
 
+  // 選單與說明面板一次只開一個，共用同一個 ref；都錨在這一格上（DESIGN.md 的 The One
+  // Placement Rule，票券 33）。
+  const menuRef = useRef<HTMLElement | null>(null);
+  useAnchoredPosition(menuRef, () => rootRef.current, { active: open, matchWidth: true });
+
   return (
     <div className="chip-select" ref={rootRef}>
       <button
@@ -313,7 +319,12 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
         {value || placeholder}
       </button>
       {open && pending && (
-        <div className="chip-select__menu chip-select__confirm">
+        <div
+          className="chip-select__menu chip-select__confirm"
+          ref={(el) => {
+            menuRef.current = el;
+          }}
+        >
           <p className="chip-select__note">{pending.note}</p>
           <ul className="chip-select__rows" role="listbox" aria-label={`${placeholder}怎麼辦`}>
             {pending.rows.map((row, i) => (
@@ -336,7 +347,14 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
         </div>
       )}
       {open && !pending && (
-        <ul className="chip-select__menu" role="listbox" aria-label={placeholder}>
+        <ul
+          className="chip-select__menu"
+          role="listbox"
+          aria-label={placeholder}
+          ref={(el) => {
+            menuRef.current = el;
+          }}
+        >
           {rows.map((row, i) => (
             <li
               key={row || "—"}

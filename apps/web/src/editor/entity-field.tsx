@@ -26,6 +26,7 @@
 import {
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useReducer,
   useRef,
   useState,
@@ -62,6 +63,7 @@ import {
   RENAME_MARK,
 } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
+import { useAnchoredPosition } from "./use-anchored-position";
 
 export type EntityOption = { id: string; name: string };
 /**
@@ -1801,6 +1803,32 @@ export function EntityField({
     focusInput: () => input.current?.focus(),
   });
 
+  // ── 浮層：四種都錨在整個欄位上，走同一支定位（DESIGN.md 的 The One Placement Rule，票券 33）。
+  const showPreview = preview.length > 0;
+  const showConfirm = rows.length > 0 && !!pending;
+  const showMenu = (rows.length > 0 || !!heldNote) && !pending;
+  /**
+   * 命名提示讓位給選單：四種浮層都開在欄位下方同一個位置，同時出現就疊在一起。提示是建議，
+   * 選單是這一刻要回答的事 —— 選單收起來，提示（狀態還在）就回來。
+   */
+  const showNaming = showNamingHint && !showPreview && !showConfirm && !showMenu;
+  const previewRef = useRef<HTMLUListElement>(null);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const namingRef = useRef<HTMLParagraphElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+  const fieldBox = () => field.current;
+  useAnchoredPosition(previewRef, fieldBox, { active: showPreview, matchWidth: true });
+  useAnchoredPosition(confirmRef, fieldBox, { active: showConfirm, matchWidth: true });
+  useAnchoredPosition(namingRef, fieldBox, { active: showNaming });
+  useAnchoredPosition(menuRef, fieldBox, { active: showMenu, matchWidth: true });
+  // 選單限高自己捲時（DESIGN.md 規則 3）：方向鍵走到哪，那一列就捲進來（同 slash 選單）。
+  // 浮層是 fixed、整個在視窗裡，`nearest` 不會連帶捲動頁面。
+  useLayoutEffect(() => {
+    (showConfirm ? confirmRef : menuRef).current
+      ?.querySelector(".is-active")
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [active, showConfirm, showMenu]);
+
   return (
     <div
       className={`entity-field${className ? ` ${className}` : ""}`}
@@ -1817,10 +1845,11 @@ export function EntityField({
     >
       {row}
 
-      {preview.length > 0 && (
+      {showPreview && (
         // aria-hidden ＋ CSS 的 pointer-events: none —— 它是一瞥，不是一個選單：不進無障礙
         // 樹（輸入框的 aria-expanded 這一刻仍然是 false，那是實話），也接不到滑鼠。
         <ul
+          ref={previewRef}
           className="entity-field__menu entity-field__menu--preview"
           aria-hidden="true"
         >
@@ -1832,8 +1861,8 @@ export function EntityField({
         </ul>
       )}
 
-      {rows.length > 0 && pending && (
-        <div className="entity-field__confirm">
+      {showConfirm && (
+        <div className="entity-field__confirm" ref={confirmRef}>
           <p className="entity-field__note">
             這一場已經有{placeholder}「{refs[0]?.displayName}」。一個場次一個
             {placeholder} —— 要留哪一個？
@@ -1862,10 +1891,11 @@ export function EntityField({
         </div>
       )}
 
-      {showNamingHint && (
+      {showNaming && (
         // 建議不是規則 —— 不擋寫入、沒有 ✕、失焦就收。`role="note"` 讓螢幕閱讀器讀得出它是
         // 一句附註而不是一個錯誤。
         <p
+          ref={namingRef}
           className="entity-field__note entity-field__note--naming"
           role="note"
         >
@@ -1874,8 +1904,9 @@ export function EntityField({
         </p>
       )}
 
-      {(rows.length > 0 || heldNote) && !pending && (
+      {showMenu && (
         <ul
+          ref={menuRef}
           className="entity-field__menu"
           role="listbox"
           aria-label={`${placeholder}建議`}

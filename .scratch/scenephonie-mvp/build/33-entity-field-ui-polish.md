@@ -13,7 +13,7 @@
 以下是票券 08 驗收期間累積、**有具體出處**的項目。這張票的範圍由編劇端的實際感受決定，
 清單可以再長。
 
-- [ ] **浮層會被視窗邊緣裁掉。** `.field-info__panel`、`.entity-field__menu`、
+- [x] **浮層會被視窗邊緣裁掉。** `.field-info__panel`、`.entity-field__menu`、
       `.entity-field__confirm` 全部是 `inset-inline-start: 0` 的絕對定位，沒有翻邊邏輯。
       登場人物欄坐在 chip row 的右端，它的 ⓘ 面板（`min(38ch, 80vw)`）在窄視窗會溢出。
       票券 29 已經為 slash 選單解過同一題，`editor/slash-menu-position.ts` 是純函式 —— 接過來，
@@ -53,3 +53,6 @@
 
 - 第二條（觸控上的 ⌥/ 提示）**擱置** —— 使用者提出拿掉 ⓘ、把說明改成下拉選單的一列（`ⓘ 關於地點（⌥/）`、聚焦即顯示），開成[票 101](./101-field-info-into-menu.md)。那張成立的話這一條就作廢。
 - 第四條（chip 與 `×` 的鍵盤路）**已由票 34 答掉**：輸入框空著時 ← 一格一格走進 chip（`editor/chip-caret.ts`），焦點環是 `.entity-chip:focus`，chip 上 Enter／Backspace 拿起來改、再 Backspace 就是 × 的鍵盤版。這張票不改程式。
+- 第一條**完成**：`slash-menu-position.ts` 改名搬家成 `editor/anchored-position.ts`（`anchoredPosition`），DOM 那一側是新的 `editor/use-anchored-position.ts`。接上的浮層：ⓘ 面板、實體欄與群演欄的選單、組字預覽、待確認面板、命名提示、登場人物提示，外加內外／時間選單（同一排、同一個毛病）。全部 `position: fixed`、寬度至少與欄位同寬由 JS 給、選單限高自己捲。
+  - **命名提示從排在欄位裡的一行字改成浮層**：它跟選單搶同一個位置，所以選單、預覽、待確認面板開著時它先讓位，收起來就回來（狀態沒變）。
+  - 沒接的：定點選單（`point-menu.tsx`，往外長的另一套算法，不在這張票的清單上）與 `.field-info__hint`（待票 101）。已記進 DESIGN.md。

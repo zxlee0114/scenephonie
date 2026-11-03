@@ -272,7 +272,7 @@ components:
 
 選單（場次選單、slash 選單、卡片選單、chip 選單、實體欄選單）共用一個形狀：白底、1px `--rule-strong` 框、8px 圓角、`--shadow-popover`、內距 4px、system-ui 13px。列是 4px 圓角、padding 8px 12px，active／hover 用 `--selection-bg`。太長就限高（slash 選單 `min(22rem, 60vh)`）自己捲、`overscroll-behavior: contain`。
 
-**The One Placement Rule.** 所有**錨定在某個點上的浮層**（選單、ⓘ 面板、實體欄選單、待確認面板、組字預覽、命名提示、登場人物提示）都走**同一支定位函式** —— 目前是 [`src/editor/slash-menu-position.ts`](./src/editor/slash-menu-position.ts)，要通用化就改名搬家，**不准寫第二套**：
+**The One Placement Rule.** 所有**錨定在某個點上的浮層**（選單、ⓘ 面板、實體欄選單、待確認面板、組字預覽、命名提示、登場人物提示）都走**同一支定位函式** —— [`src/editor/anchored-position.ts`](./src/editor/anchored-position.ts)（座標運算）與 [`src/editor/use-anchored-position.ts`](./src/editor/use-anchored-position.ts)（量尺寸、跟著捲動重算）；票 33 從 slash 選單專用的 `slash-menu-position.ts` 改名搬家而來。**不准寫第二套**：
 1. 預設開在錨點**下方**、間隔 6px，**貼齊錨點起始邊**。
 2. 下方放不下、且上方有空間 → **翻到上方**。翻上去蓋住上一句可以接受：浮層是暫時的。
 3. 上下都放不下 → 留在下方並夾進視窗，再用限高自己捲。
@@ -280,7 +280,7 @@ components:
 5. **不得為了開浮層去捲動頁面或移動游標。**
 6. 用 `position: fixed` 與視窗座標；不要混用文件座標。
 
-⚠️ 現況不符：ⓘ 面板、實體欄選單、待確認面板仍是 `inset-inline-start: 0` 的絕對定位、沒有翻邊，會被切掉 —— 實作歸票 33（票 36 的第二層浮層同用這支）。
+現況（票 33）：slash 選單、ⓘ 面板、實體欄與群演欄的選單、組字預覽、待確認面板、命名提示、登場人物提示、內外／時間選單都已接上；票 36 的第二層浮層同用這支。⚠️ 尚未接上：定點選單（`point-menu.tsx`，往外長的另一套算法）與 ⓘ 的懸停提示 `.field-info__hint`（後者待票 101 定去留）。
 
 **The Dialog Placement Rule.** 模態對話框：水平置中、**靠上對齊**在 header 下緣再空 24px（`calc(var(--bar-height) + var(--space-5))`），寬 `min(28rem, 100%)`（內容多的可放寬到 36rem），內容超高就在對話框裡捲、動作列永遠看得到。白底、1px `--rule-strong`、12px 圓角、`--shadow-popover`、padding 24px，scrim 見 Elevation。動作列靠右、間距 12px。⚠️ 現況不符：合併確認窗是垂直置中；快捷鍵總覽貼齊視窗頂端（票 88）。
 
