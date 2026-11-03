@@ -12,7 +12,7 @@
 
 **Blocked by:** 無
 
-**Status:** done
+**Status:** verified
 
 ## 定案
 

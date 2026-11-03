@@ -62,7 +62,9 @@ For: [票券 26](../issues/26-ui-visual-direction.md)（**已 resolve，2026-09-
 |---|---|---|
 | **accent** | 可點擊、選取、focus | **依自身語意獨立設計，不從 brand color 衍生**（[票券 28](../issues/28-brand-identity.md) Q7／Q22） |
 | **draft** | 草稿場次標籤 | **document state** —— 常駐、大量、判準是**不疲勞** |
-| **error** | 匯出前防呆的錯誤態 | **action consequence** —— 只在匯出彈窗出現，可以刺眼 |
+| **error** | 匯出前防呆與表單驗證的錯誤態；危險動作 | **action consequence** —— 只在動作後果處出現，可以刺眼 |
+
+> ⚠️ **2026-11-03 改寫。** 原本寫「只在匯出彈窗出現」，但建立精靈與分享面板的危險按鈕早已用 error 色，且 [`apps/web/DESIGN.md`](../../../apps/web/DESIGN.md) 的危險動作規則（error 字＋框、永不實心）依賴它。判準不變 —— error 是**動作後果**、不是文件狀態；變的只是消費者從一個變兩個。必填星號仍**不是** error 的消費者（票 88）。
 | **neutral** | 文字與介面層次 | 主色調。判準是**不搶戲** |
 
 > ⚠️ **2026-09-01（票券 28）改寫。** 原本三個角色是 `accent／warning／neutral`，且 accent 記為「取自 brand palette 的 Amber，降飽和後才進介面」。兩處都已失效：
