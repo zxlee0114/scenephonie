@@ -14,7 +14,7 @@
 
 **Blocked by:** 無
 
-**Status:** done
+**Status:** verified
 
 ## 定案（使用者 2026-11-03，改寫 2026-10-28 那一版）
 
