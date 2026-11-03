@@ -142,3 +142,4 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [99](./99-multiple-locations-outside-mixed.md) | 非雜景（含內外未填）的地點欄打好幾個地點會變成一個地點：要不要當成訊號（提示改雜景、拆群組）開工前問。**從票券 97 驗收提出**，無 blocker。 | `needs-triage` |
 | [100](./100-speaker-undo-test-timing.md) | 測試 flaky：對白人物欄 ⌘Z 的兩條測試在 CI 偶發失敗（文件退回就同步讀框；⌘Z 搶在 Enter 的延後 focus 之前）。修：一起放進 `waitFor`、先等焦點落地再撤。**從票券 98 merge 後的 CI 撈到**，無 blocker。 | `done` |
 | [101](./101-field-info-into-menu.md) | 拿掉 ⓘ 按鈕，欄位說明改成下拉選單的一列 `ⓘ 關於地點（⌥/）`，選單在欄位聚焦時就顯示。對白人物欄每句都彈、Tab 走抬頭每格都彈、Enter 不得落在說明列等開工前定。**從票券 33 開工時提出**，與 33、83 協調。 | `needs-triage` |
+| [102](./102-click-preview-while-composing.md) | 組字中點選預覽：滑鼠點下去就結束組字並選中那一項（Google 搜尋框的手感），鍵盤照舊歸輸入法。推翻票 08「按不到」的一半；跨瀏覽器結束組字的方式開工前驗。**從票券 33 第三條討論提出**，無 blocker。 | `needs-triage` |
