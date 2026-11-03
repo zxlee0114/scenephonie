@@ -141,3 +141,4 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [98](./98-undo-in-field-scrolls-page.md) | 實體欄位按 ⌘Z，頁面捲到文件游標（定案時 `keepCaret` 沒動它，可能在好幾場外）。定案：**⌘Z／⌘⇧Z 不帶捲動地撤，比出改到哪裡 —— 在畫面上不動、不在就捲到畫面中段；內文、欄位、焦點掉到 body 三個入口一條規則**。**從票券 97 驗收撈到**，無 blocker。 | ✅ verified |
 | [99](./99-multiple-locations-outside-mixed.md) | 非雜景（含內外未填）的地點欄打好幾個地點會變成一個地點：要不要當成訊號（提示改雜景、拆群組）開工前問。**從票券 97 驗收提出**，無 blocker。 | `needs-triage` |
 | [100](./100-speaker-undo-test-timing.md) | 測試 flaky：對白人物欄 ⌘Z 的兩條測試在 CI 偶發失敗（文件退回就同步讀框；⌘Z 搶在 Enter 的延後 focus 之前）。修：一起放進 `waitFor`、先等焦點落地再撤。**從票券 98 merge 後的 CI 撈到**，無 blocker。 | `done` |
+| [101](./101-field-info-into-menu.md) | 拿掉 ⓘ 按鈕，欄位說明改成下拉選單的一列 `ⓘ 關於地點（⌥/）`，選單在欄位聚焦時就顯示。對白人物欄每句都彈、Tab 走抬頭每格都彈、Enter 不得落在說明列等開工前定。**從票券 33 開工時提出**，與 33、83 協調。 | `needs-triage` |
