@@ -1383,6 +1383,10 @@
 .block--dialogue .block__speaker-field {
   display: flex;
   margin-block-end: var(--space-2);
+  /* 這一行的高度**自己撐住一行字高**，不靠裡面的輸入框（票券 104）。平常撐開它的是隊尾那個
+   * 輸入框（行高跟著頁面走，比 chip 高）；點 chip 開始改時，輸入框搬進那顆 chip 裡、隊尾就空了，
+   * 整行塌成 chip 的高度，chip 往上跳、台詞與底下整頁一起往上縮。 */
+  min-block-size: 1lh;
 }
 
 /* 對白的人物欄不畫框（它在版面上是「上面那一行」，不是一格控制項），只留一條底線 ——
