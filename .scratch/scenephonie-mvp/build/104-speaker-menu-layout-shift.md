@@ -1,6 +1,6 @@
 # 104 — 點對白的人物 chip 開選單時，版面會位移
 
-**Status:** done
+**Status:** verified
 
 **What to build:** 點對白區塊的人物 chip（例如 `👤 阿盈`）時，下拉選單展開的那一下，周圍版面會跳一點。選單是浮層（`position: fixed`，走 The One Placement Rule），照理不該推動任何東西 —— 找出是什麼在變尺寸並讓它不動。
 
@@ -20,4 +20,6 @@
 
 修法：`.block--dialogue .block__speaker-field` 加 `min-block-size: 1lh`。在瀏覽器量過點之前、編輯中、失焦後三個時間點：欄位 31.45px、chip 位置、整個對白區塊高度都一致。
 
-順帶發現（沒動）：`.block--dialogue .block__speaker-field .entity-field` 那幾條（底線、字級、`:focus-within` 換底線色）選擇器已經對不到 —— `block__speaker-field` 現在直接掛在 `.entity-field` 本身，不是它的父層。聚焦樣式依裁決維持原狀，所以沒改。
+順帶發現（沒動）：`.block--dialogue .block__speaker-field .entity-field` 那幾條（底線、字級、`:focus-within` 換底線色）選擇器已經對不到 —— `block__speaker-field` 現在直接掛在 `.entity-field` 本身，不是它的父層。聚焦樣式依裁決維持原狀，所以沒改 —— 另開票 105。
+
+**2026-11-05 審查回饋：** `min-block-size` 先給 `calc(1em * var(--leading-base))` 再給 `1lh`（不認得 `lh` 的瀏覽器也有下限）。殘留邊角（沒修）：人物多到 chip 折成兩排時，最後一排仍可能塌高；隊尾輸入框若自己佔一排，點 chip 時那一排會整個消失。使用者 2026-11-05 驗收通過。
