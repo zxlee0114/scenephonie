@@ -144,4 +144,5 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [101](./101-field-info-into-menu.md) | 拿掉 ⓘ 按鈕，欄位說明改成欄位選單最下面的一列 `ⓘ 關於地點 (⌥/)`：指標點進來才開（Tab 不開）、永不預選、說明面板取代選單；面板最上面 `← 返回 (Esc)` 退回原處。驗收時一起修：浮層不壓過頁首、抬頭欄位聚焦改框線變深。**從票券 33 開工時提出**，與 33、83 協調。 | ✅ verified |
 | [102](./102-click-preview-while-composing.md) | 組字中點選預覽：滑鼠點下去就結束組字並選中那一項（Google 搜尋框的手感），鍵盤照舊歸輸入法。推翻票 08「按不到」的一半；跨瀏覽器結束組字的方式開工前驗。**從票券 33 第三條討論提出**，無 blocker。 | `needs-triage` |
 | [103](./103-halfwidth-parens-sweep.md) | 畫面上的半形括號全站掃一遍：括號裡只有半形字就用半形、前面空一格；註解不改。**從票券 101 第二輪 grilling 定下規則**，101 先合。 | `needs-triage` |
-| [104](./104-speaker-menu-layout-shift.md) | 點對白的人物 chip 開選單時版面會位移；聚焦樣式維持原狀。**從票券 101 驗收撈到**，無 blocker。 | `needs-triage` |
+| [104](./104-speaker-menu-layout-shift.md) | 點對白的人物 chip 開選單時版面會位移；聚焦樣式維持原狀。**從票券 101 驗收撈到**，無 blocker。 | ✅ verified |
+| [105](./105-speaker-field-dead-selectors.md) | 對白人物欄的底線／字級／聚焦樣式選擇器對不到元素（class 直接掛在 `.entity-field` 上）：救回來還是刪掉，先問。**從票券 104 撈到**，無 blocker。 | `needs-triage` |
