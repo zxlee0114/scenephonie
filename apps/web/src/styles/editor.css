@@ -720,12 +720,14 @@
  * 程式化 focus 拿不到 `:focus-visible` —— 除非上一個焦點元素自己就是 focus-visible，所以使用者
  * 用滑鼠點過空白處之後建的新場次，chip 有焦點卻沒有環，看起來像「沒有初始焦點」。
  * 我們交出去的焦點就由我們自己畫，失焦即卸。 */
+/* 聚焦 ＝ **框線變深**，不畫 outline（使用者裁決 2026-11-05）—— 框本來就是那一格的邊，再套一圈
+ * 外環等於框外有框。畫在**整個框**上（含 chip），因為框才是使用者眼中的那一格；虛線框（還空著）
+ * 照樣是虛線，只是變深。 */
 .scene__chip-control:focus-visible,
 .scene__chip-control.is-focus-handed,
-/* 焦點環畫在**整個框**上（含 chip），因為框才是使用者眼中的那一格。 */
 .scene__chip .entity-field:focus-within {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--field-border-focus);
 }
 
 .scene__chip .entity-field {
@@ -756,61 +758,38 @@
   color: var(--control-fg);
 }
 
-/* ── 欄位說明（ⓘ）—— 常駐、事前，不是被拒絕之後才冒出來的補救（使用者回饋 2026-09-10）── */
+/* ── 欄位說明 —— 常駐、事前，不是被拒絕之後才冒出來的補救（使用者回饋 2026-09-10）。
+ * 入口是欄位選單最下面那一列（票 101，`.entity-field__menu-info`／`.chip-select__info`），
+ * 格子旁邊不再有 ⓘ。── */
 
 .field-info {
   position: relative;
   align-items: center;
-  gap: var(--space-1);
 }
 
-.field-info__button {
-  /* 一律不進 tab 序（見 editor/field-info.tsx 檔頭）——它在畫面上也就該安靜：
-   * 弱化到編劇不看它時看不見，滑過才亮起來。 */
-  flex: none;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--text-faint);
-  font-size: 1rem;
-  line-height: 1;
-  cursor: help;
-}
-
-.field-info__button:hover,
-.field-info__button[aria-expanded="true"] {
+/* 說明列：排最後、一條分隔線把它跟候選隔開 —— 它是告示兼入口，不是一個值。弱化一階，
+ * 不跟候選搶視線；只有它一列時（空欄位點進來）不必有線。 */
+.entity-field__menu li.entity-field__menu-info,
+.chip-select__menu li.chip-select__info {
   color: var(--text-secondary);
-}
-
-/* 懸停時才出現的快捷鍵提示 —— icon 走不到 tab 序，這是它唯一自己說得出「還有鍵盤這條路」
- * 的地方（使用者裁決 2026-09-10）。絕對定位：它不能把 chip row 的版面推開。 */
-.field-info__hint {
-  position: absolute;
-  inset-block-start: calc(100% + 2px);
-  inset-inline-start: 0;
-  z-index: 25;
-  padding: 2px var(--space-1);
-  border-radius: var(--space-1);
-  background: var(--surface-raised, var(--surface-page));
-  border: 1px solid var(--rule-strong);
-  color: var(--text-secondary);
-  font-family: var(--font-ui);
   font-size: var(--text-sm);
   line-height: var(--leading-sm);
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 120ms ease;
 }
 
-.field-info__button:hover ~ .field-info__hint {
-  opacity: 1;
+/* 分隔線上方（上一列的內距＋這裡的 margin）、線到字、字到選單底邊（列的內距＋選單內距）都是 8px
+ * —— 上下看起來才平均（票 101 驗收回饋）。 */
+.entity-field__menu li.entity-field__menu-info:not(:first-child),
+.chip-select__menu li.chip-select__info:not(:first-child) {
+  margin-block-start: var(--space-1);
+  padding-block-start: var(--space-2);
+  border-block-start: 1px solid var(--rule);
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .field-info__hint {
-    transition: none;
-  }
+/* 內外／時間選單用 aria-selected 標「目前的值」（藍字）—— 說明列不是值，不吃那個顏色。 */
+.chip-select__menu li.chip-select__info[aria-selected="true"] {
+  color: var(--text-secondary);
 }
 
 /* 錨在整格上、座標由 JS 給（The One Placement Rule，票券 33）—— 登場人物欄坐在 chip row 右端，
@@ -842,6 +821,36 @@
   outline-offset: 2px;
 }
 
+/* 返回列（票 101 第二輪）：標題前面、一條線隔開 —— 它是回到選單的路，不是說明的一部分。
+ * 字比照說明列（弱化一階、Esc 印在列上）；整列可點，左右各往面板內距裡伸一格 `--space-2`，
+ * hover 底色才有選單列的手感 —— 剩下的 4px 內距正好放得下標準的 focus 外框（2px＋2px）。 */
+.field-info__back {
+  display: block;
+  box-sizing: border-box;
+  inline-size: calc(100% + 2 * var(--space-2));
+  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-2)) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-block-end: 1px solid var(--rule);
+  border-radius: var(--space-1) var(--space-1) 0 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  text-align: start;
+  cursor: pointer;
+}
+
+.field-info__back:hover {
+  background: var(--selection-bg);
+}
+
+.field-info__back:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .field-info__title {
   margin: 0 0 var(--space-2);
   font-size: var(--text-sm);
@@ -867,9 +876,10 @@
   margin-block-start: var(--space-1);
 }
 
+/* `<code>`（`/continue-to`、`咖啡廳客人 x8`）跟著說明的字走 —— 全站只有這裡用過等寬字，
+ * DESIGN.md 的字型系統裡沒有它（使用者裁決 2026-11-05）。瀏覽器預設會給 code 等寬字，所以要明寫 inherit。 */
 .field-info__panel code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.92em;
+  font: inherit;
 }
 
 /* ── chip 下拉：比照 slash 選單的外觀，不用原生 <select>（使用者回饋 2026-09-03）── */
@@ -931,10 +941,9 @@
   cursor: pointer;
 }
 
-/* 速記鍵（`內景(i)`）—— 弱化、接在標籤後面。**不浮動、不撐寬**：選單只比 chip 寬一點點，
+/* 速記鍵（`內景 (i)`）—— 弱化、接在標籤後面，間距是文字裡那一格空白。**不浮動、不撐寬**：選單只比 chip 寬一點點，
  * 一個 float 或一段長術語就會把它推歪（使用者回饋 2026-09-10，第四輪之二）。 */
 .chip-select__key {
-  margin-inline-start: 2px;
   color: var(--text-faint);
   font-size: var(--text-sm);
 }

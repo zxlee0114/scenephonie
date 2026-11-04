@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
 /**
- * 欄位說明（ⓘ）的三條路 —— 見 `field-info.tsx` 檔頭那張表。
+ * 欄位說明的三條路 —— 見 `field-info.tsx` 檔頭那張表。
  *
- * 這裡真正要守住的不是「彈窗會不會開」，而是**把 icon 移出 tab 序之後，鍵盤使用者仍然到得了**。
- * 那個取捨（每一場都要 Tab 走一遍 metadata，四個 icon 會讓那條路加倍長）只有在補償措施
- * 都在時才成立，所以三條路各有一條測試：拿掉任何一條，`tabIndex={-1}` 就變成 WCAG 2.1.1 的
- * 違規而不是取捨。
+ * 滑鼠／觸控那條路（點進欄位 → 選單最下面那一列）住在欄位元件裡，測試在
+ * `field-info-menu.test.tsx`；這裡守的是另外兩條：螢幕閱讀器的 `aria-describedby`，與純鍵盤的 ⌥/。
  */
 import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -31,12 +29,11 @@ describe("欄位說明", () => {
     expect(document.getElementById(describedBy)?.textContent).toBe(FIELD_INFO.location.summary);
   });
 
-  it("icon 不進 tab 序 —— 但純鍵盤那條路是欄位上的 ⌥/", () => {
+  it("沒有 ⓘ 按鈕（票 101）—— 純鍵盤那條路是欄位上的 ⌥/", () => {
     const { container } = render(<Host info="location" />);
     const input = container.querySelector("input")!;
-    const button = container.querySelector("button")!;
 
-    expect(button.tabIndex).toBe(-1);
+    expect(container.querySelector("button")).toBeNull();
     expect(input.getAttribute("aria-keyshortcuts")).toBe("Alt+/");
 
     expect(panelOf(container)).toBeNull();
@@ -44,7 +41,7 @@ describe("欄位說明", () => {
     expect(panelOf(container)).not.toBeNull();
   });
 
-  it("Esc 關閉，焦點回到欄位（不是回到 Tab 走不到的 icon）", () => {
+  it("Esc 關閉，焦點回到欄位", () => {
     const { container } = render(<Host info="location" />);
     const input = container.querySelector("input")!;
     input.focus();
@@ -72,13 +69,6 @@ describe("欄位說明", () => {
     const { container } = render(<Host info="location" />);
     fireEvent.keyDown(container.querySelector("input")!, { key: "F1" });
     expect(panelOf(container)).toBeNull();
-  });
-
-  it("懸停提示把快捷鍵印在 icon 旁邊 —— 但不進無障礙樹（欄位已經宣告過了）", () => {
-    const { container } = render(<Host info="location" />);
-    const hint = container.querySelector(".field-info__hint")!;
-    expect(hint.textContent).toBe("⌥/");
-    expect(hint.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("內外的說明講的是雜景為什麼長在這一欄", () => {

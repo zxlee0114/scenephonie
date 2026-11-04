@@ -146,6 +146,8 @@ describe("非雜景場次的第二個地點", () => {
       "是，改成「警局」",
       "否，繼續使用「派出所」",
       "保留兩者，將內外欄改成「雜景」",
+      // 欄位說明排最後（票 101）：需要解釋時從這裡開，不必塞進選項文案。
+      "ⓘ 關於地點 (⌥/)",
     ]);
   });
 
@@ -177,8 +179,9 @@ describe("非雜景場次的第二個地點", () => {
     const input = await withFirstLocation(container);
     await offerSecond(container, input);
 
-    fireEvent.keyDown(input, { key: "ArrowUp" });
-    fireEvent.keyDown(input, { key: "Enter" }); // 最後一列 ＝ 保留兩者
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" }); // 第三列 ＝ 保留兩者（↑ 會繞到最後的說明列，票 101）
 
     await waitFor(() => expect(locationChips(container)).toEqual(["派出所", "警局"]));
     expect(editor.state.doc.firstChild?.attrs.intExt).toBe("雜景");
@@ -244,10 +247,11 @@ describe("離開雜景時，多出來的地點要有人說一聲", () => {
 
     const rows = await waitFor(() => {
       const found = [...container.querySelectorAll(".chip-select__rows li")];
-      expect(found).toHaveLength(2);
+      expect(found).toHaveLength(3);
       return found;
     });
-    expect(rows.map((r) => r.textContent)).toEqual(["前往地點欄編輯", "維持雜景"]);
+    // 第三列是欄位說明（票 101）—— 是讀說明的入口，不是一條出路。
+    expect(rows.map((r) => r.textContent)).toEqual(["前往地點欄編輯", "維持雜景", "ⓘ 關於內外 (⌥/)"]);
   });
 
   it("清空內外（選最上面那一列空值）時，說明改說「清空內外」—— 不印一對空的引號", async () => {

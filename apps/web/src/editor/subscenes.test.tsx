@@ -259,7 +259,7 @@ describe("子場次的時間下拉依種類排序", () => {
     );
     const rows = await openTime(container);
     expect(rows[0]).toBe("待定");
-    expect(rows[1]).toBe("夜(n)（原場次）");
+    expect(rows[1]).toBe("夜 (n)（原場次）");
     expect(container.querySelector('.scene--sub [aria-label="時間"]')?.textContent).toBe("時間");
   });
 
@@ -268,7 +268,8 @@ describe("子場次的時間下拉依種類排序", () => {
       docOf(scene([action("客廳。"), sub("插入", [action("夢。")])], { time: "夜" })),
     );
     const rows = await openTime(container);
-    expect(rows.slice(1)).toEqual(["日(d)", "夜(n)（原場次）", "晨(d)", "昏(d)"]);
+    // 最後一列是欄位說明（票 101），不是一個值。
+    expect(rows.slice(1)).toEqual(["日 (d)", "夜 (n)（原場次）", "晨 (d)", "昏 (d)", "ⓘ 關於時間 (⌥/)"]);
   });
 });
 

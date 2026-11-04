@@ -219,14 +219,14 @@ components:
 - **場次導覽 sidebar**：可收合、預設展開、狀態持久化。一列四格固定欄寬（場次號 4.5em｜內外 2em｜時間 1em｜地點 1fr），行高 1.75，130 場也掃得過去。
 - **間距節奏**：4／8／12／16／24／32px（`--space-1`～`--space-6`），偏鬆。不另立 magic number；需要新值時先問是不是哪個既有 token 的推導。
 - **斷點**：`64rem`（以上 sidebar 常駐並把稿子推開；以下改成 drawer，判斷在 `scene-nav/use-scene-nav-open.ts`）；`640px`（hub 卡片改格線、建立精靈縮內距）。390px 的抬頭排列尚待實機（票 88）。
-- **疊層順序（z-index）**：內容內局部 1–5 ｜ sticky header 10 ｜ 錨定浮層（選單、chip 選單、實體欄選單、待確認面板、toast）20 ｜ sidebar drawer、懸停提示 25 ｜ header 上的觸發鈕、存檔狀態、ⓘ 面板、拖曳指示 30 ｜ 模態對話框的 scrim 40。新元件找一層放進去，不要發明 21、35 這種中間值。
+- **疊層順序（z-index）**：內容內局部 1–5 ｜ sticky header 10 ｜ 錨定浮層（選單、chip 選單、實體欄選單、待確認面板、toast）20 ｜ sidebar drawer、懸停提示 25 ｜ header 上的觸發鈕、存檔狀態、欄位說明面板、拖曳指示 30 ｜ 模態對話框的 scrim 40。新元件找一層放進去，不要發明 21、35 這種中間值。
 
 ## Elevation & Depth
 
 平面為主。深度靠**色調分層**（`--surface-page` → `--surface-raised` → `--surface-sunken`）與細線，而不是陰影。整套系統只有**一種陰影**，留給浮在稿子上方、暫時出現的東西。
 
 ### Shadow Vocabulary
-- **浮層 Popover**（`box-shadow: 0 4px 16px` neutral-900 @ 8%，`--shadow-popover`）：選單、slash 選單、ⓘ 面板、場次預覽、對話框、toast、drawer。永遠搭配 1px `--rule-strong` 框線一起出現。
+- **浮層 Popover**（`box-shadow: 0 4px 16px` neutral-900 @ 8%，`--shadow-popover`）：選單、slash 選單、欄位說明面板、場次預覽、對話框、toast、drawer。永遠搭配 1px `--rule-strong` 框線一起出現。
 
 ### Named Rules
 
@@ -252,6 +252,7 @@ components:
 - **Header 觸發鈕**（匯出、分享、快捷鍵、場次開關）：無框、無底、`--text-secondary` 字，hover 轉 `--text-primary`（場次開關另加 `--surface-raised` 底）。靜止態也不得用 `--text-faint`。
 - **Disabled**：`opacity: 0.5`–`0.6`、`cursor: default`。需要點了才能告訴使用者「還差什麼」時用 `aria-disabled`，不用 `disabled`。
 - **Focus**：`outline: 2px solid var(--focus-ring)`、`outline-offset: 2px`。全站一致，不得移除而不補替代。
+  - 例外：**場次抬頭的欄位**（內外、時間、地點、登場人物、群演）聚焦時不畫 outline，改成框線變深（`--field-border-focus`，neutral-500）—— 框本來就是那一格的邊，再套一圈外環是框外有框（使用者裁決 2026-11-05）。顏色不得淺於 neutral-500（非文字對比 3:1）。
 
 **The One Primary Rule.** 主要按鈕**只有一種樣式**（上面那一個），**一個畫面或一個對話框至多一顆**。對話框裡的「匯出」、「建立」、「下一步」就是那一顆；「關閉」「取消」「返回」永遠是 secondary。不得用「深色框＋600 字」或其他變體充當主要按鈕。⚠️ 現況不符：匯出對話框的送出鈕是深色外框（`.export-pdf__actions button:last-child`）、分享面板全是細框同重 —— 實作歸票 88。
 
@@ -272,15 +273,16 @@ components:
 
 選單（場次選單、slash 選單、卡片選單、chip 選單、實體欄選單）共用一個形狀：白底、1px `--rule-strong` 框、8px 圓角、`--shadow-popover`、內距 4px、system-ui 13px。列是 4px 圓角、padding 8px 12px，active／hover 用 `--selection-bg`。太長就限高（slash 選單 `min(22rem, 60vh)`）自己捲、`overscroll-behavior: contain`。
 
-**The One Placement Rule.** 所有**錨定在某個點上的浮層**（選單、ⓘ 面板、實體欄選單、待確認面板、組字預覽、命名提示、登場人物提示）都走**同一支定位函式** —— [`src/editor/anchored-position.ts`](./src/editor/anchored-position.ts)（座標運算）與 [`src/editor/use-anchored-position.ts`](./src/editor/use-anchored-position.ts)（量尺寸、跟著捲動重算）；票 33 從 slash 選單專用的 `slash-menu-position.ts` 改名搬家而來。**不准寫第二套**：
+**The One Placement Rule.** 所有**錨定在某個點上的浮層**（選單、欄位說明面板、實體欄選單、待確認面板、組字預覽、命名提示、登場人物提示）都走**同一支定位函式** —— [`src/editor/anchored-position.ts`](./src/editor/anchored-position.ts)（座標運算）與 [`src/editor/use-anchored-position.ts`](./src/editor/use-anchored-position.ts)（量尺寸、跟著捲動重算）；票 33 從 slash 選單專用的 `slash-menu-position.ts` 改名搬家而來。**不准寫第二套**：
 1. 預設開在錨點**下方**、間隔 6px，**貼齊錨點起始邊**。
 2. 下方放不下、且上方有空間 → **翻到上方**。翻上去蓋住上一句可以接受：浮層是暫時的。
 3. 上下都放不下 → **不往回推**（那會蓋住錨點本身，也就是正在打字的欄位），開在空間較大的那一側（通常是下方），再用限高自己捲。可用高度由 JS 寫成 `--anchored-room`，浮層的 CSS 用 `max-block-size: min(<自己的上限>, var(--anchored-room, …))` 接。
 4. 左右**夾進視窗**，與視窗邊緣至少 8px。
 5. **不得為了開浮層去捲動頁面或移動游標。**
 6. 用 `position: fixed` 與視窗座標；不要混用文件座標。
+7. **不壓過頁首。** 頁首（sticky 的那條 bar，標 `data-overlay-ceiling`）一直蓋在最上面，那一截不算上方空間；浮層的上緣最高到頁首下緣再 8px；錨點整個捲到頁首底下時浮層藏起來，捲回來再出現（票 101 驗收回饋，2026-11-05）。新的常駐頁首要掛同一個標記。
 
-現況（票 33）：slash 選單（錨點是游標的 rect）、ⓘ 面板、實體欄與群演欄的選單、組字預覽、待確認面板、命名提示、登場人物提示、內外／時間選單都已接上；票 36 的第二層浮層同用這支。⚠️ 尚未接上：定點選單（`point-menu.tsx`，往外長的另一套算法）與 ⓘ 的懸停提示 `.field-info__hint`（後者待票 101 定去留）。
+現況（票 33）：slash 選單（錨點是游標的 rect）、欄位說明面板、實體欄與群演欄的選單、組字預覽、待確認面板、命名提示、登場人物提示、內外／時間選單都已接上；票 36 的第二層浮層同用這支。⚠️ 尚未接上：定點選單（`point-menu.tsx`，往外長的另一套算法）。ⓘ 按鈕與它的懸停提示已在票 101 拿掉：欄位說明改成欄位選單最下面的一列（`ⓘ 關於地點 (⌥/)`），選了就由說明面板**取代**選單、開在同一個位置；面板最上面的 `← 返回 (Esc)` 退回打開前的那一層（票 101 第二輪）。
 
 **The Dialog Placement Rule.** 模態對話框：水平置中、**靠上對齊**在 header 下緣再空 24px（`calc(var(--bar-height) + var(--space-5))`），寬 `min(28rem, 100%)`（內容多的可放寬到 36rem），內容超高就在對話框裡捲、動作列永遠看得到。白底、1px `--rule-strong`、12px 圓角、`--shadow-popover`、padding 24px，scrim 見 Elevation。動作列靠右、間距 12px。⚠️ 現況不符：合併確認窗是垂直置中；快捷鍵總覽貼齊視窗頂端（票 88）。
 

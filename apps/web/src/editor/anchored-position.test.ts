@@ -57,6 +57,32 @@ describe("anchoredPosition", () => {
     });
   });
 
+  it("頁首擋住的那一截不算上方空間 —— 翻上去會壓過頁首時，改開在頁首底下並限高", () => {
+    // 頁首 48 高（sticky、一直在）。錨點頂 700：下方只剩 800 - 8 - 726 = 66。
+    // 不算頁首的話上方有 700 - 6 - 8 = 686，660 高的面板放得下，會開在 34 —— 壓進頁首。
+    // 算進頁首：上方剩 700 - 6 - 48 - 8 = 638，放不下 → 開在頁首底下 48 + 8 = 56、限高 638。
+    const panel = { width: 240, height: 660 };
+    expect(anchoredPosition(caret(300, 700), panel, { ...VIEWPORT, top: 48 })).toEqual({
+      top: 56,
+      left: 300,
+      maxHeight: 638,
+    });
+  });
+
+  it("錨點整個捲到頁首底下時不擺 —— 跟著它開在下方就會壓過頁首（票 101 驗收回饋）", () => {
+    // 頁首 48 高；錨點 10–30 被它蓋住。
+    expect(anchoredPosition(caret(300, 10), MENU, { ...VIEWPORT, top: 48 })).toBeNull();
+  });
+
+  it("錨點只被頁首蓋住一部分時照常開在它下方", () => {
+    // 錨點 40–60，下緣露在頁首外。
+    expect(anchoredPosition(caret(300, 40), MENU, { ...VIEWPORT, top: 48 })).toEqual({ top: 66, left: 300 });
+  });
+
+  it("有頁首時，翻上去放得下就照常翻（只是上方空間少算一截）", () => {
+    expect(anchoredPosition(caret(300, 680), MENU, { ...VIEWPORT, top: 48 })).toEqual({ top: 474, left: 300 });
+  });
+
   it("接近右緣時往左收，不超出視窗", () => {
     expect(anchoredPosition(caret(1100, 100), MENU, VIEWPORT)).toEqual({ top: 126, left: 952 });
   });

@@ -70,7 +70,7 @@ export default async function EditorLayout({
 
   return (
     <main className="editor-shell">
-      <header className="editor-shell__bar">
+      <header className="editor-shell__bar" data-overlay-ceiling="">
         <Link href={`/projects/${authorized.projectId}`} className="editor-shell__home">
           ← 專案
         </Link>

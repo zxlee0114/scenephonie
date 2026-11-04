@@ -41,7 +41,7 @@ export default async function ShareLayout({ params }: { params: Promise<{ token:
 
   return (
     <main className="editor-shell">
-      <header className="editor-shell__bar">
+      <header className="editor-shell__bar" data-overlay-ceiling="">
         <p className="share-banner">{shareBanner(script)}</p>
         <ViewSwitch base={`/s/${token}`} />
       </header>

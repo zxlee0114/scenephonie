@@ -63,6 +63,7 @@ import {
   RENAME_MARK,
 } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
+import { InfoRowItem, useMenuInfoRow } from "./menu-info-row";
 import { useAnchoredPosition } from "./use-anchored-position";
 
 export type EntityOption = { id: string; name: string };
@@ -963,6 +964,8 @@ export function EntityField({
   const closeMenu = () => {
     setStage({ name: "suggest" });
     setDismissed(true);
+    setPointed(false);
+    setInfoHot(false);
   };
 
   const reset = () => {
@@ -974,6 +977,7 @@ export function EntityField({
     setStage({ name: "suggest" });
     setActive(0);
     setDismissed(false);
+    setInfoHot(false);
   };
 
   /**
@@ -1309,6 +1313,39 @@ export function EntityField({
   const activeRow = rows[Math.min(active, rows.length - 1)];
 
   /**
+   * 這一格的說明列（票 101；規則見 `menu-info-row.tsx`）。`FieldInfo` 沒包著時（欄位單獨使用）
+   * 一律是 null。這裡只交出本欄位自己的那幾件事：
+   * - 待確認面板與有字的選單都帶著它；空欄位只有指標點進來才開（`hasContent`）。
+   * - 說明取代選單時，一般選單收起（同 Esc）；待確認面板留著 —— 問題還沒答，看完回來接著答。
+   * - 返回時一般選單放回原來那一層（`stage`）；待確認面板本來就沒收。
+   *
+   * `pointed`／`infoHot` 沿用原名：前者是「指標點進來」，後者是「說明列被走到」（永不預選 ——
+   * 選單裡只有它時沒有任何一列高亮，空欄位的 Enter／Tab 照原路交給呼叫端，89／91）。
+   */
+  const menuInfo = useMenuInfoRow({
+    field,
+    allowed: !composingNow && !dismissed && stage.name === "suggest",
+    hasContent: rows.length > 0 || heldNote != null,
+    collapseMenu: () => {
+      if (!pending) closeMenu();
+    },
+    menuShown: () => showMenu || showConfirm,
+    captureMenu: () => {
+      const was = stage;
+      return () => {
+        if (pending) return;
+        setStage(was);
+        setDismissed(false);
+      };
+    },
+    leave: () => {
+      leaveInput();
+      leaveField();
+    },
+  });
+  const { row: infoRow, setPointed, hot: infoHot, setHot: setInfoHot } = menuInfo;
+
+  /**
    * 正在定案的那一串字還沒做完（建立實體要等伺服器）。
    *
    * 定案的最後是 `onCommit`，呼叫端常在那裡把游標移走（人物介紹：進到新那一位的介紹內文）—— 焦點一離開就是
@@ -1472,21 +1509,17 @@ export function EntityField({
     if (event.nativeEvent.isComposing || composing.current) return;
     dropWait(); // 這一顆若又是 ⌘Z／⌘⇧Z，底下會重新掛上
 
-    if (rows.length > 0) {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        setActive((i) => (i + 1) % rows.length);
-        return;
-      }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        setActive((i) => (i - 1 + rows.length) % rows.length);
-        return;
-      }
-      if (event.key === "Enter") {
+    // ↑↓ 在候選與說明列之間走（說明列排在最後）。
+    if (menuInfo.step(event.key, rows.length, active, setActive)) {
+      event.preventDefault();
+      return;
+    }
+    if (rows.length > 0 || infoRow) {
+      if (event.key === "Enter" && (infoHot || rows.length > 0)) {
         event.preventDefault();
         event.stopPropagation();
-        activeRow?.run();
+        if (infoHot && infoRow) menuInfo.open();
+        else activeRow?.run();
         return;
       }
     }
@@ -1614,6 +1647,7 @@ export function EntityField({
     setText(value);
     setDismissed(false);
     setActive(0);
+    setInfoHot(false);
     // 又動了那串字 ＝ 他正在改它，不是在回答面板的問題。
     if (pending !== null) setPending(null);
     // 打字時**不切 chip**（票券 82）：分隔符在 Enter 之前只是字，切開與建實體都等 `commitText`。
@@ -1703,6 +1737,30 @@ export function EntityField({
    * 位移，畫面跳得比實際發生的事還大。沒在編輯時這層 span 是透明的（`display: contents`），
    * 輸入框照樣是 `.entity-field` 的 flex 項。
    */
+  /** 輸入框失焦的收尾 —— 離開欄位時要做的那幾件事（blur 與「從說明那裡走掉」共用）。 */
+  const leaveInput = () => {
+    // 離開欄位時把還沒 chip 化的字定案（與 CjkField 的 blur 回寫同一個理由：
+    // 打完就走是常態，不該把字吃掉）。
+    // 待確認的字**不在 blur 時定案** —— 它正等著編劇回答，離開欄位不是答案。
+    // 走的是與 Enter 同一份解析，只是游標不跟著去台詞（票券 82）。
+    if (!composing.current && !needsConfirm) void commitText({ advance: false, leaving: true });
+    // 空著離開 ＝ 放手。`commitText` 沒字時直接 return，不清任何東西 —— 少了這一句，
+    // 抬頭會跟著欄位一路掛在畫面上（2026-09-11 驗收回饋）。
+    if (text.trim() === "") letGo();
+    setStage({ name: "suggest" });
+    setShowNamingHint(false); // 他移開就是決定了（見 `showNamingHint`）
+    setPointed(false);
+    setInfoHot(false);
+  };
+
+  /** 整格失焦的收尾（輸入框的 `leaveInput` 先跑）。 */
+  const leaveField = () => {
+    // React 的 onBlur 會冒泡、子層先跑：輸入框自己的 blur 已經開始定案了。定案還在路上
+    // （建實體要等伺服器）時不在這裡清 —— 那一筆得先照 `caret` 放回原位，`settle` 收尾。
+    if (committing.current) leftWhileCommitting.current = true;
+    else home();
+  };
+
   const inputNode = (
     <span
       key="input"
@@ -1758,16 +1816,10 @@ export function EntityField({
         }}
         onKeyDown={handleKeyDown}
         onBlur={() => {
-          // 離開欄位時把還沒 chip 化的字定案（與 CjkField 的 blur 回寫同一個理由：
-          // 打完就走是常態，不該把字吃掉）。
-          // 待確認的字**不在 blur 時定案** —— 它正等著編劇回答，離開欄位不是答案。
-          // 走的是與 Enter 同一份解析，只是游標不跟著去台詞（票券 82）。
-          if (!composing.current && !needsConfirm) void commitText({ advance: false, leaving: true });
-          // 空著離開 ＝ 放手。`commitText` 沒字時直接 return，不清任何東西 —— 少了這一句，
-          // 抬頭會跟著欄位一路掛在畫面上（2026-09-11 驗收回饋）。
-          if (text.trim() === "") letGo();
-          setStage({ name: "suggest" });
-          setShowNamingHint(false); // 他移開就是決定了（見 `showNamingHint`）
+          // 焦點是被說明面板接走的（票 101）：他只是去讀說明，Esc 就回來 —— 不算離開。
+          // 他若從說明那裡直接走掉，`leave` 由說明關掉的那一刻補上（見 `useMenuInfoRow`）。
+          if (menuInfo.isOpen) return;
+          leaveInput();
         }}
       />
       {held && (
@@ -1807,13 +1859,15 @@ export function EntityField({
 
   // ── 浮層：四種都錨在整個欄位上，走同一支定位（DESIGN.md 的 The One Placement Rule，票券 33）。
   const showPreview = preview.length > 0;
-  const showConfirm = rows.length > 0 && !!pending;
-  const showMenu = (rows.length > 0 || !!heldNote) && !pending;
+  const infoOpen = menuInfo.isOpen;
+  const showConfirm = rows.length > 0 && !!pending && !infoOpen;
+  const showMenu = (rows.length > 0 || !!heldNote || !!infoRow) && !pending && !infoOpen;
   /**
    * 命名提示讓位給選單：四種浮層都開在欄位下方同一個位置，同時出現就疊在一起。提示是建議，
    * 選單是這一刻要回答的事 —— 選單收起來，提示（狀態還在）就回來。
    */
   const showNaming = showNamingHint && !showPreview && !showConfirm && !showMenu;
+
   const previewRef = useRef<HTMLUListElement>(null);
   const confirmRef = useRef<HTMLDivElement>(null);
   const namingRef = useRef<HTMLParagraphElement>(null);
@@ -1829,20 +1883,39 @@ export function EntityField({
     (showConfirm ? confirmRef : menuRef).current
       ?.querySelector(".is-active")
       ?.scrollIntoView?.({ block: "nearest" });
-  }, [active, showConfirm, showMenu]);
+  }, [active, infoHot, showConfirm, showMenu]);
+
+  /** 說明列 —— 兩份選單共用（一般選單與待確認面板），永遠排最後、一條分隔線隔開。 */
+  const infoRowNode = infoRow && (
+    <InfoRowItem
+      key="info"
+      label={infoRow.label}
+      hot={infoHot}
+      className="entity-field__menu-info"
+      onHover={() => setInfoHot(true)}
+      onPick={menuInfo.open}
+    />
+  );
 
   return (
     <div
       className={`entity-field${className ? ` ${className}` : ""}`}
       ref={field}
+      // 指標點進來（滑鼠、觸控）＝ 要看這一格有什麼可選 —— 空欄位也開出說明列（票 101）。
+      // 先前 Esc 收掉的選單也跟著回來：點下去就是又要它了。
+      // 點在選單／待確認面板裡的是「選一列」，不是點進欄位 —— 不然選完會留下一份只有說明列的選單。
+      onPointerDown={(e) => {
+        const target = e.target as Node;
+        if (menuRef.current?.contains(target) || confirmRef.current?.contains(target)) return;
+        setPointed(true);
+        setDismissed(false);
+      }}
       onBlur={(event) => {
         // 焦點還在這一格裡（chip、確認列）不算離開。
         if (event.relatedTarget instanceof Node && field.current?.contains(event.relatedTarget))
           return;
-        // React 的 onBlur 會冒泡、子層先跑：輸入框自己的 blur 已經開始定案了。定案還在路上
-        // （建實體要等伺服器）時不在這裡清 —— 那一筆得先照 `caret` 放回原位，`settle` 收尾。
-        if (committing.current) leftWhileCommitting.current = true;
-        else home();
+        if (menuInfo.isOpen) return; // 去讀說明（見輸入框的 onBlur）
+        leaveField();
       }}
     >
       {row}
@@ -1877,9 +1950,12 @@ export function EntityField({
               <li
                 key={row.key}
                 role="option"
-                aria-selected={i === active}
-                className={i === active ? "is-active" : ""}
-                onMouseEnter={() => setActive(i)}
+                aria-selected={i === active && !infoHot}
+                className={i === active && !infoHot ? "is-active" : ""}
+                onMouseEnter={() => {
+                  setActive(i);
+                  setInfoHot(false);
+                }}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   row.run();
@@ -1888,6 +1964,7 @@ export function EntityField({
                 {row.label}
               </li>
             ))}
+            {infoRowNode}
           </ul>
         </div>
       )}
@@ -1921,9 +1998,12 @@ export function EntityField({
             <li
               key={row.key}
               role="option"
-              aria-selected={i === active}
-              className={i === active ? "is-active" : ""}
-              onMouseEnter={() => setActive(i)}
+              aria-selected={i === active && !infoHot}
+              className={i === active && !infoHot ? "is-active" : ""}
+              onMouseEnter={() => {
+                setActive(i);
+                setInfoHot(false);
+              }}
               onMouseDown={(e) => {
                 e.preventDefault();
                 row.run();
@@ -1932,6 +2012,7 @@ export function EntityField({
               {row.label}
             </li>
           ))}
+          {infoRowNode}
         </ul>
       )}
     </div>

@@ -29,7 +29,7 @@
  * **速記鍵一步到位**（使用者回饋 2026-09-10 第四輪）：關著時按 `i` 直接就是「內景」、`d` 是
  * 「日」—— 用的是這兩個列舉本來就有的劇本術語（`INT.`／`DAY`），不是另外發明的鍵。同一顆鍵
  * 命中好幾個就再按一次循環（`d` → 日 → 晨 → 昏，DAY／DAWN／DUSK）。選單列上印的是**那一顆
- * 鍵**（`內景(i)`）而不是術語 —— 術語會把列撐得比 chip 寬一大截，它屬於 ⓘ 的說明框。**刻意不做輸入框**：值域是封閉列舉，一個輸入框要多回答「打了『傍晚』怎麼辦」，
+ * 鍵**（`內景 (i)`）而不是術語 —— 術語會把列撐得比 chip 寬一大截，它屬於 ⓘ 的說明框。**刻意不做輸入框**：值域是封閉列舉，一個輸入框要多回答「打了『傍晚』怎麼辦」，
  * 而且會把注音組字（§7.6）請進兩個本來免疫的欄位 —— `<button>` 收不到 `compositionstart`。
  *
  * ⚠️ 因為同一個理由，速記鍵**只認拉丁鍵**：焦點在 `<button>` 上時注音不會啟動組字，到手上
@@ -51,6 +51,7 @@
 import {
   forwardRef,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -58,7 +59,8 @@ import {
 } from "react";
 
 import type { ChipNav } from "./chip-nav";
-import { HELP_KEY_HINT } from "./field-info";
+import { HELP_KEY_HINT, useFieldInfoRow } from "./field-info";
+import { InfoRowItem } from "./menu-info-row";
 import { useAnchoredPosition } from "./use-anchored-position";
 
 /**
@@ -118,6 +120,12 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
   /** 正在說明「這個值寫不進去」的那一刻。面板**取代**選單 —— 這時要回答的不是「哪一個值」。 */
   const [pending, setPending] = useState<ChipConfirm | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  /**
+   * 這一格的說明列（票 101）—— 兩份選單都排在最後一列，index 是「真正那幾列之後的一格」。
+   * 開選單時預選的是目前的值、面板預選第一列，所以它天生不會被預選；只有走到它才高亮。
+   */
+  const info = useFieldInfoRow();
+  const infoOpen = info?.isOpen ?? false;
 
   // 全部可選列：第 0 列是「待定」（空字串 ＝ 還沒填），其後是各列舉值。
   const rows = ["", ...options];
@@ -127,15 +135,15 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
   // 使用者回饋 2026-09-03。
   const widthInChars = Math.max(...[placeholder, ...options].map((s) => [...s].length));
 
-  // 點到元件外就關閉。
+  // 點到元件外就關閉 —— 說明開著時不算：他在讀的那個面板就在元件外，讀完要回到待確認面板。
   useEffect(() => {
-    if (!open) return;
+    if (!open || infoOpen) return;
     const onPointerDown = (ev: PointerEvent) => {
       if (!rootRef.current?.contains(ev.target as Node)) dismiss();
     };
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [open]);
+  }, [open, infoOpen]);
 
   /**
    * 速記鍵打到一半的那幾個字母。`at` 是上一次按鍵的時間 —— 隔太久就重新開始一串，
@@ -182,6 +190,33 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
     setOpen(false);
   };
 
+  /**
+   * 選了說明列：說明面板**取代**選單。一般選單就此收起；待確認面板留著（問題還沒答），說明開著
+   * 時藏起來，Esc 回來就在。
+   */
+  const openInfo = (index: number) => {
+    openedAt.current = index;
+    info?.open();
+  };
+  /** 說明列是第幾列 —— 觸控直接點沒有 hover 那一下，`active` 不會先移過去（見 `provideBack`）。 */
+  const openedAt = useRef<number | null>(null);
+
+  /**
+   * 說明開關的那兩下（code review 2026-11-04）。**開**：一般選單收起（⌥/ 那條路不經過
+   * `openInfo`，所以收在這裡）。**關**：點別處關的話焦點不在這一格了 —— 待確認面板跟著收，
+   * 不在沒人看的時候又冒出來；Esc 關的話焦點回到這一格，面板照舊在。
+   */
+  const infoWasOpen = useRef(false);
+  useEffect(() => {
+    const was = infoWasOpen.current;
+    infoWasOpen.current = infoOpen;
+    if (infoOpen && !was) {
+      if (!pending) setOpen(false);
+    } else if (!infoOpen && was && !rootRef.current?.contains(document.activeElement)) {
+      dismiss();
+    }
+  });
+
   const commit = (v: string) => {
     // 選了原本就是的那個值不必問 —— 什麼都沒有要改。
     const blocked = v === value ? null : (confirm?.(v) ?? null);
@@ -195,6 +230,9 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
     dismiss();
   };
 
+  /** 一般選單的列數（含最後的說明列）。 */
+  const rowCount = rows.length + (info ? 1 : 0);
+
   const onKeyDown = (e: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (e.key === "Tab") {
       dismiss();
@@ -203,21 +241,25 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
 
     // 面板浮著的時候，所有的鍵都歸它 —— 這一刻要回答的是「怎麼辦」，不是「選哪一個值」。
     if (pending) {
-      const rowCount = pending.rows.length;
+      const confirmRowCount = pending.rows.length + (info ? 1 : 0);
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
         dismiss();
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        setActive((i) => (i + 1) % rowCount);
+        setActive((i) => (i + 1) % confirmRowCount);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setActive((i) => (i - 1 + rowCount) % rowCount);
+        setActive((i) => (i - 1 + confirmRowCount) % confirmRowCount);
       } else if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         e.stopPropagation();
-        const row = pending.rows[Math.min(active, rowCount - 1)];
+        if (info && active === pending.rows.length) {
+          openInfo(active);
+          return;
+        }
+        const row = pending.rows[Math.min(active, pending.rows.length - 1)];
         dismiss();
         row?.run();
       }
@@ -286,20 +328,52 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
       setOpen(false);
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((i) => (i + 1) % rows.length);
+      setActive((i) => (i + 1) % rowCount);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActive((i) => (i - 1 + rows.length) % rows.length);
+      setActive((i) => (i - 1 + rowCount) % rowCount);
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      commit(rows[active] ?? "");
+      if (info && active === rows.length) openInfo(active);
+      else commit(rows[active] ?? "");
     }
   };
 
   // 選單與說明面板一次只開一個，共用同一個 ref；都錨在這一格上（DESIGN.md 的 The One
   // Placement Rule，票券 33）。
   const menuRef = useRef<HTMLElement | null>(null);
-  useAnchoredPosition(menuRef, () => rootRef.current, { active: open, matchWidth: true });
+  const shown = open && !infoOpen;
+
+  /**
+   * 說明面板的返回列（票 101 第二輪）：打開說明那一刻選單（或待確認面板）開著，就回到那裡、
+   * 高亮停在原處。待確認面板本來就沒收，`setOpen(true)` 對它是原樣。
+   */
+  useLayoutEffect(() => {
+    info?.provideBack(() => {
+      const at = openedAt.current;
+      openedAt.current = null;
+      if (!shown) return null;
+      const was = at ?? active;
+      return () => {
+        setActive(was);
+        setOpen(true);
+      };
+    });
+  });
+  useAnchoredPosition(menuRef, () => rootRef.current, { active: shown, matchWidth: true });
+
+  /** 說明列 —— 兩份選單共用，永遠排最後、一條分隔線隔開。 */
+  const infoRowNode = (index: number) =>
+    info && (
+      <InfoRowItem
+        key="info"
+        label={info.label}
+        hot={active === index}
+        className="chip-select__info"
+        onHover={() => setActive(index)}
+        onPick={() => openInfo(index)}
+      />
+    );
 
   return (
     <div className="chip-select" ref={rootRef}>
@@ -308,7 +382,7 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
         ref={ref}
         className={className}
         aria-haspopup="listbox"
-        aria-expanded={open}
+        aria-expanded={shown}
         aria-label={placeholder}
         aria-describedby={describedBy}
         aria-keyshortcuts={describedBy ? HELP_KEY_HINT : undefined}
@@ -318,7 +392,7 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
       >
         {value || placeholder}
       </button>
-      {open && pending && (
+      {shown && pending && (
         <div
           className="chip-select__menu chip-select__confirm"
           ref={(el) => {
@@ -343,10 +417,11 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
                 {row.label}
               </li>
             ))}
+            {infoRowNode(pending.rows.length)}
           </ul>
         </div>
       )}
-      {open && !pending && (
+      {shown && !pending && (
         <ul
           className="chip-select__menu"
           role="listbox"
@@ -368,12 +443,19 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
               }}
             >
               {row || UNSET_LABEL}
-              {/* 只印那一顆鍵（`內景(i)`）。術語本身太長，會把這一列撐得比 chip 寬一大截
+              {/* 只印那一顆鍵（`內景 (i)`）。術語本身太長，會把這一列撐得比 chip 寬一大截
                   —— 它屬於 ⓘ 的說明框，不屬於選單（使用者回饋 2026-09-10，第四輪之二）。 */}
-              {terms?.[row] && <span className="chip-select__key">({terms[row]![0]!.toLowerCase()})</span>}
+              {/* 前面空一格、半形括號 —— 與說明列的 ` (⌥/)` 同一個寫法（票 101 驗收回饋）。 */}
+              {terms?.[row] && (
+                <>
+                  {" "}
+                  <span className="chip-select__key">({terms[row]![0]!.toLowerCase()})</span>
+                </>
+              )}
               {notes?.[row] && <span className="chip-select__note-tag">{notes[row]}</span>}
             </li>
           ))}
+          {infoRowNode(rows.length)}
         </ul>
       )}
     </div>

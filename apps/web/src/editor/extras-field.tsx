@@ -123,6 +123,7 @@ import {
   RENAME_MARK,
 } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
+import { InfoRowItem, useMenuInfoRow } from "./menu-info-row";
 import { useAnchoredPosition } from "./use-anchored-position";
 import { claimHistoryKey, historyKey, keepHistoryInBox, ownHistory } from "./history-keys";
 
@@ -298,6 +299,7 @@ export function ExtrasField({
     setText("");
     setActive(0);
     setDismissed(false);
+    setInfoHot(false);
     leaveCountStage();
   };
 
@@ -908,6 +910,24 @@ export function ExtrasField({
     active < 0 && boxIndex >= 0 ? boxIndex : Math.min(Math.max(active, 0), rows.length - 1);
   const activeRow = rows[activeIndex];
 
+  /**
+   * 說明列（票 101；規則見 `menu-info-row.tsx`，與實體欄位同一支）。人數那一層不放 —— 那一刻
+   * 要回答的是數量，說明列在那裡只會擋路。說明取代選單時選單收起，返回時再開回來。
+   */
+  const menuInfo = useMenuInfoRow({
+    field,
+    allowed: !composingNow && !dismissed && stage.current !== "count",
+    hasContent: rows.length > 0 || heldNote != null,
+    collapseMenu: () => setDismissed(true),
+    menuShown: () => showMenu,
+    captureMenu: () => () => setDismissed(false),
+    leave: () => {
+      leaveName();
+      leaveField();
+    },
+  });
+  const { row: infoRow, setPointed, hot: infoHot, setHot: setInfoHot } = menuInfo;
+
   /** chip 之間的方向鍵（票券 34 第三輪）—— 規則與版面說明見 `./chip-caret`。 */
   const chipCaret = useChipCaret({
     count: extras.length,
@@ -998,21 +1018,17 @@ export function ExtrasField({
       claimHistoryKey(event);
     }
 
-    if (rows.length > 0) {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        setActive((activeIndex + 1) % rows.length);
-        return;
-      }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        setActive((activeIndex - 1 + rows.length) % rows.length);
-        return;
-      }
-      if (event.key === "Enter") {
+    // ↑↓ 在候選與說明列之間走（說明列排在最後）。
+    if (menuInfo.step(event.key, rows.length, activeIndex, setActive)) {
+      event.preventDefault();
+      return;
+    }
+    if (rows.length > 0 || infoRow) {
+      if (event.key === "Enter" && (infoHot || rows.length > 0)) {
         event.preventDefault();
         event.stopPropagation();
-        if (activeRow && !activeRow.box) activeRow.run();
+        if (infoHot && infoRow) menuInfo.open();
+        else if (activeRow && !activeRow.box) activeRow.run();
         return;
       }
     }
@@ -1021,6 +1037,8 @@ export function ExtrasField({
       event.preventDefault();
       event.stopPropagation();
       setDismissed(true);
+      setPointed(false);
+      setInfoHot(false);
       return;
     }
 
@@ -1060,6 +1078,7 @@ export function ExtrasField({
     setText(value);
     setDismissed(false);
     setActive(0);
+    setInfoHot(false);
     // 打字時不切 chip（票券 82）：分隔符在 Enter 之前只是字，切開等 `commitText`。
   };
 
@@ -1113,6 +1132,29 @@ export function ExtrasField({
    * 編輯中的那一筆**看起來還是一顆 chip**（同實體欄位）—— 記號、邊框、× 都留著，只有裡面
    * 那段字換成可以打的。少了這一層，點下去的那一刻 chip 整個變成裸字，整排跟著位移。
    */
+  /** 名稱框失焦的收尾（blur 與「從說明那裡走掉」共用）。 */
+  const leaveName = () => {
+    setPointed(false);
+    setInfoHot(false);
+    // 焦點只是搬去人數格 —— 這一輪編輯還在進行中（票券 48）。少了這一行，「按下
+    // `修改數量…`」會被名稱框自己的 blur 當成「打完就走」而當場定案收工。
+    if (stage.current === "count") return;
+    // 打完就走是常態，不該把字吃掉（同實體欄位的 blur 回寫）。
+    if (!composing.current) commitText({ leaving: true });
+    // 空著離開 ＝ 放手（`commitText` 沒字時直接 return，不清任何東西）。
+    if (!text.trim()) letGo();
+  };
+
+  /** 整格失焦的收尾（名稱框的 `leaveName` 先跑）。 */
+  const leaveField = () => {
+    // **離開就歸位**（票券 95，同實體欄位的 `home`）。React 的 onBlur 會冒泡、子層先跑：
+    // 框裡那串字已經在名稱框／人數格自己的 blur 定案過了，那一筆放回原位之後才輪到這裡。
+    // 手上還握著一批（組字中離開，blur 沒定案）就不動 —— 輸入框站的是那一批的位置。
+    if (editing.current) return;
+    caret.current = null;
+    redraw();
+  };
+
   const inputNode = (
     <span key="input" className={held ? "entity-field__input-chip" : "entity-field__input-wrap"}>
       {held && (
@@ -1153,13 +1195,10 @@ export function ExtrasField({
         }}
         onKeyDown={handleKeyDown}
         onBlur={() => {
-          // 焦點只是搬去人數格 —— 這一輪編輯還在進行中（票券 48）。少了這一行，「按下
-          // `修改數量…`」會被名稱框自己的 blur 當成「打完就走」而當場定案收工。
-          if (stage.current === "count") return;
-          // 打完就走是常態，不該把字吃掉（同實體欄位的 blur 回寫）。
-          if (!composing.current) commitText({ leaving: true });
-          // 空著離開 ＝ 放手（`commitText` 沒字時直接 return，不清任何東西）。
-          if (!text.trim()) letGo();
+          // 焦點是被說明面板接走的（票 101）：他只是去讀說明，Esc 就回來 —— 不算離開。
+          // 他若從說明那裡直接走掉，收尾由說明關掉的那一刻補上（見 `useMenuInfoRow`）。
+          if (menuInfo.isOpen) return;
+          leaveName();
         }}
       />
       {held && (
@@ -1197,7 +1236,8 @@ export function ExtrasField({
 
   // 浮層錨在整個欄位上，與實體欄位同一支定位（DESIGN.md 的 The One Placement Rule，票券 33）。
   const showPreview = preview.length > 0;
-  const showMenu = rows.length > 0 || !!heldNote;
+  const showMenu = (rows.length > 0 || !!heldNote || !!infoRow) && !menuInfo.isOpen;
+
   const previewRef = useRef<HTMLUListElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
   const fieldEl = () => field.current;
@@ -1206,22 +1246,25 @@ export function ExtrasField({
   // 選單限高自己捲時，方向鍵走到哪那一列就捲進來（同實體欄位）。
   useLayoutEffect(() => {
     menuRef.current?.querySelector(".is-active")?.scrollIntoView?.({ block: "nearest" });
-  }, [activeIndex, showMenu]);
+  }, [activeIndex, infoHot, showMenu]);
 
   return (
     <div
       ref={field}
       className="entity-field extras-field"
+      // 指標點進來 ＝ 要看這一格有什麼可選 —— 空欄位也開出說明列（票 101，同實體欄位）。
+      // 點在選單裡的是「選一列」，不是點進欄位（同實體欄位）。
+      onPointerDown={(e) => {
+        if (menuRef.current?.contains(e.target as Node)) return;
+        setPointed(true);
+        setDismissed(false);
+      }}
       onBlur={(event) => {
         // 焦點還在這一格裡（chip、人數格、選單）不算離開。
         if (event.relatedTarget instanceof Node && field.current?.contains(event.relatedTarget))
           return;
-        // **離開就歸位**（票券 95，同實體欄位的 `home`）。React 的 onBlur 會冒泡、子層先跑：
-        // 框裡那串字已經在名稱框／人數格自己的 blur 定案過了，那一筆放回原位之後才輪到這裡。
-        // 手上還握著一批（組字中離開，blur 沒定案）就不動 —— 輸入框站的是那一批的位置。
-        if (editing.current) return;
-        caret.current = null;
-        redraw();
+        if (menuInfo.isOpen) return; // 去讀說明（見名稱框的 onBlur）
+        leaveField();
       }}
     >
       {row}
@@ -1307,9 +1350,12 @@ export function ExtrasField({
               <li
                 key={row.key}
                 role="option"
-                aria-selected={i === activeIndex}
-                className={i === activeIndex ? "is-active" : ""}
-                onMouseEnter={() => setActive(i)}
+                aria-selected={i === activeIndex && !infoHot}
+                className={i === activeIndex && !infoHot ? "is-active" : ""}
+                onMouseEnter={() => {
+                  setActive(i);
+                  setInfoHot(false);
+                }}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   row.run();
@@ -1318,6 +1364,17 @@ export function ExtrasField({
                 {row.label}
               </li>
             ),
+          )}
+          {infoRow && (
+            // 說明列 —— 永遠排最後、一條分隔線隔開；永不預選（票 101）。
+            <InfoRowItem
+              key="info"
+              label={infoRow.label}
+              hot={infoHot}
+              className="entity-field__menu-info"
+              onHover={() => setInfoHot(true)}
+              onPick={menuInfo.open}
+            />
           )}
         </ul>
       )}
