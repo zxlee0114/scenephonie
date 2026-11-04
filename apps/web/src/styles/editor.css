@@ -871,9 +871,10 @@
   margin-block-start: var(--space-1);
 }
 
+/* `<code>`（`/continue-to`、`咖啡廳客人 x8`）跟著說明的字走 —— 全站只有這裡用過等寬字，
+ * DESIGN.md 的字型系統裡沒有它（使用者裁決 2026-11-05）。瀏覽器預設會給 code 等寬字，所以要明寫 inherit。 */
 .field-info__panel code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.92em;
+  font: inherit;
 }
 
 /* ── chip 下拉：比照 slash 選單的外觀，不用原生 <select>（使用者回饋 2026-09-03）── */
@@ -935,10 +936,9 @@
   cursor: pointer;
 }
 
-/* 速記鍵（`內景(i)`）—— 弱化、接在標籤後面。**不浮動、不撐寬**：選單只比 chip 寬一點點，
+/* 速記鍵（`內景 (i)`）—— 弱化、接在標籤後面，間距是文字裡那一格空白。**不浮動、不撐寬**：選單只比 chip 寬一點點，
  * 一個 float 或一段長術語就會把它推歪（使用者回饋 2026-09-10，第四輪之二）。 */
 .chip-select__key {
-  margin-inline-start: 2px;
   color: var(--text-faint);
   font-size: var(--text-sm);
 }

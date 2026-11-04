@@ -11,12 +11,23 @@
  * （`max-block-size: min(<自己的上限>, var(--anchored-room, …))`）—— JS 不知道各自的上限是多少。
  *
  * ⚠️ 祖先只要有 transform／filter／contain 就會變成 fixed 的包含塊（見 editor.css slash 選單那段）。
+ *
+ * 頁首（標了 `data-overlay-ceiling` 的 sticky bar）一直蓋在視窗最上面：它的下緣就是浮層能用的
+ * 上緣，浮層不壓過它（票 101 驗收回饋，2026-11-05）。
  */
 "use client";
 
 import { useLayoutEffect, useRef, type RefObject } from "react";
 
 import { anchoredPosition, VIEWPORT_MARGIN, type CaretRect } from "./anchored-position";
+
+/** 頁首的下緣（視窗座標）；沒有頁首、或頁首捲出去了是 0。 */
+function overlayCeiling(): number {
+  let bottom = 0;
+  for (const bar of document.querySelectorAll("[data-overlay-ceiling]"))
+    bottom = Math.max(bottom, bar.getBoundingClientRect().bottom);
+  return bottom;
+}
 
 type Options = {
   /** 浮層掛著的時候才量；關著時什麼都不做、也不掛捲動監聽。 */
@@ -50,6 +61,7 @@ export function useAnchoredPosition(
       // 浮層躲到捲軸底下，吃掉留的那 8px。
       width: document.documentElement.clientWidth,
       height: document.documentElement.clientHeight,
+      top: overlayCeiling(),
     };
     // 量之前先回到「沒被擺過」的狀態：
     // - fixed 元素的可用寬度從它當下的 `left` 算到視窗右緣 —— 停在右邊量，會量到偏窄、偏高的

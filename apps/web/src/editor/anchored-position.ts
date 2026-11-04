@@ -15,6 +15,11 @@
 /** `getBoundingClientRect()` 用得到的那幾個欄位。 */
 export type CaretRect = { top: number; bottom: number; left: number; right: number };
 export type Size = { width: number; height: number };
+/**
+ * 浮層能用的那一塊視窗。`top` 是頁首（sticky 的那條 bar）的下緣 —— 頁首一直蓋在最上面，
+ * 那一截不算空間，浮層也不壓過它。沒有頁首時是 0。
+ */
+export type Viewport = Size & { top?: number };
 
 /** 浮層與錨點之間的呼吸。 */
 const GAP = 6;
@@ -31,21 +36,25 @@ const MARGIN = VIEWPORT_MARGIN;
  *
  * `menu` 是浮層量到的尺寸（要在**沒有** `maxHeight` 的狀態下量）；還沒量到時傳 0×0，
  * 會退化成單純的「錨點正下方」。
+ *
+ * 上方的空間從 `viewport.top`（頁首下緣）算起，不從視窗頂端 —— 否則翻上去的浮層會壓過導覽列
+ * （票 101 驗收回饋，2026-11-05）。
  */
 export function anchoredPosition(
   caret: CaretRect,
   menu: Size,
-  viewport: Size,
+  viewport: Viewport,
 ): { top: number; left: number; maxHeight?: number } {
+  const ceiling = (viewport.top ?? 0) + MARGIN;
   const below = caret.bottom + GAP;
   const above = caret.top - GAP - menu.height;
   const left = Math.max(MARGIN, Math.min(caret.left, viewport.width - MARGIN - menu.width));
 
   const roomBelow = viewport.height - MARGIN - below;
-  const roomAbove = caret.top - GAP - MARGIN;
+  const roomAbove = caret.top - GAP - ceiling;
   if (menu.height <= roomBelow) return { top: below, left };
   if (menu.height <= roomAbove) return { top: above, left };
   return roomBelow >= roomAbove
     ? { top: below, left, maxHeight: roomBelow }
-    : { top: MARGIN, left, maxHeight: roomAbove };
+    : { top: ceiling, left, maxHeight: roomAbove };
 }

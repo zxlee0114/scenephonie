@@ -122,7 +122,8 @@ import {
   PUT_BACK_MARK,
   RENAME_MARK,
 } from "./field-marks";
-import { HELP_KEY_HINT, useFieldInfoRow } from "./field-info";
+import { HELP_KEY_HINT } from "./field-info";
+import { InfoRowItem, useMenuInfoRow } from "./menu-info-row";
 import { useAnchoredPosition } from "./use-anchored-position";
 import { claimHistoryKey, historyKey, keepHistoryInBox, ownHistory } from "./history-keys";
 
@@ -204,10 +205,6 @@ export function ExtrasField({
   const [text, setText] = useState("");
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState(false);
-  /** 說明列（票 101）—— 規則與實體欄位逐條相同，見 `entity-field.tsx` 的 `pointed`／`infoHot`。 */
-  const info = useFieldInfoRow();
-  const [pointed, setPointed] = useState(false);
-  const [infoHot, setInfoHot] = useState(false);
   /** 組字中嗎 —— ref 是真相（同步），state 是畫面（重繪）。同 `entity-field.tsx`。 */
   const composing = useRef(false);
   const [composingNow, setComposingNow] = useState(false);
@@ -914,29 +911,22 @@ export function ExtrasField({
   const activeRow = rows[activeIndex];
 
   /**
-   * 說明列出不出現（票 101）。人數那一層不放 —— 那一刻要回答的是數量，說明列在那裡只會擋路。
-   * 說明開著時整份選單讓位，所以這一刻也不算。
+   * 說明列（票 101；規則見 `menu-info-row.tsx`，與實體欄位同一支）。人數那一層不放 —— 那一刻
+   * 要回答的是數量，說明列在那裡只會擋路。說明取代選單時選單收起，返回時再開回來。
    */
-  const infoRow =
-    info != null &&
-    !info.isOpen &&
-    !composingNow &&
-    !dismissed &&
-    stage.current !== "count" &&
-    (rows.length > 0 || pointed || heldNote != null)
-      ? info
-      : null;
-
-  /** 選了說明列：說明面板取代選單，選單收起；看完按返回列或 Esc 再回來（`provideBack`）。 */
-  const openInfo = () => {
-    setInfoHot(false);
-    setDismissed(true);
-    setPointed(false);
-    openedFromInfoRow.current = true;
-    info?.open();
-  };
-  /** 這一次是從說明列打開的 —— 觸控直接點沒有 hover 那一下，`infoHot` 不會先亮（見 `provideBack`）。 */
-  const openedFromInfoRow = useRef(false);
+  const menuInfo = useMenuInfoRow({
+    field,
+    allowed: !composingNow && !dismissed && stage.current !== "count",
+    hasContent: rows.length > 0 || heldNote != null,
+    collapseMenu: () => setDismissed(true),
+    menuShown: () => showMenu,
+    captureMenu: () => () => setDismissed(false),
+    leave: () => {
+      leaveName();
+      leaveField();
+    },
+  });
+  const { row: infoRow, setPointed, hot: infoHot, setHot: setInfoHot } = menuInfo;
 
   /** chip 之間的方向鍵（票券 34 第三輪）—— 規則與版面說明見 `./chip-caret`。 */
   const chipCaret = useChipCaret({
@@ -1028,35 +1018,16 @@ export function ExtrasField({
       claimHistoryKey(event);
     }
 
+    // ↑↓ 在候選與說明列之間走（說明列排在最後）。
+    if (menuInfo.step(event.key, rows.length, activeIndex, setActive)) {
+      event.preventDefault();
+      return;
+    }
     if (rows.length > 0 || infoRow) {
-      // 說明列排在最後：↓ 走過最後一列才到它，↑ 從第一列繞到它。只有它時 ↑↓ 都停在它上面。
-      const last = rows.length - 1;
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        if (infoHot) {
-          if (rows.length > 0) {
-            setInfoHot(false);
-            setActive(0);
-          }
-        } else if (infoRow && activeIndex === last) setInfoHot(true);
-        else setActive((activeIndex + 1) % rows.length);
-        return;
-      }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        if (infoHot) {
-          if (rows.length > 0) {
-            setInfoHot(false);
-            setActive(last);
-          }
-        } else if (infoRow && activeIndex <= 0) setInfoHot(true);
-        else setActive((activeIndex - 1 + rows.length) % rows.length);
-        return;
-      }
       if (event.key === "Enter" && (infoHot || rows.length > 0)) {
         event.preventDefault();
         event.stopPropagation();
-        if (infoHot && infoRow) openInfo();
+        if (infoHot && infoRow) menuInfo.open();
         else if (activeRow && !activeRow.box) activeRow.run();
         return;
       }
@@ -1184,22 +1155,6 @@ export function ExtrasField({
     redraw();
   };
 
-  /** 說明開關的那兩下 —— 規則與理由同實體欄位的 `infoWasOpen`（code review 2026-11-04）。 */
-  const infoWasOpen = useRef(false);
-  useEffect(() => {
-    const now = info?.isOpen ?? false;
-    const was = infoWasOpen.current;
-    infoWasOpen.current = now;
-    if (now && !was) {
-      setInfoHot(false);
-      setDismissed(true);
-      setPointed(false);
-    } else if (!now && was && !field.current?.contains(document.activeElement)) {
-      leaveName();
-      leaveField();
-    }
-  });
-
   const inputNode = (
     <span key="input" className={held ? "entity-field__input-chip" : "entity-field__input-wrap"}>
       {held && (
@@ -1241,8 +1196,8 @@ export function ExtrasField({
         onKeyDown={handleKeyDown}
         onBlur={() => {
           // 焦點是被說明面板接走的（票 101）：他只是去讀說明，Esc 就回來 —— 不算離開。
-          // 他若從說明那裡直接走掉，收尾由說明關掉的那一刻補上（見 `infoWasOpen`）。
-          if (info?.isOpen) return;
+          // 他若從說明那裡直接走掉，收尾由說明關掉的那一刻補上（見 `useMenuInfoRow`）。
+          if (menuInfo.isOpen) return;
           leaveName();
         }}
       />
@@ -1281,22 +1236,8 @@ export function ExtrasField({
 
   // 浮層錨在整個欄位上，與實體欄位同一支定位（DESIGN.md 的 The One Placement Rule，票券 33）。
   const showPreview = preview.length > 0;
-  const showMenu = (rows.length > 0 || !!heldNote || !!infoRow) && !(info?.isOpen ?? false);
+  const showMenu = (rows.length > 0 || !!heldNote || !!infoRow) && !menuInfo.isOpen;
 
-  /** 說明面板的返回列（票 101 第二輪）：打開說明那一刻選單開著，就回到那裡、高亮停在原處。 */
-  useLayoutEffect(() => {
-    info?.provideBack(() => {
-      const fromRow = openedFromInfoRow.current;
-      openedFromInfoRow.current = false;
-      if (!showMenu) return null;
-      const was = { pointed, infoHot: infoHot || fromRow };
-      return () => {
-        setDismissed(false);
-        setPointed(was.pointed);
-        setInfoHot(was.infoHot);
-      };
-    });
-  });
   const previewRef = useRef<HTMLUListElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
   const fieldEl = () => field.current;
@@ -1322,7 +1263,7 @@ export function ExtrasField({
         // 焦點還在這一格裡（chip、人數格、選單）不算離開。
         if (event.relatedTarget instanceof Node && field.current?.contains(event.relatedTarget))
           return;
-        if (info?.isOpen) return; // 去讀說明（見名稱框的 onBlur）
+        if (menuInfo.isOpen) return; // 去讀說明（見名稱框的 onBlur）
         leaveField();
       }}
     >
@@ -1426,19 +1367,14 @@ export function ExtrasField({
           )}
           {infoRow && (
             // 說明列 —— 永遠排最後、一條分隔線隔開；永不預選（票 101）。
-            <li
+            <InfoRowItem
               key="info"
-              role="option"
-              aria-selected={infoHot}
-              className={`entity-field__menu-info${infoHot ? " is-active" : ""}`}
-              onMouseEnter={() => setInfoHot(true)}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                openInfo();
-              }}
-            >
-              {infoRow.label}
-            </li>
+              label={infoRow.label}
+              hot={infoHot}
+              className="entity-field__menu-info"
+              onHover={() => setInfoHot(true)}
+              onPick={menuInfo.open}
+            />
           )}
         </ul>
       )}

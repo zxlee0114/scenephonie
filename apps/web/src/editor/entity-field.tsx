@@ -62,7 +62,8 @@ import {
   NEW_MARK,
   RENAME_MARK,
 } from "./field-marks";
-import { HELP_KEY_HINT, useFieldInfoRow } from "./field-info";
+import { HELP_KEY_HINT } from "./field-info";
+import { InfoRowItem, useMenuInfoRow } from "./menu-info-row";
 import { useAnchoredPosition } from "./use-anchored-position";
 
 export type EntityOption = { id: string; name: string };
@@ -345,17 +346,6 @@ export function EntityField({
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState(false);
-  /**
-   * 這一格的說明列（票 101）：`FieldInfo` 給的，單獨使用時是 null。
-   *
-   * `pointed` ＝ 這一次是**指標點進來**的 —— 只有這時空欄位也開選單（只有說明列那一列）。
-   * Tab 走進來不開：路過的鍵盤使用者有 ⌥/，開始打字後說明列也在選單裡。
-   * `infoHot` ＝ 說明列被走到了（↓ 或滑鼠）。它**永不預選**：選單裡只有它時沒有任何一列高亮，
-   * 空欄位的 Enter／Tab 照原路交給呼叫端（89／91）。
-   */
-  const info = useFieldInfoRow();
-  const [pointed, setPointed] = useState(false);
-  const [infoHot, setInfoHot] = useState(false);
   /** 這一輪由本欄位建出來的實體 —— 新建 chip 與命中 chip 視覺可辨（`＋` vs `📍`）。 */
   const [bornHere, setBornHere] = useState<readonly string[]>([]);
   /**
@@ -1323,31 +1313,37 @@ export function EntityField({
   const activeRow = rows[Math.min(active, rows.length - 1)];
 
   /**
-   * 說明列出不出現。待確認面板與有字的選單都帶著它（排最後）；空欄位只有指標點進來才開
-   * 一份只有它的選單。說明開著時整份選單讓位，所以這一刻不算。
+   * 這一格的說明列（票 101；規則見 `menu-info-row.tsx`）。`FieldInfo` 沒包著時（欄位單獨使用）
+   * 一律是 null。這裡只交出本欄位自己的那幾件事：
+   * - 待確認面板與有字的選單都帶著它；空欄位只有指標點進來才開（`hasContent`）。
+   * - 說明取代選單時，一般選單收起（同 Esc）；待確認面板留著 —— 問題還沒答，看完回來接著答。
+   * - 返回時一般選單放回原來那一層（`stage`）；待確認面板本來就沒收。
+   *
+   * `pointed`／`infoHot` 沿用原名：前者是「指標點進來」，後者是「說明列被走到」（永不預選 ——
+   * 選單裡只有它時沒有任何一列高亮，空欄位的 Enter／Tab 照原路交給呼叫端，89／91）。
    */
-  const infoRow =
-    info != null &&
-    !info.isOpen &&
-    !composingNow &&
-    !dismissed &&
-    stage.name === "suggest" &&
-    (rows.length > 0 || pointed || heldNote != null)
-      ? info
-      : null;
-
-  /**
-   * 選了說明列：說明面板**取代**選單。一般選單就此收起，看完按返回列或 Esc 再回來（`provideBack`）；
-   * 待確認面板不收 —— 問題還沒答，看完說明回來接著答。
-   */
-  const openInfo = () => {
-    setInfoHot(false);
-    if (!pending) closeMenu();
-    openedFromInfoRow.current = true;
-    info?.open();
-  };
-  /** 這一次是從說明列打開的 —— 觸控直接點沒有 hover 那一下，`infoHot` 不會先亮（見 `provideBack`）。 */
-  const openedFromInfoRow = useRef(false);
+  const menuInfo = useMenuInfoRow({
+    field,
+    allowed: !composingNow && !dismissed && stage.name === "suggest",
+    hasContent: rows.length > 0 || heldNote != null,
+    collapseMenu: () => {
+      if (!pending) closeMenu();
+    },
+    menuShown: () => showMenu || showConfirm,
+    captureMenu: () => {
+      const was = stage;
+      return () => {
+        if (pending) return;
+        setStage(was);
+        setDismissed(false);
+      };
+    },
+    leave: () => {
+      leaveInput();
+      leaveField();
+    },
+  });
+  const { row: infoRow, setPointed, hot: infoHot, setHot: setInfoHot } = menuInfo;
 
   /**
    * 正在定案的那一串字還沒做完（建立實體要等伺服器）。
@@ -1513,35 +1509,16 @@ export function EntityField({
     if (event.nativeEvent.isComposing || composing.current) return;
     dropWait(); // 這一顆若又是 ⌘Z／⌘⇧Z，底下會重新掛上
 
+    // ↑↓ 在候選與說明列之間走（說明列排在最後）。
+    if (menuInfo.step(event.key, rows.length, active, setActive)) {
+      event.preventDefault();
+      return;
+    }
     if (rows.length > 0 || infoRow) {
-      // 說明列排在最後：↓ 走過最後一個候選才到它，↑ 從第一個候選繞到它。只有它時 ↑↓ 都停在它上面。
-      const last = rows.length - 1;
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        if (infoHot) {
-          if (rows.length > 0) {
-            setInfoHot(false);
-            setActive(0);
-          }
-        } else if (infoRow && Math.min(active, last) === last) setInfoHot(true);
-        else setActive((i) => (i + 1) % rows.length);
-        return;
-      }
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        if (infoHot) {
-          if (rows.length > 0) {
-            setInfoHot(false);
-            setActive(last);
-          }
-        } else if (infoRow && Math.min(active, last) <= 0) setInfoHot(true);
-        else setActive((i) => (i - 1 + rows.length) % rows.length);
-        return;
-      }
       if (event.key === "Enter" && (infoHot || rows.length > 0)) {
         event.preventDefault();
         event.stopPropagation();
-        if (infoHot && infoRow) openInfo();
+        if (infoHot && infoRow) menuInfo.open();
         else activeRow?.run();
         return;
       }
@@ -1784,28 +1761,6 @@ export function EntityField({
     else home();
   };
 
-  /**
-   * 說明開關的那兩下（票 101，code review 2026-11-04）。
-   *
-   * - **開**：不論是選了說明列還是按 ⌥/，說明都**取代**選單 —— 一般選單收起（同 Esc），
-   *   待確認面板留著（問題還沒答）。⌥/ 那條路不經過 `openInfo`，所以收在這裡。
-   * - **關**：Esc 關的話焦點已經回到欄位，什麼都不用做；點別處關的話焦點不會回來，輸入框
-   *   也就不會再 blur 一次 —— 去讀說明時省掉的那次離開收尾，在這裡補上，字才不會卡在框裡。
-   */
-  const infoWasOpen = useRef(false);
-  useEffect(() => {
-    const now = info?.isOpen ?? false;
-    const was = infoWasOpen.current;
-    infoWasOpen.current = now;
-    if (now && !was) {
-      setInfoHot(false);
-      if (!pending) closeMenu();
-    } else if (!now && was && !field.current?.contains(document.activeElement)) {
-      leaveInput();
-      leaveField();
-    }
-  });
-
   const inputNode = (
     <span
       key="input"
@@ -1862,8 +1817,8 @@ export function EntityField({
         onKeyDown={handleKeyDown}
         onBlur={() => {
           // 焦點是被說明面板接走的（票 101）：他只是去讀說明，Esc 就回來 —— 不算離開。
-          // 他若從說明那裡直接走掉，`leave` 由說明關掉的那一刻補上（見 `infoWasOpen`）。
-          if (info?.isOpen) return;
+          // 他若從說明那裡直接走掉，`leave` 由說明關掉的那一刻補上（見 `useMenuInfoRow`）。
+          if (menuInfo.isOpen) return;
           leaveInput();
         }}
       />
@@ -1904,7 +1859,7 @@ export function EntityField({
 
   // ── 浮層：四種都錨在整個欄位上，走同一支定位（DESIGN.md 的 The One Placement Rule，票券 33）。
   const showPreview = preview.length > 0;
-  const infoOpen = info?.isOpen ?? false;
+  const infoOpen = menuInfo.isOpen;
   const showConfirm = rows.length > 0 && !!pending && !infoOpen;
   const showMenu = (rows.length > 0 || !!heldNote || !!infoRow) && !pending && !infoOpen;
   /**
@@ -1912,27 +1867,6 @@ export function EntityField({
    * 選單是這一刻要回答的事 —— 選單收起來，提示（狀態還在）就回來。
    */
   const showNaming = showNamingHint && !showPreview && !showConfirm && !showMenu;
-
-  /**
-   * 說明面板的返回列（票 101 第二輪）：打開說明那一刻畫面上有選單或待確認面板，就回到那裡、
-   * 高亮停在原處。待確認面板本來就沒收（`pending` 還在），只要把高亮放回去。
-   */
-  useLayoutEffect(() => {
-    info?.provideBack(() => {
-      const fromRow = openedFromInfoRow.current;
-      openedFromInfoRow.current = false;
-      if (!showMenu && !showConfirm) return null;
-      const was = { stage, pointed, infoHot: infoHot || fromRow };
-      return () => {
-        if (!pending) {
-          setStage(was.stage);
-          setDismissed(false);
-          setPointed(was.pointed);
-        }
-        setInfoHot(was.infoHot);
-      };
-    });
-  });
 
   const previewRef = useRef<HTMLUListElement>(null);
   const confirmRef = useRef<HTMLDivElement>(null);
@@ -1953,19 +1887,14 @@ export function EntityField({
 
   /** 說明列 —— 兩份選單共用（一般選單與待確認面板），永遠排最後、一條分隔線隔開。 */
   const infoRowNode = infoRow && (
-    <li
+    <InfoRowItem
       key="info"
-      role="option"
-      aria-selected={infoHot}
-      className={`entity-field__menu-info${infoHot ? " is-active" : ""}`}
-      onMouseEnter={() => setInfoHot(true)}
-      onMouseDown={(e) => {
-        e.preventDefault();
-        openInfo();
-      }}
-    >
-      {infoRow.label}
-    </li>
+      label={infoRow.label}
+      hot={infoHot}
+      className="entity-field__menu-info"
+      onHover={() => setInfoHot(true)}
+      onPick={menuInfo.open}
+    />
   );
 
   return (
@@ -1985,7 +1914,7 @@ export function EntityField({
         // 焦點還在這一格裡（chip、確認列）不算離開。
         if (event.relatedTarget instanceof Node && field.current?.contains(event.relatedTarget))
           return;
-        if (info?.isOpen) return; // 去讀說明（見輸入框的 onBlur）
+        if (menuInfo.isOpen) return; // 去讀說明（見輸入框的 onBlur）
         leaveField();
       }}
     >

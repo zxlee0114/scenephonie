@@ -14,7 +14,7 @@ export function DocumentShell({ projectId, children }: { projectId: string; chil
     <main className="document-shell">
       {/* React 19 會把帶 precedence 的 stylesheet 提到 <head>、只插一次。 */}
       <link rel="stylesheet" href="/fonts/noto-sans-tc-700/fonts.css" precedence="default" />
-      <header className="document-shell__bar">
+      <header className="document-shell__bar" data-overlay-ceiling="">
         <Link href={`/projects/${projectId}`} className="document-shell__home">
           ← 專案
         </Link>

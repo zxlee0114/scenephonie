@@ -29,7 +29,7 @@
  * **速記鍵一步到位**（使用者回饋 2026-09-10 第四輪）：關著時按 `i` 直接就是「內景」、`d` 是
  * 「日」—— 用的是這兩個列舉本來就有的劇本術語（`INT.`／`DAY`），不是另外發明的鍵。同一顆鍵
  * 命中好幾個就再按一次循環（`d` → 日 → 晨 → 昏，DAY／DAWN／DUSK）。選單列上印的是**那一顆
- * 鍵**（`內景(i)`）而不是術語 —— 術語會把列撐得比 chip 寬一大截，它屬於 ⓘ 的說明框。**刻意不做輸入框**：值域是封閉列舉，一個輸入框要多回答「打了『傍晚』怎麼辦」，
+ * 鍵**（`內景 (i)`）而不是術語 —— 術語會把列撐得比 chip 寬一大截，它屬於 ⓘ 的說明框。**刻意不做輸入框**：值域是封閉列舉，一個輸入框要多回答「打了『傍晚』怎麼辦」，
  * 而且會把注音組字（§7.6）請進兩個本來免疫的欄位 —— `<button>` 收不到 `compositionstart`。
  *
  * ⚠️ 因為同一個理由，速記鍵**只認拉丁鍵**：焦點在 `<button>` 上時注音不會啟動組字，到手上
@@ -60,6 +60,7 @@ import {
 
 import type { ChipNav } from "./chip-nav";
 import { HELP_KEY_HINT, useFieldInfoRow } from "./field-info";
+import { InfoRowItem } from "./menu-info-row";
 import { useAnchoredPosition } from "./use-anchored-position";
 
 /**
@@ -364,19 +365,14 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
   /** 說明列 —— 兩份選單共用，永遠排最後、一條分隔線隔開。 */
   const infoRowNode = (index: number) =>
     info && (
-      <li
+      <InfoRowItem
         key="info"
-        role="option"
-        aria-selected={active === index}
-        className={`chip-select__info${active === index ? " is-active" : ""}`}
-        onMouseEnter={() => setActive(index)}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          openInfo(index);
-        }}
-      >
-        {info.label}
-      </li>
+        label={info.label}
+        hot={active === index}
+        className="chip-select__info"
+        onHover={() => setActive(index)}
+        onPick={() => openInfo(index)}
+      />
     );
 
   return (
@@ -447,9 +443,15 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
               }}
             >
               {row || UNSET_LABEL}
-              {/* 只印那一顆鍵（`內景(i)`）。術語本身太長，會把這一列撐得比 chip 寬一大截
+              {/* 只印那一顆鍵（`內景 (i)`）。術語本身太長，會把這一列撐得比 chip 寬一大截
                   —— 它屬於 ⓘ 的說明框，不屬於選單（使用者回饋 2026-09-10，第四輪之二）。 */}
-              {terms?.[row] && <span className="chip-select__key">({terms[row]![0]!.toLowerCase()})</span>}
+              {/* 前面空一格、半形括號 —— 與說明列的 ` (⌥/)` 同一個寫法（票 101 驗收回饋）。 */}
+              {terms?.[row] && (
+                <>
+                  {" "}
+                  <span className="chip-select__key">({terms[row]![0]!.toLowerCase()})</span>
+                </>
+              )}
               {notes?.[row] && <span className="chip-select__note-tag">{notes[row]}</span>}
             </li>
           ))}
