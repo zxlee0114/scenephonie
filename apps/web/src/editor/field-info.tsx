@@ -9,25 +9,30 @@
  *
  * 時間欄沒有坑，但也給一份：同一排裡有的有 icon、有的沒有，看起來像漏了。
  *
- * ── 無障礙 ────────────────────────────────────────────────────────────
- * icon 本身 `tabIndex={-1}`：編劇每一場都要用 Tab 走一遍 metadata，一格一個 icon 會讓那條路
- * 加倍長。但只把它移出 tab 序會讓純鍵盤使用者再也按不到它（WCAG 2.1.1），所以三種人各有
- * 一條完整的路：
+ * ── 三種人三條路 ──────────────────────────────────────────────────────
+ * 原本每格旁邊一顆 ⓘ（`tabIndex={-1}`，懸停才印出 ⌥/）。票 101 把它拿掉：每場 5 顆、三場 15 顆，
+ * 而懸停提示在觸控上根本不存在。說明改成**欄位選單最下面的一列** `ⓘ 關於地點（⌥/）`，
+ * 快捷鍵直接寫在列上，滑鼠、觸控、鍵盤都看得到：
  *
  * | 誰 | 路 |
  * |---|---|
- * | 滑鼠 | 點 icon |
+ * | 滑鼠／觸控 | 點進欄位 → 選單最下面那一列（空欄位也開，只有點進來才開 —— Tab 進來不開） |
  * | 螢幕閱讀器 | 欄位的 `aria-describedby` 指向 `summary` —— 一聚焦就聽見，不必開彈窗 |
- * | 純鍵盤 | 欄位上按 **⌥/**（`aria-keyshortcuts` 宣告出來，懸停 icon 時也印在旁邊） |
+ * | 純鍵盤 | 欄位上按 **⌥/**（`aria-keyshortcuts` 宣告出來；一打字，選單的說明列也印著它） |
+ *
+ * 那一列什麼時候出現、能不能被預選，是欄位元件自己的事（它們各自握著選單）；這裡經由
+ * context 交給它們要印的字與打開的動作（`useFieldInfoRow`）。
  *
  * 快捷鍵原本是 F1（那是它在桌面軟體裡的老位置），改成 ⌥/ 是因為 macOS 的 F1 預設是螢幕
  * 亮度鍵 —— 要按 `fn+F1` 才傳得到網頁，等於這條路對多數人不存在（使用者裁決 2026-09-10）。
  *
- * 彈窗關閉時焦點回到**欄位**而不是 icon —— 回到一個 Tab 走不到的地方等於把焦點丟掉。
+ * 彈窗關閉時焦點回到**欄位** —— 打開前焦點在哪就還給哪裡。
  */
 "use client";
 
 import {
+  createContext,
+  useContext,
   useEffect,
   useId,
   useRef,
@@ -178,6 +183,29 @@ export const FIELD_INFO: Record<FieldInfoKey, FieldInfoText> = {
 };
 
 /**
+ * 欄位選單最下面那一列（票 101）—— `FieldInfo` 經由 context 交給包在裡面的欄位元件。
+ *
+ * 欄位自己決定這一列什麼時候出現、能不能被預選（規則見票 101 的結論）；這裡只給它要印的字、
+ * 打開說明的動作，以及說明現在開著沒（開著時選單與待確認面板要讓位）。
+ */
+export type FieldInfoRow = {
+  /** `ⓘ 關於地點（⌥/）` —— 快捷鍵印在列上，滑鼠、觸控、鍵盤都看得到。 */
+  label: string;
+  isOpen: boolean;
+  open: () => void;
+};
+
+const FieldInfoContext = createContext<FieldInfoRow | null>(null);
+
+/** 這一格掛了說明的話，選單要放的那一列；沒掛就是 null（欄位單獨使用時）。 */
+export function useFieldInfoRow(): FieldInfoRow | null {
+  return useContext(FieldInfoContext);
+}
+
+/** 說明列的文字。 */
+export const infoRowLabel = (info: FieldInfoKey) => `ⓘ 關於${FIELD_INFO[info].title}（⌥/）`;
+
+/**
  * 包住一格 metadata 欄位，替它掛上說明。
  *
  * `children` 是函式，因為欄位本身要拿到 `describedBy`（`aria-describedby` 的目標 id）——
@@ -198,7 +226,7 @@ export function FieldInfo({
   const [open, setOpen] = useState(false);
   const host = useRef<HTMLSpanElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  /** 開啟前焦點在哪 —— 關閉時要還它（而不是還給 tab 走不到的 icon）。 */
+  /** 開啟前焦點在哪 —— 關閉時要還它。 */
   const returnTo = useRef<HTMLElement | null>(null);
 
   const openPanel = () => {
@@ -211,8 +239,8 @@ export function FieldInfo({
     returnTo.current?.focus();
   };
 
-  // 錨在整格上（欄位＋icon）：登場人物欄坐在 chip row 右端，面板貼著 icon 開會溢出視窗
-  // （DESIGN.md 的 The One Placement Rule，票券 33）。
+  // 錨在整格上，開在欄位選單原本的位置 —— 說明**取代**選單（票 101；DESIGN.md 的
+  // The One Placement Rule，票券 33）。
   useAnchoredPosition(panel, () => host.current, { active: open });
 
   // 開啟後把焦點移進面板：Esc 才有地方接，螢幕閱讀器也才會讀出標題與內文。
@@ -221,11 +249,12 @@ export function FieldInfo({
     if (open) panel.current?.focus({ preventScroll: true });
   }, [open]);
 
-  // 點到別處就關 —— 但**不**搶焦點回來，使用者正要去點的就是別的東西。
+  // 點到面板外就關 —— 但**不**搶焦點回來，使用者正要去點的就是別的東西。點回欄位本身也算：
+  // 那一下是又要選單了（欄位的 `pointerdown` 會把它開回來）。
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (ev: PointerEvent) => {
-      if (!host.current?.contains(ev.target as Node)) setOpen(false);
+      if (!panel.current?.contains(ev.target as Node)) setOpen(false);
     };
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
@@ -240,7 +269,10 @@ export function FieldInfo({
     else openPanel();
   };
 
+  const row: FieldInfoRow = { label: infoRowLabel(info), isOpen: open, open: openPanel };
+
   return (
+    <FieldInfoContext.Provider value={row}>
     <span className={`field-info${className ? ` ${className}` : ""}`} ref={host} onKeyDown={onKeyDown}>
       {children(summaryId)}
 
@@ -248,32 +280,6 @@ export function FieldInfo({
       <span id={summaryId} className="sr-only">
         {text.summary}
       </span>
-
-      <button
-        type="button"
-        className="field-info__button"
-        // 每一場都要 Tab 走一遍 metadata，一格一個 icon 會讓那條路加倍長。移出 tab 序的代價由
-        // aria-describedby（螢幕閱讀器）與 ⌥/（純鍵盤）補回來 —— 見檔頭那張表。
-        tabIndex={-1}
-        aria-label={`關於${text.title}`}
-        aria-expanded={open}
-        onMouseDown={(e) => {
-          // chip row 住在 contentEditable={false} 裡，預設行為會把選取丟到別處。
-          e.preventDefault();
-          if (open) setOpen(false);
-          else openPanel();
-        }}
-      >
-        ⓘ
-      </button>
-
-      {/* 懸停時才出現的快捷鍵提示。icon 走不到 tab 序，這是它唯一自己說得出「還有鍵盤這條路」
-          的地方 —— 而且看得到 icon 的人正好就是還沒發現快捷鍵的人。 */}
-      {!open && (
-        <span className="field-info__hint" aria-hidden="true">
-          ⌥/
-        </span>
-      )}
 
       {open && (
         <div
@@ -296,5 +302,6 @@ export function FieldInfo({
         </div>
       )}
     </span>
+    </FieldInfoContext.Provider>
   );
 }

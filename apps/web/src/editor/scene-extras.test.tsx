@@ -107,8 +107,11 @@ describe("簡表的群演欄", () => {
     await waitFor(() =>
       expect(menuRows(container, ".scene__chip--extras")).toContain("👥 咖啡廳客人"),
     );
+    // 最後一列是欄位說明（票 101），要點的是那一列補字。
     fireEvent.mouseDown(
-      [...container.querySelectorAll(".scene__chip--extras .entity-field__menu li")].at(-1)!,
+      [...container.querySelectorAll(".scene__chip--extras .entity-field__menu li")].find(
+        (li) => li.textContent === "👥 咖啡廳客人",
+      )!,
     );
 
     await waitFor(() => expect(input.value).toBe("咖啡廳客人"));
