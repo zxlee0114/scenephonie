@@ -1029,7 +1029,8 @@
 }
 
 .entity-field input:focus {
-  /* 焦點環由外框畫（`:focus-within`），這裡再畫一次就是框中框。 */
+  /* 抬頭欄位的焦點由外框畫（`.scene__chip .entity-field:focus-within`），這裡再畫一次就是框中框。
+   * 對白人物欄沒有外框，也就沒有這一圈（票券 105）。 */
   outline: none;
 }
 
@@ -1391,29 +1392,8 @@
   min-block-size: 1lh;
 }
 
-/* 對白的人物欄不畫框（它在版面上是「上面那一行」，不是一格控制項），只留一條底線 ——
- * 而**底線畫在容器上、不畫在 input 上**（使用者回饋 2026-09-10）：chip 要住在那條線上方的
- * 同一格裡，接在後面才是還能打字的空間。同地點欄的做法。 */
-.block--dialogue .block__speaker-field .entity-field {
-  flex: 1;
-  align-items: center;
-  font-family: var(--font-ui);
-  /* 人名比次級字級大一些，讀得出「誰在說」；font-ui ＋ 次級色仍讓它不與台詞爭主體
-   * （使用者回饋 2026-09-03）。 */
-  font-size: var(--text-base);
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--rule);
-  padding: 0 0 2px;
-  /* 人名與其台詞之間的間隔（使用者回饋 2026-09-03）。 */
-  margin-block-end: var(--space-2);
-}
-
-.block--dialogue .block__speaker-field .entity-field:focus-within {
-  border-bottom-color: var(--focus-ring);
-}
-
 .block--dialogue .block__speaker {
-  /* input 只是那一格裡還能打字的一段 —— 外觀全部由容器負責。 */
+  /* input 只是那一格裡還能打字的一段 —— 字型與顏色跟著對白區塊繼承，容器只管版面（票券 105）。 */
   font: inherit;
   color: inherit;
   background: transparent;

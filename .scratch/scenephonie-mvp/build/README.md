@@ -100,7 +100,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [57](./57-select-chips-in-a-field.md) | 一格裡的 chip 選得起來：`⌘A` 選滿整格、`⌫` 清空，四格一致；按到底放行給整份文件。選取狀態是**一組 chip**（為以後的子集與剪貼留形狀）。**拖曳定案給重排、選取永不靠拖**。blocked by 無（08／09／34 皆已完成）。剪貼另開票。 | `open` |
 | [58](./58-single-value-field-caret-after-commit.md) | bug：單值欄（非雜景地點欄、對白人物欄）定案之後輸入框卡在 chip **前面** —— `merge` 的單值分支沒把 `caret` 歸位，而 `reset()` 靠它歸位。**從票券 52 的人工驗收切出來**，與 52 無關（根因在票券 39 的游標歸位）。 | ✅ done |
 | [59](./59-voice-style-entry.md) | 發聲方式（V.O./O.S.）的輸入入口 —— `voiceStyle` 在 schema 裡，但沒有 UI 設得到。規格 §4.6：併進對白人物欄的自動補全。**從票券 10 切出來**（提示的判準已經在讀這個 attr）。blocked by 10。 | `open` |
-| [60](./60-speaker-field-caret-before-chip-layout.md) | bug：對白人物欄游標走到 chip 前面時，輸入框撐開、把 chip 推到欄位中間 —— 違反「縫」的版面（不佔版面）。**從票券 10 驗收撈到**，與 10 無關。 | ✅ done（隨 62 修掉，待驗） |
+| [60](./60-speaker-field-caret-before-chip-layout.md) | bug：對白人物欄游標走到 chip 前面時，輸入框撐開、把 chip 推到欄位中間 —— 違反「縫」的版面（不佔版面）。**從票券 10 驗收撈到**，與 10 無關。 | ✅ verified |
 | [61](./61-speaker-field-left-exits-to-previous-block.md) | 對白人物欄最前面按 ← 走不回上一個區塊。已定案：與 ↑ 同落點（場次第一個區塊 → 群演欄）；群組片段的落點一起修；反方向拆成 89。**從票券 10 驗收撈到**。 | ✅ verified |
 | [62](./62-empty-dialogue-backspace-reverts.md) | 對白之間的 Enter／Backspace 不對稱：空對白按 Backspace 收不回；台詞開頭 Enter 切出第二句對白後回不去，而且 Backspace 會**刪掉上一句有人物的對白（資料遺失）**。**從票券 10、21 驗收撈到**。 | ✅ verified |
 | [63](./63-canonical-host-redirect.md) | 非正式網域一律 308 轉到 `BETTER_AUTH_URL` 的 host —— 從 deployment 網址登入時 `state` cookie 跨網域，Google 登入偶爾失敗。無 blocker。 | `open` |
@@ -145,4 +145,5 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [102](./102-click-preview-while-composing.md) | 組字中點選預覽：滑鼠點下去就結束組字並選中那一項（Google 搜尋框的手感），鍵盤照舊歸輸入法。推翻票 08「按不到」的一半；跨瀏覽器結束組字的方式開工前驗。**從票券 33 第三條討論提出**，無 blocker。 | `needs-triage` |
 | [103](./103-halfwidth-parens-sweep.md) | 畫面上的半形括號全站掃一遍：括號裡只有半形字就用半形、前面空一格；註解不改。**從票券 101 第二輪 grilling 定下規則**，101 先合。 | `needs-triage` |
 | [104](./104-speaker-menu-layout-shift.md) | 點對白的人物 chip 開選單時版面會位移；聚焦樣式維持原狀。**從票券 101 驗收撈到**，無 blocker。 | ✅ verified |
-| [105](./105-speaker-field-dead-selectors.md) | 對白人物欄的底線／字級／聚焦樣式選擇器對不到元素（class 直接掛在 `.entity-field` 上）：救回來還是刪掉，先問。**從票券 104 撈到**，無 blocker。 | `needs-triage` |
+| [105](./105-speaker-field-dead-selectors.md) | 對白人物欄的底線／字級／聚焦樣式選擇器對不到元素（class 直接掛在 `.entity-field` 上）：刪掉（使用者裁決，不救回來）；劇本內文聚焦只靠游標，寫進 DESIGN.md。**從票券 104 撈到**，無 blocker。 | ✅ verified |
+| [106](./106-dialogue-line-placeholder.md) | 空的台詞行印一行提示字（跟人物欄的 `人物` 一樣）；措辭、描述／插入畫面要不要也有、只印游標那一行還是全部，開工前定。**從票券 105 驗收提出**，無 blocker。 | `needs-triage` |
