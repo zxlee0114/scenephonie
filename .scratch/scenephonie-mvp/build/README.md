@@ -73,7 +73,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [30](./30-slash-next-leaves-empty-block.md) | bug：`/next` 在原場次留下一個空區塊。blocked by 04。 | ✅ verified |
 | [31](./31-load-focus-unfilled-last-scene.md) | 載入時末場還沒填 metadata，焦點落在該場 chip row。blocked by 26。 | ✅ done |
 | [32](./32-empty-document-state.md) | 零場次時的空狀態（全選刪除後不是死路；不自動補場次）。blocked by 04。 | ✅ verified |
-| [33](./33-entity-field-ui-polish.md) | 實體欄位與欄位說明的視覺／互動打磨（浮層翻邊、觸控上的快捷鍵揭露、預覽的份量）。blocked by 08。 | `open` |
+| [33](./33-entity-field-ui-polish.md) | 實體欄位與欄位說明的視覺／互動打磨（浮層翻邊、觸控上的快捷鍵揭露、預覽的份量）。blocked by 08。 | ✅ verified |
 | [34](./34-chip-row-caret-return.md) | chip row 與內文之間的鍵盤往返（方向鍵）—— 進了內文就回不到 metadata；Shift+Tab 回頭會順手把區塊轉成對白。blocked by 04，排在 09 之後。 | ✅ done |
 | [35](./35-promote-extra-to-character.md) | 從群演裡升格一個人物（特約）—— 對白人物欄多一條「從這批人裡拉一個出來」的路，群演人數同時減一。blocked by 09、10。 | ✅ done |
 | [36](./36-promote-picker-and-menu-hints.md) | 升格改成兩層選單，選單旁一欄唯讀說明 —— 標籤放結果、說明另外放。blocked by 35。**那條分工是 41／48 那行唯讀提示的前例**。 | `open` |
@@ -140,6 +140,8 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [97](./97-undo-wait-survives-unrelated-render.md) | bug：⌘Z 撤掉剛定案的那一筆時，等的那一次重繪被無關的重繪吃掉，chip 撤了字沒回框裡（CI flaky）。修：refs 沒變的重繪不算裁決；編劇再動這一欄就作廢等待。**從票券 86 merge 後的 CI 撈到**，無 blocker。 | ✅ verified |
 | [98](./98-undo-in-field-scrolls-page.md) | 實體欄位按 ⌘Z，頁面捲到文件游標（定案時 `keepCaret` 沒動它，可能在好幾場外）。定案：**⌘Z／⌘⇧Z 不帶捲動地撤，比出改到哪裡 —— 在畫面上不動、不在就捲到畫面中段；內文、欄位、焦點掉到 body 三個入口一條規則**。**從票券 97 驗收撈到**，無 blocker。 | ✅ verified |
 | [99](./99-multiple-locations-outside-mixed.md) | 非雜景（含內外未填）的地點欄打好幾個地點會變成一個地點：要不要當成訊號（提示改雜景、拆群組）開工前問。**從票券 97 驗收提出**，無 blocker。 | `needs-triage` |
-| [100](./100-speaker-undo-test-timing.md) | 測試 flaky：對白人物欄 ⌘Z 的兩條測試在 CI 偶發失敗（文件退回就同步讀框；⌘Z 搶在 Enter 的延後 focus 之前）。修：一起放進 `waitFor`、先等焦點落地再撤。**從票券 98 merge 後的 CI 撈到**，無 blocker。 | `done` |
-| [101](./101-field-info-into-menu.md) | 拿掉 ⓘ 按鈕，欄位說明改成下拉選單的一列 `ⓘ 關於地點（⌥/）`，選單在欄位聚焦時就顯示。對白人物欄每句都彈、Tab 走抬頭每格都彈、Enter 不得落在說明列等開工前定。**從票券 33 開工時提出**，與 33、83 協調。 | `needs-triage` |
+| [100](./100-speaker-undo-test-timing.md) | 測試 flaky：對白人物欄 ⌘Z 的兩條測試在 CI 偶發失敗（文件退回就同步讀框；⌘Z 搶在 Enter 的延後 focus 之前）。修：一起放進 `waitFor`、先等焦點落地再撤。**從票券 98 merge 後的 CI 撈到**，無 blocker。 | ✅ verified |
+| [101](./101-field-info-into-menu.md) | 拿掉 ⓘ 按鈕，欄位說明改成欄位選單最下面的一列 `ⓘ 關於地點 (⌥/)`：指標點進來才開（Tab 不開）、永不預選、說明面板取代選單；面板最上面 `← 返回 (Esc)` 退回原處。驗收時一起修：浮層不壓過頁首、抬頭欄位聚焦改框線變深。**從票券 33 開工時提出**，與 33、83 協調。 | `done` |
 | [102](./102-click-preview-while-composing.md) | 組字中點選預覽：滑鼠點下去就結束組字並選中那一項（Google 搜尋框的手感），鍵盤照舊歸輸入法。推翻票 08「按不到」的一半；跨瀏覽器結束組字的方式開工前驗。**從票券 33 第三條討論提出**，無 blocker。 | `needs-triage` |
+| [103](./103-halfwidth-parens-sweep.md) | 畫面上的半形括號全站掃一遍：括號裡只有半形字就用半形、前面空一格；註解不改。**從票券 101 第二輪 grilling 定下規則**，101 先合。 | `needs-triage` |
+| [104](./104-speaker-menu-layout-shift.md) | 點對白的人物 chip 開選單時版面會位移；聚焦樣式維持原狀。**從票券 101 驗收撈到**，無 blocker。 | `needs-triage` |
