@@ -777,9 +777,9 @@
 .entity-field__menu li.entity-field__menu-info:not(:first-child),
 .chip-select__menu li.chip-select__info:not(:first-child) {
   margin-block-start: var(--space-1);
+  border-block-start: 1px solid var(--rule);
   border-start-start-radius: 0;
   border-start-end-radius: 0;
-  box-shadow: inset 0 1px 0 var(--rule);
 }
 
 /* 內外／時間選單用 aria-selected 標「目前的值」（藍字）—— 說明列不是值，不吃那個顏色。 */

@@ -1,6 +1,6 @@
 # 101 — 拿掉 ⓘ 按鈕，欄位說明改成下拉選單的一列
 
-**Status:** ready-for-agent
+**Status:** done
 
 **What to build:** 抬頭每一格旁邊的 ⓘ 按鈕拿掉，欄位說明改成**下拉選單裡的一列**：
 `ⓘ 關於地點（⌥/）`。選單在**用指標點進欄位時就顯示**，不必先打字（Tab 進來不開，見結論 1）。
@@ -57,3 +57,20 @@
    - 開工前回頭對一次票 08 驗收過的 Esc／Enter 行為（第 7 條是做事步驟，不是決策）。
 
 不進 `CONTEXT.md`（介面決定，不是領域術語）；不開 ADR（可逆）。
+
+## Comments
+
+**2026-11-04，實作完成**（分支 `ticket-101-field-info-into-menu`）：
+
+- `FieldInfo` 經 context（`useFieldInfoRow`）把說明列的字與打開的動作交給欄位；三種欄位（`EntityField`、`ChipSelect`、`ExtrasField`）各自決定它何時出現。ⓘ 按鈕、`.field-info__hint` 與它們的 CSS 拿掉。
+- 測試在 `field-info-menu.test.tsx`（四個 seam：地點欄、內外欄、群演欄、`field-info.test.tsx`）。既有測試因說明列排最後而更新：`scene-location-arity`（兩條）、`scene-extras`、`subscenes`。
+- **code review 後補修**：
+  - 讀說明時點別處：輸入框那次 blur 被省掉了（去讀說明不算離開），但點別處關掉說明時焦點不會回來 —— 字會卡在框裡。改成說明「被點走」的那一刻補跑離開的收尾（定案、放手、歸位）；內外欄的待確認面板同理跟著收。
+  - ⌥/ 開說明也取代選單（原本只有選說明列那條路會收選單）。
+  - 點選單裡的候選不算「點進欄位」（原本選完會留下一份只有說明列的選單）。
+  - 分隔線改用 `border-block-start`（DESIGN.md 的 One Shadow Rule：不加第二種陰影）。
+- **待使用者確認的兩處**（實作時自己定的，結論沒寫到）：
+  1. 在第一個候選上按 ↑ 會繞到說明列（原本繞到最後一個候選）—— 說明列就是最後一列，循環本來就該經過它。
+  2. 群演欄的**人數那一層**不放說明列 —— 那一刻要回答的是數量。
+- 留到之後整理（review 的判斷題）：`entity-field` 與 `extras-field` 的說明列邏輯（`pointed`／`infoHot`、↑↓、`infoWasOpen`、那一列 JSX）幾乎逐字重複，`chip-select` 是第三份同形 JSX；且前兩者用 `active` ＋ `infoHot` 兩個值表示高亮，`chip-select` 用「index ＝ rows.length」，兩套並存。
+

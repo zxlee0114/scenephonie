@@ -203,7 +203,7 @@ export function useFieldInfoRow(): FieldInfoRow | null {
 }
 
 /** 說明列的文字。 */
-export const infoRowLabel = (info: FieldInfoKey) => `ⓘ 關於${FIELD_INFO[info].title}（⌥/）`;
+const infoRowLabel = (info: FieldInfoKey) => `ⓘ 關於${FIELD_INFO[info].title}（⌥/）`;
 
 /**
  * 包住一格 metadata 欄位，替它掛上說明。

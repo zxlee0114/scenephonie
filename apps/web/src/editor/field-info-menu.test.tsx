@@ -319,3 +319,104 @@ describe("說明列：群演欄（ExtrasField）", () => {
     expect(container.querySelectorAll(".entity-chip")).toHaveLength(0);
   });
 });
+
+describe("說明開著時的其他路（code review 2026-11-04）", () => {
+  it("打到一半讀說明、再點別處 —— 照一般的離開定案，字不會卡在框裡", async () => {
+    const { container } = render(
+      <>
+        <LocationHost />
+        <button type="button">別處</button>
+      </>,
+    );
+    const input = container.querySelector("input")!;
+    input.focus();
+    fireEvent.change(input, { target: { value: "派出所" } });
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => {});
+
+    const away = [...container.querySelectorAll("button")].find((b) => b.textContent === "別處")!;
+    fireEvent.pointerDown(away);
+    away.focus();
+    await waitFor(() => expect(container.querySelectorAll(".entity-chip")).toHaveLength(1));
+    expect(input.value).toBe("");
+    expect(menuRows(container)).toEqual([]);
+  });
+
+  it("群演欄也一樣：讀說明時點別處，打到一半的字照一般的離開定案", async () => {
+    const { container } = render(
+      <>
+        <ExtrasHost />
+        <a href="#x">別處</a>
+      </>,
+    );
+    const input = container.querySelector("input")!;
+    input.focus();
+    fireEvent.change(input, { target: { value: "路人 x3" } });
+    fireEvent.keyDown(input, { key: "÷", code: "Slash", altKey: true });
+    await act(async () => {});
+
+    const away = container.querySelector("a")!;
+    fireEvent.pointerDown(away);
+    away.focus();
+    await waitFor(() => expect(container.querySelectorAll(".entity-chip")).toHaveLength(1));
+    expect(input.value).toBe("");
+  });
+
+  it("⌥/ 開說明也一樣取代選單 —— Esc 回來選單不自己彈回來", () => {
+    const { container } = render(<LocationHost />);
+    const input = container.querySelector("input")!;
+    input.focus();
+    fireEvent.change(input, { target: { value: "派" } });
+    expect(menuRows(container).length).toBeGreaterThan(0);
+
+    fireEvent.keyDown(input, { key: "÷", code: "Slash", altKey: true });
+    fireEvent.keyDown(panelOf(container)!, { key: "Escape" });
+    expect(menuRows(container)).toEqual([]);
+  });
+
+  it("滑鼠點選單裡的候選不算「點進欄位」—— 選完不留下一份只有說明列的選單", async () => {
+    const { container } = render(<LocationHost />);
+    const input = container.querySelector("input")!;
+    input.focus();
+    fireEvent.change(input, { target: { value: "派" } });
+    const candidate = [...container.querySelectorAll(".entity-field__menu li")].find((li) =>
+      li.textContent?.includes("派出所"),
+    )!;
+    fireEvent.pointerDown(candidate);
+    fireEvent.mouseDown(candidate);
+    await waitFor(() => expect(container.querySelectorAll(".entity-chip")).toHaveLength(1));
+    expect(menuRows(container)).toEqual([]);
+  });
+
+  it("內外欄：離開雜景的面板開著時讀說明、再點別處 —— 面板不會在失焦後又冒出來", () => {
+    const leave: ChipConfirm = {
+      note: "這場目前有 2 個地點",
+      rows: [
+        { key: "go", label: "前往地點欄編輯", run: () => {} },
+        { key: "keep", label: "維持雜景", run: () => {} },
+      ],
+    };
+    const { container } = render(
+      <>
+        <IntExtHost confirm={(next) => (next === "雜景" ? null : leave)} />
+        <a href="#x">別處</a>
+      </>,
+    );
+    const button = container.querySelector("button")!;
+    button.focus();
+    fireEvent.click(button);
+    fireEvent.mouseDown(
+      [...container.querySelectorAll(".chip-select__menu li")].find((li) => li.textContent?.startsWith("內景"))!,
+    );
+    fireEvent.keyDown(button, { key: "ArrowUp" });
+    fireEvent.keyDown(button, { key: "Enter" });
+    expect(panelOf(container)).not.toBeNull();
+
+    const away = container.querySelector("a")!;
+    fireEvent.pointerDown(away);
+    away.focus();
+    expect(panelOf(container)).toBeNull();
+    expect(chipRows(container)).toEqual([]);
+  });
+});

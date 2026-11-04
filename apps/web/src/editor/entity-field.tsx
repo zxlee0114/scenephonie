@@ -1757,6 +1757,52 @@ export function EntityField({
    * 位移，畫面跳得比實際發生的事還大。沒在編輯時這層 span 是透明的（`display: contents`），
    * 輸入框照樣是 `.entity-field` 的 flex 項。
    */
+  /** 輸入框失焦的收尾 —— 離開欄位時要做的那幾件事（blur 與「從說明那裡走掉」共用）。 */
+  const leaveInput = () => {
+    // 離開欄位時把還沒 chip 化的字定案（與 CjkField 的 blur 回寫同一個理由：
+    // 打完就走是常態，不該把字吃掉）。
+    // 待確認的字**不在 blur 時定案** —— 它正等著編劇回答，離開欄位不是答案。
+    // 走的是與 Enter 同一份解析，只是游標不跟著去台詞（票券 82）。
+    if (!composing.current && !needsConfirm) void commitText({ advance: false, leaving: true });
+    // 空著離開 ＝ 放手。`commitText` 沒字時直接 return，不清任何東西 —— 少了這一句，
+    // 抬頭會跟著欄位一路掛在畫面上（2026-09-11 驗收回饋）。
+    if (text.trim() === "") letGo();
+    setStage({ name: "suggest" });
+    setShowNamingHint(false); // 他移開就是決定了（見 `showNamingHint`）
+    setPointed(false);
+    setInfoHot(false);
+  };
+
+  /** 整格失焦的收尾（輸入框的 `leaveInput` 先跑）。 */
+  const leaveField = () => {
+    // React 的 onBlur 會冒泡、子層先跑：輸入框自己的 blur 已經開始定案了。定案還在路上
+    // （建實體要等伺服器）時不在這裡清 —— 那一筆得先照 `caret` 放回原位，`settle` 收尾。
+    if (committing.current) leftWhileCommitting.current = true;
+    else home();
+  };
+
+  /**
+   * 說明開關的那兩下（票 101，code review 2026-11-04）。
+   *
+   * - **開**：不論是選了說明列還是按 ⌥/，說明都**取代**選單 —— 一般選單收起（同 Esc），
+   *   待確認面板留著（問題還沒答）。⌥/ 那條路不經過 `openInfo`，所以收在這裡。
+   * - **關**：Esc 關的話焦點已經回到欄位，什麼都不用做；點別處關的話焦點不會回來，輸入框
+   *   也就不會再 blur 一次 —— 去讀說明時省掉的那次離開收尾，在這裡補上，字才不會卡在框裡。
+   */
+  const infoWasOpen = useRef(false);
+  useEffect(() => {
+    const now = info?.isOpen ?? false;
+    const was = infoWasOpen.current;
+    infoWasOpen.current = now;
+    if (now && !was) {
+      setInfoHot(false);
+      if (!pending) closeMenu();
+    } else if (!now && was && !field.current?.contains(document.activeElement)) {
+      leaveInput();
+      leaveField();
+    }
+  });
+
   const inputNode = (
     <span
       key="input"
@@ -1813,19 +1859,9 @@ export function EntityField({
         onKeyDown={handleKeyDown}
         onBlur={() => {
           // 焦點是被說明面板接走的（票 101）：他只是去讀說明，Esc 就回來 —— 不算離開。
+          // 他若從說明那裡直接走掉，`leave` 由說明關掉的那一刻補上（見 `infoWasOpen`）。
           if (info?.isOpen) return;
-          // 離開欄位時把還沒 chip 化的字定案（與 CjkField 的 blur 回寫同一個理由：
-          // 打完就走是常態，不該把字吃掉）。
-          // 待確認的字**不在 blur 時定案** —— 它正等著編劇回答，離開欄位不是答案。
-          // 走的是與 Enter 同一份解析，只是游標不跟著去台詞（票券 82）。
-          if (!composing.current && !needsConfirm) void commitText({ advance: false, leaving: true });
-          // 空著離開 ＝ 放手。`commitText` 沒字時直接 return，不清任何東西 —— 少了這一句，
-          // 抬頭會跟著欄位一路掛在畫面上（2026-09-11 驗收回饋）。
-          if (text.trim() === "") letGo();
-          setStage({ name: "suggest" });
-          setShowNamingHint(false); // 他移開就是決定了（見 `showNamingHint`）
-          setPointed(false);
-          setInfoHot(false);
+          leaveInput();
         }}
       />
       {held && (
@@ -1913,7 +1949,10 @@ export function EntityField({
       ref={field}
       // 指標點進來（滑鼠、觸控）＝ 要看這一格有什麼可選 —— 空欄位也開出說明列（票 101）。
       // 先前 Esc 收掉的選單也跟著回來：點下去就是又要它了。
-      onPointerDown={() => {
+      // 點在選單／待確認面板裡的是「選一列」，不是點進欄位 —— 不然選完會留下一份只有說明列的選單。
+      onPointerDown={(e) => {
+        const target = e.target as Node;
+        if (menuRef.current?.contains(target) || confirmRef.current?.contains(target)) return;
         setPointed(true);
         setDismissed(false);
       }}
@@ -1922,10 +1961,7 @@ export function EntityField({
         if (event.relatedTarget instanceof Node && field.current?.contains(event.relatedTarget))
           return;
         if (info?.isOpen) return; // 去讀說明（見輸入框的 onBlur）
-        // React 的 onBlur 會冒泡、子層先跑：輸入框自己的 blur 已經開始定案了。定案還在路上
-        // （建實體要等伺服器）時不在這裡清 —— 那一筆得先照 `caret` 放回原位，`settle` 收尾。
-        if (committing.current) leftWhileCommitting.current = true;
-        else home();
+        leaveField();
       }}
     >
       {row}

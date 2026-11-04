@@ -1158,6 +1158,45 @@ export function ExtrasField({
    * 編輯中的那一筆**看起來還是一顆 chip**（同實體欄位）—— 記號、邊框、× 都留著，只有裡面
    * 那段字換成可以打的。少了這一層，點下去的那一刻 chip 整個變成裸字，整排跟著位移。
    */
+  /** 名稱框失焦的收尾（blur 與「從說明那裡走掉」共用）。 */
+  const leaveName = () => {
+    setPointed(false);
+    setInfoHot(false);
+    // 焦點只是搬去人數格 —— 這一輪編輯還在進行中（票券 48）。少了這一行，「按下
+    // `修改數量…`」會被名稱框自己的 blur 當成「打完就走」而當場定案收工。
+    if (stage.current === "count") return;
+    // 打完就走是常態，不該把字吃掉（同實體欄位的 blur 回寫）。
+    if (!composing.current) commitText({ leaving: true });
+    // 空著離開 ＝ 放手（`commitText` 沒字時直接 return，不清任何東西）。
+    if (!text.trim()) letGo();
+  };
+
+  /** 整格失焦的收尾（名稱框的 `leaveName` 先跑）。 */
+  const leaveField = () => {
+    // **離開就歸位**（票券 95，同實體欄位的 `home`）。React 的 onBlur 會冒泡、子層先跑：
+    // 框裡那串字已經在名稱框／人數格自己的 blur 定案過了，那一筆放回原位之後才輪到這裡。
+    // 手上還握著一批（組字中離開，blur 沒定案）就不動 —— 輸入框站的是那一批的位置。
+    if (editing.current) return;
+    caret.current = null;
+    redraw();
+  };
+
+  /** 說明開關的那兩下 —— 規則與理由同實體欄位的 `infoWasOpen`（code review 2026-11-04）。 */
+  const infoWasOpen = useRef(false);
+  useEffect(() => {
+    const now = info?.isOpen ?? false;
+    const was = infoWasOpen.current;
+    infoWasOpen.current = now;
+    if (now && !was) {
+      setInfoHot(false);
+      setDismissed(true);
+      setPointed(false);
+    } else if (!now && was && !field.current?.contains(document.activeElement)) {
+      leaveName();
+      leaveField();
+    }
+  });
+
   const inputNode = (
     <span key="input" className={held ? "entity-field__input-chip" : "entity-field__input-wrap"}>
       {held && (
@@ -1199,16 +1238,9 @@ export function ExtrasField({
         onKeyDown={handleKeyDown}
         onBlur={() => {
           // 焦點是被說明面板接走的（票 101）：他只是去讀說明，Esc 就回來 —— 不算離開。
+          // 他若從說明那裡直接走掉，收尾由說明關掉的那一刻補上（見 `infoWasOpen`）。
           if (info?.isOpen) return;
-          setPointed(false);
-          setInfoHot(false);
-          // 焦點只是搬去人數格 —— 這一輪編輯還在進行中（票券 48）。少了這一行，「按下
-          // `修改數量…`」會被名稱框自己的 blur 當成「打完就走」而當場定案收工。
-          if (stage.current === "count") return;
-          // 打完就走是常態，不該把字吃掉（同實體欄位的 blur 回寫）。
-          if (!composing.current) commitText({ leaving: true });
-          // 空著離開 ＝ 放手（`commitText` 沒字時直接 return，不清任何東西）。
-          if (!text.trim()) letGo();
+          leaveName();
         }}
       />
       {held && (
@@ -1262,7 +1294,9 @@ export function ExtrasField({
       ref={field}
       className="entity-field extras-field"
       // 指標點進來 ＝ 要看這一格有什麼可選 —— 空欄位也開出說明列（票 101，同實體欄位）。
-      onPointerDown={() => {
+      // 點在選單裡的是「選一列」，不是點進欄位（同實體欄位）。
+      onPointerDown={(e) => {
+        if (menuRef.current?.contains(e.target as Node)) return;
         setPointed(true);
         setDismissed(false);
       }}
@@ -1271,12 +1305,7 @@ export function ExtrasField({
         if (event.relatedTarget instanceof Node && field.current?.contains(event.relatedTarget))
           return;
         if (info?.isOpen) return; // 去讀說明（見名稱框的 onBlur）
-        // **離開就歸位**（票券 95，同實體欄位的 `home`）。React 的 onBlur 會冒泡、子層先跑：
-        // 框裡那串字已經在名稱框／人數格自己的 blur 定案過了，那一筆放回原位之後才輪到這裡。
-        // 手上還握著一批（組字中離開，blur 沒定案）就不動 —— 輸入框站的是那一批的位置。
-        if (editing.current) return;
-        caret.current = null;
-        redraw();
+        leaveField();
       }}
     >
       {row}

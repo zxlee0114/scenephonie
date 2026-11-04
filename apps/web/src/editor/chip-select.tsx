@@ -193,9 +193,24 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
    * 時藏起來，Esc 回來就在。
    */
   const openInfo = () => {
-    if (!pending) setOpen(false);
     info?.open();
   };
+
+  /**
+   * 說明開關的那兩下（code review 2026-11-04）。**開**：一般選單收起（⌥/ 那條路不經過
+   * `openInfo`，所以收在這裡）。**關**：點別處關的話焦點不在這一格了 —— 待確認面板跟著收，
+   * 不在沒人看的時候又冒出來；Esc 關的話焦點回到這一格，面板照舊在。
+   */
+  const infoWasOpen = useRef(false);
+  useEffect(() => {
+    const was = infoWasOpen.current;
+    infoWasOpen.current = infoOpen;
+    if (infoOpen && !was) {
+      if (!pending) setOpen(false);
+    } else if (!infoOpen && was && !rootRef.current?.contains(document.activeElement)) {
+      dismiss();
+    }
+  });
 
   const commit = (v: string) => {
     // 選了原本就是的那個值不必問 —— 什麼都沒有要改。
@@ -221,17 +236,17 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
 
     // 面板浮著的時候，所有的鍵都歸它 —— 這一刻要回答的是「怎麼辦」，不是「選哪一個值」。
     if (pending) {
-      const rowCount = pending.rows.length + (info ? 1 : 0);
+      const confirmRowCount = pending.rows.length + (info ? 1 : 0);
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
         dismiss();
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        setActive((i) => (i + 1) % rowCount);
+        setActive((i) => (i + 1) % confirmRowCount);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setActive((i) => (i - 1 + rowCount) % rowCount);
+        setActive((i) => (i - 1 + confirmRowCount) % confirmRowCount);
       } else if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         e.stopPropagation();
@@ -239,7 +254,7 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
           openInfo();
           return;
         }
-        const row = pending.rows[Math.min(active, rowCount - 1)];
+        const row = pending.rows[Math.min(active, pending.rows.length - 1)];
         dismiss();
         row?.run();
       }
