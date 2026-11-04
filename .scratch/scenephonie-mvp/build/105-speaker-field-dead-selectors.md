@@ -1,6 +1,6 @@
 # 105 — 對白人物欄那幾條樣式對不到元素
 
-**Status:** done
+**Status:** verified
 
 **What to build:** `editor.css` 裡 `.block--dialogue .block__speaker-field .entity-field` 與它的 `:focus-within`（底線、`--text-base` 字級、次級色、聚焦時底線換色）**一條都沒生效**：`block__speaker-field` 現在直接掛在 `.entity-field` 本身（`editor/nodes/blocks.tsx` 傳 `className="block__speaker-field"`），不是它的父層，descendant 選擇器對不到。畫面上的對白人物欄因此沒有底線、字級是繼承來的。
 

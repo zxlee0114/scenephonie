@@ -145,4 +145,5 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [102](./102-click-preview-while-composing.md) | 組字中點選預覽：滑鼠點下去就結束組字並選中那一項（Google 搜尋框的手感），鍵盤照舊歸輸入法。推翻票 08「按不到」的一半；跨瀏覽器結束組字的方式開工前驗。**從票券 33 第三條討論提出**，無 blocker。 | `needs-triage` |
 | [103](./103-halfwidth-parens-sweep.md) | 畫面上的半形括號全站掃一遍：括號裡只有半形字就用半形、前面空一格；註解不改。**從票券 101 第二輪 grilling 定下規則**，101 先合。 | `needs-triage` |
 | [104](./104-speaker-menu-layout-shift.md) | 點對白的人物 chip 開選單時版面會位移；聚焦樣式維持原狀。**從票券 101 驗收撈到**，無 blocker。 | ✅ verified |
-| [105](./105-speaker-field-dead-selectors.md) | 對白人物欄的底線／字級／聚焦樣式選擇器對不到元素（class 直接掛在 `.entity-field` 上）：刪掉（使用者裁決，不救回來）。**從票券 104 撈到**，無 blocker。 | ✅ done |
+| [105](./105-speaker-field-dead-selectors.md) | 對白人物欄的底線／字級／聚焦樣式選擇器對不到元素（class 直接掛在 `.entity-field` 上）：刪掉（使用者裁決，不救回來）；劇本內文聚焦只靠游標，寫進 DESIGN.md。**從票券 104 撈到**，無 blocker。 | ✅ verified |
+| [106](./106-dialogue-line-placeholder.md) | 空的台詞行印一行提示字（跟人物欄的 `人物` 一樣）；措辭、描述／插入畫面要不要也有、只印游標那一行還是全部，開工前定。**從票券 105 驗收提出**，無 blocker。 | `needs-triage` |
