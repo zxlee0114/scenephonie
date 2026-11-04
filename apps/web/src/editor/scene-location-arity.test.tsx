@@ -133,6 +133,35 @@ describe("非雜景場次的第二個地點", () => {
     expect([input.selectionStart, input.selectionEnd]).toEqual([0, "警局".length]);
   });
 
+  it("面板是一句是非題加三個答案：換、不換、兩個都留（票券 33，使用者定的文案與順序）", async () => {
+    const { container } = render(<Harness intExt="內景" />);
+    const input = await withFirstLocation(container);
+    await offerSecond(container, input);
+
+    const panel = container.querySelector(".entity-field__confirm")!;
+    expect(panel.querySelector(".entity-field__note")?.textContent).toBe(
+      "這場次已經有地點「派出所」，你要換成「警局」嗎？",
+    );
+    expect([...panel.querySelectorAll('[role="option"]')].map((li) => li.textContent)).toEqual([
+      "是，改成「警局」",
+      "否，繼續使用「派出所」",
+      "保留兩者，將內外欄改成「雜景」",
+    ]);
+  });
+
+  it("挑「否」：第一個地點留著，框裡的字清掉", async () => {
+    const { container } = render(<Harness intExt="內景" />);
+    const input = await withFirstLocation(container);
+    await offerSecond(container, input);
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" }); // 第二列 ＝ 否，繼續使用
+
+    await waitFor(() => expect(container.querySelector(".entity-field__confirm")).toBeNull());
+    expect(locationChips(container)).toEqual(["派出所"]);
+    expect(input.value).toBe("");
+  });
+
   it("挑「改成…」才真的取代", async () => {
     const { container } = render(<Harness intExt="內景" />);
     const input = await withFirstLocation(container);
@@ -142,14 +171,14 @@ describe("非雜景場次的第二個地點", () => {
     await waitFor(() => expect(locationChips(container)).toEqual(["警局"]));
   });
 
-  it("挑「兩個都留」把這一場改成雜景，兩個地點都在", async () => {
+  it("挑「保留兩者」把這一場改成雜景，兩個地點都在", async () => {
     let editor!: Editor;
     const { container } = render(<Harness intExt="內景" onEditor={(e) => (editor = e)} />);
     const input = await withFirstLocation(container);
     await offerSecond(container, input);
 
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    fireEvent.keyDown(input, { key: "Enter" }); // 第二列 ＝ 兩個都留
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    fireEvent.keyDown(input, { key: "Enter" }); // 最後一列 ＝ 保留兩者
 
     await waitFor(() => expect(locationChips(container)).toEqual(["派出所", "警局"]));
     expect(editor.state.doc.firstChild?.attrs.intExt).toBe("雜景");

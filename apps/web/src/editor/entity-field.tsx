@@ -148,7 +148,7 @@ type Props = {
    * 那是一個**場次形狀**的問題（§4.3），不該由一次靜悄悄的覆蓋替他決定。
    */
   confirmReplace?: {
-    /** 「兩個都留」那條路（地點欄 ＝ 把這一場改成雜景）。沒給就只有取代與放棄。 */
+    /** 「保留兩者」那條路（地點欄 ＝ 把這一場改成雜景）。沒給就只有是與否。 */
     escalate?: { label: string; run: () => boolean };
   };
   /**
@@ -1010,11 +1010,21 @@ export function EntityField({
   const rows: Row[] = [];
   if (pending && !dismissed && !composingNow) {
     // 待確認時面板**取代**自動補全 —— 這一刻要問的不是「哪一筆實體」，而是「這一場是什麼形狀」。
+    // 文案與順序是使用者定的（票券 33，2026-11-04）：一句是非題，答案照「是／否／兩者」排 ——
+    // 改動最大的那一條（會動到內外欄）放最後，不和預選的第一列相鄰。
     const held = refs[0]?.displayName ?? "";
     rows.push({
       key: "replace",
-      label: `⇄ 改成「${pending}」 —— 原本的「${held}」會被拿掉`,
+      label: `是，改成「${pending}」`,
       run: () => void replacePending(),
+    });
+    rows.push({
+      key: "discard",
+      label: `否，繼續使用「${held}」`,
+      run: () => {
+        setPending(null);
+        reset();
+      },
     });
     if (confirmReplace?.escalate) {
       rows.push({
@@ -1023,14 +1033,6 @@ export function EntityField({
         run: () => void escalatePending(),
       });
     }
-    rows.push({
-      key: "discard",
-      label: `✕ 放棄「${pending}」`,
-      run: () => {
-        setPending(null);
-        reset();
-      },
-    });
   } else if (menuOpen) {
     if (stage.name === "suggest" && looksLikeLine) {
       rows.push({
@@ -1453,7 +1455,7 @@ export function EntityField({
     reset();
   };
 
-  /** 兩個都留 —— 先把場次升級（地點欄 ＝ 改成雜景），成功了才寫第二筆。 */
+  /** 保留兩者 —— 先把場次升級（地點欄 ＝ 改成雜景），成功了才寫第二筆。 */
   const escalatePending = async () => {
     const name = pending!;
     if (!confirmReplace?.escalate?.run()) return; // 升級被拒就什麼都不動，字留在框裡
@@ -1864,13 +1866,12 @@ export function EntityField({
       {showConfirm && (
         <div className="entity-field__confirm" ref={confirmRef}>
           <p className="entity-field__note">
-            這一場已經有{placeholder}「{refs[0]?.displayName}」。一個場次一個
-            {placeholder} —— 要留哪一個？
+            這場次已經有{placeholder}「{refs[0]?.displayName}」，你要換成「{pending}」嗎？
           </p>
           <ul
             className="entity-field__menu entity-field__menu--nested"
             role="listbox"
-            aria-label={`${placeholder}要留哪一個`}
+            aria-label={`要不要換成「${pending}」`}
           >
             {rows.map((row, i) => (
               <li

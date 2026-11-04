@@ -646,7 +646,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           // 升級成雜景走 command 而不是 updateAttributes：「地點欄能有幾個值」是內外的函式。
           confirmReplace={{
             escalate: {
-              label: "🎬 兩個都留 —— 把這一場改成雜景",
+              label: "保留兩者，將內外欄改成「雜景」",
               run: () =>
                 runKernelCommand(
                   editor,
