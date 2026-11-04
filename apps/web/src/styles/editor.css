@@ -1029,7 +1029,8 @@
 }
 
 .entity-field input:focus {
-  /* 焦點環由外框畫（`:focus-within`），這裡再畫一次就是框中框。 */
+  /* 抬頭欄位的焦點由外框畫（`.scene__chip .entity-field:focus-within`），這裡再畫一次就是框中框。
+   * 對白人物欄沒有外框，也就沒有這一圈（票券 105）。 */
   outline: none;
 }
 
@@ -1392,7 +1393,7 @@
 }
 
 .block--dialogue .block__speaker {
-  /* input 只是那一格裡還能打字的一段 —— 外觀全部由容器負責。 */
+  /* input 只是那一格裡還能打字的一段 —— 字型與顏色跟著對白區塊繼承，容器只管版面（票券 105）。 */
   font: inherit;
   color: inherit;
   background: transparent;
