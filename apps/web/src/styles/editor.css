@@ -816,6 +816,35 @@
   outline-offset: 2px;
 }
 
+/* 返回列（票 101 第二輪）：標題前面、一條線隔開 —— 它是回到選單的路，不是說明的一部分。
+ * 字比照說明列（弱化一階、Esc 印在列上）；整列可點，左右延伸到面板內距邊緣，對齊選單列的手感。 */
+.field-info__back {
+  display: block;
+  box-sizing: border-box;
+  inline-size: calc(100% + 2 * var(--space-2));
+  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-2)) var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-block-end: 1px solid var(--rule);
+  border-radius: var(--space-1) var(--space-1) 0 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+  color: var(--text-secondary);
+  text-align: start;
+  cursor: pointer;
+}
+
+.field-info__back:hover {
+  background: var(--selection-bg);
+}
+
+.field-info__back:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
 .field-info__title {
   margin: 0 0 var(--space-2);
   font-size: var(--text-sm);

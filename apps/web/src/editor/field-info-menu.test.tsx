@@ -49,7 +49,7 @@ function LocationHost({
   );
 }
 
-const INFO_ROW = "ⓘ 關於地點（⌥/）";
+const INFO_ROW = "ⓘ 關於地點 (⌥/)";
 const menuRows = (root: HTMLElement) =>
   [...root.querySelectorAll(".entity-field__menu li:not(.entity-field__menu-hint)")].map(
     (li) => li.textContent ?? "",
@@ -91,7 +91,7 @@ describe("說明列：地點欄（EntityField）", () => {
     expect(onKeyDown).toHaveBeenCalledWith(expect.objectContaining({ key: "Enter" }));
   });
 
-  it("↓ 走到說明列、Enter —— 說明面板取代選單；Esc 回欄位，選單不自己彈回來", () => {
+  it("↓ 走到說明列、Enter —— 說明面板取代選單", () => {
     const { container } = render(<LocationHost />);
     const input = container.querySelector("input")!;
     pointInto(input);
@@ -102,11 +102,6 @@ describe("說明列：地點欄（EntityField）", () => {
 
     const panel = panelOf(container)!;
     expect(panel.textContent).toContain("接續子場次");
-    expect(menuRows(container)).toEqual([]);
-
-    fireEvent.keyDown(panel, { key: "Escape" });
-    expect(panelOf(container)).toBeNull();
-    expect(document.activeElement).toBe(input);
     expect(menuRows(container)).toEqual([]);
   });
 
@@ -191,7 +186,7 @@ function IntExtHost({ confirm }: { confirm?: (next: string) => ChipConfirm | nul
   );
 }
 
-const INTEXT_ROW = "ⓘ 關於內外（⌥/）";
+const INTEXT_ROW = "ⓘ 關於內外 (⌥/)";
 const chipRows = (root: HTMLElement) =>
   [...root.querySelectorAll(".chip-select__menu li")].map((li) => li.textContent ?? "");
 const chipActive = (root: HTMLElement) =>
@@ -205,7 +200,7 @@ describe("說明列：內外欄（ChipSelect）", () => {
     expect(chipActive(container)).toBe("雜景");
   });
 
-  it("走到說明列、Enter —— 說明取代選單；Esc 回到這一格，選單不彈回來", () => {
+  it("走到說明列、Enter —— 說明取代選單；Esc 退回選單，高亮停在說明列", () => {
     const { container } = render(<IntExtHost />);
     const button = container.querySelector("button")!;
     button.focus();
@@ -218,9 +213,11 @@ describe("說明列：內外欄（ChipSelect）", () => {
     expect(panel.textContent).toContain("雜景");
     expect(chipRows(container)).toEqual([]);
 
+    expect(backOf(container)).not.toBeNull();
     fireEvent.keyDown(panel, { key: "Escape" });
     expect(document.activeElement).toBe(button);
-    expect(chipRows(container)).toEqual([]);
+    expect(chipRows(container).at(-1)).toBe(INTEXT_ROW);
+    expect(chipActive(container)).toBe(INTEXT_ROW);
   });
 
   it("離開雜景的說明面板也有說明列；看完回到那個面板", () => {
@@ -269,7 +266,7 @@ function ExtrasHost({ onKeyDown }: { onKeyDown?: (e: React.KeyboardEvent<HTMLEle
   );
 }
 
-const EXTRAS_ROW = "ⓘ 關於群演（⌥/）";
+const EXTRAS_ROW = "ⓘ 關於群演 (⌥/)";
 
 describe("說明列：群演欄（ExtrasField）", () => {
   it("指標點進空欄位開出說明列；Tab 進來不開", () => {
@@ -363,7 +360,7 @@ describe("說明開著時的其他路（code review 2026-11-04）", () => {
     expect(input.value).toBe("");
   });
 
-  it("⌥/ 開說明也一樣取代選單 —— Esc 回來選單不自己彈回來", () => {
+  it("⌥/ 開說明也一樣取代選單", () => {
     const { container } = render(<LocationHost />);
     const input = container.querySelector("input")!;
     input.focus();
@@ -371,7 +368,7 @@ describe("說明開著時的其他路（code review 2026-11-04）", () => {
     expect(menuRows(container).length).toBeGreaterThan(0);
 
     fireEvent.keyDown(input, { key: "÷", code: "Slash", altKey: true });
-    fireEvent.keyDown(panelOf(container)!, { key: "Escape" });
+    expect(panelOf(container)).not.toBeNull();
     expect(menuRows(container)).toEqual([]);
   });
 
@@ -418,5 +415,106 @@ describe("說明開著時的其他路（code review 2026-11-04）", () => {
     away.focus();
     expect(panelOf(container)).toBeNull();
     expect(chipRows(container)).toEqual([]);
+  });
+});
+
+const BACK = "← 返回 (Esc)";
+const backOf = (c: HTMLElement) =>
+  [...(panelOf(c)?.querySelectorAll("button") ?? [])].find((b) => b.textContent === BACK) ?? null;
+
+describe("說明面板的返回列（票 101 第二輪）", () => {
+  it("地點欄：從說明列打開 —— 面板最上面是返回列；按它回到選單、停在說明列", () => {
+    const { container } = render(<LocationHost />);
+    const input = container.querySelector("input")!;
+    pointInto(input);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    const panel = panelOf(container)!;
+    const back = backOf(container)!;
+    expect(back).not.toBeNull();
+    // 標題前面 —— 內文再長，一打開也看得到
+    expect(back.compareDocumentPosition(panel.querySelector("h2")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(back);
+    expect(panelOf(container)).toBeNull();
+    expect(document.activeElement).toBe(input);
+    expect(menuRows(container)).toEqual([INFO_ROW]);
+    expect(activeRow(container)).toBe(INFO_ROW);
+  });
+
+  it("地點欄：Esc 與返回列做同一件事（退一層），再按 Esc 才收起選單", () => {
+    const { container } = render(<LocationHost />);
+    const input = container.querySelector("input")!;
+    pointInto(input);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    fireEvent.keyDown(panelOf(container)!, { key: "Escape" });
+    expect(panelOf(container)).toBeNull();
+    expect(document.activeElement).toBe(input);
+    expect(activeRow(container)).toBe(INFO_ROW);
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(menuRows(container)).toEqual([]);
+  });
+
+  it("地點欄：在候選上按 ⌥/ —— Esc 回來高亮停在同一個候選，打到一半的字還在", () => {
+    const { container } = render(<LocationHost />);
+    const input = container.querySelector("input")!;
+    input.focus();
+    fireEvent.change(input, { target: { value: "派" } });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    const before = activeRow(container);
+    expect(before).not.toBe(menuRows(container)[0]); // 確實離開了預選的第一列
+
+    fireEvent.keyDown(input, { key: "÷", code: "Slash", altKey: true });
+    expect(backOf(container)).not.toBeNull();
+    fireEvent.keyDown(panelOf(container)!, { key: "Escape" });
+
+    expect(input.value).toBe("派");
+    expect(activeRow(container)).toBe(before);
+  });
+
+  it("地點欄：打開前沒有選單（Tab 進來直接 ⌥/）—— 沒有返回列，Esc 只回到欄位", () => {
+    const { container } = render(<LocationHost />);
+    const input = container.querySelector("input")!;
+    input.focus();
+    fireEvent.keyDown(input, { key: "÷", code: "Slash", altKey: true });
+
+    expect(panelOf(container)).not.toBeNull();
+    expect(backOf(container)).toBeNull();
+    fireEvent.keyDown(panelOf(container)!, { key: "Escape" });
+    expect(document.activeElement).toBe(input);
+    expect(menuRows(container)).toEqual([]);
+  });
+
+  it("地點欄：待確認面板上打開說明 —— 返回列回到待確認面板，高亮停在說明列", async () => {
+    const { container } = render(<LocationHost initial={[{ id: "lo_1", displayName: "海豚公寓房間" }]} confirm />);
+    const input = container.querySelector("input")!;
+    input.focus();
+    fireEvent.change(input, { target: { value: "警局" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(container.querySelector(".entity-field__confirm")).not.toBeNull());
+
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.click(backOf(container)!);
+
+    expect(container.querySelector(".entity-field__confirm li.is-active")?.textContent).toBe(INFO_ROW);
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("群演欄：點進空欄位、走到說明列打開 —— 返回列回到選單，停在說明列", () => {
+    const { container } = render(<ExtrasHost />);
+    const input = container.querySelector("input")!;
+    pointInto(input);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    fireEvent.click(backOf(container)!);
+    expect(document.activeElement).toBe(input);
+    expect(menuRows(container)).toEqual([EXTRAS_ROW]);
+    expect(activeRow(container)).toBe(EXTRAS_ROW);
   });
 });

@@ -927,7 +927,7 @@ export function ExtrasField({
       ? info
       : null;
 
-  /** 選了說明列：說明面板取代選單，選單收起（同 Esc，下一次打字或點擊才回來）。 */
+  /** 選了說明列：說明面板取代選單，選單收起；看完按返回列或 Esc 再回來（`provideBack`）。 */
   const openInfo = () => {
     setInfoHot(false);
     setDismissed(true);
@@ -1279,6 +1279,19 @@ export function ExtrasField({
   // 浮層錨在整個欄位上，與實體欄位同一支定位（DESIGN.md 的 The One Placement Rule，票券 33）。
   const showPreview = preview.length > 0;
   const showMenu = (rows.length > 0 || !!heldNote || !!infoRow) && !(info?.isOpen ?? false);
+
+  /** 說明面板的返回列（票 101 第二輪）：打開說明那一刻選單開著，就回到那裡、高亮停在原處。 */
+  useLayoutEffect(() => {
+    info?.provideBack(() => {
+      if (!showMenu) return null;
+      const was = { pointed, infoHot };
+      return () => {
+        setDismissed(false);
+        setPointed(was.pointed);
+        setInfoHot(was.infoHot);
+      };
+    });
+  });
   const previewRef = useRef<HTMLUListElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
   const fieldEl = () => field.current;

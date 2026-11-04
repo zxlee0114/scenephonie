@@ -11,7 +11,7 @@
  *
  * ── 三種人三條路 ──────────────────────────────────────────────────────
  * 原本每格旁邊一顆 ⓘ（`tabIndex={-1}`，懸停才印出 ⌥/）。票 101 把它拿掉：每場 5 顆、三場 15 顆，
- * 而懸停提示在觸控上根本不存在。說明改成**欄位選單最下面的一列** `ⓘ 關於地點（⌥/）`，
+ * 而懸停提示在觸控上根本不存在。說明改成**欄位選單最下面的一列** `ⓘ 關於地點 (⌥/)`，
  * 快捷鍵直接寫在列上，滑鼠、觸控、鍵盤都看得到：
  *
  * | 誰 | 路 |
@@ -27,6 +27,13 @@
  * 亮度鍵 —— 要按 `fn+F1` 才傳得到網頁，等於這條路對多數人不存在（使用者裁決 2026-09-10）。
  *
  * 彈窗關閉時焦點回到**欄位** —— 打開前焦點在哪就還給哪裡。
+ *
+ * ── 返回（票 101 第二輪）─────────────────────────────────────────────
+ * 打開前畫面上有選單或待確認面板的話，面板最上面放一列 `← 返回 (Esc)`；它與 Esc（以及再按一次
+ * ⌥/）做同一件事：**退一層**，回到打開說明前的那一層，高亮停在原處。打開前什麼都沒有（Tab 進來
+ * 直接按 ⌥/）就不放，Esc 照舊只回到欄位 —— 「返回」只回剛才在的地方，不替欄位新開選單。
+ * 剛才有沒有、要怎麼回去，只有欄位知道：它經由 `provideBack` 交一個 `BackSource` 過來，
+ * 這裡在打開的那一刻問它。點到面板外是走掉，不是返回。
  */
 "use client";
 
@@ -88,8 +95,8 @@ export const FIELD_INFO: Record<FieldInfoKey, FieldInfoText> = {
         <p>選了雜景，這一場的地點欄才可以填多個，也可以留空。</p>
         <p>
           鍵盤上按一顆字母就直接選好，不必開選單 —— 用的是場次標題行本來的英文寫法：
-          <b>i</b>（INT.）內景、<b>e</b>（EXT.）外景、<b>m</b>（MONTAGE）雜景。
-          內外景也是 <b>i</b>（INT./EXT.）—— 同一顆鍵命中兩個，再按一次就換到下一個。
+          <b>i</b> (INT.) 內景、<b>e</b> (EXT.) 外景、<b>m</b> (MONTAGE) 雜景。
+          內外景也是 <b>i</b> (INT./EXT.) —— 同一顆鍵命中兩個，再按一次就換到下一個。
         </p>
       </>
     ),
@@ -106,7 +113,7 @@ export const FIELD_INFO: Record<FieldInfoKey, FieldInfoText> = {
         </p>
         <p>
           鍵盤上按一顆字母就直接選好，不必開選單 —— 用的是場次標題行本來的英文寫法：
-          <b>d</b>（DAY）日、<b>n</b>（NIGHT）夜。晨（DAWN）與昏（DUSK）也是 <b>d</b> ——
+          <b>d</b> (DAY) 日、<b>n</b> (NIGHT) 夜。晨 (DAWN) 與昏 (DUSK) 也是 <b>d</b> ——
           三個都撞在同一顆鍵上，再按一次就換到下一個。
         </p>
       </>
@@ -131,7 +138,7 @@ export const FIELD_INFO: Record<FieldInfoKey, FieldInfoText> = {
           </li>
           <li>
             人物從一處走到另一處的連續動作（客廳走到陽台）→ 用<b>接續子場次</b>
-            （<code>/continue-to</code>），兩段各自單值。
+            {" "}(<code>/continue-to</code>)，兩段各自單值。
           </li>
         </ul>
       </>
@@ -189,11 +196,19 @@ export const FIELD_INFO: Record<FieldInfoKey, FieldInfoText> = {
  * 打開說明的動作，以及說明現在開著沒（開著時選單與待確認面板要讓位）。
  */
 export type FieldInfoRow = {
-  /** `ⓘ 關於地點（⌥/）` —— 快捷鍵印在列上，滑鼠、觸控、鍵盤都看得到。 */
+  /** `ⓘ 關於地點 (⌥/)` —— 快捷鍵印在列上，滑鼠、觸控、鍵盤都看得到。 */
   label: string;
   isOpen: boolean;
   open: () => void;
+  /** 欄位交來「怎麼回去」（見檔頭〈返回〉）；每次 render 後重交一次，拿到的才是當下的畫面。 */
+  provideBack: (source: BackSource) => void;
 };
+
+/**
+ * 說明打開的那一刻被問一次：剛才畫面上有選單或待確認面板的話，給一個「回到那裡」的動作
+ * （高亮停在原處）；沒有就是 null —— 面板不放返回列。
+ */
+export type BackSource = () => (() => void) | null;
 
 const FieldInfoContext = createContext<FieldInfoRow | null>(null);
 
@@ -202,8 +217,11 @@ export function useFieldInfoRow(): FieldInfoRow | null {
   return useContext(FieldInfoContext);
 }
 
+/** 返回列的文字 —— 選單與待確認面板共用一個「返回」，Esc 印在列上（同說明列印 ⌥/）。 */
+const BACK_LABEL = "← 返回 (Esc)";
+
 /** 說明列的文字。 */
-const infoRowLabel = (info: FieldInfoKey) => `ⓘ 關於${FIELD_INFO[info].title}（⌥/）`;
+const infoRowLabel = (info: FieldInfoKey) => `ⓘ 關於${FIELD_INFO[info].title} (⌥/)`;
 
 /**
  * 包住一格 metadata 欄位，替它掛上說明。
@@ -228,15 +246,24 @@ export function FieldInfo({
   const panel = useRef<HTMLDivElement>(null);
   /** 開啟前焦點在哪 —— 關閉時要還它。 */
   const returnTo = useRef<HTMLElement | null>(null);
+  const backSource = useRef<BackSource | null>(null);
+  /** 這一次打開時拿到的「回去」；null ＝ 打開前沒有選單，面板不放返回列。 */
+  const [back, setBack] = useState<(() => void) | null>(null);
 
   const openPanel = () => {
     returnTo.current = document.activeElement as HTMLElement | null;
+    // 現在就問 —— 欄位接著會收起選單，晚一步問就只剩「沒有」。
+    const goBack = backSource.current?.() ?? null;
+    setBack(() => goBack);
     setOpen(true);
   };
 
+  /** Esc、返回列、再按一次 ⌥/：退一層。 */
   const closePanel = () => {
     setOpen(false);
+    setBack(null);
     returnTo.current?.focus();
+    back?.();
   };
 
   // 錨在整格上，開在欄位選單原本的位置 —— 說明**取代**選單（票 101；DESIGN.md 的
@@ -254,7 +281,9 @@ export function FieldInfo({
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (ev: PointerEvent) => {
-      if (!panel.current?.contains(ev.target as Node)) setOpen(false);
+      if (panel.current?.contains(ev.target as Node)) return;
+      setOpen(false);
+      setBack(null);
     };
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
@@ -269,7 +298,14 @@ export function FieldInfo({
     else openPanel();
   };
 
-  const row: FieldInfoRow = { label: infoRowLabel(info), isOpen: open, open: openPanel };
+  const row: FieldInfoRow = {
+    label: infoRowLabel(info),
+    isOpen: open,
+    open: openPanel,
+    provideBack: (source) => {
+      backSource.current = source;
+    },
+  };
 
   return (
     <FieldInfoContext.Provider value={row}>
@@ -295,6 +331,12 @@ export function FieldInfo({
             closePanel();
           }}
         >
+          {back && (
+            // 標題前面：內文再長，一打開也看得到。
+            <button type="button" className="field-info__back" onClick={closePanel}>
+              {BACK_LABEL}
+            </button>
+          )}
           <h2 id={titleId} className="field-info__title">
             {text.title}
           </h2>

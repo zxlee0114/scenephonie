@@ -1337,7 +1337,7 @@ export function EntityField({
       : null;
 
   /**
-   * 選了說明列：說明面板**取代**選單。一般選單就此收起（同 Esc，下一次打字或點擊才回來）；
+   * 選了說明列：說明面板**取代**選單。一般選單就此收起，看完按返回列或 Esc 再回來（`provideBack`）；
    * 待確認面板不收 —— 問題還沒答，看完說明回來接著答。
    */
   const openInfo = () => {
@@ -1909,6 +1909,26 @@ export function EntityField({
    * 選單是這一刻要回答的事 —— 選單收起來，提示（狀態還在）就回來。
    */
   const showNaming = showNamingHint && !showPreview && !showConfirm && !showMenu;
+
+  /**
+   * 說明面板的返回列（票 101 第二輪）：打開說明那一刻畫面上有選單或待確認面板，就回到那裡、
+   * 高亮停在原處。待確認面板本來就沒收（`pending` 還在），只要把高亮放回去。
+   */
+  useLayoutEffect(() => {
+    info?.provideBack(() => {
+      if (!showMenu && !showConfirm) return null;
+      const was = { stage, pointed, infoHot };
+      return () => {
+        if (!pending) {
+          setStage(was.stage);
+          setDismissed(false);
+          setPointed(was.pointed);
+        }
+        setInfoHot(was.infoHot);
+      };
+    });
+  });
+
   const previewRef = useRef<HTMLUListElement>(null);
   const confirmRef = useRef<HTMLDivElement>(null);
   const namingRef = useRef<HTMLParagraphElement>(null);

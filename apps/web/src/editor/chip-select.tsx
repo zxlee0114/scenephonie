@@ -51,6 +51,7 @@
 import {
   forwardRef,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -338,6 +339,21 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
   // Placement Rule，票券 33）。
   const menuRef = useRef<HTMLElement | null>(null);
   const shown = open && !infoOpen;
+
+  /**
+   * 說明面板的返回列（票 101 第二輪）：打開說明那一刻選單（或待確認面板）開著，就回到那裡、
+   * 高亮停在原處。待確認面板本來就沒收，`setOpen(true)` 對它是原樣。
+   */
+  useLayoutEffect(() => {
+    info?.provideBack(() => {
+      if (!shown) return null;
+      const was = active;
+      return () => {
+        setActive(was);
+        setOpen(true);
+      };
+    });
+  });
   useAnchoredPosition(menuRef, () => rootRef.current, { active: shown, matchWidth: true });
 
   /** 說明列 —— 兩份選單共用，永遠排最後、一條分隔線隔開。 */
