@@ -720,12 +720,14 @@
  * 程式化 focus 拿不到 `:focus-visible` —— 除非上一個焦點元素自己就是 focus-visible，所以使用者
  * 用滑鼠點過空白處之後建的新場次，chip 有焦點卻沒有環，看起來像「沒有初始焦點」。
  * 我們交出去的焦點就由我們自己畫，失焦即卸。 */
+/* 聚焦 ＝ **框線變深**，不畫 outline（使用者裁決 2026-11-05）—— 框本來就是那一格的邊，再套一圈
+ * 外環等於框外有框。畫在**整個框**上（含 chip），因為框才是使用者眼中的那一格；虛線框（還空著）
+ * 照樣是虛線，只是變深。 */
 .scene__chip-control:focus-visible,
 .scene__chip-control.is-focus-handed,
-/* 焦點環畫在**整個框**上（含 chip），因為框才是使用者眼中的那一格。 */
 .scene__chip .entity-field:focus-within {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: none;
+  border-color: var(--field-border-focus);
 }
 
 .scene__chip .entity-field {

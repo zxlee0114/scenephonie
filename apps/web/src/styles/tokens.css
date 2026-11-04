@@ -70,6 +70,9 @@
   --selection-bg: var(--color-accent-weak);
   --control-fg: var(--color-neutral-700);
   --control-border: var(--color-neutral-300);
+  /* 欄位聚焦時的框線（場次抬頭五格，使用者裁決 2026-11-05）：取代 outline 焦點環。
+   * 至少 neutral-500 —— 在 surface-raised 上約 4:1，過非文字 3:1；neutral-400 只有 2.3:1。 */
+  --field-border-focus: var(--color-neutral-500);
 
   /* ── semantic：草稿與錯誤 ───────────────────────────────────── */
   --draft-fg: var(--color-draft);
