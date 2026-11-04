@@ -566,18 +566,21 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
             confirm={(next) =>
               next !== MONTAGE && locationRefs.length > 1
                 ? {
+                    // 文案是使用者定的（票券 33，2026-11-04）。清空內外時沒有「y」可以引 ——
+                    // 印一對空的引號像是漏了字，改說「清空內外」。
                     note:
-                      `這一場有 ${locationRefs.length} 個地點（${locationRefs
+                      `這場目前有 ${locationRefs.length} 個地點（${locationRefs
                         .map((r) => r.displayName)
-                        .join("、")}）。只有雜景的地點欄放得下多個地點 ——` +
-                      `要改成${next || "未選"}，得先把多餘的地點拿掉。`,
+                        .join("、")}），` +
+                      (next ? `若要使用「${next}」` : "若要清空內外") +
+                      "，只能保留一個地點",
                     rows: [
                       {
                         key: "goto",
-                        label: "→ 先去地點欄拿掉多餘的",
+                        label: "前往地點欄編輯",
                         run: () => locationField.current?.focus(),
                       },
-                      { key: "keep", label: "✕ 維持雜景", run: () => {} },
+                      { key: "keep", label: "維持雜景", run: () => {} },
                     ],
                   }
                 : null
@@ -646,7 +649,7 @@ function SceneView({ node, editor, updateAttributes, decorations, getPos }: Node
           // 升級成雜景走 command 而不是 updateAttributes：「地點欄能有幾個值」是內外的函式。
           confirmReplace={{
             escalate: {
-              label: "🎬 兩個都留 —— 把這一場改成雜景",
+              label: "保留兩者，將內外欄改成「雜景」",
               run: () =>
                 runKernelCommand(
                   editor,

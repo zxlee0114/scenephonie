@@ -813,13 +813,14 @@
   }
 }
 
+/* 錨在整格上、座標由 JS 給（The One Placement Rule，票券 33）—— 登場人物欄坐在 chip row 右端，
+ * 原本貼著它往右開的面板在窄視窗會溢出。 */
 .field-info__panel {
-  position: absolute;
-  inset-block-start: calc(100% + var(--space-1));
-  inset-inline-start: 0;
+  position: fixed;
   z-index: 30;
+  box-sizing: border-box;
   inline-size: min(38ch, 80vw);
-  max-block-size: 60vh;
+  max-block-size: min(60vh, var(--anchored-room, 100vh));
   overflow-y: auto;
   padding: var(--space-3);
   background: var(--surface-raised);
@@ -878,12 +879,16 @@
   display: inline-flex;
 }
 
+/* 座標由 JS 給（`use-anchored-position.ts`，DESIGN.md 的 The One Placement Rule，票券 33）：
+ * 視窗座標、下方塞不下就翻上去、左右夾進視窗；寬度至少與欄位同寬也是 JS 給的（fixed 之下
+ * `100%` 指的是視窗）。 */
 .chip-select__menu {
-  position: absolute;
+  position: fixed;
   z-index: 20;
-  inset-block-start: calc(100% + var(--space-1));
-  inset-inline-start: 0;
-  min-inline-size: 100%;
+  max-block-size: min(22rem, 60vh, var(--anchored-room, 100vh));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
   margin: 0;
   padding: var(--space-1);
   list-style: none;
@@ -1117,12 +1122,17 @@
 }
 
 /* 選單外觀比照 chip 下拉與 slash 選單 —— 同一種東西看起來就該是同一種東西。 */
+/* 座標由 JS 給（`use-anchored-position.ts`，DESIGN.md 的 The One Placement Rule，票券 33）：
+ * 視窗座標、下方塞不下就翻上去、左右夾進視窗；寬度至少與欄位同寬也是 JS 給的（fixed 之下
+ * `100%` 指的是視窗）。 */
 .entity-field__menu {
-  position: absolute;
+  position: fixed;
   z-index: 20;
-  inset-block-start: calc(100% + var(--space-1));
-  inset-inline-start: 0;
-  min-inline-size: 100%;
+  /* 上下都塞不下時夾進視窗、限高自己捲（同 slash 選單）。 */
+  max-block-size: min(22rem, 60vh, var(--anchored-room, 100vh));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
   margin: 0;
   padding: var(--space-1);
   list-style: none;
@@ -1148,12 +1158,15 @@
 
 /* 待確認的第二個值（使用者裁決 2026-09-10）：面板**取代**自動補全，因為這一刻要問的不是
  * 「哪一筆實體」，而是「這一場是什麼形狀」。字本身留在輸入框裡反白著，一個 Backspace 就沒了。 */
+/* 至少與欄位同寬（JS 給的 min-inline-size），欄位比 28ch 窄時就是 28ch。 */
 .entity-field__confirm {
-  position: absolute;
+  position: fixed;
   z-index: 20;
-  inset-block-start: calc(100% + var(--space-1));
-  inset-inline-start: 0;
-  inline-size: max(100%, 28ch);
+  inline-size: 28ch;
+  max-block-size: min(22rem, 60vh, var(--anchored-room, 100vh));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
   padding: var(--space-2);
   background: var(--surface-page);
   border: 1px solid var(--rule-strong);
@@ -1177,13 +1190,30 @@
  * 就收，所以視覺上也不該長得像警告：不上底色、不用強調色，就是欄位底下一句次要的字。
  */
 .entity-field__note--naming {
-  margin-block: var(--space-1) 0;
-  padding-inline: 0;
+  /* 浮在欄位底下（票券 33）：原本是排在欄位裡的一行字，會把底下整排推開；改成錨定浮層之後
+   * 它跟選單搶同一個位置，所以選單開著時它先讓位（見 entity-field.tsx 的 `showNaming`）。
+   * 外框同其他浮層（白底、細框、浮層陰影）—— 不上強調底色、不用強調字色，它仍然只是一句次要的字。 */
+  position: fixed;
+  z-index: 20;
+  box-sizing: border-box;
+  max-inline-size: min(36ch, calc(100vw - var(--space-4)));
+  /* 上下都放不下時 JS 給的可用高度（use-anchored-position.ts）。 */
+  max-block-size: var(--anchored-room, none);
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-page);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--space-2);
+  box-shadow: var(--shadow-popover);
 }
 
 /* 已經有外框了，列表自己不再是一個面板。 */
 .entity-field__menu--nested {
   position: static;
+  /* 捲動交給外框（待確認面板）—— 兩層各自捲會有兩條捲軸。 */
+  max-block-size: none;
+  overflow: visible;
   padding: 0;
   border: 0;
   background: none;
@@ -1398,11 +1428,13 @@
   position: relative;
 }
 
+/* 座標由 JS 給（The One Placement Rule，票券 33）：開在台詞底下，台詞寫到視窗下緣就翻上去。 */
 .appearing-prompt {
-  position: absolute;
+  position: fixed;
   z-index: 20;
-  inset-block-start: calc(100% + var(--space-1));
-  inset-inline-start: 0;
+  max-block-size: var(--anchored-room, none);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   /* 寬度跟著那一行唯讀提示走，不斷行（使用者回饋 2026-09-29：斷成兩行時最後一個字孤零零
    * 掛在第二行，面板看起來歪）。 */
   inline-size: max-content;
@@ -1537,7 +1569,7 @@
   font-family: var(--font-ui);
   /* 場次一多，第二步（對剪到…、套用…）就比視窗還長：限高、自己捲（驗收 2026-10-21）。
      定位量的是這個限高後的尺寸，所以上下翻轉的判斷照舊成立。 */
-  max-block-size: min(22rem, 60vh);
+  max-block-size: min(22rem, 60vh, var(--anchored-room, 100vh));
   overflow-y: auto;
   overscroll-behavior: contain;
 }

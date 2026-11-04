@@ -11,7 +11,7 @@
 import { Extension } from "@tiptap/core";
 import type { Editor, Range } from "@tiptap/core";
 import Suggestion, { type SuggestionProps } from "@tiptap/suggestion";
-import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 
 import {
   canCreateSubscene,
@@ -35,7 +35,7 @@ import {
 import { runKernelCommand } from "../command-bridge";
 import { BLOCK_META, setBlockTypeAt } from "../block-types";
 import { dismissOnOutsidePointer } from "../dismiss-on-outside-pointer";
-import { slashMenuPosition } from "../slash-menu-position";
+import { useAnchoredPosition } from "../use-anchored-position";
 import { currentSceneId, requestNextScene } from "./next-scene";
 import { editorSceneNumbers } from "./scene-numbers";
 import { returnMarkerText } from "./return-markers";
@@ -399,50 +399,13 @@ export function SlashMenu() {
   );
 
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const { open, caret, items } = state;
 
-  // 量到選單的實際尺寸才知道下方／右邊塞不塞得下，所以定位在 layout effect 裡做：先渲染
-  // （這一幀用 visibility: hidden 藏著，避免閃一下），量完在上畫面之前把座標補上。
-  // `caret` 與 `items` 每次 onStart／onUpdate 都是新的，項目變動改變高度時會重新算；
-  // `open` 也要在 deps 裡 —— Escape 只把 open 關掉、caret 不變，少了它 cleanup 不會跑，
-  // 捲動監聽器會留在已卸載的節點上。
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || !caret || !open) {
-      setPos(null);
-      return;
-    }
-    let last: { top: number; left: number } | null = null;
-    const place = () => {
-      const rect = caret();
-      // 選單還開著但 decoration 一時不在 DOM 裡（Tiptap 用 querySelector 找不到就回 null）：
-      // 藏起來，比留在舊座標上假裝還貼著游標好。
-      if (!rect) {
-        last = null;
-        setPos(null);
-        return;
-      }
-      const next = slashMenuPosition(rect, el.getBoundingClientRect(), {
-        // `documentElement.clientWidth/Height` 才是扣掉捲軸的可視區；`innerWidth` 會讓
-        // 靠右夾限的選單躲到捲軸底下，吃掉留的那 8px。
-        width: document.documentElement.clientWidth,
-        height: document.documentElement.clientHeight,
-      });
-      // 平滑捲動一幀一個事件，座標沒變就別重繪。
-      if (last && last.top === next.top && last.left === next.left) return;
-      last = next;
-      setPos(next);
-    };
-    place();
-    // capture 才收得到編輯器內層容器的捲動（打字時的 typewriter 捲動也走這裡）。
-    window.addEventListener("scroll", place, true);
-    window.addEventListener("resize", place);
-    return () => {
-      window.removeEventListener("scroll", place, true);
-      window.removeEventListener("resize", place);
-    };
-  }, [open, caret, items]);
+  // 與其他錨定浮層同一支定位（DESIGN.md 的 The One Placement Rule，票券 33）：錨點是游標的
+  // rect。`caret()` 回 null（decoration 一時不在 DOM 裡，Tiptap 用 querySelector 找不到）時
+  // hook 會把選單藏起來。`caret` 與 `items` 每次 onStart／onUpdate 都是新的，項目變動改變高度時
+  // 每次重繪都會重新量。
+  useAnchoredPosition(ref, () => caret?.() ?? null, { active: open && !!caret });
 
   // 點選單外面就收起來 —— 和 Escape 走同一個出口（只關 UI，suggestion 之後自己 exit）。
   //
@@ -469,7 +432,6 @@ export function SlashMenu() {
     <div
       ref={ref}
       className="slash-menu"
-      style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? undefined : "hidden" }}
     >
       {state.items.map((item, i) => (
         <button

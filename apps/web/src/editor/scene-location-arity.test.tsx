@@ -133,6 +133,35 @@ describe("非雜景場次的第二個地點", () => {
     expect([input.selectionStart, input.selectionEnd]).toEqual([0, "警局".length]);
   });
 
+  it("面板是一句是非題加三個答案：換、不換、兩個都留（票券 33，使用者定的文案與順序）", async () => {
+    const { container } = render(<Harness intExt="內景" />);
+    const input = await withFirstLocation(container);
+    await offerSecond(container, input);
+
+    const panel = container.querySelector(".entity-field__confirm")!;
+    expect(panel.querySelector(".entity-field__note")?.textContent).toBe(
+      "這場次已經有地點「派出所」，你要換成「警局」嗎？",
+    );
+    expect([...panel.querySelectorAll('[role="option"]')].map((li) => li.textContent)).toEqual([
+      "是，改成「警局」",
+      "否，繼續使用「派出所」",
+      "保留兩者，將內外欄改成「雜景」",
+    ]);
+  });
+
+  it("挑「否」：第一個地點留著，框裡的字清掉", async () => {
+    const { container } = render(<Harness intExt="內景" />);
+    const input = await withFirstLocation(container);
+    await offerSecond(container, input);
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" }); // 第二列 ＝ 否，繼續使用
+
+    await waitFor(() => expect(container.querySelector(".entity-field__confirm")).toBeNull());
+    expect(locationChips(container)).toEqual(["派出所"]);
+    expect(input.value).toBe("");
+  });
+
   it("挑「改成…」才真的取代", async () => {
     const { container } = render(<Harness intExt="內景" />);
     const input = await withFirstLocation(container);
@@ -142,14 +171,14 @@ describe("非雜景場次的第二個地點", () => {
     await waitFor(() => expect(locationChips(container)).toEqual(["警局"]));
   });
 
-  it("挑「兩個都留」把這一場改成雜景，兩個地點都在", async () => {
+  it("挑「保留兩者」把這一場改成雜景，兩個地點都在", async () => {
     let editor!: Editor;
     const { container } = render(<Harness intExt="內景" onEditor={(e) => (editor = e)} />);
     const input = await withFirstLocation(container);
     await offerSecond(container, input);
 
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    fireEvent.keyDown(input, { key: "Enter" }); // 第二列 ＝ 兩個都留
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    fireEvent.keyDown(input, { key: "Enter" }); // 最後一列 ＝ 保留兩者
 
     await waitFor(() => expect(locationChips(container)).toEqual(["派出所", "警局"]));
     expect(editor.state.doc.firstChild?.attrs.intExt).toBe("雜景");
@@ -200,13 +229,13 @@ describe("離開雜景時，多出來的地點要有人說一聲", () => {
       expect(el).not.toBeNull();
       return el!;
     });
-    expect(note.textContent).toContain("2 個地點");
-    expect(note.textContent).toContain("派出所、警局");
+    // 文案是使用者定的（票券 33，2026-11-04）。
+    expect(note.textContent).toBe("這場目前有 2 個地點（派出所、警局），若要使用「內景」，只能保留一個地點");
     expect(editor().state.doc.child(0).attrs.intExt).toBe("雜景"); // 沒有偷偷寫進去
     expect(locationChips(container)).toEqual(["派出所", "警局"]); // 也沒有偷偷刪地點
   });
 
-  it("面板不提供「幫你刪掉多餘的地點」—— 只有「去地點欄」與「維持雜景」", async () => {
+  it("面板不提供「幫你刪掉多餘的地點」—— 只有「前往地點欄編輯」與「維持雜景」", async () => {
     const { container } = await twoLocations();
 
     const chip = intExtChip(container);
@@ -218,10 +247,29 @@ describe("離開雜景時，多出來的地點要有人說一聲", () => {
       expect(found).toHaveLength(2);
       return found;
     });
-    expect(rows.map((r) => r.textContent)).toEqual(["→ 先去地點欄拿掉多餘的", "✕ 維持雜景"]);
+    expect(rows.map((r) => r.textContent)).toEqual(["前往地點欄編輯", "維持雜景"]);
   });
 
-  it("挑「先去地點欄」→ 焦點落在地點欄，面板收起來", async () => {
+  it("清空內外（選最上面那一列空值）時，說明改說「清空內外」—— 不印一對空的引號", async () => {
+    const { container } = await twoLocations();
+
+    fireEvent.click(intExtChip(container));
+    const empty = await waitFor(() => {
+      const li = container.querySelector<HTMLElement>(".chip-select__menu li");
+      expect(li).not.toBeNull();
+      return li!;
+    });
+    fireEvent.mouseDown(empty);
+
+    const note = await waitFor(() => {
+      const el = container.querySelector(".chip-select__note");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(note.textContent).toBe("這場目前有 2 個地點（派出所、警局），若要清空內外，只能保留一個地點");
+  });
+
+  it("挑「前往地點欄編輯」→ 焦點落在地點欄，面板收起來", async () => {
     const { container } = await twoLocations();
 
     const chip = intExtChip(container);

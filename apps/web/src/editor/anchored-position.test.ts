@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { slashMenuPosition } from "./slash-menu-position";
+import { anchoredPosition } from "./anchored-position";
 
 const VIEWPORT = { width: 1200, height: 800 };
 const MENU = { width: 240, height: 200 };
@@ -20,46 +20,56 @@ const caret = (left: number, top: number, height = 20) => ({
   bottom: top + height,
 });
 
-describe("slashMenuPosition", () => {
+describe("anchoredPosition", () => {
   it("空間夠時開在游標正下方，貼齊游標左緣", () => {
-    expect(slashMenuPosition(caret(300, 100), MENU, VIEWPORT)).toEqual({ top: 126, left: 300 });
+    expect(anchoredPosition(caret(300, 100), MENU, VIEWPORT)).toEqual({ top: 126, left: 300 });
   });
 
   it("座標是視窗座標，不隨捲動位移 —— 捲到後段的場次也貼著游標", () => {
     // 捲動之後 `clientRect()` 給的 top 仍是相對視窗的（例如 400），選單就該落在 426。
     // 這正是本票的 bug：舊碼是 position: absolute，等於又被加了一次 scrollY。
-    expect(slashMenuPosition(caret(300, 400), MENU, VIEWPORT)).toEqual({ top: 426, left: 300 });
+    expect(anchoredPosition(caret(300, 400), MENU, VIEWPORT)).toEqual({ top: 426, left: 300 });
   });
 
   it("下方空間不足時翻到游標上方", () => {
     // 游標底 700，往下 200 高會超出 800 的視窗；翻上去是 680 - 6 - 200。
-    expect(slashMenuPosition(caret(300, 680), MENU, VIEWPORT)).toEqual({ top: 474, left: 300 });
+    expect(anchoredPosition(caret(300, 680), MENU, VIEWPORT)).toEqual({ top: 474, left: 300 });
   });
 
-  it("上下都不夠時仍留在下方，並夾在視窗內", () => {
-    // 780 高的選單，上方（-386）根本放不下，就別翻；改把它往上推到底緣仍在視窗內的位置。
+  it("上下都不夠時留在下方、不蓋住錨點，限高到下方剩下的空間（DESIGN.md 規則 3，票券 33）", () => {
+    // 780 高的選單上下都放不下；也不往上推 —— 那會蓋住正在打字的欄位。
+    // 錨點底 320：下方從 326 開始、扣掉底部 8px 剩 466；上方只有 300 - 6 - 8 = 286。
     const tall = { width: 240, height: 780 };
-    expect(slashMenuPosition(caret(300, 400), tall, VIEWPORT)).toEqual({ top: 12, left: 300 });
+    expect(anchoredPosition(caret(300, 300), tall, VIEWPORT)).toEqual({
+      top: 326,
+      left: 300,
+      maxHeight: 466,
+    });
   });
 
-  it("選單比視窗還高時貼上緣，不給負座標", () => {
-    const tooTall = { width: 240, height: 900 };
-    expect(slashMenuPosition(caret(300, 400), tooTall, VIEWPORT)).toEqual({ top: 8, left: 300 });
+  it("上下都不夠、而上方空間比較大時開在上方並限高 —— 錨點貼著視窗下緣時，下方根本沒地方", () => {
+    // 錨點底 790：下方剩 2，上方有 770 - 6 - 8 = 756。
+    const tall = { width: 240, height: 780 };
+    expect(anchoredPosition(caret(300, 770), tall, VIEWPORT)).toEqual({
+      top: 8,
+      left: 300,
+      maxHeight: 756,
+    });
   });
 
   it("接近右緣時往左收，不超出視窗", () => {
-    expect(slashMenuPosition(caret(1100, 100), MENU, VIEWPORT)).toEqual({ top: 126, left: 952 });
+    expect(anchoredPosition(caret(1100, 100), MENU, VIEWPORT)).toEqual({ top: 126, left: 952 });
   });
 
   it("視窗比選單還窄時靠左，不給負座標", () => {
-    expect(slashMenuPosition(caret(100, 100), MENU, { width: 200, height: 800 })).toEqual({
+    expect(anchoredPosition(caret(100, 100), MENU, { width: 200, height: 800 })).toEqual({
       top: 126,
       left: 8,
     });
   });
 
   it("尚未量到尺寸（0×0）時就照游標下方擺，不亂翻", () => {
-    expect(slashMenuPosition(caret(300, 400), { width: 0, height: 0 }, VIEWPORT)).toEqual({
+    expect(anchoredPosition(caret(300, 400), { width: 0, height: 0 }, VIEWPORT)).toEqual({
       top: 426,
       left: 300,
     });

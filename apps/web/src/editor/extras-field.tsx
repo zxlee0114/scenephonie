@@ -88,6 +88,7 @@
 import {
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useReducer,
   useRef,
   useState,
@@ -122,6 +123,7 @@ import {
   RENAME_MARK,
 } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
+import { useAnchoredPosition } from "./use-anchored-position";
 import { claimHistoryKey, historyKey, keepHistoryInBox, ownHistory } from "./history-keys";
 
 type Props = {
@@ -1193,6 +1195,19 @@ export function ExtrasField({
     focusInput: () => input.current?.focus(),
   });
 
+  // 浮層錨在整個欄位上，與實體欄位同一支定位（DESIGN.md 的 The One Placement Rule，票券 33）。
+  const showPreview = preview.length > 0;
+  const showMenu = rows.length > 0 || !!heldNote;
+  const previewRef = useRef<HTMLUListElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+  const fieldEl = () => field.current;
+  useAnchoredPosition(previewRef, fieldEl, { active: showPreview, matchWidth: true });
+  useAnchoredPosition(menuRef, fieldEl, { active: showMenu, matchWidth: true });
+  // 選單限高自己捲時，方向鍵走到哪那一列就捲進來（同實體欄位）。
+  useLayoutEffect(() => {
+    menuRef.current?.querySelector(".is-active")?.scrollIntoView?.({ block: "nearest" });
+  }, [activeIndex, showMenu]);
+
   return (
     <div
       ref={field}
@@ -1211,8 +1226,12 @@ export function ExtrasField({
     >
       {row}
 
-      {preview.length > 0 && (
-        <ul className="entity-field__menu entity-field__menu--preview" aria-hidden="true">
+      {showPreview && (
+        <ul
+          ref={previewRef}
+          className="entity-field__menu entity-field__menu--preview"
+          aria-hidden="true"
+        >
           {preview.map((description) => (
             <li key={description}>
               {EXTRA_MARK} {description}
@@ -1221,8 +1240,13 @@ export function ExtrasField({
         </ul>
       )}
 
-      {(rows.length > 0 || heldNote) && (
-        <ul className="entity-field__menu" role="listbox" aria-label={`${placeholder}建議`}>
+      {showMenu && (
+        <ul
+          ref={menuRef}
+          className="entity-field__menu"
+          role="listbox"
+          aria-label={`${placeholder}建議`}
+        >
           {heldNote && (
             <li role="presentation" className="entity-field__menu-hint">
               {heldNote}

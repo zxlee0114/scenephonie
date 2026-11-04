@@ -26,6 +26,7 @@
 import {
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useReducer,
   useRef,
   useState,
@@ -62,6 +63,7 @@ import {
   RENAME_MARK,
 } from "./field-marks";
 import { HELP_KEY_HINT } from "./field-info";
+import { useAnchoredPosition } from "./use-anchored-position";
 
 export type EntityOption = { id: string; name: string };
 /**
@@ -146,7 +148,7 @@ type Props = {
    * 那是一個**場次形狀**的問題（§4.3），不該由一次靜悄悄的覆蓋替他決定。
    */
   confirmReplace?: {
-    /** 「兩個都留」那條路（地點欄 ＝ 把這一場改成雜景）。沒給就只有取代與放棄。 */
+    /** 「保留兩者」那條路（地點欄 ＝ 把這一場改成雜景）。沒給就只有是與否。 */
     escalate?: { label: string; run: () => boolean };
   };
   /**
@@ -1008,11 +1010,21 @@ export function EntityField({
   const rows: Row[] = [];
   if (pending && !dismissed && !composingNow) {
     // 待確認時面板**取代**自動補全 —— 這一刻要問的不是「哪一筆實體」，而是「這一場是什麼形狀」。
+    // 文案與順序是使用者定的（票券 33，2026-11-04）：一句是非題，答案照「是／否／兩者」排 ——
+    // 改動最大的那一條（會動到內外欄）放最後，不和預選的第一列相鄰。
     const held = refs[0]?.displayName ?? "";
     rows.push({
       key: "replace",
-      label: `⇄ 改成「${pending}」 —— 原本的「${held}」會被拿掉`,
+      label: `是，改成「${pending}」`,
       run: () => void replacePending(),
+    });
+    rows.push({
+      key: "discard",
+      label: `否，繼續使用「${held}」`,
+      run: () => {
+        setPending(null);
+        reset();
+      },
     });
     if (confirmReplace?.escalate) {
       rows.push({
@@ -1021,14 +1033,6 @@ export function EntityField({
         run: () => void escalatePending(),
       });
     }
-    rows.push({
-      key: "discard",
-      label: `✕ 放棄「${pending}」`,
-      run: () => {
-        setPending(null);
-        reset();
-      },
-    });
   } else if (menuOpen) {
     if (stage.name === "suggest" && looksLikeLine) {
       rows.push({
@@ -1451,7 +1455,7 @@ export function EntityField({
     reset();
   };
 
-  /** 兩個都留 —— 先把場次升級（地點欄 ＝ 改成雜景），成功了才寫第二筆。 */
+  /** 保留兩者 —— 先把場次升級（地點欄 ＝ 改成雜景），成功了才寫第二筆。 */
   const escalatePending = async () => {
     const name = pending!;
     if (!confirmReplace?.escalate?.run()) return; // 升級被拒就什麼都不動，字留在框裡
@@ -1801,6 +1805,32 @@ export function EntityField({
     focusInput: () => input.current?.focus(),
   });
 
+  // ── 浮層：四種都錨在整個欄位上，走同一支定位（DESIGN.md 的 The One Placement Rule，票券 33）。
+  const showPreview = preview.length > 0;
+  const showConfirm = rows.length > 0 && !!pending;
+  const showMenu = (rows.length > 0 || !!heldNote) && !pending;
+  /**
+   * 命名提示讓位給選單：四種浮層都開在欄位下方同一個位置，同時出現就疊在一起。提示是建議，
+   * 選單是這一刻要回答的事 —— 選單收起來，提示（狀態還在）就回來。
+   */
+  const showNaming = showNamingHint && !showPreview && !showConfirm && !showMenu;
+  const previewRef = useRef<HTMLUListElement>(null);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const namingRef = useRef<HTMLParagraphElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+  const fieldEl = () => field.current;
+  useAnchoredPosition(previewRef, fieldEl, { active: showPreview, matchWidth: true });
+  useAnchoredPosition(confirmRef, fieldEl, { active: showConfirm, matchWidth: true });
+  useAnchoredPosition(namingRef, fieldEl, { active: showNaming });
+  useAnchoredPosition(menuRef, fieldEl, { active: showMenu, matchWidth: true });
+  // 選單限高自己捲時（DESIGN.md 規則 3）：方向鍵走到哪，那一列就捲進來（同 slash 選單）。
+  // 浮層是 fixed、整個在視窗裡，`nearest` 不會連帶捲動頁面。
+  useLayoutEffect(() => {
+    (showConfirm ? confirmRef : menuRef).current
+      ?.querySelector(".is-active")
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [active, showConfirm, showMenu]);
+
   return (
     <div
       className={`entity-field${className ? ` ${className}` : ""}`}
@@ -1817,10 +1847,11 @@ export function EntityField({
     >
       {row}
 
-      {preview.length > 0 && (
+      {showPreview && (
         // aria-hidden ＋ CSS 的 pointer-events: none —— 它是一瞥，不是一個選單：不進無障礙
         // 樹（輸入框的 aria-expanded 這一刻仍然是 false，那是實話），也接不到滑鼠。
         <ul
+          ref={previewRef}
           className="entity-field__menu entity-field__menu--preview"
           aria-hidden="true"
         >
@@ -1832,16 +1863,15 @@ export function EntityField({
         </ul>
       )}
 
-      {rows.length > 0 && pending && (
-        <div className="entity-field__confirm">
+      {showConfirm && (
+        <div className="entity-field__confirm" ref={confirmRef}>
           <p className="entity-field__note">
-            這一場已經有{placeholder}「{refs[0]?.displayName}」。一個場次一個
-            {placeholder} —— 要留哪一個？
+            這場次已經有{placeholder}「{refs[0]?.displayName}」，你要換成「{pending}」嗎？
           </p>
           <ul
             className="entity-field__menu entity-field__menu--nested"
             role="listbox"
-            aria-label={`${placeholder}要留哪一個`}
+            aria-label={`要不要換成「${pending}」`}
           >
             {rows.map((row, i) => (
               <li
@@ -1862,10 +1892,11 @@ export function EntityField({
         </div>
       )}
 
-      {showNamingHint && (
+      {showNaming && (
         // 建議不是規則 —— 不擋寫入、沒有 ✕、失焦就收。`role="note"` 讓螢幕閱讀器讀得出它是
         // 一句附註而不是一個錯誤。
         <p
+          ref={namingRef}
           className="entity-field__note entity-field__note--naming"
           role="note"
         >
@@ -1874,8 +1905,9 @@ export function EntityField({
         </p>
       )}
 
-      {(rows.length > 0 || heldNote) && !pending && (
+      {showMenu && (
         <ul
+          ref={menuRef}
           className="entity-field__menu"
           role="listbox"
           aria-label={`${placeholder}建議`}

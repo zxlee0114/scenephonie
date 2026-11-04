@@ -36,6 +36,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { useAnchoredPosition } from "./use-anchored-position";
+
 /**
  * 這一下是不是「開說明」——**⌥/**。
  *
@@ -209,9 +211,14 @@ export function FieldInfo({
     returnTo.current?.focus();
   };
 
+  // 錨在整格上（欄位＋icon）：登場人物欄坐在 chip row 右端，面板貼著 icon 開會溢出視窗
+  // （DESIGN.md 的 The One Placement Rule，票券 33）。
+  useAnchoredPosition(panel, () => host.current, { active: open });
+
   // 開啟後把焦點移進面板：Esc 才有地方接，螢幕閱讀器也才會讀出標題與內文。
   useEffect(() => {
-    if (open) panel.current?.focus();
+    // 不為了開說明捲動頁面（The One Placement Rule 第 5 條）—— 座標在 layout effect 裡已經放好了。
+    if (open) panel.current?.focus({ preventScroll: true });
   }, [open]);
 
   // 點到別處就關 —— 但**不**搶焦點回來，使用者正要去點的就是別的東西。
