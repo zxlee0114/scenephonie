@@ -253,6 +253,7 @@ components:
 - **Disabled**：`opacity: 0.5`–`0.6`、`cursor: default`。需要點了才能告訴使用者「還差什麼」時用 `aria-disabled`，不用 `disabled`。
 - **Focus**：`outline: 2px solid var(--focus-ring)`、`outline-offset: 2px`。全站一致，不得移除而不補替代。
   - 例外：**場次抬頭的欄位**（內外、時間、地點、登場人物、群演）聚焦時不畫 outline，改成框線變深（`--field-border-focus`，neutral-500）—— 框本來就是那一格的邊，再套一圈外環是框外有框（使用者裁決 2026-11-05）。顏色不得淺於 neutral-500（非文字對比 3:1）。
+  - 例外：**劇本內文**（描述、台詞、插入畫面、對白人物欄）聚焦只靠游標，不畫 outline，也不畫底線 —— 它們是稿子不是表單，多畫一條線那一格就成了控制項（使用者裁決 2026-11-05，票 105）。正在改的那顆 chip 例外：邊框換成 `--focus-ring`（`.entity-field__input-chip`）。
 
 **The One Primary Rule.** 主要按鈕**只有一種樣式**（上面那一個），**一個畫面或一個對話框至多一顆**。對話框裡的「匯出」、「建立」、「下一步」就是那一顆；「關閉」「取消」「返回」永遠是 secondary。不得用「深色框＋600 字」或其他變體充當主要按鈕。⚠️ 現況不符：匯出對話框的送出鈕是深色外框（`.export-pdf__actions button:last-child`）、分享面板全是細框同重 —— 實作歸票 88。
 

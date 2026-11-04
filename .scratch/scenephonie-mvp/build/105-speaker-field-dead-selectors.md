@@ -19,3 +19,5 @@
 **2026-11-05 裁決與實作：** 使用者裁決**刪掉**，不救回來（畫面維持現在沒有底線的樣子）。`editor.css` 刪掉 `.block--dialogue .block__speaker-field .entity-field` 與它的 `:focus-within` 兩條，連同上面那段說「只留一條底線、底線畫在容器上」的註解。全 repo 沒有別的註解再提人物欄的底線。
 
 瀏覽器量過刪除後的對白人物欄：高 31.45px、`border-bottom: none`、內距 0、17px —— 與票 104 量到的刪除前一致；載入的樣式表裡已無含 `.block__speaker-field .entity-field` 的規則，`querySelectorAll` 也是 0。
+
+**2026-11-05 審查回饋與追加裁決：** 刪掉之後看得出來，對白人物欄聚焦時沒有任何樣式（`.block__speaker:focus-visible` 關掉 outline，原本的替代就是這組死規則），牴觸 DESIGN.md「不得移除而不補替代」。在瀏覽器試了聚焦才出現的底線（`box-shadow: inset 0 -1px 0 var(--field-border-focus)`，不佔版面），使用者覺得有違和感，而且台詞、插入畫面也都只靠游標，人物欄多一條線反而不一致。裁決：**不加**，改在 DESIGN.md 的 Focus 段補第二個例外（劇本內文聚焦只靠游標；正在改的那顆 chip 靠邊框換色）。另把兩段不再成立的註解改寫（`.entity-field input:focus`、`.block--dialogue .block__speaker`）。
