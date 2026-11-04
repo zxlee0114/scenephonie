@@ -118,7 +118,23 @@ export function useMenuInfoRow({
     else if (!isOpen && was && !field.current?.contains(document.activeElement)) leave();
   });
 
-  const step: MenuInfoRow["step"] = (key, count, current, setActive) => {
+  // 「指標點進來」只算到下一次點到或聚焦到別處為止。平常輸入框的 blur 會清掉它，但點在框的
+  // 內距上焦點根本沒進來，也就沒有 blur —— 那份只有說明列的選單會一直掛著，跟下一格的選單
+  // 疊在一起（票 101 驗收回饋 2026-11-05）。
+  useEffect(() => {
+    if (!pointed) return;
+    const away = (ev: Event) => {
+      if (!field.current?.contains(ev.target as Node)) setPointed(false);
+    };
+    document.addEventListener("pointerdown", away, true);
+    document.addEventListener("focusin", away);
+    return () => {
+      document.removeEventListener("pointerdown", away, true);
+      document.removeEventListener("focusin", away);
+    };
+  }, [pointed, field]);
+
+  const step: MenuInfoRow["step"] =(key, count, current, setActive) => {
     if (count === 0 && !row) return false;
     if (key !== "ArrowDown" && key !== "ArrowUp") return false;
     const last = count - 1;

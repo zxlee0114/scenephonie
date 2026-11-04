@@ -553,3 +553,22 @@ describe("說明面板的返回列（票 101 第二輪）", () => {
     expect(activeRow(container)).toBe(EXTRAS_ROW);
   });
 });
+
+describe("只有說明列的選單跟著焦點走（票 101 驗收回饋 2026-11-05）", () => {
+  it("點在群演欄的框邊（焦點沒進輸入框）再去點地點欄 —— 群演那份不留在畫面上", () => {
+    const { container } = render(
+      <>
+        <LocationHost />
+        <ExtrasHost />
+      </>,
+    );
+    const extras = container.querySelector<HTMLElement>(".extras-field")!;
+    fireEvent.pointerDown(extras); // 框的內距，不是輸入框：焦點不會進來
+    expect(menuRows(container)).toContain(EXTRAS_ROW);
+
+    const location = container.querySelector("input")!;
+    pointInto(location);
+    expect(menuRows(container)).not.toContain(EXTRAS_ROW);
+    expect(menuRows(container)).toContain(INFO_ROW);
+  });
+});
