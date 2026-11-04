@@ -932,8 +932,11 @@ export function ExtrasField({
     setInfoHot(false);
     setDismissed(true);
     setPointed(false);
+    openedFromInfoRow.current = true;
     info?.open();
   };
+  /** 這一次是從說明列打開的 —— 觸控直接點沒有 hover 那一下，`infoHot` 不會先亮（見 `provideBack`）。 */
+  const openedFromInfoRow = useRef(false);
 
   /** chip 之間的方向鍵（票券 34 第三輪）—— 規則與版面說明見 `./chip-caret`。 */
   const chipCaret = useChipCaret({
@@ -1283,8 +1286,10 @@ export function ExtrasField({
   /** 說明面板的返回列（票 101 第二輪）：打開說明那一刻選單開著，就回到那裡、高亮停在原處。 */
   useLayoutEffect(() => {
     info?.provideBack(() => {
+      const fromRow = openedFromInfoRow.current;
+      openedFromInfoRow.current = false;
       if (!showMenu) return null;
-      const was = { pointed, infoHot };
+      const was = { pointed, infoHot: infoHot || fromRow };
       return () => {
         setDismissed(false);
         setPointed(was.pointed);

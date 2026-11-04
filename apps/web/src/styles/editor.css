@@ -817,7 +817,8 @@
 }
 
 /* 返回列（票 101 第二輪）：標題前面、一條線隔開 —— 它是回到選單的路，不是說明的一部分。
- * 字比照說明列（弱化一階、Esc 印在列上）；整列可點，左右延伸到面板內距邊緣，對齊選單列的手感。 */
+ * 字比照說明列（弱化一階、Esc 印在列上）；整列可點，左右各往面板內距裡伸一格 `--space-2`，
+ * hover 底色才有選單列的手感 —— 剩下的 4px 內距正好放得下標準的 focus 外框（2px＋2px）。 */
 .field-info__back {
   display: block;
   box-sizing: border-box;
@@ -842,7 +843,7 @@
 
 .field-info__back:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
 .field-info__title {

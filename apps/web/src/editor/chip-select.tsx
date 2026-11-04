@@ -193,9 +193,12 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
    * 選了說明列：說明面板**取代**選單。一般選單就此收起；待確認面板留著（問題還沒答），說明開著
    * 時藏起來，Esc 回來就在。
    */
-  const openInfo = () => {
+  const openInfo = (index: number) => {
+    openedAt.current = index;
     info?.open();
   };
+  /** 說明列是第幾列 —— 觸控直接點沒有 hover 那一下，`active` 不會先移過去（見 `provideBack`）。 */
+  const openedAt = useRef<number | null>(null);
 
   /**
    * 說明開關的那兩下（code review 2026-11-04）。**開**：一般選單收起（⌥/ 那條路不經過
@@ -252,7 +255,7 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
         e.preventDefault();
         e.stopPropagation();
         if (info && active === pending.rows.length) {
-          openInfo();
+          openInfo(active);
           return;
         }
         const row = pending.rows[Math.min(active, pending.rows.length - 1)];
@@ -330,7 +333,7 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
       setActive((i) => (i - 1 + rowCount) % rowCount);
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      if (info && active === rows.length) openInfo();
+      if (info && active === rows.length) openInfo(active);
       else commit(rows[active] ?? "");
     }
   };
@@ -346,8 +349,10 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
    */
   useLayoutEffect(() => {
     info?.provideBack(() => {
+      const at = openedAt.current;
+      openedAt.current = null;
       if (!shown) return null;
-      const was = active;
+      const was = at ?? active;
       return () => {
         setActive(was);
         setOpen(true);
@@ -367,7 +372,7 @@ export const ChipSelect = forwardRef<HTMLButtonElement, Props>(function ChipSele
         onMouseEnter={() => setActive(index)}
         onMouseDown={(e) => {
           e.preventDefault();
-          openInfo();
+          openInfo(index);
         }}
       >
         {info.label}

@@ -152,7 +152,7 @@ export const FIELD_INFO: Record<FieldInfoKey, FieldInfoText> = {
         <p>這一欄給劇組排通告用 —— 它回答的是「這一場要叫哪些演員來」。</p>
         <p>
           <b>判準是入鏡，不是有沒有台詞。</b>
-          只有聲音的角色（標了 V.O.／O.S.）不算；沒有台詞但站在畫面裡的算。
+          只有聲音的角色（標了 V.O./O.S.）不算；沒有台詞但站在畫面裡的算。
         </p>
         <p>
           系統不會從對白替你推導這一欄（推導會讓製片誤排通告），只會在某人有一般對白卻不在
@@ -258,10 +258,15 @@ export function FieldInfo({
     setOpen(true);
   };
 
-  /** Esc、返回列、再按一次 ⌥/：退一層。 */
-  const closePanel = () => {
+  /** 收起面板、忘掉這一次的「回去」—— 點到面板外（走掉）就只做這些。 */
+  const dismissPanel = () => {
     setOpen(false);
     setBack(null);
+  };
+
+  /** Esc、返回列、再按一次 ⌥/：退一層。 */
+  const closePanel = () => {
+    dismissPanel();
     returnTo.current?.focus();
     back?.();
   };
@@ -281,9 +286,7 @@ export function FieldInfo({
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (ev: PointerEvent) => {
-      if (panel.current?.contains(ev.target as Node)) return;
-      setOpen(false);
-      setBack(null);
+      if (!panel.current?.contains(ev.target as Node)) dismissPanel();
     };
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);

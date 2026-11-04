@@ -505,6 +505,41 @@ describe("說明面板的返回列（票 101 第二輪）", () => {
     expect(document.activeElement).toBe(input);
   });
 
+  it("觸控直接點說明列（沒有 hover 那一下）—— 返回後一樣停在說明列", () => {
+    const { container } = render(<LocationHost />);
+    pointInto(container.querySelector("input")!);
+    const row = [...container.querySelectorAll(".entity-field__menu li")].find(
+      (li) => li.textContent === INFO_ROW,
+    )!;
+    fireEvent.mouseDown(row);
+    fireEvent.click(backOf(container)!);
+    expect(activeRow(container)).toBe(INFO_ROW);
+  });
+
+  it("內外欄：離開雜景的面板上點說明列 —— 返回後回到那個面板、停在說明列", () => {
+    const leave: ChipConfirm = {
+      note: "這場目前有 2 個地點",
+      rows: [
+        { key: "go", label: "前往地點欄編輯", run: () => {} },
+        { key: "keep", label: "維持雜景", run: () => {} },
+      ],
+    };
+    const { container } = render(<IntExtHost confirm={(next) => (next === "雜景" ? null : leave)} />);
+    const button = container.querySelector("button")!;
+    button.focus();
+    fireEvent.click(button);
+    fireEvent.mouseDown(
+      [...container.querySelectorAll(".chip-select__menu li")].find((li) => li.textContent?.startsWith("內景"))!,
+    );
+    // 觸控：直接點，不經過 hover
+    fireEvent.mouseDown([...container.querySelectorAll(".chip-select__menu li")].at(-1)!);
+    fireEvent.click(backOf(container)!);
+
+    expect(chipRows(container)).toEqual(["前往地點欄編輯", "維持雜景", INTEXT_ROW]);
+    expect(chipActive(container)).toBe(INTEXT_ROW);
+    expect(document.activeElement).toBe(button);
+  });
+
   it("群演欄：點進空欄位、走到說明列打開 —— 返回列回到選單，停在說明列", () => {
     const { container } = render(<ExtrasHost />);
     const input = container.querySelector("input")!;

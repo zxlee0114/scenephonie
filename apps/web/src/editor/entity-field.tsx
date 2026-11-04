@@ -1343,8 +1343,11 @@ export function EntityField({
   const openInfo = () => {
     setInfoHot(false);
     if (!pending) closeMenu();
+    openedFromInfoRow.current = true;
     info?.open();
   };
+  /** 這一次是從說明列打開的 —— 觸控直接點沒有 hover 那一下，`infoHot` 不會先亮（見 `provideBack`）。 */
+  const openedFromInfoRow = useRef(false);
 
   /**
    * 正在定案的那一串字還沒做完（建立實體要等伺服器）。
@@ -1916,8 +1919,10 @@ export function EntityField({
    */
   useLayoutEffect(() => {
     info?.provideBack(() => {
+      const fromRow = openedFromInfoRow.current;
+      openedFromInfoRow.current = false;
       if (!showMenu && !showConfirm) return null;
-      const was = { stage, pointed, infoHot };
+      const was = { stage, pointed, infoHot: infoHot || fromRow };
       return () => {
         if (!pending) {
           setStage(was.stage);
