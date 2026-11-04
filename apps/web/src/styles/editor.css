@@ -820,7 +820,7 @@
   z-index: 30;
   box-sizing: border-box;
   inline-size: min(38ch, 80vw);
-  max-block-size: 60vh;
+  max-block-size: min(60vh, var(--anchored-room, 100vh));
   overflow-y: auto;
   padding: var(--space-3);
   background: var(--surface-raised);
@@ -885,7 +885,7 @@
 .chip-select__menu {
   position: fixed;
   z-index: 20;
-  max-block-size: min(22rem, 60vh);
+  max-block-size: min(22rem, 60vh, var(--anchored-room, 100vh));
   overflow-y: auto;
   overscroll-behavior: contain;
   box-sizing: border-box;
@@ -1129,7 +1129,7 @@
   position: fixed;
   z-index: 20;
   /* 上下都塞不下時夾進視窗、限高自己捲（同 slash 選單）。 */
-  max-block-size: min(22rem, 60vh);
+  max-block-size: min(22rem, 60vh, var(--anchored-room, 100vh));
   overflow-y: auto;
   overscroll-behavior: contain;
   box-sizing: border-box;
@@ -1163,7 +1163,7 @@
   position: fixed;
   z-index: 20;
   inline-size: 28ch;
-  max-block-size: min(22rem, 60vh);
+  max-block-size: min(22rem, 60vh, var(--anchored-room, 100vh));
   overflow-y: auto;
   overscroll-behavior: contain;
   box-sizing: border-box;
@@ -1192,11 +1192,14 @@
 .entity-field__note--naming {
   /* 浮在欄位底下（票券 33）：原本是排在欄位裡的一行字，會把底下整排推開；改成錨定浮層之後
    * 它跟選單搶同一個位置，所以選單開著時它先讓位（見 entity-field.tsx 的 `showNaming`）。
-   * 外框同其他浮層 —— 不上底色、不用強調色，它仍然只是一句次要的字。 */
+   * 外框同其他浮層（白底、細框、浮層陰影）—— 不上強調底色、不用強調字色，它仍然只是一句次要的字。 */
   position: fixed;
   z-index: 20;
   box-sizing: border-box;
   max-inline-size: min(36ch, calc(100vw - var(--space-4)));
+  /* 上下都放不下時 JS 給的可用高度（use-anchored-position.ts）。 */
+  max-block-size: var(--anchored-room, none);
+  overflow-y: auto;
   margin: 0;
   padding: var(--space-2) var(--space-3);
   background: var(--surface-page);
@@ -1429,6 +1432,9 @@
 .appearing-prompt {
   position: fixed;
   z-index: 20;
+  max-block-size: var(--anchored-room, none);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   /* 寬度跟著那一行唯讀提示走，不斷行（使用者回饋 2026-09-29：斷成兩行時最後一個字孤零零
    * 掛在第二行，面板看起來歪）。 */
   inline-size: max-content;
@@ -1563,7 +1569,7 @@
   font-family: var(--font-ui);
   /* 場次一多，第二步（對剪到…、套用…）就比視窗還長：限高、自己捲（驗收 2026-10-21）。
      定位量的是這個限高後的尺寸，所以上下翻轉的判斷照舊成立。 */
-  max-block-size: min(22rem, 60vh);
+  max-block-size: min(22rem, 60vh, var(--anchored-room, 100vh));
   overflow-y: auto;
   overscroll-behavior: contain;
 }

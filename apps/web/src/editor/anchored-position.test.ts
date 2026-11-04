@@ -36,15 +36,25 @@ describe("anchoredPosition", () => {
     expect(anchoredPosition(caret(300, 680), MENU, VIEWPORT)).toEqual({ top: 474, left: 300 });
   });
 
-  it("上下都不夠時仍留在下方，並夾在視窗內", () => {
-    // 780 高的選單，上方（-386）根本放不下，就別翻；改把它往上推到底緣仍在視窗內的位置。
+  it("上下都不夠時留在下方、不蓋住錨點，限高到下方剩下的空間（DESIGN.md 規則 3，票券 33）", () => {
+    // 780 高的選單上下都放不下；也不往上推 —— 那會蓋住正在打字的欄位。
+    // 錨點底 320：下方從 326 開始、扣掉底部 8px 剩 466；上方只有 300 - 6 - 8 = 286。
     const tall = { width: 240, height: 780 };
-    expect(anchoredPosition(caret(300, 400), tall, VIEWPORT)).toEqual({ top: 12, left: 300 });
+    expect(anchoredPosition(caret(300, 300), tall, VIEWPORT)).toEqual({
+      top: 326,
+      left: 300,
+      maxHeight: 466,
+    });
   });
 
-  it("選單比視窗還高時貼上緣，不給負座標", () => {
-    const tooTall = { width: 240, height: 900 };
-    expect(anchoredPosition(caret(300, 400), tooTall, VIEWPORT)).toEqual({ top: 8, left: 300 });
+  it("上下都不夠、而上方空間比較大時開在上方並限高 —— 錨點貼著視窗下緣時，下方根本沒地方", () => {
+    // 錨點底 790：下方剩 2，上方有 770 - 6 - 8 = 756。
+    const tall = { width: 240, height: 780 };
+    expect(anchoredPosition(caret(300, 770), tall, VIEWPORT)).toEqual({
+      top: 8,
+      left: 300,
+      maxHeight: 756,
+    });
   });
 
   it("接近右緣時往左收，不超出視窗", () => {

@@ -1200,9 +1200,9 @@ export function ExtrasField({
   const showMenu = rows.length > 0 || !!heldNote;
   const previewRef = useRef<HTMLUListElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
-  const fieldBox = () => field.current;
-  useAnchoredPosition(previewRef, fieldBox, { active: showPreview, matchWidth: true });
-  useAnchoredPosition(menuRef, fieldBox, { active: showMenu, matchWidth: true });
+  const fieldEl = () => field.current;
+  useAnchoredPosition(previewRef, fieldEl, { active: showPreview, matchWidth: true });
+  useAnchoredPosition(menuRef, fieldEl, { active: showMenu, matchWidth: true });
   // 選單限高自己捲時，方向鍵走到哪那一列就捲進來（同實體欄位）。
   useLayoutEffect(() => {
     menuRef.current?.querySelector(".is-active")?.scrollIntoView?.({ block: "nearest" });

@@ -1818,11 +1818,11 @@ export function EntityField({
   const confirmRef = useRef<HTMLDivElement>(null);
   const namingRef = useRef<HTMLParagraphElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
-  const fieldBox = () => field.current;
-  useAnchoredPosition(previewRef, fieldBox, { active: showPreview, matchWidth: true });
-  useAnchoredPosition(confirmRef, fieldBox, { active: showConfirm, matchWidth: true });
-  useAnchoredPosition(namingRef, fieldBox, { active: showNaming });
-  useAnchoredPosition(menuRef, fieldBox, { active: showMenu, matchWidth: true });
+  const fieldEl = () => field.current;
+  useAnchoredPosition(previewRef, fieldEl, { active: showPreview, matchWidth: true });
+  useAnchoredPosition(confirmRef, fieldEl, { active: showConfirm, matchWidth: true });
+  useAnchoredPosition(namingRef, fieldEl, { active: showNaming });
+  useAnchoredPosition(menuRef, fieldEl, { active: showMenu, matchWidth: true });
   // 選單限高自己捲時（DESIGN.md 規則 3）：方向鍵走到哪，那一列就捲進來（同 slash 選單）。
   // 浮層是 fixed、整個在視窗裡，`nearest` 不會連帶捲動頁面。
   useLayoutEffect(() => {
