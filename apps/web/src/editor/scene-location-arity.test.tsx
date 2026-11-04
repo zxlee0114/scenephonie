@@ -229,13 +229,13 @@ describe("離開雜景時，多出來的地點要有人說一聲", () => {
       expect(el).not.toBeNull();
       return el!;
     });
-    expect(note.textContent).toContain("2 個地點");
-    expect(note.textContent).toContain("派出所、警局");
+    // 文案是使用者定的（票券 33，2026-11-04）。
+    expect(note.textContent).toBe("這場目前有 2 個地點（派出所、警局），若要使用「內景」，只能保留一個地點");
     expect(editor().state.doc.child(0).attrs.intExt).toBe("雜景"); // 沒有偷偷寫進去
     expect(locationChips(container)).toEqual(["派出所", "警局"]); // 也沒有偷偷刪地點
   });
 
-  it("面板不提供「幫你刪掉多餘的地點」—— 只有「去地點欄」與「維持雜景」", async () => {
+  it("面板不提供「幫你刪掉多餘的地點」—— 只有「前往地點欄編輯」與「維持雜景」", async () => {
     const { container } = await twoLocations();
 
     const chip = intExtChip(container);
@@ -247,10 +247,29 @@ describe("離開雜景時，多出來的地點要有人說一聲", () => {
       expect(found).toHaveLength(2);
       return found;
     });
-    expect(rows.map((r) => r.textContent)).toEqual(["→ 先去地點欄拿掉多餘的", "✕ 維持雜景"]);
+    expect(rows.map((r) => r.textContent)).toEqual(["前往地點欄編輯", "維持雜景"]);
   });
 
-  it("挑「先去地點欄」→ 焦點落在地點欄，面板收起來", async () => {
+  it("清空內外（選最上面那一列空值）時，說明改說「清空內外」—— 不印一對空的引號", async () => {
+    const { container } = await twoLocations();
+
+    fireEvent.click(intExtChip(container));
+    const empty = await waitFor(() => {
+      const li = container.querySelector<HTMLElement>(".chip-select__menu li");
+      expect(li).not.toBeNull();
+      return li!;
+    });
+    fireEvent.mouseDown(empty);
+
+    const note = await waitFor(() => {
+      const el = container.querySelector(".chip-select__note");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(note.textContent).toBe("這場目前有 2 個地點（派出所、警局），若要清空內外，只能保留一個地點");
+  });
+
+  it("挑「前往地點欄編輯」→ 焦點落在地點欄，面板收起來", async () => {
     const { container } = await twoLocations();
 
     const chip = intExtChip(container);
