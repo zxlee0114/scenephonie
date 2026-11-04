@@ -74,7 +74,13 @@ export function useAnchoredPosition(
     if (matchWidth)
       el.style.minInlineSize = `${Math.min(rect.right - rect.left, viewport.width - VIEWPORT_MARGIN * 2)}px`;
     const size = el.getBoundingClientRect();
-    const { top, left, maxHeight } = anchoredPosition(rect, size, viewport);
+    const placed = anchoredPosition(rect, size, viewport);
+    if (!placed) {
+      // 錨點捲到頁首底下了：藏起來，捲回來時這裡會再跑一次。
+      el.style.visibility = "hidden";
+      return;
+    }
+    const { top, left, maxHeight } = placed;
     el.style.top = `${top}px`;
     el.style.left = `${left}px`;
     if (maxHeight != null) el.style.setProperty("--anchored-room", `${maxHeight}px`);

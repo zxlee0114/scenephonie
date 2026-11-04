@@ -38,13 +38,15 @@ const MARGIN = VIEWPORT_MARGIN;
  * 會退化成單純的「錨點正下方」。
  *
  * 上方的空間從 `viewport.top`（頁首下緣）算起，不從視窗頂端 —— 否則翻上去的浮層會壓過導覽列
- * （票 101 驗收回饋，2026-11-05）。
+ * （票 101 驗收回饋，2026-11-05）。錨點整個捲到頁首底下時回傳 null（不擺）：跟著它開在下方
+ * 一樣會壓過頁首，而它本來就看不見 —— 與「錨點不在畫面上就藏起來」同一條。
  */
 export function anchoredPosition(
   caret: CaretRect,
   menu: Size,
   viewport: Viewport,
-): { top: number; left: number; maxHeight?: number } {
+): { top: number; left: number; maxHeight?: number } | null {
+  if (caret.bottom <= (viewport.top ?? 0)) return null;
   const ceiling = (viewport.top ?? 0) + MARGIN;
   const below = caret.bottom + GAP;
   const above = caret.top - GAP - menu.height;

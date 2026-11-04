@@ -774,9 +774,12 @@
   line-height: var(--leading-sm);
 }
 
+/* 分隔線上方（上一列的內距＋這裡的 margin）、線到字、字到選單底邊（列的內距＋選單內距）都是 8px
+ * —— 上下看起來才平均（票 101 驗收回饋）。 */
 .entity-field__menu li.entity-field__menu-info:not(:first-child),
 .chip-select__menu li.chip-select__info:not(:first-child) {
   margin-block-start: var(--space-1);
+  padding-block-start: var(--space-2);
   border-block-start: 1px solid var(--rule);
   border-start-start-radius: 0;
   border-start-end-radius: 0;
