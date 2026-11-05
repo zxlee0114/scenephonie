@@ -127,7 +127,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [84](./84-where-am-i-titles-and-tabs.md) | 看得出自己在哪：劇本頁頂列印專案名 › 劇本名、分享頁印片名、編輯器切換列加分場大綱。**從 impeccable critique 撈到**，無 blocker（21、75 相關）。 | `needs-triage` |
 | [85](./85-demo-screenplay-shows-the-ideal.md) | 示範劇本填好登場人物與人物介紹，不再一匯出就被警告。要不要刻意留一場給引導教提示開工前問。**從 impeccable critique 撈到**，無 blocker（73、78 相關）。 | `needs-triage` |
 | [86](./86-low-contrast-controls.md) | 對比不足：場次 sidebar 開關 2.4:1、實體欄 placeholder 4.3:1、hub 卡片摘要 2.2:1。grilling 定案：**開關三態與 placeholder 改 `--text-secondary`**（含原票漏的「收回去」），hub 摘要保留淡字並記進 impeccable 裁決；其餘 faint 拆到 96。**從 impeccable critique 撈到**，無 blocker。 | ✅ verified |
-| [87](./87-ui-wording-no-engineering-terms.md) | 介面用語：選單不露「實體」這類工程詞；「景／光」「內外／時間」「時間」與「S1」「1」各統一成一種說法。改字前先對 36／40／42／49 的定案。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
+| [87](./87-ui-wording-no-engineering-terms.md) | 介面用語：「景／光」「內外／時間」「時間」與「S1」「1」各統一成一種說法。選單不露「實體」那一半已併進 108（2026-11-05）。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
 | [88](./88-ui-critique-small-fixes.md) | 介面小修一批（slash 選單順序、刪除本場的危險樣式、主按鈕一致、儀表板空封面等十餘條），逐條勾。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
 | [89](./89-enter-dialogue-from-above-lands-on-speaker.md) | 從上面走進對白（→／↓、chip row 的 Enter／Tab）一律落台詞、跳過人物欄 —— 要不要先停人物欄。grilling 定案（與 82、91 一起）：方向鍵與 chip row 的 Tab **一律先停人物欄**，與回程同一條路；chip row 的 Enter 歸 91。**從票券 61 grilling 拆出來**，blocked by 61。排在 82 之後。 | ✅ verified |
 | [90](./90-empty-first-block-backspace-stuck.md) | 場次第一個區塊（描述）清空之後 Backspace 卡在行首，空區塊收不掉。游標落點與 62 的併回規則怎麼延伸開工前問。**從票券 61 驗收撈到**，無 blocker。 | `needs-triage` |
@@ -147,5 +147,5 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [104](./104-speaker-menu-layout-shift.md) | 點對白的人物 chip 開選單時版面會位移；聚焦樣式維持原狀。**從票券 101 驗收撈到**，無 blocker。 | ✅ verified |
 | [105](./105-speaker-field-dead-selectors.md) | 對白人物欄的底線／字級／聚焦樣式選擇器對不到元素（class 直接掛在 `.entity-field` 上）：刪掉（使用者裁決，不救回來）；劇本內文聚焦只靠游標，寫進 DESIGN.md。**從票券 104 撈到**，無 blocker。 | ✅ verified |
 | [106](./106-dialogue-line-placeholder.md) | 空的台詞行印一行提示字（跟人物欄的 `人物` 一樣）；措辭、描述／插入畫面要不要也有、只印游標那一行還是全部，開工前定。**從票券 105 驗收提出**，無 blocker。 | `needs-triage` |
-| [107](./107-create-namesake-character.md) | 建立同名的另一位：已經有「小明」時，第一次建第二位「小明」的路（入口、第二位的主要名稱怎麼來、原本那位要不要改名），開工前定。**從票券 79 第 5 條裁決提出**，無 blocker。 | `needs-triage` |
-| [108](./108-naming-menu-overhaul.md) | 名稱系統的選單彙整：人物欄／地點欄選單經多張票加列加括號後，要先懂「實體／主要名稱／這一場的叫法／別名」才讀得懂；攤開重排，每列說什麼、怎麼區分、何時不該出現。與 87、107 重疊，開工前先定怎麼分。**從票券 79 驗收提出**，無 blocker。 | `needs-triage` |
+| [107](./107-create-namesake-character.md) | 建立同名的另一位：已經有「小明」時，第一次建第二位「小明」的路（入口、第二位的主要名稱怎麼來、原本那位要不要改名；劇本上同叫法的 chip 怎麼區分），開工前定。**從票券 79 第 5 條裁決提出**，**blocked by 108**。 | `needs-triage` |
+| [108](./108-naming-menu-overhaul.md) | 名稱系統的選單彙整：人物欄／地點欄選單經多張票加列加括號後，要先懂「實體／主要名稱／這一場的叫法／別名」才讀得懂；攤開重排，每列說什麼、怎麼區分、何時不該出現。**框架票**：107 等它；併入 87 的選單措辭（不露「實體」）。**從票券 79 驗收提出**，無 blocker。 | `needs-triage` |
