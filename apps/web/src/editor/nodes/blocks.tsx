@@ -57,7 +57,7 @@ import {
 import { Action, Dialogue, InsertShot } from "../schema";
 import { useEntityCatalog } from "../entity-catalog";
 import { EntityField, type EntityFieldHandle, type EntityOption, type EntityRef } from "../entity-field";
-import { entityUsage } from "../entity-usage";
+import { aliasIndex, entityUsage } from "../entity-usage";
 import { retitleOthersIn } from "../retitle-others";
 import { claimFocus, requestFocus, subscribeFocusRequest } from "../focus";
 import { DragHandle, dragHandle } from "./drag-handle";
@@ -378,6 +378,8 @@ function DialogueView(props: NodeViewProps) {
         refs={speaker}
         options={catalog.characters}
         usage={() => entityUsage(editor.state.doc)}
+        // 別場的叫法也命中（票券 79）。
+        aliases={() => aliasIndex(editor.state.doc, catalog.characters)}
         elsewhere={catalog.charactersElsewhere}
         // 合法目標是「人物」或「**本場次的**群演」（§5.1）—— id 只在該場次內有意義。
         // 給函式不給值：群演住在場次 attr，改了它這個 view 不會重繪（票券 56）。

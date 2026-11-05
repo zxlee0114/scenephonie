@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { docFromJSON, mintSceneId } from "@scenephonie/schema";
 import type { Node as PMNode } from "@tiptap/pm/model";
 
-import { aliasesOf, entityUsage, scenesShowingName } from "./entity-usage";
+import { aliasIndex, aliasesOf, entityUsage, scenesShowingName } from "./entity-usage";
 
 const scene = (attrs: Record<string, unknown>, blocks: Record<string, unknown>[] = []) => ({
   type: "scene",
@@ -110,5 +110,35 @@ describe("aliasesOf", () => {
     const doc = docOf(scene({}, [dialogue("ch_2", "阿盈")]));
 
     expect(aliasesOf(doc, "ch_1", "小智")).toEqual([]);
+  });
+});
+
+describe("aliasIndex", () => {
+  it("一趟走訪交出每筆實體的別名 —— 實體名不算，沒有別名的實體不在裡面", () => {
+    const doc = docOf(
+      scene({ location: { locationId: "lo_1", displayName: "未知大樓房間" } }, [dialogue("ch_1", "我是誰")]),
+      scene({ location: { locationId: "lo_1", displayName: "海豚公寓房間" } }, [
+        dialogue("ch_1", "我是龍"),
+        dialogue("ch_2", "小智"),
+      ]),
+    );
+    const entities = [
+      { id: "lo_1", name: "海豚公寓房間" },
+      { id: "ch_1", name: "我是龍" },
+      { id: "ch_2", name: "小智" },
+    ];
+
+    expect(aliasIndex(doc, entities)).toEqual(
+      new Map([
+        ["lo_1", ["未知大樓房間"]],
+        ["ch_1", ["我是誰"]],
+      ]),
+    );
+  });
+
+  it("目錄裡沒有的 id（懸空引用）不進結果 —— 不知道它的實體名，就分不出哪個是別名", () => {
+    const doc = docOf(scene({}, [dialogue("ch_9", "路人")]));
+
+    expect(aliasIndex(doc, []).size).toBe(0);
   });
 });

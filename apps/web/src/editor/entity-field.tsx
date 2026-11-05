@@ -99,6 +99,13 @@ export type EntityRef = { id: string | null; displayName: string };
 
 export type EntityKind = "location" | "character";
 
+/**
+ * 改名那幾列怎麼稱呼這筆東西（票券 79 驗收）。說「實體」編劇讀不懂，而且「把實體改名為『阿龍』」
+ * 在阿龍本來就是別名時讀不出這一下在做什麼；說「主要名稱」才把它跟這一場的叫法分開。
+ * 選單其餘的「實體」字樣是票券 87 的事。
+ */
+const KIND_NOUN: Record<EntityKind, string> = { location: "地點", character: "人物" };
+
 type Props = {
   kind: EntityKind;
   /** 未填時的提示字，也是無障礙標籤。 */
@@ -123,6 +130,13 @@ type Props = {
    * 是值不是函式：它是進站時伺服器端算好的，這一頁開著的期間不會變。
    */
   elsewhere?: ReadonlyMap<string, string>;
+  /**
+   * 每筆實體的**別名** —— id → 劇本裡叫過它、但不是它名字的那些顯示名（票券 79，`aliasIndex`）。
+   *
+   * 編劇照著劇本上看得到的字再打一次，命中的應該是那一位，而不是「建立新實體」又冒出第二個同名的人。
+   * 別名不存在實體上（ADR-0005），所以這裡也是查出來的，跟 `usage` 一樣**是函式**，要畫選單時才走 doc。
+   */
+  aliases?: () => ReadonlyMap<string, readonly string[]>;
   /** 多值欄（地點欄在雜景、登場人物欄、對白人物欄 —— 齊聲）。分隔符只在多值欄裡切名字。 */
   multiple?: boolean;
   /**
@@ -309,6 +323,9 @@ type Committed = {
   after: readonly EntityRef[];
 };
 
+/** 命中的一列（`matchesFor`）：哪一筆實體、選了之後這一場顯示什麼、印成什麼樣子。 */
+type MatchRow = { key: string; option: EntityOption; shown: string; label: string };
+
 /** 兩排引用是不是同一個樣子（同一批、同樣的次序、同樣的顯示名）。 */
 const sameRefs = (a: readonly EntityRef[], b: readonly EntityRef[]) =>
   a.length === b.length &&
@@ -321,6 +338,7 @@ export function EntityField({
   options,
   usage,
   elsewhere,
+  aliases: readAliases,
   sceneExtras: readSceneExtras,
   onCreateExtra,
   onPromoteFromExtra,
@@ -502,6 +520,24 @@ export function EntityField({
     existing().find((o) => o.name === name) ?? null;
 
   /**
+   * 一筆實體的別名（見 `Props.aliases`）。
+   *
+   * 別名表**這一次重繪只問一次**：問一次就是走一遍整份 doc，而一份選單要對每一筆候選問好幾次
+   * （`matchesFor` 的三輪、`byAlias`、`looksLikeLine`）。同 `usage` 的理由（§7.7）——
+   * 不畫選單就一次都不問。
+   */
+  let aliasTable: ReadonlyMap<string, readonly string[]> | undefined;
+  const aliasesFor = (id: string): readonly string[] =>
+    (aliasTable ??= readAliases?.() ?? new Map()).get(id) ?? [];
+
+  /**
+   * 這個名字是**哪一筆候選的別名**（票券 79）—— 好幾筆都叫過這個名字時取第一筆，也就是選單裡
+   * 排最前面的那一列：Enter 與離開欄位走 `resolve`，選單說一件事、按下去做另一件事就是票券 38 那種分家。
+   */
+  const byAlias = (name: string) =>
+    candidates().find((o) => aliasesFor(o.id).includes(name)) ?? null;
+
+  /**
    * 手上正在編輯的那一筆，**如果這個名字就是它**（票券 38）。
    *
    * `editRef` 為了把 chip 變回文字會先把引用從 doc 上拿掉，只被引用一次的實體於是暫時掉出
@@ -547,8 +583,9 @@ export function EntityField({
    * ⚠️ 只多認**這一筆**，`existing()` 一個字都沒放寬：差別是握在手上的那一筆有一個明確的
    * 持有者，而孤兒沒有 —— 孤兒仍然不進候選（ADR-0005）。
    *
-   * ⚠️ 這不是「可以指向的東西」那份清單：別名那兩列問的是「要指到**別的**哪一筆」，手上
-   * 那一筆不在裡面（把自己設成自己的別名沒有意義），所以那兩處讀的仍然是 `existing()`。
+   * ⚠️ 這不是「可以指向的東西」那份清單：`🔗 作為既有實體的另一個名字…` 那兩步問的是「要指到
+   * **別的**哪一筆」，手上那一筆不在裡面（把自己設成自己的別名沒有意義），所以那兩處讀的仍然是
+   * `existing()`。（打別名命中的那幾列 —— `matchesFor` 的別名列 —— 是命中，不是那個動作，讀這一份。）
    */
   const candidates = (): readonly EntityOption[] => {
     const listed = existing();
@@ -583,22 +620,118 @@ export function EntityField({
    *
    * `alias` 是這一場的叫法，只在它不等於實體名時傳進來（見呼叫處）。手上那一筆的別名照印：
    * 那一句回答的是「框裡的字與這一列是什麼關係」，跟它有多大無關。
+   *
+   * 別的那幾筆還列出它們的**別名**（`別名：我是誰、阿龍`，票券 79）—— 劇本上看得到的那幾個字是哪一位
+   * 的名字。手上那一筆不列：它的別名各自是底下的一列（`matchesFor`），括號裡再寫一次只是重複。
    */
   const candidateLabel = (option: EntityOption, alias: string | null) => {
     const held = option === heldEntity();
-    const scenes = scenesOf(option.id);
+    const known = held ? [] : aliasesFor(option.id);
     const note = [
       alias && `這場顯示為 ${alias}`,
-      // 手上那一筆一個數字都不印 —— 別場認不認識它都一樣（見這一段的 doc）。
-      !held && scenes && `${scenes} 場`,
-      // 這份 doc 一場都沒用到、只在別份文件裡被引用：說它從哪裡來（見 `elsewhere`）。
-      !held && !scenes && elsewhere?.get(option.id),
+      known.length > 0 && `別名：${known.join("、")}`,
+      sizeNote(option),
     ]
       .filter(Boolean)
       .join("，");
-    // 記號仍然照分：`scenes` 不含這一場，所以 0 就是「除了這一場沒有別場認識它」。
-    const mark = held && !scenes ? HISTORY_MARK : HIT_MARK[kind];
-    return `${mark} ${option.name}${note ? `（${note}）` : ""}`;
+    return `${markOf(option)} ${option.name}${note ? `（${note}）` : ""}`;
+  };
+
+  /**
+   * 括號尾巴那一句「它多大／從哪裡來」—— 實體名列與別名列共用。
+   *
+   * 手上那一筆一個數字都不印（別場認不認識它都一樣，見 `candidateLabel`）；這份 doc 一場都沒用到、
+   * 只在別份文件裡被引用的，說它從哪裡來（見 `elsewhere`）。
+   */
+  const sizeNote = (option: EntityOption) => {
+    if (option === heldEntity()) return null;
+    const scenes = scenesOf(option.id);
+    return scenes ? `${scenes} 場` : (elsewhere?.get(option.id) ?? null);
+  };
+
+  /**
+   * 一列候選的記號。手上那一筆而且除了這一場沒有別場認識它 ＝ `🕓`（`scenes` 不含這一場，所以 0 就是
+   * 那個意思），其餘是身分記號。手上那一筆換叫法的那幾列（票券 79）也走這裡：同一筆東西同一個記號。
+   */
+  const markOf = (option: EntityOption) =>
+    option === heldEntity() && !scenesOf(option.id) ? HISTORY_MARK : HIT_MARK[kind];
+
+  /**
+   * 框裡的字命中的那幾列 —— **選單與組字預覽共用**（票券 52 的同一條：兩邊的候選不能分家）。
+   *
+   * 每一列是「哪一筆實體、選了之後這一場顯示什麼、印成什麼樣子」。次序是使用者裁決（票券 79）：
+   * 實體名完全符合 → 別名完全符合 → 實體名部分符合 → 別名部分符合。一筆實體只進榜一次 ——
+   * 例外是**手上那一筆原封未動**的時候：它的每個別名（還有它的主要名稱，若這一場顯示的是別名）
+   * 各一列，那是「拿起 chip 換一個叫法」的入口（票券 79 留言）。打字之後就回到上面那套規則。
+   *
+   * 別名那幾列的主體是**框裡（或要換成）的那個字**，括號說它是誰的別名：編劇打的是劇本上看得到的
+   * 字，選下去這一場也就顯示那個字。
+   *
+   * `exact` 是名字完全相等（或手上那一筆原封放回，`editingMatch`）的那一筆，有的話它就是第一列；
+   * 它在不在決定 `＋ 建立新實體` 出不出現 —— 只命中別名時那一列照樣在（主要名稱可以撞別人的別名，
+   * 票券 79 的 2026-10-26 裁決）。
+   */
+  const matchesFor = (q: string): { exact: EntityOption | null; rows: MatchRow[] } => {
+    const known = candidates();
+    const exact = known.find((o) => o.name === q) ?? editingMatch(q);
+    // ⚠️ 排掉的是 `exact` **那一筆**，不是「名字剛好等於 q 的」。手上那一筆的顯示名可能不等於它在目錄
+    // 裡的名字（別名，或實體改名後舊引用還留著舊字）—— 只看名字的話，同一筆實體會從 `exact` 與
+    // 部分符合各進榜一次，選單印出兩列一模一樣的名字（票券 38 人工驗收）。
+    const listed = new Set<EntityOption>(exact ? [exact] : []);
+    const rest: MatchRow[] = [];
+    const aliasRow = (option: EntityOption, alias: string): MatchRow => {
+      const note = [`為「${option.name}」的別名`, sizeNote(option)].filter(Boolean).join("，");
+      return {
+        key: `alias-hit:${option.id}:${alias}`,
+        option,
+        shown: alias,
+        label: `${markOf(option)} ${alias}（${note}）`,
+      };
+    };
+    const take = (option: EntityOption, row: MatchRow) => {
+      listed.add(option);
+      rest.push(row);
+    };
+
+    // 手上那一筆原封未動：攤出它的其他叫法。
+    const held = heldEntity();
+    if (held && exact === held && q === editing.current?.displayName) {
+      if (q !== held.name) {
+        // 括號不能省（票券 79 驗收）：光寫 `👤 阿龍` 會讀成另一位 —— 別人的別名剛好也叫阿龍時更是如此。
+        // 與別名列的 `（為「X」的別名）` 對稱：標籤說的是選了之後這一場印的名字是什麼身分。
+        const label = `${markOf(held)} ${held.name}（主要名稱）`;
+        rest.push({ key: `as-name:${held.id}`, option: held, shown: held.name, label });
+      }
+      for (const alias of aliasesFor(held.id)) {
+        if (alias !== q) rest.push(aliasRow(held, alias));
+      }
+    }
+    for (const option of known) {
+      if (!listed.has(option) && aliasesFor(option.id).includes(q)) take(option, aliasRow(option, q));
+    }
+    for (const option of known) {
+      if (!listed.has(option) && option.name.includes(q)) {
+        take(option, { key: `hit:${option.id}`, option, shown: option.name, label: candidateLabel(option, null) });
+      }
+    }
+    for (const option of known) {
+      const alias = listed.has(option) ? undefined : aliasesFor(option.id).find((a) => a.includes(q));
+      if (alias !== undefined) take(option, aliasRow(option, alias));
+    }
+    // 手上那一筆的顯示名可能不是它在目錄裡的名字 —— 那時主體印**實體名**、括號補這一場的叫法，
+    // 沿用場次表那條慣例（CONTEXT.md 地點詞條）：這一列回答的是「這一場已經綁到誰」。選下去保住
+    // 框裡的字：它可能是這一場的別名（ADR-0005），拿目錄名蓋回去等於靜悄悄改掉它。
+    const first: MatchRow[] = exact
+      ? [
+          {
+            key: `hit:${exact.id}`,
+            option: exact,
+            shown: q,
+            label: candidateLabel(exact, q !== exact.name ? q : null),
+          },
+        ]
+      : [];
+    return { exact, rows: [...first, ...rest.slice(0, 5)] };
   };
 
   /**
@@ -651,7 +784,10 @@ export function EntityField({
    * `head` ＝ 這是最後一個分隔符**之前**的那幾段（見 `settle`）。手上那一筆屬於最後一段 ——
    * 選單、抬頭說的都是那一段 —— 所以前面幾段不走「群演改顯示名」那條捷徑。
    */
-  const resolve = async (name: string, { head = false } = {}): Promise<EntityRef | null> => {
+  const resolve = async (
+    name: string,
+    { head = false, create = false } = {},
+  ): Promise<EntityRef | null> => {
     const held = editing.current;
     // 剛拿下來的那一筆是**群演**：改字改的是「這一場顯示的名字」，不是換一個目標。
     // （CONTEXT.md：群演欄寫「咖啡廳客人（8）」，對白顯示「眾人」—— 兩者本來就可以不同。）
@@ -674,7 +810,9 @@ export function EntityField({
     if (held?.id != null && editingMatch(name))
       return { id: held.id, displayName: name };
 
-    const hit = byName(name);
+    // `create` ＝ 編劇按的是「＋ 建立新實體」（票券 79 驗收）。那一列只在**沒有實體叫這個名字**時
+    // 出現，但別名仍可能對得上 —— 按下它就是說「不是那一位，是另一個人」，所以不再比對別名。
+    const hit = byName(name) ?? (create ? null : byAlias(name));
     if (hit) return { id: hit.id, displayName: name };
 
     const created = await onCreate(name);
@@ -1001,6 +1139,7 @@ export function EntityField({
           (segment) =>
             readsLikeSpeech(parseExtra(segment)?.description ?? segment) &&
             !byName(segment) &&
+            !byAlias(segment) &&
             !editingMatch(segment) &&
             !(readSceneExtras?.() ?? []).some((e) => e.name === segment),
         )));
@@ -1048,39 +1187,18 @@ export function EntityField({
     // **孤兒不出現在自動補全**（ADR-0005）—— 「存在＝被引用」不是一句口號，選單是它唯一
     // 看得見的地方。目錄是 append-only 的，裡面一定會累積 ⌘Z 留下的孤兒；「v1 永不清理」
     // 指的是**不刪資料列**，不是「照樣顯示」。
-    const known = candidates();
-    // 手上那一筆也算命中 —— 少了它，把自己拿回來改會看到「建立新實體『它自己』」（票券 38）。
-    // `editingMatch` 仍然要問：它認的是**顯示名**，而目錄裡那筆的名字可以不一樣（別名）。
-    const exact = known.find((o) => o.name === query) ?? editingMatch(query);
-    // ⚠️ 排掉的是 `exact` **那一筆**，不是「名字剛好等於 query 的」。兩者多數時候同一件事，
-    // 但手上那一筆的顯示名可能不等於它在目錄裡的名字（別名，或實體改名後舊引用還留著舊字）
-    // —— 那時同一筆實體會從 `exact` 與 `hits` 各進榜一次，選單印出兩列一模一樣的名字。
-    const hits = known
-      .filter((o) => o !== exact && o.name.includes(query))
-      .slice(0, 5);
+    // 命中列怎麼排、怎麼印見 `matchesFor`（與組字預覽共用）。
+    const { exact, rows: matched } = matchesFor(query);
 
     if (stage.name === "suggest") {
-      for (const option of [...(exact ? [exact] : []), ...hits]) {
-        // 手上那一筆的顯示名可能不是它在目錄裡的名字（別名，或實體改名後舊引用留著舊字）
-        // —— 那時標籤主體印**實體名**、括號裡補這一場的叫法，沿用場次表那條慣例
-        // （CONTEXT.md 地點詞條：印 `實體名（這一場的顯示名）`，只在兩者不同時才印）。
-        // 主體是實體名而不是編劇打的字：他打的字他自己知道，不知道的是它會綁到誰。
-        const alias = option === exact && query !== option.name ? query : null;
+      for (const match of matched) {
         rows.push({
-          key: `hit:${option.id}`,
-          label: candidateLabel(option, alias),
+          key: match.key,
+          label: match.label,
+          // 顯示名是那一列說的那個字：原封放回 → 框裡的字；實體名部分符合 → 實體名（框裡是半截字，
+          // 把 `L` 寫回去才是竄改，票券 52）；別名 → 那個別名（票券 79）。
           run: () => {
-            // 命中列的顯示名就是實體名 —— 但**手上那一筆**用回框裡的字：它的顯示名可能是
-            // 這一場的別名（ADR-0005：別名住在引用上），拿目錄名蓋回去等於靜悄悄改掉它。
-            // 目錄命中的那一列兩者本來就相同，這一條只在「拿回來改」那條路上有差別。
-            // ⚠️ 手上那一筆從 `hits` 進榜時（清空重打前綴，票券 52）走的是**實體名** ——
-            // 那時框裡是編劇剛打的半截字，不是這一場的叫法，把 `L` 當顯示名寫回去才是竄改。
-            // 分界因此是 `exact`：原封放回才保別名，字改過了就按他選的那一筆的名字走。
-            const ref = {
-              id: option.id,
-              displayName: option === exact ? query : option.name,
-            };
-            void settle(() => ref, { advance: true });
+            void settle(() => ({ id: match.option.id, displayName: match.shown }), { advance: true });
           },
         });
       }
@@ -1178,7 +1296,7 @@ export function EntityField({
           others > 0 ? `（還有 ${others} 場印著「${target.name}」）` : "";
         rows.push({
           key: "rename",
-          label: `${RENAME_MARK} 把實體改名為「${query}」${note}`,
+          label: `${RENAME_MARK} 將${KIND_NOUN[kind]}的主要名稱改成「${query}」${note}`,
           run: () => {
             // 那幾場要不要跟上是**編劇的裁決**，不是這裡的預設值。一場都沒有就沒什麼好問的。
             if (others === 0) {
@@ -1245,7 +1363,7 @@ export function EntityField({
       if (onRenameEntity) {
         rows.push({
           key: "alias-rename",
-          label: `同時把實體改名為「${query}」`,
+          label: `同時將${KIND_NOUN[kind]}的主要名稱改成「${query}」`,
           run: () => {
             void settle(
               () => {
@@ -1269,17 +1387,15 @@ export function EntityField({
    * 字，本子裡已經有嗎」，讓編劇在**送出之前**就看得出來會命中還是會新建（搜尋框那樣）。
    * 真正做決定的那一刻仍然是 `compositionend`，不是現在。
    *
-   * 只列命中，不列「建立新實體」與別名入口 —— 那兩列是動作，而這一刻不該有任何動作可按。
+   * 只列命中，不列「建立新實體」與 `🔗` 入口 —— 那兩列是動作，而這一刻不該有任何動作可按。
    *
-   * 讀的是 `candidates()`，與送出之後那份選單同一份：預覽要回答的就是「等一下會命中什麼」，
+   * 讀的是 `matchesFor`，與送出之後那份選單同一份（連別名命中列在內）：預覽要回答的就是「等一下會命中什麼」，
    * 兩邊的候選分家的話，注音打到一半看不到手上那一筆、`compositionend` 之後它才蹦出來
    * —— 同一個手勢兩種結果，正是票券 52 在收的那件事。
    */
   const preview =
     composingNow && query.length > 0 && !pending
-      ? candidates()
-          .filter((o) => o.name.includes(query))
-          .slice(0, 5)
+      ? matchesFor(query).rows
       : [];
 
   /**
@@ -1373,7 +1489,8 @@ export function EntityField({
    * 把還沒 chip 化的字定案（Enter、離開欄位、選單的「建立新實體」都走這裡）。
    *
    * `advance` ＝ 定案之後去 `onSettled`（離開欄位不去）。`asName` ＝ 編劇已經說了這串字是名字
-   * （「建立新實體」那一列）—— 不再照台詞標點把它搬去台詞。`leaving` ＝ 這是離開欄位那一下。
+   * （「建立新實體」那一列）—— 不再照台詞標點把它搬去台詞，也不再讓別名把它吸走（`resolve` 的
+   * `create`）。`leaving` ＝ 這是離開欄位那一下。
    */
   const commitText = async ({
     advance,
@@ -1397,7 +1514,7 @@ export function EntityField({
       selectNext.current = true;
       return;
     }
-    await settle(() => (query ? resolve(query) : null), { advance, leaving });
+    await settle(() => (query ? resolve(query, { create: asName }) : null), { advance, leaving });
   };
 
   /**
@@ -1928,10 +2045,10 @@ export function EntityField({
           className="entity-field__menu entity-field__menu--preview"
           aria-hidden="true"
         >
-          {preview.map((option) => (
+          {preview.map((row) => (
             // 與送出之後那份選單同一支標籤 —— 同一筆東西在選字前後換一張臉，比印錯場數
             // 更糟（票券 52）。
-            <li key={option.id}>{candidateLabel(option, null)}</li>
+            <li key={row.key}>{row.label}</li>
           ))}
         </ul>
       )}

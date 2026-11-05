@@ -119,7 +119,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [76](./76-nodejs-security-update-2026-10.md) | Node.js 釘到 2026-10-21 安全修補版 22.23.4（`.nvmrc`、`engines.node`、CI、Vercel 一致）。**Brotli decoder RCE（CVE-2026-111497）與數個 TLS／DNS 驗證問題。**無 blocker。 | ✅ verified |
 | [77](./77-nodejs-version-auto-tracking.md) | 自動追蹤 Node.js 安全更新（Renovate 傾向；只追 22.x minor／patch，`.nvmrc` 與 `engines.node` 要同步）。blocked by 76。 | ✅ verified |
 | [78](./78-character-sheet-in-creation-wizard.md) | 建立精靈第 2 步多一個「人物介紹」頁籤：草稿存名字與內文，建立專案的交易裡才鑄人物、寫角色設定表。**從票券 21 第 ② 片 grilling 拆出來**，blocked by 21、71。 | `needs-triage` |
-| [79](./79-autocomplete-hits-aliases.md) | 自動補全認得別場用過的叫法：打的名字是別場的顯示名（別名）時命中那筆實體，不再只給「建立新實體」、冒出第二個同名人物。**從票券 21 驗收撈到**，無 blocker。 | `needs-triage` |
+| [79](./79-autocomplete-hits-aliases.md) | 自動補全認得別場用過的叫法：打的名字是別場的顯示名（別名）時命中那筆實體，不再只給「建立新實體」、冒出第二個同名人物；拿起 chip 可換成別名顯示；人物介紹上主要名稱撞別人的別名時提一行小字。**從票券 21 驗收撈到**，無 blocker。 | ✅ verified |
 | [80](./80-entity-menu-offscreen.md) | 人物欄、地點欄等實體欄位的選單在視窗下緣被切掉：下方塞不下就翻到上方（接票 29 的 `slashMenuPosition`）。**從票券 62 驗收撈到**，無 blocker。 | closed —— 併進 33 |
 | [81](./81-typewriter-scroll-while-writing.md) | 寫作中的打字餘裕：場次內的區塊寫完時，游標太低就捲回舒服的高度（票 27 只管新增場次）。先記想法，觸發時機與干擾待拷問。**從票券 62 驗收提出**，無 blocker。 | `needs-triage` |
 | [82](./82-speaker-field-eats-dialogue.md) | bug：選完說話者直接打台詞，全形標點把台詞即時切成人物 chip、前半句遺失（**資料遺失**）。grilling 定案：三個實體欄位改成**打字時不切、Enter 才整串解析**；人物欄定案名字就進台詞，帶台詞標點時選單第一列是「↓ 移到台詞」；一次 ⌘Z 退回。**從 impeccable critique（2026-10-27）撈到**，無 blocker。**排在 89、91 之前**。 | ✅ verified |
@@ -127,7 +127,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [84](./84-where-am-i-titles-and-tabs.md) | 看得出自己在哪：劇本頁頂列印專案名 › 劇本名、分享頁印片名、編輯器切換列加分場大綱。**從 impeccable critique 撈到**，無 blocker（21、75 相關）。 | `needs-triage` |
 | [85](./85-demo-screenplay-shows-the-ideal.md) | 示範劇本填好登場人物與人物介紹，不再一匯出就被警告。要不要刻意留一場給引導教提示開工前問。**從 impeccable critique 撈到**，無 blocker（73、78 相關）。 | `needs-triage` |
 | [86](./86-low-contrast-controls.md) | 對比不足：場次 sidebar 開關 2.4:1、實體欄 placeholder 4.3:1、hub 卡片摘要 2.2:1。grilling 定案：**開關三態與 placeholder 改 `--text-secondary`**（含原票漏的「收回去」），hub 摘要保留淡字並記進 impeccable 裁決；其餘 faint 拆到 96。**從 impeccable critique 撈到**，無 blocker。 | ✅ verified |
-| [87](./87-ui-wording-no-engineering-terms.md) | 介面用語：選單不露「實體」這類工程詞；「景／光」「內外／時間」「時間」與「S1」「1」各統一成一種說法。改字前先對 36／40／42／49 的定案。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
+| [87](./87-ui-wording-no-engineering-terms.md) | 介面用語：「景／光」「內外／時間」「時間」與「S1」「1」各統一成一種說法。選單不露「實體」那一半已併進 108（2026-11-05）。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
 | [88](./88-ui-critique-small-fixes.md) | 介面小修一批（slash 選單順序、刪除本場的危險樣式、主按鈕一致、儀表板空封面等十餘條），逐條勾。**從 impeccable critique 撈到**，無 blocker。 | `needs-triage` |
 | [89](./89-enter-dialogue-from-above-lands-on-speaker.md) | 從上面走進對白（→／↓、chip row 的 Enter／Tab）一律落台詞、跳過人物欄 —— 要不要先停人物欄。grilling 定案（與 82、91 一起）：方向鍵與 chip row 的 Tab **一律先停人物欄**，與回程同一條路；chip row 的 Enter 歸 91。**從票券 61 grilling 拆出來**，blocked by 61。排在 82 之後。 | ✅ verified |
 | [90](./90-empty-first-block-backspace-stuck.md) | 場次第一個區塊（描述）清空之後 Backspace 卡在行首，空區塊收不掉。游標落點與 62 的併回規則怎麼延伸開工前問。**從票券 61 驗收撈到**，無 blocker。 | `needs-triage` |
@@ -147,3 +147,5 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [104](./104-speaker-menu-layout-shift.md) | 點對白的人物 chip 開選單時版面會位移；聚焦樣式維持原狀。**從票券 101 驗收撈到**，無 blocker。 | ✅ verified |
 | [105](./105-speaker-field-dead-selectors.md) | 對白人物欄的底線／字級／聚焦樣式選擇器對不到元素（class 直接掛在 `.entity-field` 上）：刪掉（使用者裁決，不救回來）；劇本內文聚焦只靠游標，寫進 DESIGN.md。**從票券 104 撈到**，無 blocker。 | ✅ verified |
 | [106](./106-dialogue-line-placeholder.md) | 空的台詞行印一行提示字（跟人物欄的 `人物` 一樣）；措辭、描述／插入畫面要不要也有、只印游標那一行還是全部，開工前定。**從票券 105 驗收提出**，無 blocker。 | `needs-triage` |
+| [107](./107-create-namesake-character.md) | 建立同名的另一位：已經有「小明」時，第一次建第二位「小明」的路（入口、第二位的主要名稱怎麼來、原本那位要不要改名；劇本上同叫法的 chip 怎麼區分），開工前定。**從票券 79 第 5 條裁決提出**，**blocked by 108**。 | `needs-triage` |
+| [108](./108-naming-menu-overhaul.md) | 名稱系統的選單彙整：人物欄／地點欄選單經多張票加列加括號後，要先懂「實體／主要名稱／這一場的叫法／別名」才讀得懂；攤開重排，每列說什麼、怎麼區分、何時不該出現。**框架票**：107 等它；併入 87 的選單措辭（不露「實體」）。**從票券 79 驗收提出**，無 blocker。 | `needs-triage` |

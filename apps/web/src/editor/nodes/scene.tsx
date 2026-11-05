@@ -62,7 +62,7 @@ import { EntityField, type EntityFieldHandle, type EntityKind, type EntityRef } 
 import { extraDescriptions } from "../extras-catalog";
 import { ExtrasField, type ExtrasFieldHandle } from "../extras-field";
 import { FieldInfo } from "../field-info";
-import { entityUsage } from "../entity-usage";
+import { aliasIndex, entityUsage } from "../entity-usage";
 import { retitleOthersIn } from "../retitle-others";
 import { claimFocus, handOffFocus, requestFocus, subscribeFocusRequest } from "../focus";
 import { consumeSceneBirth, subscribeSceneBirth } from "../scene-birth";
@@ -176,6 +176,7 @@ function SceneEntityChip({
   nav: ChipNav;
 }) {
   const field = useRef<EntityFieldHandle>(null);
+  const options = kind === "location" ? catalog.locations : catalog.characters;
   // 點走那一下的定案被 ⌘Z 撤掉時，整串字回到這一欄（票券 82 驗收，見 `EntityFieldHandle.afterHistory`）。
   useAfterHistory(editor, () => {
     const now = read();
@@ -194,8 +195,10 @@ function SceneEntityChip({
           placeholder={placeholder}
           describedBy={describedBy}
           refs={refs}
-          options={kind === "location" ? catalog.locations : catalog.characters}
+          options={options}
           usage={usage}
+          // 別場的叫法也命中（票券 79）—— 同 `usage`，要畫選單時才走 doc。
+          aliases={() => aliasIndex(editor.state.doc, options)}
           elsewhere={kind === "character" ? catalog.charactersElsewhere : undefined}
           multiple={multiple}
           confirmReplace={confirmReplace}

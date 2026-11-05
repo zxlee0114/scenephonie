@@ -80,6 +80,11 @@ type Props = {
 type SheetContextValue = {
   name: (id: string) => string;
   aliases: (id: string) => readonly string[];
+  /**
+   * 劇本裡**也被叫做 `name`** 的其他人物的名字（票券 79）—— 主要名稱可以撞別人的別名（冒名、稱謂都是戲），
+   * 但也可能是意外（改名後舊名成了別名，又新增一位叫那個名字的），所以不擋，只在名字底下提一行。
+   */
+  namesakes: (id: string, name: string) => readonly string[];
   rename: (id: string, from: string, to: string) => Promise<RenameOutcome>;
 };
 
@@ -345,6 +350,8 @@ export function CharacterSheetEditor({
   const context: SheetContextValue = {
     name: (id) => characters.find((c) => c.id === id)?.name ?? "",
     aliases: (id) => aliases[id] ?? [],
+    namesakes: (id, name) =>
+      characters.filter((c) => c.id !== id && (aliases[c.id] ?? []).includes(name)).map((c) => c.name),
     rename: async (id, from, to) => {
       // 改成另一位的名字：改下去目錄裡就有兩個小美（同劇本實體欄位的改名列，票券 39）。
       if (taken(to, id)) {
@@ -405,6 +412,9 @@ export function CharacterSheetEditor({
                   refs={[]}
                   options={options}
                   usage={usage}
+                  // 劇本裡的叫法也命中那一位（票券 79）—— 表上已經有的人不在候選裡，他們的別名也就不會命中。
+                  // 這裡的別名表是伺服器算好、改名時就地更新的 state，不是走 doc；包成函式只是對上欄位的形狀。
+                  aliases={() => new Map(Object.entries(aliases))}
                   aliasing={false}
                   inputRef={draftInput}
                   onCommit={(refs) => {
@@ -552,6 +562,21 @@ function EntryView({ node, editor, getPos, selected }: ReactNodeViewProps) {
   const id = node.attrs.characterId as string;
   const name = sheet?.name(id) ?? "";
   const aliases = sheet?.aliases(id) ?? [];
+  const namesakes = sheet?.namesakes(id, name) ?? [];
+  /**
+   * 名字的進階說明（票券 79）：別名，以及這個名字在劇本裡也是誰的別名。寫成**同一行**、用「；」隔開，
+   * 寬度不夠才斷行，而且斷在兩則之間（每則是一個 inline-block）—— 驗收回饋 2026-11-05。
+   */
+  const notes = [
+    ...(aliases.length > 0
+      ? [{ key: "aliases", className: "character-entry__aliases", text: `別名：${aliases.join("、")}` }]
+      : []),
+    ...namesakes.map((other) => ({
+      key: `namesake:${other}`,
+      className: "character-entry__namesake",
+      text: `「${name}」的名稱在劇本也用為「${other}」的別名`,
+    })),
+  ];
 
   /** 這一位現在在 doc 的哪裡，拿到了才做。 */
   const at = (run: (pos: number) => void) => () => {
@@ -581,9 +606,14 @@ function EntryView({ node, editor, getPos, selected }: ReactNodeViewProps) {
           ×
         </button>
       </div>
-      {aliases.length > 0 && (
-        <p className="character-entry__aliases" contentEditable={false}>
-          別名：{aliases.join("、")}
+      {notes.length > 0 && (
+        <p className="character-entry__notes" contentEditable={false}>
+          {notes.map((note, i) => (
+            <span key={note.key} className={note.className}>
+              {note.text}
+              {i < notes.length - 1 && "；"}
+            </span>
+          ))}
         </p>
       )}
       <NodeViewContent className="character-entry__body" />
