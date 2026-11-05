@@ -487,7 +487,7 @@ describe("主要名稱是別人的別名時提一行小字（票券 79）", () =
     await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
 
     const [first, second] = [...container.querySelectorAll(".character-entry")];
-    expect(second!.querySelector(".character-entry__namesake")?.textContent).toBe("若晴在劇本裡也被叫做小美");
+    expect(second!.querySelector(".character-entry__namesake")?.textContent).toBe("「小美」的名稱在劇本也用為「若晴」的別名");
     expect(first!.querySelector(".character-entry__namesake")).toBeNull();
   });
 
@@ -521,6 +521,6 @@ describe("新增人物：打劇本裡的叫法也命中那一位（票券 79）"
 
     await waitFor(() => expect(entries(container)).toEqual(["若晴", "美美"]));
     expect(createCharacter).toHaveBeenCalledWith("美美");
-    expect(container.querySelector(".character-entry__namesake")?.textContent).toBe("小美在劇本裡也被叫做美美");
+    expect(container.querySelector(".character-entry__namesake")?.textContent).toBe("「美美」的名稱在劇本也用為「小美」的別名");
   });
 });

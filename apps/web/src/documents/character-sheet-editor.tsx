@@ -592,16 +592,18 @@ function EntryView({ node, editor, getPos, selected }: ReactNodeViewProps) {
           ×
         </button>
       </div>
-      {aliases.length > 0 && (
-        <p className="character-entry__aliases" contentEditable={false}>
-          別名：{aliases.join("、")}
-        </p>
+      {/* 名字的進階說明：別名，以及這個名字在劇本裡也是誰的別名（票券 79）。同一個區塊、行距貼齊 ——
+          兩行講的都是「這個名字」（驗收回饋 2026-11-05）。 */}
+      {(aliases.length > 0 || namesakes.length > 0) && (
+        <div className="character-entry__notes" contentEditable={false}>
+          {aliases.length > 0 && <p className="character-entry__aliases">別名：{aliases.join("、")}</p>}
+          {namesakes.map((other) => (
+            <p key={other} className="character-entry__namesake">
+              「{name}」的名稱在劇本也用為「{other}」的別名
+            </p>
+          ))}
+        </div>
       )}
-      {namesakes.map((other) => (
-        <p key={other} className="character-entry__namesake" contentEditable={false}>
-          {other}在劇本裡也被叫做{name}
-        </p>
-      ))}
       <NodeViewContent className="character-entry__body" />
     </NodeViewWrapper>
   );
