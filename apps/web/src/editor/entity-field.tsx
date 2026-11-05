@@ -123,6 +123,13 @@ type Props = {
    * 是值不是函式：它是進站時伺服器端算好的，這一頁開著的期間不會變。
    */
   elsewhere?: ReadonlyMap<string, string>;
+  /**
+   * 每筆實體的**別名** —— id → 劇本裡叫過它、但不是它名字的那些顯示名（票券 79，`aliasIndex`）。
+   *
+   * 編劇照著劇本上看得到的字再打一次，命中的應該是那一位，而不是「建立新實體」又冒出第二個同名的人。
+   * 別名不存在實體上（ADR-0005），所以這裡也是查出來的，跟 `usage` 一樣**是函式**，要畫選單時才走 doc。
+   */
+  aliases?: () => ReadonlyMap<string, readonly string[]>;
   /** 多值欄（地點欄在雜景、登場人物欄、對白人物欄 —— 齊聲）。分隔符只在多值欄裡切名字。 */
   multiple?: boolean;
   /**
@@ -321,6 +328,7 @@ export function EntityField({
   options,
   usage,
   elsewhere,
+  aliases: readAliases,
   sceneExtras: readSceneExtras,
   onCreateExtra,
   onPromoteFromExtra,
@@ -501,6 +509,16 @@ export function EntityField({
   const byName = (name: string) =>
     existing().find((o) => o.name === name) ?? null;
 
+  /** 一筆實體的別名（見 `Props.aliases`）。 */
+  const aliasesFor = (id: string): readonly string[] => readAliases?.().get(id) ?? [];
+
+  /**
+   * 這個名字是**哪一筆候選的別名**（票券 79）—— 好幾筆都叫過這個名字時取第一筆，也就是選單裡
+   * 排最前面的那一列：Enter 與離開欄位走 `resolve`，選單說一件事、按下去做另一件事就是票券 38 那種分家。
+   */
+  const byAlias = (name: string) =>
+    candidates().find((o) => aliasesFor(o.id).includes(name)) ?? null;
+
   /**
    * 手上正在編輯的那一筆，**如果這個名字就是它**（票券 38）。
    *
@@ -587,8 +605,12 @@ export function EntityField({
   const candidateLabel = (option: EntityOption, alias: string | null) => {
     const held = option === heldEntity();
     const scenes = scenesOf(option.id);
+    const known = held ? [] : aliasesFor(option.id);
     const note = [
       alias && `這場顯示為 ${alias}`,
+      // 別人的別名列出來（票券 79）—— 劇本上看得到的那幾個字，是哪一位的名字。手上那一筆不列：
+      // 它的別名各自是底下的一列（`matchesFor`），抬頭再寫一次只是重複。
+      known.length > 0 && `別名：${known.join("、")}`,
       // 手上那一筆一個數字都不印 —— 別場認不認識它都一樣（見這一段的 doc）。
       !held && scenes && `${scenes} 場`,
       // 這份 doc 一場都沒用到、只在別份文件裡被引用：說它從哪裡來（見 `elsewhere`）。
@@ -596,9 +618,79 @@ export function EntityField({
     ]
       .filter(Boolean)
       .join("，");
-    // 記號仍然照分：`scenes` 不含這一場，所以 0 就是「除了這一場沒有別場認識它」。
-    const mark = held && !scenes ? HISTORY_MARK : HIT_MARK[kind];
-    return `${mark} ${option.name}${note ? `（${note}）` : ""}`;
+    return `${markOf(option)} ${option.name}${note ? `（${note}）` : ""}`;
+  };
+
+  /**
+   * 一列候選的記號。手上那一筆而且除了這一場沒有別場認識它 ＝ `🕓`（`scenes` 不含這一場，所以 0 就是
+   * 那個意思），其餘是身分記號。手上那一筆換叫法的那幾列（票券 79）也走這裡：同一筆東西同一個記號。
+   */
+  const markOf = (option: EntityOption) =>
+    option === heldEntity() && !scenesOf(option.id) ? HISTORY_MARK : HIT_MARK[kind];
+
+  /**
+   * 框裡的字命中的那幾列 —— **選單與組字預覽共用**（票券 52 的同一條：兩邊的候選不能分家）。
+   *
+   * 每一列是「哪一筆實體、選了之後這一場顯示什麼、印成什麼樣子」。次序是使用者裁決（票券 79）：
+   * 實體名完全符合 → 別名完全符合 → 實體名部分符合 → 別名部分符合。一筆實體只進榜一次 ——
+   * 例外是**手上那一筆原封未動**的時候：它的每個別名（還有它的主要名稱，若這一場顯示的是別名）
+   * 各一列，那是「拿起 chip 換一個叫法」的入口（票券 79 留言）。打字之後就回到上面那套規則。
+   *
+   * 別名那幾列的主體是**框裡（或要換成）的那個字**，括號說它是誰的別名：編劇打的是劇本上看得到的
+   * 字，選下去這一場也就顯示那個字。
+   *
+   * `exact` 是名字完全相等（或手上那一筆原封放回，`editingMatch`）的那一列；它在不在決定
+   * `＋ 建立新實體` 出不出現 —— 只命中別名時那一列照樣在（主要名稱可以撞別人的別名，票券 21 裁決）。
+   */
+  const matchesFor = (q: string) => {
+    const known = candidates();
+    const exact = known.find((o) => o.name === q) ?? editingMatch(q);
+    const listed = new Set<EntityOption>(exact ? [exact] : []);
+    const rest: { key: string; option: EntityOption; shown: string; label: string }[] = [];
+    const aliasRow = (option: EntityOption, alias: string) => {
+      const scenes = option === heldEntity() ? null : scenesOf(option.id);
+      const note = [
+        `為「${option.name}」的別名`,
+        scenes && `${scenes} 場`,
+        !scenes && option !== heldEntity() && elsewhere?.get(option.id),
+      ]
+        .filter(Boolean)
+        .join("，");
+      return {
+        key: `alias-hit:${option.id}:${alias}`,
+        option,
+        shown: alias,
+        label: `${markOf(option)} ${alias}（${note}）`,
+      };
+    };
+    const take = (option: EntityOption, row: (typeof rest)[number]) => {
+      listed.add(option);
+      rest.push(row);
+    };
+
+    // 手上那一筆原封未動：攤出它的其他叫法。
+    const held = heldEntity();
+    if (held && exact === held && q === editing.current?.displayName) {
+      if (q !== held.name) {
+        rest.push({ key: `as-name:${held.id}`, option: held, shown: held.name, label: `${markOf(held)} ${held.name}` });
+      }
+      for (const alias of aliasesFor(held.id)) {
+        if (alias !== q) rest.push(aliasRow(held, alias));
+      }
+    }
+    for (const option of known) {
+      if (!listed.has(option) && aliasesFor(option.id).includes(q)) take(option, aliasRow(option, q));
+    }
+    for (const option of known) {
+      if (!listed.has(option) && option.name.includes(q)) {
+        take(option, { key: `hit:${option.id}`, option, shown: option.name, label: candidateLabel(option, null) });
+      }
+    }
+    for (const option of known) {
+      const alias = listed.has(option) ? undefined : aliasesFor(option.id).find((a) => a.includes(q));
+      if (alias !== undefined) take(option, aliasRow(option, alias));
+    }
+    return { exact, rest: rest.slice(0, 5) };
   };
 
   /**
@@ -674,7 +766,7 @@ export function EntityField({
     if (held?.id != null && editingMatch(name))
       return { id: held.id, displayName: name };
 
-    const hit = byName(name);
+    const hit = byName(name) ?? byAlias(name);
     if (hit) return { id: hit.id, displayName: name };
 
     const created = await onCreate(name);
@@ -1001,6 +1093,7 @@ export function EntityField({
           (segment) =>
             readsLikeSpeech(parseExtra(segment)?.description ?? segment) &&
             !byName(segment) &&
+            !byAlias(segment) &&
             !editingMatch(segment) &&
             !(readSceneExtras?.() ?? []).some((e) => e.name === segment),
         )));
@@ -1048,39 +1141,34 @@ export function EntityField({
     // **孤兒不出現在自動補全**（ADR-0005）—— 「存在＝被引用」不是一句口號，選單是它唯一
     // 看得見的地方。目錄是 append-only 的，裡面一定會累積 ⌘Z 留下的孤兒；「v1 永不清理」
     // 指的是**不刪資料列**，不是「照樣顯示」。
-    const known = candidates();
-    // 手上那一筆也算命中 —— 少了它，把自己拿回來改會看到「建立新實體『它自己』」（票券 38）。
-    // `editingMatch` 仍然要問：它認的是**顯示名**，而目錄裡那筆的名字可以不一樣（別名）。
-    const exact = known.find((o) => o.name === query) ?? editingMatch(query);
-    // ⚠️ 排掉的是 `exact` **那一筆**，不是「名字剛好等於 query 的」。兩者多數時候同一件事，
-    // 但手上那一筆的顯示名可能不等於它在目錄裡的名字（別名，或實體改名後舊引用還留著舊字）
-    // —— 那時同一筆實體會從 `exact` 與 `hits` 各進榜一次，選單印出兩列一模一樣的名字。
-    const hits = known
-      .filter((o) => o !== exact && o.name.includes(query))
-      .slice(0, 5);
+    // 命中列怎麼排、怎麼印見 `matchesFor`（與組字預覽共用）。
+    const { exact, rest } = matchesFor(query);
 
     if (stage.name === "suggest") {
-      for (const option of [...(exact ? [exact] : []), ...hits]) {
+      if (exact) {
         // 手上那一筆的顯示名可能不是它在目錄裡的名字（別名，或實體改名後舊引用留著舊字）
         // —— 那時標籤主體印**實體名**、括號裡補這一場的叫法，沿用場次表那條慣例
         // （CONTEXT.md 地點詞條：印 `實體名（這一場的顯示名）`，只在兩者不同時才印）。
-        // 主體是實體名而不是編劇打的字：他打的字他自己知道，不知道的是它會綁到誰。
-        const alias = option === exact && query !== option.name ? query : null;
+        // 主體是實體名而不是編劇打的字：這一列回答的是「這一場已經綁到誰」。
+        const alias = query !== exact.name ? query : null;
         rows.push({
-          key: `hit:${option.id}`,
-          label: candidateLabel(option, alias),
+          key: `hit:${exact.id}`,
+          label: candidateLabel(exact, alias),
           run: () => {
-            // 命中列的顯示名就是實體名 —— 但**手上那一筆**用回框裡的字：它的顯示名可能是
-            // 這一場的別名（ADR-0005：別名住在引用上），拿目錄名蓋回去等於靜悄悄改掉它。
-            // 目錄命中的那一列兩者本來就相同，這一條只在「拿回來改」那條路上有差別。
-            // ⚠️ 手上那一筆從 `hits` 進榜時（清空重打前綴，票券 52）走的是**實體名** ——
-            // 那時框裡是編劇剛打的半截字，不是這一場的叫法，把 `L` 當顯示名寫回去才是竄改。
-            // 分界因此是 `exact`：原封放回才保別名，字改過了就按他選的那一筆的名字走。
-            const ref = {
-              id: option.id,
-              displayName: option === exact ? query : option.name,
-            };
-            void settle(() => ref, { advance: true });
+            // 原封放回保住框裡的字：它可能是這一場的別名（ADR-0005：別名住在引用上），
+            // 拿目錄名蓋回去等於靜悄悄改掉它。
+            void settle(() => ({ id: exact.id, displayName: query }), { advance: true });
+          },
+        });
+      }
+      for (const match of rest) {
+        rows.push({
+          key: match.key,
+          label: match.label,
+          // 顯示名是那一列印出來的主體：實體名部分符合 → 實體名（框裡是半截字，把 `L` 寫回去
+          // 才是竄改，票券 52）；別名 → 那個別名（票券 79）。
+          run: () => {
+            void settle(() => ({ id: match.option.id, displayName: match.shown }), { advance: true });
           },
         });
       }
@@ -1277,9 +1365,10 @@ export function EntityField({
    */
   const preview =
     composingNow && query.length > 0 && !pending
-      ? candidates()
-          .filter((o) => o.name.includes(query))
-          .slice(0, 5)
+      ? (({ exact, rest }) => [
+          ...(exact ? [{ key: `hit:${exact.id}`, label: candidateLabel(exact, null) }] : []),
+          ...rest,
+        ])(matchesFor(query))
       : [];
 
   /**
@@ -1928,10 +2017,10 @@ export function EntityField({
           className="entity-field__menu entity-field__menu--preview"
           aria-hidden="true"
         >
-          {preview.map((option) => (
+          {preview.map((row) => (
             // 與送出之後那份選單同一支標籤 —— 同一筆東西在選字前後換一張臉，比印錯場數
             // 更糟（票券 52）。
-            <li key={option.id}>{candidateLabel(option, null)}</li>
+            <li key={row.key}>{row.label}</li>
           ))}
         </ul>
       )}

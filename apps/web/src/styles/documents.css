@@ -358,7 +358,9 @@
 }
 
 /* 別名：名字底下一行小字，像標題的副標。 */
-.character-entry__aliases {
+/* 名字底下的小字：別名，以及「誰在劇本裡也被叫做這個名字」（票券 79，不擋、只提醒）。 */
+.character-entry__aliases,
+.character-entry__namesake {
   margin: var(--space-1) 0 0;
   color: var(--text-secondary);
   font-family: var(--font-ui);

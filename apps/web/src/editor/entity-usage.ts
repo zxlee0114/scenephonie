@@ -93,9 +93,27 @@ export function scenesShowingName(doc: PMNode, entityId: string, displayName: st
  * 依 doc 裡第一次出現的順序，同一個名字只列一次。
  */
 export function aliasesOf(doc: PMNode, entityId: string, entityName: string): string[] {
-  const aliases = new Set<string>();
+  return aliasIndex(doc, [{ id: entityId, name: entityName }]).get(entityId) ?? [];
+}
+
+/**
+ * 同一個查詢一次問完整份目錄：實體 id → 它的別名（票券 79）。自動補全拿它回答「打的字是不是誰的別名」。
+ *
+ * 只認 `entities` 裡的 id —— 要知道實體名才分得出哪個顯示名是別名，懸空引用因此不進來。
+ * 沒有別名的實體不在結果裡。孤兒本來就沒有引用，所以也不在（ADR-0005）。
+ */
+export function aliasIndex(
+  doc: PMNode,
+  entities: readonly { id: string; name: string }[],
+): Map<string, string[]> {
+  const names = new Map(entities.map((e) => [e.id, e.name]));
+  const found = new Map<string, Set<string>>();
   eachRef(doc, (id, shown) => {
-    if (id === entityId && shown !== entityName && shown.trim() !== "") aliases.add(shown);
+    const name = names.get(id);
+    if (name === undefined || shown === name || shown.trim() === "") return;
+    const seen = found.get(id) ?? new Set<string>();
+    seen.add(shown);
+    found.set(id, seen);
   });
-  return [...aliases];
+  return new Map([...found].map(([id, seen]) => [id, [...seen]]));
 }

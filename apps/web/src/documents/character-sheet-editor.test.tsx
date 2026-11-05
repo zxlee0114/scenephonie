@@ -479,3 +479,35 @@ describe("方向鍵走得到名字（驗收回饋 2026-10-26）", () => {
     await waitFor(() => expect(document.activeElement).toBe(names(container)[1]));
   });
 });
+
+describe("主要名稱是別人的別名時提一行小字（票券 79）", () => {
+  it("名字底下說明誰在劇本裡也被叫做這個名字 —— 一直掛著，不擋", async () => {
+    // 若晴在劇本裡也被叫做「小美」；表上另有一位主要名稱就叫小美。
+    const { container } = setup({ body: sheetOf(ruoqing.id, xiaomei.id), aliases: { [ruoqing.id]: ["小美"] } });
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
+
+    const [first, second] = [...container.querySelectorAll(".character-entry")];
+    expect(second!.querySelector(".character-entry__namesake")?.textContent).toBe("若晴在劇本裡也被叫做小美");
+    expect(first!.querySelector(".character-entry__namesake")).toBeNull();
+  });
+
+  it("沒有撞到別人的別名就不印", async () => {
+    const { container } = setup({ body: sheetOf(ruoqing.id, xiaomei.id), aliases: { [ruoqing.id]: ["阿晴"] } });
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
+    expect(container.querySelector(".character-entry__namesake")).toBeNull();
+  });
+});
+
+describe("新增人物：打劇本裡的叫法也命中那一位（票券 79）", () => {
+  it("打小美在劇本裡的別名 → 加進表的是小美，不另建一位", async () => {
+    const { container, createCharacter } = setup({ aliases: { [xiaomei.id]: ["美美"] } });
+    const input = await addInput(container);
+
+    fireEvent.change(input, { target: { value: "美美" } });
+    expect(menuRows(container)[0]).toBe("👤 美美（為「小美」的別名，12 場）");
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
+    expect(createCharacter).not.toHaveBeenCalled();
+  });
+});

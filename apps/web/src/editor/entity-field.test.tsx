@@ -22,6 +22,7 @@ function Host({
   retitleOthers,
   multiple = true,
   usage,
+  aliases,
 }: {
   initial?: EntityRef[];
   options?: EntityOption[];
@@ -39,6 +40,8 @@ function Host({
    * 計數裡消失了。要釘住這件事的測試得拿得到那個變化。
    */
   usage?: (refs: readonly EntityRef[]) => ReadonlyMap<string, number>;
+  /** 每筆實體的別名（票券 79）。真實環境走 doc（`aliasIndex`）。 */
+  aliases?: ReadonlyMap<string, readonly string[]>;
 }) {
   const [refs, setRefs] = useState<EntityRef[]>(initial);
   const [catalog, setCatalog] = useState<EntityOption[]>(options);
@@ -49,6 +52,7 @@ function Host({
       refs={refs}
       options={catalog}
       usage={usage && (() => usage(refs))}
+      aliases={aliases && (() => aliases)}
       multiple={multiple}
       onCommit={setRefs}
       onCreate={
@@ -932,7 +936,11 @@ describe("別名 ＋ 實體改名之後，命中列不重覆（票券 38 人工�
 
     fireEvent.keyDown(container.querySelector("input")!, { key: "Backspace" });
 
-    expect(rows(container).filter((r) => r.includes("test1"))).toHaveLength(1);
+    // 第二列是票券 79 刻意加的「改回以主要名稱顯示」—— 做的事與第一列不同，不是重覆進榜。
+    expect(rows(container).filter((r) => r.includes("test1"))).toEqual([
+      "🕓 test1（這場顯示為 test）",
+      "🕓 test1",
+    ]);
   });
 });
 
@@ -1014,6 +1022,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
 
     expect(rows(container)).toEqual([
       "📍 派出所（這場顯示為 分局）",
+      "📍 派出所", // 改回以主要名稱顯示（票券 79）
       "✏️ 把實體改名為「分局」",
       "🔗 作為既有實體的另一個名字…",
     ]);
@@ -2019,5 +2028,202 @@ describe("浮層不被視窗邊緣裁掉（票券 33，DESIGN.md 的 The One Pla
       delete (root as { clientWidth?: number }).clientWidth;
       delete (root as { clientHeight?: number }).clientHeight;
     }
+  });
+});
+
+describe("打別場的叫法也命中那筆實體（票券 79）", () => {
+  const dragon = { id: "lo_1", name: "我是龍" };
+
+  it("打的字是別名 → 那一列主體印框裡的字，括號說它是誰的別名；選下去顯示名就是那個別名", async () => {
+    const { container } = render(
+      <Host options={[dragon]} aliases={new Map([[dragon.id, ["我是誰"]]])} />,
+    );
+    const input = container.querySelector("input")!;
+
+    fireEvent.change(input, { target: { value: "我是誰" } });
+    expect(rows(container).slice(0, 2)).toEqual([
+      "📍 我是誰（為「我是龍」的別名）",
+      "＋ 建立新實體「我是誰」",
+    ]);
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(chipTexts(container)).toEqual(["我是誰"]));
+    expect(chips(container)[0]!.classList.contains("entity-chip--new")).toBe(false);
+  });
+
+  it("打的字是實體名 → 主體是實體名，括號列出它的別名", () => {
+    const { container } = render(
+      <Host options={[dragon]} aliases={new Map([[dragon.id, ["我是誰", "阿龍"]]])} />,
+    );
+    fireEvent.change(container.querySelector("input")!, { target: { value: "我是龍" } });
+
+    expect(rows(container)[0]).toBe("📍 我是龍（別名：我是誰、阿龍）");
+  });
+
+  it("次序：實體名完全符合 → 別名完全符合 → 實體名部分符合 → 別名部分符合；一筆實體只列一次", () => {
+    const options = [
+      { id: "lo_a", name: "老師的家" }, // 實體名部分符合
+      { id: "lo_b", name: "教室" }, // 別名部分符合（老師辦公室）
+      { id: "lo_c", name: "老師" }, // 實體名完全符合
+      { id: "lo_d", name: "導師室" }, // 別名完全符合
+      { id: "lo_e", name: "老師宿舍" }, // 實體名部分符合，別名也符合 —— 只列一次
+    ];
+    const aliases = new Map([
+      ["lo_b", ["老師辦公室"]],
+      ["lo_d", ["老師"]],
+      ["lo_e", ["老師"]],
+    ]);
+    const { container } = render(<Host options={options} aliases={aliases} />);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "老師" } });
+
+    expect(rows(container).slice(0, 5)).toEqual([
+      "📍 老師",
+      "📍 老師（為「導師室」的別名）",
+      "📍 老師（為「老師宿舍」的別名）",
+      "📍 老師的家",
+      "📍 老師辦公室（為「教室」的別名）",
+    ]);
+  });
+
+  it("同一個別名對到兩筆實體 → 兩列都列，各自指向自己那一筆", async () => {
+    const father = { id: "lo_f", name: "小明（父）" };
+    const son = { id: "lo_s", name: "小明（子）" };
+    const onCommit = vi.fn();
+    const { container } = render(
+      <EntityField
+        kind="location"
+        placeholder="地點"
+        refs={[]}
+        options={[father, son]}
+        aliases={() => new Map([[father.id, ["小明"]], [son.id, ["小明"]]])}
+        multiple
+        onCommit={onCommit}
+        onCreate={async () => null}
+      />,
+    );
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "小明" } });
+
+    expect(rows(container).slice(0, 2)).toEqual([
+      "📍 小明（為「小明（父）」的別名）",
+      "📍 小明（為「小明（子）」的別名）",
+    ]);
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(onCommit).toHaveBeenCalledWith([{ id: son.id, displayName: "小明" }]));
+  });
+
+  it("打到一半也認得別名 —— 主體印完整的別名，選下去就是它", async () => {
+    const { container } = render(
+      <Host options={[dragon]} aliases={new Map([[dragon.id, ["我是誰"]]])} />,
+    );
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "我是" } });
+
+    expect(rows(container)[0]).toBe("📍 我是龍（別名：我是誰）"); // 實體名就部分符合，別名不再另列
+    fireEvent.change(input, { target: { value: "是誰" } });
+    expect(rows(container)[0]).toBe("📍 我是誰（為「我是龍」的別名）");
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(chipTexts(container)).toEqual(["我是誰"]));
+  });
+
+  it("打完別名直接離開欄位 → 命中那一位，不建新的（離開與 Enter 第一列同一件事）", async () => {
+    const onCreate = vi.fn(async () => null);
+    const { container } = render(
+      <Host options={[dragon]} aliases={new Map([[dragon.id, ["我是誰"]]])} onCreate={onCreate} />,
+    );
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "我是誰" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(chipTexts(container)).toEqual(["我是誰"]));
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it("組字中的預覽也認得別名 —— 與送出之後那份選單同一份", () => {
+    const { container } = render(
+      <Host options={[dragon]} aliases={new Map([[dragon.id, ["我是誰"]]])} />,
+    );
+    const input = container.querySelector("input")!;
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "我是誰" } });
+
+    expect(previewRows(container)).toEqual(["📍 我是誰（為「我是龍」的別名）"]);
+  });
+});
+
+describe("拿起 chip 換一個叫法（票券 79 留言）", () => {
+  const xiaozhi = { id: "lo_z", name: "小智" };
+  const aliases = new Map([[xiaozhi.id, ["小陳", "阿智"]]]);
+  const usage = () => new Map([[xiaozhi.id, 2]]);
+
+  it("字還沒動：手上那一筆的每個別名各一列，排在它正下方；選了就以那個別名顯示", async () => {
+    const { container } = render(
+      <Host
+        options={[xiaozhi]}
+        initial={[{ id: xiaozhi.id, displayName: "小智" }]}
+        aliases={aliases}
+        usage={usage}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+
+    expect(rows(container).slice(0, 3)).toEqual([
+      "📍 小智",
+      "📍 小陳（為「小智」的別名）",
+      "📍 阿智（為「小智」的別名）",
+    ]);
+
+    const input = container.querySelector("input")!;
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(chipTexts(container)).toEqual(["小陳"]));
+  });
+
+  it("這一場顯示的是別名 → 多一列改回主要名稱，其餘別名照列（不再列這一場自己的叫法）", async () => {
+    const onCommit = vi.fn();
+    const { container } = render(
+      <EntityField
+        kind="location"
+        placeholder="地點"
+        refs={[{ id: xiaozhi.id, displayName: "小陳" }]}
+        options={[xiaozhi]}
+        usage={usage}
+        aliases={() => aliases}
+        multiple
+        onCommit={onCommit}
+        onCreate={async () => null}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+
+    expect(rows(container).slice(0, 3)).toEqual([
+      "📍 小智（這場顯示為 小陳）",
+      "📍 小智",
+      "📍 阿智（為「小智」的別名）",
+    ]);
+
+    const input = container.querySelector("input")!;
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(onCommit).toHaveBeenCalledWith([{ id: xiaozhi.id, displayName: "小智" }]));
+  });
+
+  it("打了字就回到一般規則 —— 那幾列不再特別攤出來", () => {
+    const { container } = render(
+      <Host
+        options={[xiaozhi]}
+        initial={[{ id: xiaozhi.id, displayName: "小智" }]}
+        aliases={aliases}
+        usage={usage}
+      />,
+    );
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    fireEvent.change(container.querySelector("input")!, { target: { value: "阿" } });
+
+    expect(rows(container)[0]).toBe("📍 阿智（為「小智」的別名）");
+    expect(rows(container).some((r) => r.includes("小陳"))).toBe(false);
   });
 });

@@ -80,6 +80,11 @@ type Props = {
 type SheetContextValue = {
   name: (id: string) => string;
   aliases: (id: string) => readonly string[];
+  /**
+   * 劇本裡**也被叫做 `name`** 的其他人物的名字（票券 79）—— 主要名稱可以撞別人的別名（冒名、稱謂都是戲），
+   * 但也可能是意外（改名後舊名成了別名，又新增一位叫那個名字的），所以不擋，只在名字底下提一行。
+   */
+  namesakes: (id: string, name: string) => readonly string[];
   rename: (id: string, from: string, to: string) => Promise<RenameOutcome>;
 };
 
@@ -345,6 +350,8 @@ export function CharacterSheetEditor({
   const context: SheetContextValue = {
     name: (id) => characters.find((c) => c.id === id)?.name ?? "",
     aliases: (id) => aliases[id] ?? [],
+    namesakes: (id, name) =>
+      characters.filter((c) => c.id !== id && (aliases[c.id] ?? []).includes(name)).map((c) => c.name),
     rename: async (id, from, to) => {
       // 改成另一位的名字：改下去目錄裡就有兩個小美（同劇本實體欄位的改名列，票券 39）。
       if (taken(to, id)) {
@@ -405,6 +412,8 @@ export function CharacterSheetEditor({
                   refs={[]}
                   options={options}
                   usage={usage}
+                  // 劇本裡的叫法也命中那一位（票券 79）—— 表上已經有的人不在候選裡，他們的別名也就不會命中。
+                  aliases={() => new Map(Object.entries(aliases))}
                   aliasing={false}
                   inputRef={draftInput}
                   onCommit={(refs) => {
@@ -552,6 +561,7 @@ function EntryView({ node, editor, getPos, selected }: ReactNodeViewProps) {
   const id = node.attrs.characterId as string;
   const name = sheet?.name(id) ?? "";
   const aliases = sheet?.aliases(id) ?? [];
+  const namesakes = sheet?.namesakes(id, name) ?? [];
 
   /** 這一位現在在 doc 的哪裡，拿到了才做。 */
   const at = (run: (pos: number) => void) => () => {
@@ -586,6 +596,11 @@ function EntryView({ node, editor, getPos, selected }: ReactNodeViewProps) {
           別名：{aliases.join("、")}
         </p>
       )}
+      {namesakes.map((other) => (
+        <p key={other} className="character-entry__namesake" contentEditable={false}>
+          {other}在劇本裡也被叫做{name}
+        </p>
+      ))}
       <NodeViewContent className="character-entry__body" />
     </NodeViewWrapper>
   );
