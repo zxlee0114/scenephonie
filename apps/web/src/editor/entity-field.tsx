@@ -697,7 +697,10 @@ export function EntityField({
     const held = heldEntity();
     if (held && exact === held && q === editing.current?.displayName) {
       if (q !== held.name) {
-        rest.push({ key: `as-name:${held.id}`, option: held, shown: held.name, label: `${markOf(held)} ${held.name}` });
+        // 括號不能省（票券 79 驗收）：光寫 `👤 阿龍` 會讀成另一位 —— 別人的別名剛好也叫阿龍時更是如此。
+        // 與別名列的 `（為「X」的別名）` 對稱：標籤說的是選了之後這一場印的名字是什麼身分。
+        const label = `${markOf(held)} ${held.name}（主要名稱）`;
+        rest.push({ key: `as-name:${held.id}`, option: held, shown: held.name, label });
       }
       for (const alias of aliasesFor(held.id)) {
         if (alias !== q) rest.push(aliasRow(held, alias));
