@@ -119,7 +119,7 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [76](./76-nodejs-security-update-2026-10.md) | Node.js 釘到 2026-10-21 安全修補版 22.23.4（`.nvmrc`、`engines.node`、CI、Vercel 一致）。**Brotli decoder RCE（CVE-2026-111497）與數個 TLS／DNS 驗證問題。**無 blocker。 | ✅ verified |
 | [77](./77-nodejs-version-auto-tracking.md) | 自動追蹤 Node.js 安全更新（Renovate 傾向；只追 22.x minor／patch，`.nvmrc` 與 `engines.node` 要同步）。blocked by 76。 | ✅ verified |
 | [78](./78-character-sheet-in-creation-wizard.md) | 建立精靈第 2 步多一個「人物介紹」頁籤：草稿存名字與內文，建立專案的交易裡才鑄人物、寫角色設定表。**從票券 21 第 ② 片 grilling 拆出來**，blocked by 21、71。 | `needs-triage` |
-| [79](./79-autocomplete-hits-aliases.md) | 自動補全認得別場用過的叫法：打的名字是別場的顯示名（別名）時命中那筆實體，不再只給「建立新實體」、冒出第二個同名人物。**從票券 21 驗收撈到**，無 blocker。 | `needs-triage` |
+| [79](./79-autocomplete-hits-aliases.md) | 自動補全認得別場用過的叫法：打的名字是別場的顯示名（別名）時命中那筆實體，不再只給「建立新實體」、冒出第二個同名人物；拿起 chip 可換成別名顯示；人物介紹上主要名稱撞別人的別名時提一行小字。**從票券 21 驗收撈到**，無 blocker。 | ✅ done |
 | [80](./80-entity-menu-offscreen.md) | 人物欄、地點欄等實體欄位的選單在視窗下緣被切掉：下方塞不下就翻到上方（接票 29 的 `slashMenuPosition`）。**從票券 62 驗收撈到**，無 blocker。 | closed —— 併進 33 |
 | [81](./81-typewriter-scroll-while-writing.md) | 寫作中的打字餘裕：場次內的區塊寫完時，游標太低就捲回舒服的高度（票 27 只管新增場次）。先記想法，觸發時機與干擾待拷問。**從票券 62 驗收提出**，無 blocker。 | `needs-triage` |
 | [82](./82-speaker-field-eats-dialogue.md) | bug：選完說話者直接打台詞，全形標點把台詞即時切成人物 chip、前半句遺失（**資料遺失**）。grilling 定案：三個實體欄位改成**打字時不切、Enter 才整串解析**；人物欄定案名字就進台詞，帶台詞標點時選單第一列是「↓ 移到台詞」；一次 ⌘Z 退回。**從 impeccable critique（2026-10-27）撈到**，無 blocker。**排在 89、91 之前**。 | ✅ verified |
@@ -147,3 +147,4 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [104](./104-speaker-menu-layout-shift.md) | 點對白的人物 chip 開選單時版面會位移；聚焦樣式維持原狀。**從票券 101 驗收撈到**，無 blocker。 | ✅ verified |
 | [105](./105-speaker-field-dead-selectors.md) | 對白人物欄的底線／字級／聚焦樣式選擇器對不到元素（class 直接掛在 `.entity-field` 上）：刪掉（使用者裁決，不救回來）；劇本內文聚焦只靠游標，寫進 DESIGN.md。**從票券 104 撈到**，無 blocker。 | ✅ verified |
 | [106](./106-dialogue-line-placeholder.md) | 空的台詞行印一行提示字（跟人物欄的 `人物` 一樣）；措辭、描述／插入畫面要不要也有、只印游標那一行還是全部，開工前定。**從票券 105 驗收提出**，無 blocker。 | `needs-triage` |
+| [107](./107-create-namesake-character.md) | 建立同名的另一位：已經有「小明」時，第一次建第二位「小明」的路（入口、第二位的主要名稱怎麼來、原本那位要不要改名），開工前定。**從票券 79 第 5 條裁決提出**，無 blocker。 | `needs-triage` |
