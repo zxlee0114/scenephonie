@@ -358,17 +358,17 @@
 }
 
 /* 名字底下的小字，像標題的副標：別名，以及「這個名字在劇本也用為誰的別名」（票券 79，不擋、只提醒）。
-   一個區塊、行與行之間不留段距 —— 兩行都是名字的進階說明（驗收回饋 2026-11-05）。 */
-.character-entry__notes {
-  margin-block-start: var(--space-1);
+   同一行、「；」隔開；寬度不夠時斷在兩則之間，一則自己太長才在則內斷（驗收回饋 2026-11-05）。
+   選擇器帶上 `.document-page__body` 是要蓋過那裡 `p` 的 1em 段距（那條比單一 class 具體）。 */
+.document-page__body .character-entry__notes {
+  margin: var(--space-1) 0 0;
   color: var(--text-secondary);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
 }
 
-/* 蓋過 `.document-page__body p` 的段距（那條比單一 class 具體，曾把兩行撐開）。 */
-.document-page__body .character-entry__notes p {
-  margin: 0;
+.character-entry__notes > span {
+  display: inline-block;
 }
 
 .character-entry__body {

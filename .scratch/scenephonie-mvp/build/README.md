@@ -148,3 +148,4 @@ blockers 全數 `Status:` 為 `done` 或 `verified`（＝已完成）的票即�
 | [105](./105-speaker-field-dead-selectors.md) | 對白人物欄的底線／字級／聚焦樣式選擇器對不到元素（class 直接掛在 `.entity-field` 上）：刪掉（使用者裁決，不救回來）；劇本內文聚焦只靠游標，寫進 DESIGN.md。**從票券 104 撈到**，無 blocker。 | ✅ verified |
 | [106](./106-dialogue-line-placeholder.md) | 空的台詞行印一行提示字（跟人物欄的 `人物` 一樣）；措辭、描述／插入畫面要不要也有、只印游標那一行還是全部，開工前定。**從票券 105 驗收提出**，無 blocker。 | `needs-triage` |
 | [107](./107-create-namesake-character.md) | 建立同名的另一位：已經有「小明」時，第一次建第二位「小明」的路（入口、第二位的主要名稱怎麼來、原本那位要不要改名），開工前定。**從票券 79 第 5 條裁決提出**，無 blocker。 | `needs-triage` |
+| [108](./108-naming-menu-overhaul.md) | 名稱系統的選單彙整：人物欄／地點欄選單經多張票加列加括號後，要先懂「實體／主要名稱／這一場的叫法／別名」才讀得懂；攤開重排，每列說什麼、怎麼區分、何時不該出現。與 87、107 重疊，開工前先定怎麼分。**從票券 79 驗收提出**，無 blocker。 | `needs-triage` |

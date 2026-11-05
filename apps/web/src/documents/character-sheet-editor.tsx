@@ -563,6 +563,20 @@ function EntryView({ node, editor, getPos, selected }: ReactNodeViewProps) {
   const name = sheet?.name(id) ?? "";
   const aliases = sheet?.aliases(id) ?? [];
   const namesakes = sheet?.namesakes(id, name) ?? [];
+  /**
+   * 名字的進階說明（票券 79）：別名，以及這個名字在劇本裡也是誰的別名。寫成**同一行**、用「；」隔開，
+   * 寬度不夠才斷行，而且斷在兩則之間（每則是一個 inline-block）—— 驗收回饋 2026-11-05。
+   */
+  const notes = [
+    ...(aliases.length > 0
+      ? [{ key: "aliases", className: "character-entry__aliases", text: `別名：${aliases.join("、")}` }]
+      : []),
+    ...namesakes.map((other) => ({
+      key: `namesake:${other}`,
+      className: "character-entry__namesake",
+      text: `「${name}」的名稱在劇本也用為「${other}」的別名`,
+    })),
+  ];
 
   /** 這一位現在在 doc 的哪裡，拿到了才做。 */
   const at = (run: (pos: number) => void) => () => {
@@ -592,17 +606,15 @@ function EntryView({ node, editor, getPos, selected }: ReactNodeViewProps) {
           ×
         </button>
       </div>
-      {/* 名字的進階說明：別名，以及這個名字在劇本裡也是誰的別名（票券 79）。同一個區塊、行距貼齊 ——
-          兩行講的都是「這個名字」（驗收回饋 2026-11-05）。 */}
-      {(aliases.length > 0 || namesakes.length > 0) && (
-        <div className="character-entry__notes" contentEditable={false}>
-          {aliases.length > 0 && <p className="character-entry__aliases">別名：{aliases.join("、")}</p>}
-          {namesakes.map((other) => (
-            <p key={other} className="character-entry__namesake">
-              「{name}」的名稱在劇本也用為「{other}」的別名
-            </p>
+      {notes.length > 0 && (
+        <p className="character-entry__notes" contentEditable={false}>
+          {notes.map((note, i) => (
+            <span key={note.key} className={note.className}>
+              {note.text}
+              {i < notes.length - 1 && "；"}
+            </span>
           ))}
-        </div>
+        </p>
       )}
       <NodeViewContent className="character-entry__body" />
     </NodeViewWrapper>

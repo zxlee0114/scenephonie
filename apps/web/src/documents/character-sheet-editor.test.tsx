@@ -491,6 +491,17 @@ describe("主要名稱是別人的別名時提一行小字（票券 79）", () =
     expect(first!.querySelector(".character-entry__namesake")).toBeNull();
   });
 
+  it("有別名又有提示時寫成同一行，用「；」隔開（票券 79 驗收）", async () => {
+    const { container } = setup({
+      body: sheetOf(ruoqing.id, xiaomei.id),
+      aliases: { [ruoqing.id]: ["小美"], [xiaomei.id]: ["美美"] },
+    });
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
+
+    const lines = [...container.querySelectorAll(".character-entry")][1]!.querySelectorAll(".character-entry__notes");
+    expect([...lines].map((l) => l.textContent)).toEqual(["別名：美美；「小美」的名稱在劇本也用為「若晴」的別名"]);
+  });
+
   it("沒有撞到別人的別名就不印", async () => {
     const { container } = setup({ body: sheetOf(ruoqing.id, xiaomei.id), aliases: { [ruoqing.id]: ["阿晴"] } });
     await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
