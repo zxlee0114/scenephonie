@@ -92,7 +92,7 @@ const openRename = (container: HTMLElement) => {
   const field = container.querySelectorAll<HTMLElement>(".scene__chip--location")[0]!;
   fireEvent.mouseDown(field.querySelector(".entity-chip")!);
   fireEvent.change(field.querySelector("input")!, { target: { value: "海豚公寓客廳" } });
-  fireEvent.mouseDown(menuRow(field, "把實體改名為"));
+  fireEvent.mouseDown(menuRow(field, "的主要名稱改成"));
   return field;
 };
 
@@ -108,11 +108,11 @@ describe("「那 N 場」包含編劇正站著的這一場 —— 改的是一�
     fireEvent.mouseDown(field.querySelector(".entity-chip")!);
     fireEvent.change(field.querySelector("input")!, { target: { value: "陳小明" } });
     // 對白那一筆已經拿在手上，還印著「小明」的是同一場的登場人物欄。
-    expect(menuRow(field, "把實體改名為").textContent).toBe(
-      "✏️ 把實體改名為「陳小明」（還有 1 場印著「小明」）",
+    expect(menuRow(field, "的主要名稱改成").textContent).toBe(
+      "✏️ 將人物的主要名稱改成「陳小明」（還有 1 場印著「小明」）",
     );
 
-    fireEvent.mouseDown(menuRow(field, "把實體改名為"));
+    fireEvent.mouseDown(menuRow(field, "的主要名稱改成"));
     fireEvent.mouseDown(menuRow(field, "連那 1 場一起改"));
 
     await waitFor(() =>

@@ -99,6 +99,13 @@ export type EntityRef = { id: string | null; displayName: string };
 
 export type EntityKind = "location" | "character";
 
+/**
+ * 改名那幾列怎麼稱呼這筆東西（票券 79 驗收）。說「實體」編劇讀不懂，而且「把實體改名為『阿龍』」
+ * 在阿龍本來就是別名時讀不出這一下在做什麼；說「主要名稱」才把它跟這一場的叫法分開。
+ * 選單其餘的「實體」字樣是票券 87 的事。
+ */
+const KIND_NOUN: Record<EntityKind, string> = { location: "地點", character: "人物" };
+
 type Props = {
   kind: EntityKind;
   /** 未填時的提示字，也是無障礙標籤。 */
@@ -1286,7 +1293,7 @@ export function EntityField({
           others > 0 ? `（還有 ${others} 場印著「${target.name}」）` : "";
         rows.push({
           key: "rename",
-          label: `${RENAME_MARK} 把實體改名為「${query}」${note}`,
+          label: `${RENAME_MARK} 將${KIND_NOUN[kind]}的主要名稱改成「${query}」${note}`,
           run: () => {
             // 那幾場要不要跟上是**編劇的裁決**，不是這裡的預設值。一場都沒有就沒什麼好問的。
             if (others === 0) {
@@ -1353,7 +1360,7 @@ export function EntityField({
       if (onRenameEntity) {
         rows.push({
           key: "alias-rename",
-          label: `同時把實體改名為「${query}」`,
+          label: `同時將${KIND_NOUN[kind]}的主要名稱改成「${query}」`,
           run: () => {
             void settle(
               () => {

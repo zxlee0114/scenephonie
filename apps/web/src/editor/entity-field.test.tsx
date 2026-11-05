@@ -658,7 +658,7 @@ describe("第三列：作為既有實體的另一個名字（兩步）", () => {
     fireEvent.mouseDown(container.querySelectorAll(".entity-field__menu li")[0]!);
     expect(rows(container)).toEqual([
       "只當這一場的名字（海豚公寓房間）",
-      "同時把實體改名為「未知大樓房間」",
+      "同時將地點的主要名稱改成「未知大樓房間」",
     ]);
   });
 
@@ -1005,7 +1005,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
     // **排在建立新實體後面**：第一列是 Enter 會做的事，而改名 ⌘Z 回不來，不該順手發生。
     expect(rows(container)).toEqual([
       "＋ 建立新實體「派出所後門」",
-      "✏️ 把實體改名為「派出所後門」",
+      "✏️ 將地點的主要名稱改成「派出所後門」",
       "🔗 作為既有實體的另一個名字…",
     ]);
   });
@@ -1023,7 +1023,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
     expect(rows(container)).toEqual([
       "📍 派出所（這場顯示為 分局）",
       "📍 派出所", // 改回以主要名稱顯示（票券 79）
-      "✏️ 把實體改名為「分局」",
+      "✏️ 將地點的主要名稱改成「分局」",
       "🔗 作為既有實體的另一個名字…",
     ]);
   });
@@ -1044,7 +1044,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
     );
     retype(container, "派出所後門");
 
-    expect(rows(container).some((r) => r.includes("把實體改名"))).toBe(false);
+    expect(rows(container).some((r) => r.includes("的主要名稱改成"))).toBe(false);
   });
 
   it("打的字是另一筆存在實體的名字時不出現 —— 那會讓目錄有兩筆同名（合併是另一件事）", () => {
@@ -1056,7 +1056,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
     );
     retype(container, "海豚公寓房間");
 
-    expect(rows(container).some((r) => r.includes("把實體改名"))).toBe(false);
+    expect(rows(container).some((r) => r.includes("的主要名稱改成"))).toBe(false);
   });
 
   it("孤兒不出現改名列 —— 沒拿在手上的目錄殘骸不算命中", () => {
@@ -1065,7 +1065,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
       target: { value: "派出所後門" },
     });
 
-    expect(rows(container).some((r) => r.includes("把實體改名"))).toBe(false);
+    expect(rows(container).some((r) => r.includes("的主要名稱改成"))).toBe(false);
   });
 
   it("沒有別場印著舊名 → 一步就改完：目錄改名，這一場也顯示新名", async () => {
@@ -1081,7 +1081,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
     retype(container, "派出所後門");
     fireEvent.mouseDown(
       [...container.querySelectorAll(".entity-field__menu li")].find((li) =>
-        li.textContent?.includes("把實體改名"),
+        li.textContent?.includes("的主要名稱改成"),
       )!,
     );
 
@@ -1106,7 +1106,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
       retype(view.container, "派出所後門");
       fireEvent.mouseDown(
         [...view.container.querySelectorAll(".entity-field__menu li")].find((li) =>
-          li.textContent?.includes("把實體改名"),
+          li.textContent?.includes("的主要名稱改成"),
         )!,
       );
       return { ...view, rename };
@@ -1132,7 +1132,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
       );
       retype(container, "派出所後門");
 
-      expect(rows(container)).toContain("✏️ 把實體改名為「派出所後門」（還有 1 場印著「派出所」）");
+      expect(rows(container)).toContain("✏️ 將地點的主要名稱改成「派出所後門」（還有 1 場印著「派出所」）");
     });
 
     it("「只改這一場」→ 別場一個字都不動", async () => {
@@ -1173,7 +1173,7 @@ describe("✏️ 把實體改名（票券 39）", () => {
       fireEvent.keyDown(container.querySelector("input")!, { key: "Escape" });
 
       expect(container.querySelector("input")!.value).toBe("派出所後門");
-      expect(rows(container).some((r) => r.includes("把實體改名為"))).toBe(true);
+      expect(rows(container).some((r) => r.includes("的主要名稱改成"))).toBe(true);
     });
   });
 });
@@ -1233,7 +1233,7 @@ describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
     });
 
     expect(heldNote(container)).toBe("💡 正在編輯「派出所」，修改文字可更新名稱");
-    expect(rows(container)).toContain("✏️ 把實體改名為「派出所後門」");
+    expect(rows(container)).toContain("✏️ 將地點的主要名稱改成「派出所後門」");
   });
 
   it("字清空了還握著 —— 編劇可能正要重新命名它，抬頭改說下一顆 Backspace 會做什麼", () => {
@@ -1253,7 +1253,7 @@ describe("手上握著一筆實體時的回饋（票券 39 收票）", () => {
     fireEvent.change(input, { target: { value: "" } });
     fireEvent.change(input, { target: { value: "派出所後門" } });
 
-    expect(rows(container)).toContain("✏️ 把實體改名為「派出所後門」");
+    expect(rows(container)).toContain("✏️ 將地點的主要名稱改成「派出所後門」");
   });
 
   it("Backspace 三段：拿起來、清空、放手 —— 第三下才輪到前一個 chip", () => {
