@@ -510,4 +510,17 @@ describe("新增人物：打劇本裡的叫法也命中那一位（票券 79）"
     await waitFor(() => expect(entries(container)).toEqual(["若晴", "小美"]));
     expect(createCharacter).not.toHaveBeenCalled();
   });
+
+  it("選「＋ 建立新實體」→ 真的另建一位叫美美的人，名字底下提一行小字（票券 79 驗收）", async () => {
+    const { container, createCharacter } = setup({ aliases: { [xiaomei.id]: ["美美"] } });
+    const input = await addInput(container);
+
+    fireEvent.change(input, { target: { value: "美美" } });
+    fireEvent.keyDown(input, { key: "ArrowDown" }); // 第二列：＋ 建立新實體
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(entries(container)).toEqual(["若晴", "美美"]));
+    expect(createCharacter).toHaveBeenCalledWith("美美");
+    expect(container.querySelector(".character-entry__namesake")?.textContent).toBe("小美在劇本裡也被叫做美美");
+  });
 });

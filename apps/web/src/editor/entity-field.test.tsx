@@ -2142,6 +2142,21 @@ describe("打別場的叫法也命中那筆實體（票券 79）", () => {
     expect(onCreate).not.toHaveBeenCalled();
   });
 
+  it("選「＋ 建立新實體」→ 照字面建一筆新的，不被別名吸走（票券 79 驗收）", async () => {
+    const created = { id: "lo_new", name: "我是誰" };
+    const onCreate = vi.fn(async () => created);
+    const { container } = render(
+      <Host options={[dragon]} aliases={new Map([[dragon.id, ["我是誰"]]])} onCreate={onCreate} />,
+    );
+    const input = container.querySelector("input")!;
+    fireEvent.change(input, { target: { value: "我是誰" } });
+    fireEvent.keyDown(input, { key: "ArrowDown" }); // 第二列：＋ 建立新實體
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith("我是誰"));
+    await waitFor(() => expect(chips(container)[0]!.classList.contains("entity-chip--new")).toBe(true));
+  });
+
   it("組字中的預覽也認得別名 —— 與送出之後那份選單同一份", () => {
     const { container } = render(
       <Host options={[dragon]} aliases={new Map([[dragon.id, ["我是誰"]]])} />,

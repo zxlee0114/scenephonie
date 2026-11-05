@@ -774,7 +774,10 @@ export function EntityField({
    * `head` ＝ 這是最後一個分隔符**之前**的那幾段（見 `settle`）。手上那一筆屬於最後一段 ——
    * 選單、抬頭說的都是那一段 —— 所以前面幾段不走「群演改顯示名」那條捷徑。
    */
-  const resolve = async (name: string, { head = false } = {}): Promise<EntityRef | null> => {
+  const resolve = async (
+    name: string,
+    { head = false, create = false } = {},
+  ): Promise<EntityRef | null> => {
     const held = editing.current;
     // 剛拿下來的那一筆是**群演**：改字改的是「這一場顯示的名字」，不是換一個目標。
     // （CONTEXT.md：群演欄寫「咖啡廳客人（8）」，對白顯示「眾人」—— 兩者本來就可以不同。）
@@ -797,7 +800,9 @@ export function EntityField({
     if (held?.id != null && editingMatch(name))
       return { id: held.id, displayName: name };
 
-    const hit = byName(name) ?? byAlias(name);
+    // `create` ＝ 編劇按的是「＋ 建立新實體」（票券 79 驗收）。那一列只在**沒有實體叫這個名字**時
+    // 出現，但別名仍可能對得上 —— 按下它就是說「不是那一位，是另一個人」，所以不再比對別名。
+    const hit = byName(name) ?? (create ? null : byAlias(name));
     if (hit) return { id: hit.id, displayName: name };
 
     const created = await onCreate(name);
@@ -1474,7 +1479,8 @@ export function EntityField({
    * 把還沒 chip 化的字定案（Enter、離開欄位、選單的「建立新實體」都走這裡）。
    *
    * `advance` ＝ 定案之後去 `onSettled`（離開欄位不去）。`asName` ＝ 編劇已經說了這串字是名字
-   * （「建立新實體」那一列）—— 不再照台詞標點把它搬去台詞。`leaving` ＝ 這是離開欄位那一下。
+   * （「建立新實體」那一列）—— 不再照台詞標點把它搬去台詞，也不再讓別名把它吸走（`resolve` 的
+   * `create`）。`leaving` ＝ 這是離開欄位那一下。
    */
   const commitText = async ({
     advance,
@@ -1498,7 +1504,7 @@ export function EntityField({
       selectNext.current = true;
       return;
     }
-    await settle(() => (query ? resolve(query) : null), { advance, leaving });
+    await settle(() => (query ? resolve(query, { create: asName }) : null), { advance, leaving });
   };
 
   /**
