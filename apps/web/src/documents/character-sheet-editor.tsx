@@ -413,6 +413,7 @@ export function CharacterSheetEditor({
                   options={options}
                   usage={usage}
                   // 劇本裡的叫法也命中那一位（票券 79）—— 表上已經有的人不在候選裡，他們的別名也就不會命中。
+                  // 這裡的別名表是伺服器算好、改名時就地更新的 state，不是走 doc；包成函式只是對上欄位的形狀。
                   aliases={() => new Map(Object.entries(aliases))}
                   aliasing={false}
                   inputRef={draftInput}

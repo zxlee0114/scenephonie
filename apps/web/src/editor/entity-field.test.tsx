@@ -2154,6 +2154,20 @@ describe("打別場的叫法也命中那筆實體（票券 79）", () => {
   });
 });
 
+describe("組字預覽與選單的第一列同一個樣子（票券 79 審查）", () => {
+  it("手上那一筆這一場顯示別名：預覽也補「這場顯示為」", () => {
+    const { container } = render(
+      <Host initial={[{ id: policeStation.id, displayName: "分局" }]} usage={() => new Map([[policeStation.id, 2]])} />,
+    );
+    fireEvent.mouseDown(container.querySelector(".entity-chip")!);
+    const input = container.querySelector("input")!;
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "分局" } });
+
+    expect(previewRows(container)[0]).toBe("📍 派出所（這場顯示為 分局）");
+  });
+});
+
 describe("拿起 chip 換一個叫法（票券 79 留言）", () => {
   const xiaozhi = { id: "lo_z", name: "小智" };
   const aliases = new Map([[xiaozhi.id, ["小陳", "阿智"]]]);
